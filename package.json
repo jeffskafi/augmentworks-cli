@@ -25,6 +25,7 @@
     "check": "npm run typecheck && npm test && npm run build",
     "audit:ci": "npm audit --audit-level=high",
     "smoke:pack": "node scripts/smoke-pack.mjs",
+    "prepare": "npm run build",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check && npm run audit:ci && npm run smoke:pack"
   },
