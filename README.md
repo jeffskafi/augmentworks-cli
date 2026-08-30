@@ -1,5 +1,7 @@
 # AugmentWorks CLI
 
+[![CI](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml)
+
 `@augmentworks/cli` is the deterministic, customer-operated connector that lets
 AugmentWorks assess chatbots running on localhost or inside a private network.
 It converts fixed assessment operations into calls to your application using a
