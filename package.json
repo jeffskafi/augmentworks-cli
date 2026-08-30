@@ -51,13 +51,13 @@
     "provenance": true
   },
   "devDependencies": {
-    "@types/node": "20.19.24",
-    "commander": "14.0.1",
+    "@types/node": "26.4.0",
+    "commander": "15.0.0",
     "open": "11.0.2",
     "tsup": "8.5.1",
-    "tsx": "4.20.5",
-    "typescript": "5.9.3",
-    "vitest": "3.2.7",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
     "yaml": "2.9.0",
     "zod": "4.5.4"
   },
