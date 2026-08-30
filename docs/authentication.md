@@ -47,11 +47,36 @@ never sends the PKCE verifier to the authorization endpoint.
 ## Credential storage
 
 Interactive credentials are revocable connector credentials, not workspace
-owner tokens. The CLI uses the operating-system credential store when it is
-available. If no supported store is available, first-time login fails safely by
-default. The user may explicitly opt into the local fallback with
-`--allow-file-credentials`; the CLI emits a warning, refuses symlinks, and on
-POSIX systems enforces mode `0600` for the credential file.
+owner tokens. Native storage is selected by platform:
+
+- macOS stores one API-origin-scoped generic password in the login Keychain via
+  the fixed `/usr/bin/security` helper. Save data is hex-encoded for the
+  helper's interactive parser and delivered over its private stdin pipe, not a
+  command-line argument; the CLI reads the item back before reporting success.
+- Windows encrypts an API-origin-scoped file with CurrentUser DPAPI through the
+  fixed built-in Windows PowerShell path. The helper protects the directory and
+  file ACL for the current SID and Local System, refuses reparse points,
+  inherited/broad ACLs, foreign ownership, and invalid ciphertext, and binds
+  DPAPI entropy to the API origin.
+- Linux uses the Secret Service through `secret-tool` when a session bus and
+  helper are available.
+
+If no supported store is available, first-time login fails safely by default.
+On POSIX systems the user may explicitly opt into the local fallback with
+`--allow-file-credentials`; the CLI emits a warning, refuses symlinks, and
+enforces mode `0600`. Plaintext fallback is disabled on Windows because a POSIX
+mode cannot prove a safe Windows ACL. No native Node add-on is required.
+
+Long-running `test` and `connect` processes resolve a current access token
+before every cloud request. Interactive credentials refresh shortly before
+expiry and once after an HTTP 401. Refresh-token rotation is serialized with a
+secure, API-origin-scoped process lock; a waiting command re-loads and reuses
+the credential written by the process that won the refresh. A same-host stale
+lock is reclaimed when its process is positively known dead, including on
+systems without Linux boot metadata. A verifiable previous boot or mismatched
+process-start identity also proves that a live reused PID is not the recorded
+owner. The CLI rechecks the unchanged directory, owner-file identity, and nonce
+before removal; unknown identity remains fail-closed.
 
 Use:
 
@@ -63,24 +88,23 @@ npx --yes @augmentworks/cli@0.1.0 logout
 `logout` removes local credential material. Revoke a lost machine or connector
 from the AugmentWorks workspace as well.
 
-## CI
+## Future automation credentials
 
-CI uses a separately issued, least-privilege project token supplied by the CI
-secret manager:
-
-```bash
-AUGMENTWORKS_TOKEN="$AUGMENTWORKS_TOKEN" \
-npx --yes @augmentworks/cli@0.1.0 test \
-  -c augmentworks.yaml \
-  --packet support-refunds@0.1.0
-```
+`AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
+future project tokens and local integration harnesses. The CLI never loads or
+writes an interactive credential when this environment variable is present.
+Project-token issuance is intentionally separate from the interactive v0.1
+connector-auth endpoints and is not implemented by this release. Do not use the
+one-hour interactive access token as an unattended CI credential.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a
 build log, or paste it into an AI assistant. Rotate CI credentials on exposure
 and scope them to one workspace and the minimum required target actions.
 
-## Production availability
+## Production rollout
 
-The production authorization endpoints are not deployed yet. Until they are,
-authentication behavior is exercised only by local integration tests and mock
-services in this repository.
+The production authorization endpoints are implemented in the AugmentWorks
+platform source. They remain release-gated until the database migration,
+Vercel deployment, production smoke assessment, and pinned npm publication are
+complete. Until then, authentication behavior is exercised against local
+integration services in this repository.

@@ -150,13 +150,21 @@ authoritative, and replaying a create request never charges again.
 
 ## Run creation and restart recovery
 
-Before the create POST, `test` atomically stores a secret-free active intent in
-the local AugmentWorks state directory. There is one locked intent per API
-origin. Re-running the exact same `test` request as the same OS user on the same
-machine reuses its create ID and byte-equivalent canonical body, then resumes
-the same run and command journal. A different packet, configuration, target, or
-capability set is refused with `ACTIVE_RUN_EXISTS`; v0.1 has no force-new
-bypass.
+Before the create POST, `test` resolves the authenticated workspace and
+connector through `/api/v1/cli/auth/me`, then atomically stores a secret-free
+active intent in the local AugmentWorks state directory. There is one locked
+intent per API origin, and its durable tenant binding must match before any
+create request is sent. Re-running the exact same `test` request as the same OS
+user on the same machine and connector reuses its create ID and byte-equivalent
+canonical body, then resumes the same run and command journal. A different
+tenant is refused with `ACTIVE_RUN_TENANT_MISMATCH`; a different packet,
+configuration, target, or capability set is refused with `ACTIVE_RUN_EXISTS`.
+v0.1 has no force-new bypass.
+
+A legacy bound intent without a tenant field is migrated only after the current
+credential can read its exact run. An unbound legacy intent cannot prove which
+connector may already own its create ID and therefore fails closed without
+sending a create request.
 
 The intent is removed only after the runner or a status GET returns an
 authoritative `completed`, `failed`, or `cancelled` status. A crash, network
@@ -166,11 +174,13 @@ only the command line to another machine does not transfer ownership or safely
 reconstruct a lost create ID.
 
 Recovery proceeds only when the secure lock owner can be positively
-established. A stale lock is reclaimed only on the same host and system boot,
-after the recorded process is proven dead and the owner record and filesystem
-identity remain unchanged. A live owner, unknown liveness, missing boot/process
-identity, ambiguous or reused PID, different host/boot, symlink, unsafe
-permissions, or changed lock is refused; the CLI does not guess ownership.
+established. On the same host, a positively dead recorded process is reclaimable
+even when boot/process-start metadata is unavailable. A verifiable earlier boot
+or mismatched process-start identity also establishes that a reused live PID is
+not the recorded owner. Before removal, the CLI rechecks the unchanged lock
+directory, owner-file identity, and nonce. A verified live owner, unknown
+liveness/identity, different host, symlink, unsafe permissions, or changed lock
+is refused; the CLI does not guess ownership.
 
 ## Polling
 

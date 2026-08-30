@@ -6,7 +6,7 @@ selects how that operation reaches the local application.
 
 ## Assets
 
-- AugmentWorks connector and CI credentials
+- AugmentWorks connector and optional static automation credentials
 - Customer application credentials in the local environment
 - Synthetic fixture identifiers and state
 - Scenario messages, tool events, observations, and scored evidence
@@ -37,9 +37,11 @@ refused.
   command with a durable terminal result returns that result; a conflicting
   replay fails. An unfinished operation executes again only when explicitly
   declared idempotent.
-- Run creation has a durable idempotency key. The CLI writes one active intent
-  per API origin before the create POST, replays the exact request after a
-  restart, and refuses a different active request. There is no force-new bypass.
+- Run creation has a durable idempotency key. Before the create POST, the CLI
+  resolves `/api/v1/cli/auth/me` and writes one active intent per API origin,
+  bound to that workspace and connector. It replays the exact request after a
+  restart and refuses a different tenant or active request before create. There
+  is no force-new bypass.
 - Commands received after their expiry or under an old fencing epoch are not
   executed.
 - Cancellation fences new work but permits cleanup for a fixture that may have
@@ -73,11 +75,19 @@ trusted local principal. A cloud command cannot alter the configured endpoint.
 
 ## Credentials
 
-- AugmentWorks interactive credentials use an OS credential store when
-  supported. A first-time file fallback requires explicit
-  `--allow-file-credentials`, emits a warning, refuses symlinks, and uses mode
-  `0600` where POSIX permissions apply.
-- CI tokens come from the CI secret store through `AUGMENTWORKS_TOKEN`.
+- AugmentWorks interactive credentials use the macOS login Keychain, Windows
+  CurrentUser DPAPI, or Linux Secret Service when supported. macOS and Windows
+  save secrets to native helpers through stdin rather than command-line
+  arguments. The
+  Windows DPAPI file has an origin-bound entropy value and a protected
+  current-user/Local-System ACL; foreign ownership, reparse points, inherited
+  or broad ACLs, and invalid ciphertext fail closed.
+- A POSIX file fallback requires explicit `--allow-file-credentials`, emits a
+  warning, refuses symlinks, and enforces mode `0600`. Plaintext fallback is
+  disabled on Windows because POSIX modes do not establish Windows ACL safety.
+- `AUGMENTWORKS_TOKEN` is reserved for future project tokens and local
+  integration harnesses; the v0.1 interactive auth service does not issue a
+  long-lived CI credential.
 - Customer target credentials are named, not embedded, in YAML and are resolved
   from the local environment.
 - Tokens are never accepted as command-line flags, included in config digests,
@@ -109,9 +119,10 @@ The CLI uses unkeyed SHA-256 digests as replay checksums. Comparing them with an
 already-durable local or relay record detects a conflicting command or result;
 it does not prove evidence provenance or make the evidence independently
 tamper-evident. HTTPS authenticates the transport endpoint, not a later evidence
-artifact. The production hosted relay/evidence service is not deployed yet and
-would need separate authenticated server-side bindings or signing to bind the
-packet, scorer, runner, CLI, configuration, target identity, and ordered results.
+artifact. The production hosted relay/evidence source implements authenticated,
+server-side bindings across the packet, scorer, orchestrator, CLI connector,
+configuration boundary, target declaration, and ordered results. It remains
+release-gated until its migration and Vercel deployment are smoke-tested.
 
 Even a separately authenticated evidence record would **not** turn
 customer-operated code into an independent observer. A target or observation
@@ -124,8 +135,9 @@ never an inferred success from chatbot text.
 
 - v0.1 supports synthetic fixtures in test or staging environments only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
-- `test` is an explicit local action. The v0.1 dashboard observes and cancels a
-  run; it cannot start arbitrary work on an offline connector.
+- `test` is an explicit local action. While `connect` is online, a workspace
+  owner may authorize the fixed support/refunds assessment from the dashboard;
+  the dashboard cannot send arbitrary work, URLs, or shell instructions.
 - Cleanup should be idempotent, and target fixtures should have a server-side
   TTL as a final orphan safeguard.
 - Active intents and command journals are bounded regular files with mode
@@ -141,11 +153,13 @@ never an inferred success from chatbot text.
 - Recovery is same-machine and state-directory scoped. Losing that state can
   make a prior create or target side effect impossible to distinguish safely;
   v0.1 will not invent a new run to bypass the ambiguity.
-- Recovery also requires positive lock ownership. The CLI reclaims a stale lock
-  only on the same host and boot after proving its recorded process is dead and
-  rechecking the unchanged owner/file identity. Live, unknown, foreign,
-  PID-reuse-ambiguous, symlinked, permission-unsafe, or changed locks are
-  refused rather than guessed stale.
+- Recovery also requires positive lock ownership. On the same host, the CLI
+  reclaims a lock after its recorded process is positively dead even when Linux
+  boot/process metadata is unavailable. A verifiable prior boot or different
+  process-start identity also proves that a reused live PID is not the owner.
+  The CLI then rechecks the unchanged directory, owner-file identity, and nonce.
+  A verified live owner, unknown liveness/identity, foreign host, symlink,
+  permission-unsafe path, or changed lock is refused rather than guessed stale.
 
 ## Known limitations
 

@@ -2,8 +2,10 @@ import { resolve } from "node:path";
 
 import { Command } from "commander";
 
+import { CloudAuthClient } from "../auth/client.js";
 import { getApiOrigin } from "../auth/api-origin.js";
-import { resolveAccessToken } from "../auth/credential-store.js";
+import { createAccessTokenManager, resolveAccessToken } from "../auth/credential-store.js";
+import type { AccessTokenProvider, AuthIdentity } from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import {
   RELAY_PROTOCOL_VERSION,
@@ -17,7 +19,8 @@ import { HttpConnector } from "../connector/http.js";
 import { AwError, EXIT, sanitizeTerminal } from "../errors.js";
 import {
   RunIntentStore,
-  type CreateRunIntentRequest
+  type CreateRunIntentRequest,
+  type RunIntentTenantBinding
 } from "../relay/run-intent.js";
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { getStateDirectory } from "../relay/state-dir.js";
@@ -52,7 +55,16 @@ export interface TestDependencies {
   readonly doctor?: (options: Parameters<typeof runDoctor>[0]) => Promise<DoctorReport>;
   readonly apiOrigin?: (env: NodeJS.ProcessEnv) => URL;
   readonly accessToken?: (options: Parameters<typeof resolveAccessToken>[0]) => Promise<string>;
-  readonly cloud?: (options: { apiOrigin: URL; accessToken: string }) => CloudClient;
+  readonly identity?: (options: {
+    readonly apiOrigin: URL;
+    readonly accessToken: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<AuthIdentity>;
+  readonly cloud?: (options: {
+    apiOrigin: URL;
+    accessToken: string;
+    accessTokenProvider: AccessTokenProvider;
+  }) => CloudClient;
   readonly connector?: (config: ResolvedConfig) => HttpConnector;
   readonly runner?: (options: ConstructorParameters<typeof RelayRunner>[0]) => RelayRunner;
   readonly intentStore?: (
@@ -86,21 +98,69 @@ export async function runTest(
 
   const packet = parsePacketReference(options.packet);
   const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
-  const accessToken = await (dependencies.accessToken ?? resolveAccessToken)({
+  const accessTokenOptions = {
     apiOrigin,
     env,
     ...(options.allowFileCredentials === undefined
       ? {}
       : { allowFileFallback: options.allowFileCredentials }),
-    onWarning: (message) => writeLine(dependencies.stderr ?? process.stderr, message)
-  });
+    onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
+  };
+  const rawAccessTokenProvider: AccessTokenProvider =
+    dependencies.accessToken === undefined
+      ? (await createAccessTokenManager(accessTokenOptions)).getAccessToken
+      : async (request = {}) =>
+          await dependencies.accessToken!({
+            ...accessTokenOptions,
+            ...request
+          });
+  const authClient = new CloudAuthClient({ apiOrigin });
+  const lookupIdentity =
+    dependencies.identity ??
+    (async (identityOptions: { readonly accessToken: string; readonly signal?: AbortSignal }) =>
+      await authClient.me(identityOptions.accessToken));
+  let accessToken = await rawAccessTokenProvider();
+  let identity: AuthIdentity;
+  try {
+    identity = await lookupIdentity({
+      apiOrigin,
+      accessToken,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+  } catch (cause) {
+    if (!(cause instanceof AwError) || cause.code !== "TOKEN_REVOKED") throw cause;
+    const replacement = await rawAccessTokenProvider({
+      forceRefresh: true,
+      rejectedAccessToken: accessToken,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+    if (replacement === accessToken) throw cause;
+    accessToken = replacement;
+    identity = await lookupIdentity({
+      apiOrigin,
+      accessToken,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+  }
+  const tenant = tenantBinding(identity);
+  let verifiedAccessToken = accessToken;
+  const accessTokenProvider: AccessTokenProvider = async (request = {}) => {
+    const current = await rawAccessTokenProvider(request);
+    if (current === verifiedAccessToken) return current;
+    const currentIdentity = await lookupIdentity({
+      apiOrigin,
+      accessToken: current,
+      ...(request.signal === undefined ? {} : { signal: request.signal })
+    });
+    assertSameTenant(tenant, currentIdentity);
+    verifiedAccessToken = current;
+    return current;
+  };
   const cloud =
-    dependencies.cloud?.({ apiOrigin, accessToken }) ??
-    new CloudClient({ apiUrl: apiOrigin, accessToken });
+    dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
+    new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
   const observationKeys = report.resolvedConfig.capabilities.observation
-    ? [
-        ...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])
-      ].sort()
+    ? [...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
     : [];
   const request: CreateRunIntentRequest = {
     protocol_version: RELAY_PROTOCOL_VERSION,
@@ -120,10 +180,14 @@ export async function runTest(
   };
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
   const intentStore =
-    dependencies.intentStore?.({ apiOrigin, stateDirectory, env }) ??
-    new RunIntentStore({ apiOrigin, stateDirectory, env });
+    dependencies.intentStore?.({ apiOrigin, tenant, stateDirectory, env }) ??
+    new RunIntentStore({ apiOrigin, tenant, stateDirectory, env });
   await intentStore.open();
   try {
+    await intentStore.migrateLegacyTenantBinding(async (legacyBinding) => {
+      const status = await cloud.getRunStatus(legacyBinding.run_id, options.signal);
+      return status.run_id === legacyBinding.run_id;
+    });
     const loaded = await intentStore.loadOrCreate(request);
     const binding = await cloud.createRun(loaded.intent.request, options.signal);
     assertRunBinding(binding, loaded.intent.request);
@@ -137,7 +201,9 @@ export async function runTest(
     );
     if (options.open === true) {
       try {
-        await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [apiOrigin.origin])))(dashboard);
+        await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [apiOrigin.origin])))(
+          dashboard
+        );
       } catch (error) {
         if (!(error instanceof AwError) || error.code !== "BROWSER_OPEN_FAILED") throw error;
         writeLine(stderr, "The dashboard could not be opened automatically; use the URL above.");
@@ -196,54 +262,59 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "--allow-file-credentials",
       "allow a warned mode-0600 credential file when OS credential storage is unavailable"
     )
-    .action(async (values: {
-      config: string;
-      packet: string;
-      open?: boolean;
-      json?: boolean;
-      allowFileCredentials?: boolean;
-    }) => {
-      const result = await runTest(
-        {
-          config: values.config,
-          packet: values.packet,
-          ...(values.open === undefined ? {} : { open: values.open }),
-          ...(values.json === undefined ? {} : { json: values.json }),
-          ...(values.allowFileCredentials === undefined
-            ? {}
-            : { allowFileCredentials: values.allowFileCredentials })
-        },
-        dependencies
-      );
-      const stdout = dependencies.stdout ?? process.stdout;
-      if (values.json === true) {
-        stdout.write(
-          `${JSON.stringify({
-            run_id: result.run.run_id,
-            status: result.run.status,
-            credit_state: result.run.credit_state,
-            outcome: result.run.outcome ?? null,
-            dashboard_url: result.binding.dashboard_url
-          })}\n`
+    .action(
+      async (values: {
+        config: string;
+        packet: string;
+        open?: boolean;
+        json?: boolean;
+        allowFileCredentials?: boolean;
+      }) => {
+        const result = await runTest(
+          {
+            config: values.config,
+            packet: values.packet,
+            ...(values.open === undefined ? {} : { open: values.open }),
+            ...(values.json === undefined ? {} : { json: values.json }),
+            ...(values.allowFileCredentials === undefined
+              ? {}
+              : { allowFileCredentials: values.allowFileCredentials })
+          },
+          dependencies
         );
-      } else {
-        writeLine(
-          stdout,
-          `Assessment ${sanitizeTerminal(result.run.status)}${
-            result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
-          }.`
-        );
+        const stdout = dependencies.stdout ?? process.stdout;
+        if (values.json === true) {
+          stdout.write(
+            `${JSON.stringify({
+              run_id: result.run.run_id,
+              status: result.run.status,
+              credit_state: result.run.credit_state,
+              outcome: result.run.outcome ?? null,
+              dashboard_url: result.binding.dashboard_url
+            })}\n`
+          );
+        } else {
+          writeLine(
+            stdout,
+            `Assessment ${sanitizeTerminal(result.run.status)}${
+              result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
+            }.`
+          );
+        }
+        const setExitCode =
+          dependencies.setExitCode ??
+          ((code: number) => {
+            process.exitCode = code;
+          });
+        if (result.run.status === "cancelled") setExitCode(EXIT.INTERRUPTED);
+        else if (
+          result.run.status === "failed" ||
+          (result.run.outcome != null && result.run.outcome !== "passed")
+        ) {
+          setExitCode(EXIT.ASSESSMENT_FAILED);
+        }
       }
-      const setExitCode =
-        dependencies.setExitCode ??
-        ((code: number) => {
-          process.exitCode = code;
-        });
-      if (result.run.status === "cancelled") setExitCode(EXIT.INTERRUPTED);
-      else if (result.run.status === "failed" || (result.run.outcome != null && result.run.outcome !== "passed")) {
-        setExitCode(EXIT.ASSESSMENT_FAILED);
-      }
-    });
+    );
 }
 
 export function installRelayInterruptHandler(
@@ -254,9 +325,13 @@ export function installRelayInterruptHandler(
   const listener = () => {
     count += 1;
     if (count >= 2) options.host.exit(EXIT.INTERRUPTED);
-    writeLine(options.stderr, "Cancellation requested; draining cleanup. Press Ctrl+C again to exit now.");
+    writeLine(
+      options.stderr,
+      "Cancellation requested; draining cleanup. Press Ctrl+C again to exit now."
+    );
     void runner.requestCancellation("sigint").catch((error: unknown) => {
-      const message = error instanceof AwError ? error.message : "Could not send cancellation to AugmentWorks.";
+      const message =
+        error instanceof AwError ? error.message : "Could not send cancellation to AugmentWorks.";
       writeLine(options.stderr, message);
     });
   };
@@ -266,10 +341,14 @@ export function installRelayInterruptHandler(
   };
 }
 
-export function parsePacketReference(value: string): { key: string; version: string } {
-  const match = /^([A-Za-z0-9][A-Za-z0-9._:/-]{0,159})@(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/.exec(
-    value.trim()
-  );
+export function parsePacketReference(value: string): {
+  key: string;
+  version: string;
+} {
+  const match =
+    /^([A-Za-z0-9][A-Za-z0-9._:/-]{0,159})@(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)$/.exec(
+      value.trim()
+    );
   if (match?.[1] === undefined || match[2] === undefined) {
     throw new AwError({
       code: "INVALID_PACKET_REFERENCE",
@@ -280,10 +359,7 @@ export function parsePacketReference(value: string): { key: string; version: str
   return { key: match[1], version: match[2] };
 }
 
-function assertRunBinding(
-  binding: CreateRunResponse,
-  request: CreateRunRequest
-): void {
+function assertRunBinding(binding: CreateRunResponse, request: CreateRunRequest): void {
   if (
     binding.create_request_id !== request.create_request_id ||
     binding.packet.key !== request.packet.key ||
@@ -294,6 +370,27 @@ function assertRunBinding(
       code: "RUN_BINDING_MISMATCH",
       category: "protocol",
       message: "AugmentWorks created a run with a different packet or configuration binding."
+    });
+  }
+}
+
+function tenantBinding(identity: AuthIdentity): RunIntentTenantBinding {
+  return {
+    workspace_id: identity.workspaceId,
+    connector_id: identity.connectorId
+  };
+}
+
+function assertSameTenant(expected: RunIntentTenantBinding, identity: AuthIdentity): void {
+  if (
+    identity.workspaceId !== expected.workspace_id ||
+    identity.connectorId !== expected.connector_id
+  ) {
+    throw new AwError({
+      code: "AUTH_TENANT_CHANGED",
+      category: "auth",
+      message:
+        "The authenticated AugmentWorks connector or workspace changed while the assessment was starting. No request was sent with the changed credential."
     });
   }
 }

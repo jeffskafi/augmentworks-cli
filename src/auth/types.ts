@@ -20,6 +20,19 @@ export interface ResolvedCredential {
   readonly source: CredentialSource;
 }
 
+export interface AccessTokenRequest {
+  readonly forceRefresh?: boolean;
+  readonly rejectedAccessToken?: string;
+  readonly signal?: AbortSignal;
+}
+
+export type AccessTokenProvider = (request?: AccessTokenRequest) => Promise<string>;
+
+export interface AccessTokenManager {
+  readonly source: CredentialSource;
+  readonly getAccessToken: AccessTokenProvider;
+}
+
 export interface CredentialStore {
   readonly kind: "native" | "file";
   readonly description: string;

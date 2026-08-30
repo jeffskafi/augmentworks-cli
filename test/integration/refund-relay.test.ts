@@ -7,7 +7,12 @@ import { expect, test } from "vitest";
 
 import type { RelayCommand } from "../../src/cloud/protocol.js";
 import { canonicalize, sha256 } from "../../src/util/canonical.js";
-import { readJsonBody, sendJson, listenLoopback, type ListeningServer } from "../util/http-server.js";
+import {
+  readJsonBody,
+  sendJson,
+  listenLoopback,
+  type ListeningServer
+} from "../util/http-server.js";
 import { runSourceCli } from "../util/cli-process.js";
 
 const protocolVersion = "aw-relay/0.1" as const;
@@ -130,7 +135,10 @@ test("the child CLI executes a stateful refund assessment over the outbound rela
   let relayBaseUrl = "";
   const runExpiresAt = new Date(Date.now() + 2 * 60_000).toISOString();
 
-  const handleTarget = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+  const handleTarget = async (
+    request: IncomingMessage,
+    response: ServerResponse
+  ): Promise<void> => {
     if (request.method !== "POST") {
       sendJson(response, 405, { error: "method_not_allowed" });
       return;
@@ -239,14 +247,28 @@ test("the child CLI executes a stateful refund assessment over the outbound rela
 
   const handleRelay = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     if (request.headers.authorization !== "Bearer integration-access-token") {
-      sendJson(response, 401, { error: { code: "CLOUD_AUTH_REJECTED", message: "Unauthorized" } });
+      sendJson(response, 401, {
+        error: { code: "CLOUD_AUTH_REJECTED", message: "Unauthorized" }
+      });
       return;
     }
     const path = new URL(request.url ?? "/", "http://relay.invalid").pathname;
 
+    if (request.method === "GET" && path === "/api/v1/cli/auth/me") {
+      sendJson(response, 200, {
+        subject: "user-integration",
+        workspace_id: "workspace-integration",
+        connector_id: "connector-integration",
+        scopes: ["connector:identity", "connector:run"]
+      });
+      return;
+    }
     if (request.method === "POST" && path === "/v1/relay/runs") {
       const body = record(await readJsonBody(request), "create-run request");
-      expect(body["packet"]).toEqual({ key: packet.key, version: packet.version });
+      expect(body["packet"]).toEqual({
+        key: packet.key,
+        version: packet.version
+      });
       const targetBinding = record(body["target"], "target binding");
       expect(record(targetBinding["capabilities"], "capabilities")).toEqual({
         prepare: true,
@@ -289,7 +311,8 @@ test("the child CLI executes a stateful refund assessment over the outbound rela
       const body = record(await readJsonBody(request), "poll request");
       const afterSequence = body["after_sequence"];
       if (typeof afterSequence !== "number") throw new Error("poll cursor must be numeric");
-      const command = commands.find((candidate) => candidate.sequence === afterSequence + 1) ?? null;
+      const command =
+        commands.find((candidate) => candidate.sequence === afterSequence + 1) ?? null;
       sendJson(response, 200, {
         protocol_version: protocolVersion,
         run_id: "run-integration-1",
@@ -337,7 +360,9 @@ test("the child CLI executes a stateful refund assessment over the outbound rela
       });
       return;
     }
-    sendJson(response, 404, { error: { code: "NOT_FOUND", message: "Not found" } });
+    sendJson(response, 404, {
+      error: { code: "NOT_FOUND", message: "Not found" }
+    });
   };
 
   const guarded =
@@ -346,7 +371,10 @@ test("the child CLI executes a stateful refund assessment over the outbound rela
       void handler(request, response).catch((error: unknown) => {
         const caught = error instanceof Error ? error : new Error(String(error));
         serverErrors.push(caught);
-        if (!response.headersSent) sendJson(response, 500, { error: { code: "MOCK_FAILURE", message: caught.message } });
+        if (!response.headersSent)
+          sendJson(response, 500, {
+            error: { code: "MOCK_FAILURE", message: caught.message }
+          });
         else response.destroy(caught);
       });
     };

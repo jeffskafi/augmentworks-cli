@@ -19,15 +19,27 @@ export async function findExecutable(
 ): Promise<string | null> {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
+  const platformPath = platform === "win32" ? path.win32 : path.posix;
+  if (platformPath.isAbsolute(name)) {
+    try {
+      await access(name, fsConstants.X_OK);
+      return name;
+    } catch {
+      return null;
+    }
+  }
   const pathValue = env["PATH"] ?? "";
   const pathExtensions =
     platform === "win32"
       ? (env["PATHEXT"] ?? ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean)
       : [""];
 
-  for (const directory of pathValue.split(path.delimiter).filter(Boolean)) {
+  for (const directory of pathValue.split(platformPath.delimiter).filter(Boolean)) {
     for (const extension of pathExtensions) {
-      const candidate = path.join(directory, platform === "win32" ? `${name}${extension}` : name);
+      const candidate = platformPath.join(
+        directory,
+        platform === "win32" ? `${name}${extension}` : name
+      );
       try {
         await access(candidate, fsConstants.X_OK);
         return candidate;

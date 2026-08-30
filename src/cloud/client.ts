@@ -1,4 +1,5 @@
 import { AwError } from "../errors.js";
+import type { AccessTokenProvider, AccessTokenRequest } from "../auth/types.js";
 import { canonicalize, sha256 } from "../util/canonical.js";
 import { assertJsonLimits, LIMITS } from "../util/limits.js";
 import { CLI_VERSION } from "../version.js";
@@ -28,6 +29,7 @@ import {
 export interface CloudClientOptions {
   apiUrl: string | URL;
   accessToken: string;
+  accessTokenProvider?: AccessTokenProvider;
   fetch?: typeof globalThis.fetch;
   requestTimeoutMs?: number;
 }
@@ -52,19 +54,14 @@ export type FailureDisposition = "failed" | "outcome_indeterminate";
 export class CloudClient {
   readonly apiUrl: URL;
   readonly requestTimeoutMs: number;
-  readonly #accessToken: string;
+  #accessToken: string;
+  readonly #accessTokenProvider: AccessTokenProvider | undefined;
   readonly #fetch: typeof globalThis.fetch;
 
   constructor(options: CloudClientOptions) {
     this.apiUrl = normalizeApiUrl(options.apiUrl);
-    if (!options.accessToken.trim()) {
-      throw new AwError({
-        code: "AUTH_REQUIRED",
-        category: "auth",
-        message: "Log in to AugmentWorks before starting an assessment."
-      });
-    }
-    this.#accessToken = options.accessToken;
+    this.#accessToken = requireAccessToken(options.accessToken);
+    this.#accessTokenProvider = options.accessTokenProvider;
     this.#fetch = options.fetch ?? globalThis.fetch;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
   }
@@ -259,8 +256,12 @@ export class CloudClient {
     externalSignal?: AbortSignal,
     timeoutMs = this.requestTimeoutMs,
     allowNoContent = false,
-    additionalHeaders: Readonly<Record<string, string>> = {}
+    additionalHeaders: Readonly<Record<string, string>> = {},
+    allowAuthRefresh = true
   ): Promise<unknown | undefined> {
+    const accessToken = await this.#currentAccessToken(
+      externalSignal === undefined ? {} : { signal: externalSignal }
+    );
     const url = apiEndpoint(this.apiUrl, path);
     const controller = new AbortController();
     const onAbort = () => controller.abort(externalSignal?.reason);
@@ -279,7 +280,7 @@ export class CloudClient {
         signal: controller.signal,
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${this.#accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           "X-AugmentWorks-CLI-Version": CLI_VERSION,
           ...additionalHeaders,
           ...(body === undefined ? {} : { "Content-Type": "application/json" })
@@ -351,6 +352,28 @@ export class CloudClient {
       });
     }
     if (value !== undefined) assertJsonLimits(value, "AugmentWorks response");
+    if (response.status === 401 && allowAuthRefresh && this.#accessTokenProvider !== undefined) {
+      const replacement = requireAccessToken(
+        await this.#accessTokenProvider({
+          forceRefresh: true,
+          rejectedAccessToken: accessToken,
+          ...(externalSignal === undefined ? {} : { signal: externalSignal })
+        })
+      );
+      this.#accessToken = replacement;
+      if (replacement !== accessToken) {
+        return await this.#request(
+          method,
+          path,
+          body,
+          externalSignal,
+          timeoutMs,
+          allowNoContent,
+          additionalHeaders,
+          false
+        );
+      }
+    }
     if (!response.ok) throw cloudHttpError(response.status, value);
     if (value === undefined) {
       throw new AwError({
@@ -361,6 +384,24 @@ export class CloudClient {
     }
     return value;
   }
+
+  async #currentAccessToken(request: AccessTokenRequest): Promise<string> {
+    if (this.#accessTokenProvider === undefined) return this.#accessToken;
+    const current = requireAccessToken(await this.#accessTokenProvider(request));
+    this.#accessToken = current;
+    return current;
+  }
+}
+
+function requireAccessToken(value: string): string {
+  if (value.trim() === "" || /[\r\n\0]/u.test(value)) {
+    throw new AwError({
+      code: "AUTH_REQUIRED",
+      category: "auth",
+      message: "Log in to AugmentWorks before starting an assessment."
+    });
+  }
+  return value;
 }
 
 async function retryDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
