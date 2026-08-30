@@ -1,0 +1,66 @@
+{
+  "name": "@augmentworks/cli",
+  "version": "0.1.0",
+  "description": "Deterministic outbound connector for AugmentWorks assessments",
+  "type": "module",
+  "bin": {
+    "augmentworks": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "schemas",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm test && npm run build",
+    "audit:ci": "npm audit --audit-level=high",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check && npm run audit:ci && npm run smoke:pack"
+  },
+  "keywords": [
+    "augmentworks",
+    "ai-evaluation",
+    "agent-testing",
+    "chatbot-testing",
+    "cli"
+  ],
+  "author": "AugmentWorks",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeffskafi/augmentworks-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jeffskafi/augmentworks-cli/issues"
+  },
+  "homepage": "https://github.com/jeffskafi/augmentworks-cli#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "devDependencies": {
+    "@types/node": "20.19.24",
+    "commander": "14.0.1",
+    "open": "11.0.2",
+    "tsup": "8.5.1",
+    "tsx": "4.20.5",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7",
+    "yaml": "2.9.0",
+    "zod": "4.5.4"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
+  }
+}

@@ -1,0 +1,314 @@
+#!/usr/bin/env node
+
+import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
+const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+const commandTimeoutMs = 120_000;
+
+class SmokeFailure extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SmokeFailure";
+  }
+}
+
+function assert(condition, message) {
+  if (!condition) throw new SmokeFailure(message);
+}
+
+function run(executable, args, options = {}) {
+  const result = spawnSync(executable, args, {
+    cwd: options.cwd ?? projectRoot,
+    env: { ...process.env, ...options.env, NO_COLOR: "1" },
+    encoding: "utf8",
+    timeout: commandTimeoutMs,
+    windowsHide: true
+  });
+
+  if (result.error !== undefined) {
+    throw new SmokeFailure(
+      `Could not run ${executable} ${args.join(" ")}: ${result.error.message}`
+    );
+  }
+  if (result.status !== 0) {
+    throw new SmokeFailure(
+      [
+        `Command failed (${String(result.status)}): ${executable} ${args.join(" ")}`,
+        result.stdout.trim(),
+        result.stderr.trim()
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+  }
+
+  return { stdout: result.stdout, stderr: result.stderr };
+}
+
+async function walkFiles(root) {
+  const files = [];
+
+  async function visit(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await visit(path);
+      else if (entry.isFile() || entry.isSymbolicLink()) files.push(path);
+    }
+  }
+
+  await visit(root);
+  return files;
+}
+
+function normalizePath(path) {
+  return path.split(sep).join("/").replace(/^package\//, "");
+}
+
+function parsePackReport(stdout) {
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (error) {
+    throw new SmokeFailure(
+      `npm pack did not return valid JSON: ${error instanceof Error ? error.message : String(error)}\n${stdout}`
+    );
+  }
+
+  assert(Array.isArray(parsed) && parsed.length === 1, "npm pack must produce exactly one tarball");
+  const report = parsed[0];
+  assert(report !== null && typeof report === "object", "npm pack returned an invalid report");
+  assert(typeof report.filename === "string", "npm pack report is missing its filename");
+  assert(Array.isArray(report.files), "npm pack report is missing its file inventory");
+  return report;
+}
+
+function assertInventory(report) {
+  const files = report.files.map((entry) => normalizePath(String(entry.path)));
+  const fileSet = new Set(files);
+  const required = [
+    "package.json",
+    "dist/index.js",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md"
+  ];
+
+  for (const path of required) {
+    assert(fileSet.has(path), `published tarball is missing ${path}`);
+  }
+  assert(
+    files.some((path) => path.startsWith("schemas/") && path.endsWith(".schema.json")),
+    "published tarball is missing its versioned JSON Schema"
+  );
+
+  const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/"];
+  for (const path of files) {
+    assert(
+      !forbiddenPrefixes.some((prefix) => path.startsWith(prefix)),
+      `development-only path leaked into the tarball: ${path}`
+    );
+    const basename = path.slice(path.lastIndexOf("/") + 1);
+    assert(basename !== ".env", `secret-bearing .env file leaked into the tarball: ${path}`);
+    assert(!/\.(?:pem|key|p12|pfx)$/i.test(path), `private-key-shaped file leaked into the tarball: ${path}`);
+    assert(!path.endsWith(".ts") || path.endsWith(".d.ts"), `TypeScript source leaked into the tarball: ${path}`);
+  }
+}
+
+async function assertNoEmbeddedSecrets(packageRoot) {
+  const secretPatterns = [
+    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+    /\bnpm_[A-Za-z0-9]{30,}\b/,
+    /\bgh[pousr]_[A-Za-z0-9]{20,}\b/,
+    /\bAKIA[A-Z0-9]{16}\b/,
+    /\baw_(?:project|connector)_[A-Za-z0-9_-]{16,}\b/
+  ];
+
+  for (const path of await walkFiles(packageRoot)) {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.size > 5 * 1024 * 1024) continue;
+    const content = await readFile(path, "utf8");
+    for (const pattern of secretPatterns) {
+      assert(!pattern.test(content), `possible credential embedded in ${normalizePath(relative(packageRoot, path))}`);
+    }
+  }
+}
+
+async function assertBundledLicenseCoverage(packageRoot) {
+  const bundle = await readFile(join(packageRoot, "dist", "index.js"), "utf8");
+  const notices = await readFile(join(packageRoot, "THIRD_PARTY_NOTICES.md"), "utf8");
+  const embeddedPackages = new Set(
+    [...bundle.matchAll(/node_modules\/((?:@[^/\s]+\/)?[^/\s]+)\//g)].map(
+      (match) => match[1]
+    )
+  );
+  assert(
+    embeddedPackages.size > 0,
+    "could not detect bundled runtime packages for license validation"
+  );
+
+  for (const packageName of [...embeddedPackages].sort()) {
+    const documentedAsHeading = notices.includes(`## ${packageName} `);
+    const documentedAsListItem = notices.includes(`\`${packageName}\` `);
+    assert(
+      documentedAsHeading || documentedAsListItem,
+      `THIRD_PARTY_NOTICES.md is missing bundled package ${packageName}`
+    );
+  }
+}
+
+async function main() {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "augmentworks-cli-pack-"));
+  const packDirectory = join(temporaryRoot, "pack");
+  const consumerDirectory = join(temporaryRoot, "consumer");
+  const assessmentDirectory = join(consumerDirectory, "assessment");
+
+  try {
+    await writeFile(join(temporaryRoot, "README"), "Temporary npm pack smoke workspace.\n", "utf8");
+    await Promise.all([
+      mkdir(packDirectory, { recursive: true }),
+      mkdir(consumerDirectory, { recursive: true }),
+      mkdir(assessmentDirectory, { recursive: true })
+    ]);
+
+    process.stdout.write("[pack smoke] building package\n");
+    run(npmExecutable, ["run", "build"]);
+
+    process.stdout.write("[pack smoke] creating and inspecting tarball\n");
+    const packed = run(npmExecutable, [
+      "pack",
+      "--json",
+      "--ignore-scripts",
+      "--pack-destination",
+      packDirectory
+    ]);
+    const report = parsePackReport(packed.stdout);
+    assertInventory(report);
+
+    const tarballPath = join(packDirectory, report.filename);
+    await access(tarballPath, fsConstants.R_OK);
+
+    const rootManifest = JSON.parse(await readFile(join(projectRoot, "package.json"), "utf8"));
+    assert(report.name === rootManifest.name, "tarball package name differs from package.json");
+    assert(report.version === rootManifest.version, "tarball version differs from package.json");
+
+    process.stdout.write("[pack smoke] executing tarball through npx\n");
+    const directVersion = run(
+      npxExecutable,
+      ["--yes", "--package", tarballPath, "augmentworks", "--version"],
+      {
+      cwd: consumerDirectory
+      }
+    );
+    assert(
+      directVersion.stdout.trim() === rootManifest.version,
+      `npx --version returned ${JSON.stringify(directVersion.stdout.trim())}, expected ${rootManifest.version}`
+    );
+
+    await writeFile(
+      join(consumerDirectory, "package.json"),
+      JSON.stringify({ name: "augmentworks-cli-pack-smoke", private: true, version: "0.0.0" }, null, 2) + "\n",
+      "utf8"
+    );
+    run(
+      npmExecutable,
+      ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false", tarballPath],
+      { cwd: consumerDirectory }
+    );
+
+    const installedRoot = join(consumerDirectory, "node_modules", "@augmentworks", "cli");
+    const installedManifest = JSON.parse(await readFile(join(installedRoot, "package.json"), "utf8"));
+    assert(installedManifest.name === "@augmentworks/cli", "installed package has the wrong name");
+    assert(installedManifest.version === rootManifest.version, "installed package has the wrong version");
+    assert(installedManifest.bin?.augmentworks === "dist/index.js", "installed package has the wrong bin mapping");
+    await assertNoEmbeddedSecrets(installedRoot);
+    await assertBundledLicenseCoverage(installedRoot);
+
+    const installedBin = join(
+      consumerDirectory,
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "augmentworks.cmd" : "augmentworks"
+    );
+    await access(installedBin, fsConstants.X_OK);
+    if (process.platform !== "win32") {
+      const executable = await stat(join(installedRoot, "dist", "index.js"));
+      assert((executable.mode & 0o111) !== 0, "published CLI entrypoint is not executable");
+    }
+
+    const execCli = (args, options = {}) =>
+      run(npmExecutable, ["exec", "--", "augmentworks", ...args], {
+        cwd: options.cwd ?? consumerDirectory,
+        env: options.env
+      });
+
+    const installedVersion = execCli(["--version"]);
+    assert(installedVersion.stdout.trim() === rootManifest.version, "installed CLI version is inconsistent");
+
+    process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
+    const schemaResult = execCli(["schema"]);
+    let schema;
+    try {
+      schema = JSON.parse(schemaResult.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `augmentworks schema did not print JSON: ${error instanceof Error ? error.message : String(error)}\n${schemaResult.stdout}`
+      );
+    }
+    assert(schema !== null && typeof schema === "object", "schema command returned a non-object");
+    assert(schema.type === "object", "schema command returned an unexpected root schema");
+
+    execCli(["init"], { cwd: assessmentDirectory });
+    await Promise.all([
+      access(join(assessmentDirectory, "augmentworks.yaml"), fsConstants.R_OK),
+      access(join(assessmentDirectory, ".env.example"), fsConstants.R_OK),
+      access(join(assessmentDirectory, ".env"), fsConstants.R_OK)
+    ]);
+    const generatedEnvironment = await readFile(join(assessmentDirectory, ".env"), "utf8");
+    assert(
+      /^CHATBOT_API_KEY=\s*$/m.test(generatedEnvironment),
+      "init must leave the target API key empty for the user to supply"
+    );
+    assert(
+      (await readFile(join(assessmentDirectory, ".gitignore"), "utf8"))
+        .split(/\r?\n/)
+        .includes(".env"),
+      "init must add .env to .gitignore"
+    );
+    if (process.platform !== "win32") {
+      const environmentMode = (await stat(join(assessmentDirectory, ".env"))).mode & 0o777;
+      assert(environmentMode === 0o600, `init created .env with unsafe mode ${environmentMode.toString(8)}`);
+    }
+
+    execCli(["doctor", "-c", "augmentworks.yaml", "--offline"], {
+      cwd: assessmentDirectory,
+      env: {
+        CHATBOT_BASE_URL: "http://127.0.0.1:65535",
+        CHATBOT_API_KEY: "pack-smoke-placeholder"
+      }
+    });
+
+    process.stdout.write(
+      `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`
+    );
+  } finally {
+    if (process.env.AUGMENTWORKS_KEEP_SMOKE_TMP === "1") {
+      process.stdout.write(`[pack smoke] retained ${temporaryRoot}\n`);
+    } else {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`[pack smoke] ${message}\n`);
+  process.exitCode = 1;
+});

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://augmentworks.ai/schemas/v1/augmentworks.schema.json",
+  "title": "AugmentWorks connector configuration",
+  "description": "A deterministic local application-boundary connector for AugmentWorks assessments.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "target"],
+  "properties": {
+    "version": { "const": 1 },
+    "target": { "$ref": "#/$defs/target" },
+    "telemetry": { "$ref": "#/$defs/telemetry" }
+  },
+  "$defs": {
+    "envName": {
+      "type": "string",
+      "pattern": "^[A-Z_][A-Z0-9_]*$"
+    },
+    "baseUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^(?:\\$\\{[A-Z_][A-Z0-9_]*\\}|https?://)"
+    },
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/jsonValue" }
+        },
+        {
+          "type": "object",
+          "maxProperties": 1000,
+          "propertyNames": { "not": { "enum": ["__proto__", "prototype", "constructor"] } },
+          "additionalProperties": { "$ref": "#/$defs/jsonValue" }
+        }
+      ]
+    },
+    "responseMap": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          { "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*$" },
+          { "not": { "enum": ["__proto__", "prototype", "constructor"] } }
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_-]*|\\[(?:0|[1-9][0-9]*)\\])+$"
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "path"],
+      "properties": {
+        "method": { "enum": ["GET", "POST", "DELETE"] },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^/(?!/)[^\\\\#\\u0000-\\u001f]*$"
+        },
+        "request": { "$ref": "#/$defs/jsonValue" },
+        "response": { "$ref": "#/$defs/responseMap" },
+        "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 120000 },
+        "idempotent": { "type": "boolean" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bearer_env": { "$ref": "#/$defs/envName" },
+        "headers_env": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "pattern": "^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$" },
+          "additionalProperties": { "$ref": "#/$defs/envName" }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request_bytes": { "type": "integer", "minimum": 1024, "maximum": 1048576 },
+        "response_bytes": { "type": "integer", "minimum": 1024, "maximum": 1048576 },
+        "operation_timeout_ms": { "type": "integer", "minimum": 100, "maximum": 120000 }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "connector", "base_url", "operations"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "connector": { "const": "http" },
+        "base_url": { "$ref": "#/$defs/baseUrl" },
+        "allow_insecure_http": { "type": "boolean" },
+        "auth": { "$ref": "#/$defs/auth" },
+        "operations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["send"],
+          "properties": {
+            "prepare": { "$ref": "#/$defs/operation" },
+            "send": { "$ref": "#/$defs/operation" },
+            "observe": { "$ref": "#/$defs/operation" },
+            "cleanup": { "$ref": "#/$defs/operation" }
+          }
+        },
+        "limits": { "$ref": "#/$defs/limits" }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allow_tool_events": { "type": "boolean" },
+        "allow_observations": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]*(?:\\.[A-Za-z_][A-Za-z0-9_-]*)*$"
+          }
+        }
+      }
+    }
+  }
+}

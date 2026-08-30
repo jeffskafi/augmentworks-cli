@@ -1,0 +1,63 @@
+version: 1
+
+target:
+  name: refunds-staging
+  connector: http
+  base_url: ${CHATBOT_BASE_URL}
+
+  auth:
+    bearer_env: CHATBOT_API_KEY
+
+  limits:
+    request_bytes: 65536
+    response_bytes: 262144
+    operation_timeout_ms: 10000
+
+  operations:
+    prepare:
+      method: POST
+      path: /__augmentworks/prepare
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+        scenario_key: $input.scenario_key
+      response:
+        status: $.status
+
+    send:
+      method: POST
+      path: /chat
+      idempotent: false
+      request:
+        message: $input.message.content
+        turn_id: $input.turn_id
+        attempt_id: $input.attempt_id
+      response:
+        content: $.answer
+        finish_reason: $.finish_reason
+        tool_events: $.events
+        finished: $.finished
+
+    observe:
+      method: POST
+      path: /__augmentworks/observe
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+        probe_keys: $input.probe_keys
+      response:
+        order.status: $.order.status
+        order.refunded_amount: $.order.refunded_amount
+
+    cleanup:
+      method: POST
+      path: /__augmentworks/cleanup
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+
+telemetry:
+  allow_tool_events: true
+  allow_observations:
+    - order.status
+    - order.refunded_amount
