@@ -248,7 +248,23 @@ async function reclaimDeadOwner(
   if (!previousBoot) {
     const probe = await runtime.probeProcess(first.owner.pid);
     if (probe === "alive") {
-      const currentStart = await runtime.processStartIdFor(first.owner.pid);
+      const currentStart =
+        first.owner.pid === runtime.pid
+          ? runtime.processStartId
+          : await runtime.processStartIdFor(first.owner.pid);
+      // Our own PID is positive proof of a live local owner even on macOS and
+      // Windows, where a portable process-start identifier is unavailable.
+      // Keep the lock rather than misclassifying that owner as ambiguous. A
+      // mismatched start identifier still proves PID reuse when both sides
+      // provide one.
+      if (
+        first.owner.pid === runtime.pid &&
+        (first.owner.process_start_id === null ||
+          currentStart === null ||
+          first.owner.process_start_id === currentStart)
+      ) {
+        throw lockError(options, "locked", "is owned by the current process");
+      }
       if (first.owner.process_start_id === null || currentStart === null) {
         throw lockError(options, "unknownOwner", "has an ambiguous process identifier");
       }

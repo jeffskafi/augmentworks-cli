@@ -102,6 +102,30 @@ describe("secure lock", () => {
     ).rejects.toMatchObject({ code: "TEST_LOCKED" });
   });
 
+  it("treats its own live PID as locked without platform process-start metadata", async () => {
+    const path = join(await temporaryDirectory(), "same-process.lock");
+    await staleFixture(path, {
+      pid: 9001,
+      boot_id: null,
+      process_start_id: null
+    });
+    const processStartIdFor = vi.fn(() => null);
+    await expect(
+      acquireSecureLock(
+        options(
+          path,
+          runtime({
+            bootId: null,
+            processStartId: null,
+            probeProcess: () => "alive",
+            processStartIdFor
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: "TEST_LOCKED" });
+    expect(processStartIdFor).not.toHaveBeenCalled();
+  });
+
   it("refuses unknown liveness and an alive owner without a verifiable process start", async () => {
     const root = await temporaryDirectory();
     const unknown = join(root, "unknown.lock");
@@ -165,6 +189,19 @@ describe("secure lock", () => {
       )
     );
     await reusedLock.release();
+
+    const reusedCurrentPid = join(root, "reused-current-pid.lock");
+    await staleFixture(reusedCurrentPid, { pid: 9001 });
+    const currentPidLock = await acquireSecureLock(
+      options(
+        reusedCurrentPid,
+        runtime({
+          probeProcess: () => "alive",
+          processStartId: "different-process-start"
+        })
+      )
+    );
+    await currentPidLock.release();
   });
 
   it("refuses a foreign host owner without probing its PID", async () => {

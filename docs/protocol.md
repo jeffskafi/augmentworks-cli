@@ -177,8 +177,9 @@ Recovery proceeds only when the secure lock owner can be positively
 established. On the same host, a positively dead recorded process is reclaimable
 even when boot/process-start metadata is unavailable. A verifiable earlier boot
 or mismatched process-start identity also establishes that a reused live PID is
-not the recorded owner. Before removal, the CLI rechecks the unchanged lock
-directory, owner-file identity, and nonce. A verified live owner, unknown
+not the recorded owner. The current process's own live PID remains locked when
+the platform has no process-start identifier. Before removal, the CLI rechecks
+the unchanged lock directory, owner-file identity, and nonce. A verified live owner, unknown
 liveness/identity, different host, symlink, unsafe permissions, or changed lock
 is refused; the CLI does not guess ownership.
 

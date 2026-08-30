@@ -157,6 +157,9 @@ never an inferred success from chatbot text.
   reclaims a lock after its recorded process is positively dead even when Linux
   boot/process metadata is unavailable. A verifiable prior boot or different
   process-start identity also proves that a reused live PID is not the owner.
+  The current process's own live PID remains a verified owner when the platform
+  cannot provide process-start metadata; it is never guessed stale or treated
+  as ambiguous merely because `/proc` is unavailable.
   The CLI then rechecks the unchanged directory, owner-file identity, and nonce.
   A verified live owner, unknown liveness/identity, foreign host, symlink,
   permission-unsafe path, or changed lock is refused rather than guessed stale.

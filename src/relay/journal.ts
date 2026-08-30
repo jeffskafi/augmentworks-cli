@@ -232,21 +232,36 @@ export class RelayJournal {
       errorCode: "UNSAFE_STATE_DIRECTORY"
     });
     await this.#acquireLock();
+    let recoveryHandle: FileHandle | undefined;
     let openedHandle: FileHandle | undefined;
     try {
       await rejectUnsafeJournalPath(this.path);
-      openedHandle = await open(
+      recoveryHandle = await open(
         this.path,
-        constants.O_APPEND | constants.O_CREAT | constants.O_RDWR | noFollowFlag(),
+        constants.O_CREAT | constants.O_RDWR | noFollowFlag(),
         0o600
       );
+      await secureFileHandle(recoveryHandle, 0o600, "UNSAFE_JOURNAL_PATH", "relay journal");
+      const recoveryIdentity = await verifiedJournalIdentity(this.path, recoveryHandle);
+      await this.#recoverAndLoad(recoveryHandle);
+
+      openedHandle = await open(
+        this.path,
+        constants.O_APPEND | constants.O_RDWR | noFollowFlag()
+      );
       await secureFileHandle(openedHandle, 0o600, "UNSAFE_JOURNAL_PATH", "relay journal");
+      const appendIdentity = await verifiedJournalIdentity(this.path, openedHandle);
+      if (!sameFileIdentity(recoveryIdentity, appendIdentity)) {
+        throw journalChanged("The relay journal changed while append access was being established.");
+      }
       this.#handle = openedHandle;
-      await this.#recoverAndLoad();
+      await recoveryHandle.close();
+      recoveryHandle = undefined;
       return this;
     } catch (error) {
       this.#handle = undefined;
       await openedHandle?.close().catch(() => undefined);
+      await recoveryHandle?.close().catch(() => undefined);
       await this.#releaseLock().catch(() => undefined);
       if (error instanceof AwError) throw error;
       throw unsafeJournalOpen(error);
@@ -453,9 +468,7 @@ export class RelayJournal {
     this.#recomputeAcknowledgedSequence();
   }
 
-  async #recoverAndLoad(): Promise<void> {
-    const handle = this.#handle;
-    if (handle === undefined) throw journalCorrupt("Relay journal is not open.");
+  async #recoverAndLoad(handle: FileHandle): Promise<void> {
     const bytes = await handle.readFile();
     let completeBytes = bytes.length;
     if (bytes.length > 0 && bytes[bytes.length - 1] !== 0x0a) {
@@ -762,6 +775,44 @@ async function rejectUnsafeJournalPath(path: string): Promise<void> {
   }
 }
 
+async function verifiedJournalIdentity(path: string, handle: FileHandle): Promise<Stats> {
+  let pathIdentity: Stats;
+  let handleIdentity: Stats;
+  try {
+    pathIdentity = await lstat(path);
+    handleIdentity = await handle.stat();
+  } catch (error) {
+    throw journalChanged(
+      "The relay journal changed while its file identity was being verified.",
+      error
+    );
+  }
+  if (pathIdentity.isSymbolicLink() || !pathIdentity.isFile() || !handleIdentity.isFile()) {
+    throw new AwError({
+      code: "UNSAFE_JOURNAL_PATH",
+      category: "local",
+      message: "The relay journal must be a regular file and cannot be a symbolic link."
+    });
+  }
+  if (!sameFileIdentity(pathIdentity, handleIdentity)) {
+    throw journalChanged("The relay journal changed while its file identity was being verified.");
+  }
+  return handleIdentity;
+}
+
+function sameFileIdentity(left: Stats, right: Stats): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function journalChanged(message: string, cause?: unknown): AwError {
+  return new AwError({
+    code: "JOURNAL_CHANGED",
+    category: "local",
+    message,
+    cause
+  });
+}
+
 async function purgeOwnedJournal(path: string, owned: Stats): Promise<void> {
   let current: Stats;
   try {
@@ -774,17 +825,8 @@ async function purgeOwnedJournal(path: string, owned: Stats): Promise<void> {
       cause: error
     });
   }
-  if (
-    current.isSymbolicLink() ||
-    !current.isFile() ||
-    current.dev !== owned.dev ||
-    current.ino !== owned.ino
-  ) {
-    throw new AwError({
-      code: "JOURNAL_CHANGED",
-      category: "local",
-      message: "The relay journal changed before it could be purged safely."
-    });
+  if (current.isSymbolicLink() || !current.isFile() || !sameFileIdentity(current, owned)) {
+    throw journalChanged("The relay journal changed before it could be purged safely.");
   }
   await unlink(path);
 }
