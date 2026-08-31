@@ -33,10 +33,7 @@ test("a lost create response is resumed with one durable request and reservation
   let logicalReservations = 0;
   let committedRequest: string | undefined;
 
-  const handle = async (
-    request: IncomingMessage,
-    response: ServerResponse
-  ): Promise<void> => {
+  const handle = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     if (request.headers.authorization !== "Bearer integration-access-token") {
       sendJson(response, 401, {
         error: { code: "CLOUD_AUTH_REJECTED", message: "Unauthorized" }
@@ -44,6 +41,15 @@ test("a lost create response is resumed with one durable request and reservation
       return;
     }
     const path = new URL(request.url ?? "/", "http://relay.invalid").pathname;
+    if (request.method === "GET" && path === "/api/v1/cli/auth/me") {
+      sendJson(response, 200, {
+        subject: "user-integration",
+        workspace_id: "workspace-integration",
+        connector_id: "connector-integration",
+        scopes: ["connector:identity", "connector:run"]
+      });
+      return;
+    }
     if (request.method === "POST" && path === "/v1/relay/runs") {
       const body = record(await readJsonBody(request), "create request");
       const serialized = canonicalize(body);
@@ -55,7 +61,10 @@ test("a lost create response is resumed with one durable request and reservation
         logicalReservations += 1;
       } else if (committedRequest !== serialized) {
         sendJson(response, 409, {
-          error: { code: "CREATE_REQUEST_CONFLICT", message: "Request changed" }
+          error: {
+            code: "CREATE_REQUEST_CONFLICT",
+            message: "Request changed"
+          }
         });
         return;
       }
@@ -84,10 +93,7 @@ test("a lost create response is resumed with one durable request and reservation
       });
       return;
     }
-    if (
-      request.method === "POST" &&
-      path === "/v1/relay/sessions/session-resume-1/commands:poll"
-    ) {
+    if (request.method === "POST" && path === "/v1/relay/sessions/session-resume-1/commands:poll") {
       await readJsonBody(request);
       sendJson(response, 200, {
         protocol_version: "aw-relay/0.1",
@@ -110,7 +116,9 @@ test("a lost create response is resumed with one durable request and reservation
       });
       return;
     }
-    sendJson(response, 404, { error: { code: "NOT_FOUND", message: "Not found" } });
+    sendJson(response, 404, {
+      error: { code: "NOT_FOUND", message: "Not found" }
+    });
   };
 
   const server = await listenLoopback(
@@ -152,13 +160,7 @@ target:
       CHATBOT_BASE_URL: "http://127.0.0.1:65535",
       CHATBOT_API_KEY: "must-never-leave"
     };
-    const args = [
-      "test",
-      "-c",
-      "augmentworks.yaml",
-      "--packet",
-      "support-smoke@0.1.0"
-    ];
+    const args = ["test", "-c", "augmentworks.yaml", "--packet", "support-smoke@0.1.0"];
 
     const interrupted = await runSourceCli(args, {
       cwd: directory,
@@ -168,7 +170,9 @@ target:
     expect(interrupted.exitCode).not.toBe(0);
     expect(createAttempts).toBe(3);
     expect(logicalReservations).toBe(1);
-    expect((await readdir(join(stateDirectory, "runs"))).some((name) => name.endsWith(".json"))).toBe(true);
+    expect(
+      (await readdir(join(stateDirectory, "runs"))).some((name) => name.endsWith(".json"))
+    ).toBe(true);
 
     const resumed = await runSourceCli([...args, "--json"], {
       cwd: directory,
@@ -195,7 +199,9 @@ target:
     expect(serializedCreate).not.toContain("http://127.0.0.1:65535");
     expect(serializedCreate).not.toContain("/chat");
     expect(serializedCreate).not.toContain("$input");
-    expect((await readdir(join(stateDirectory, "runs"))).some((name) => name.endsWith(".json"))).toBe(false);
+    expect(
+      (await readdir(join(stateDirectory, "runs"))).some((name) => name.endsWith(".json"))
+    ).toBe(false);
     expect(serverErrors).toEqual([]);
   } finally {
     await server.close().catch(() => undefined);

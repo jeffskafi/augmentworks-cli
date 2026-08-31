@@ -171,13 +171,14 @@ export class CloudAuthClient {
     });
   }
 
-  async refresh(refreshToken: string): Promise<StoredCredential> {
+  async refresh(refreshToken: string, signal?: AbortSignal): Promise<StoredCredential> {
     const token = await this.#tokenRequest(
       new URLSearchParams({
         grant_type: "refresh_token",
         client_id: CLI_OAUTH_CLIENT_ID,
         refresh_token: refreshToken
-      })
+      }),
+      signal
     );
     return this.#toStoredCredential(token);
   }
@@ -225,11 +226,12 @@ export class CloudAuthClient {
     };
   }
 
-  async #tokenRequest(parameters: URLSearchParams): Promise<TokenResponse> {
+  async #tokenRequest(parameters: URLSearchParams, signal?: AbortSignal): Promise<TokenResponse> {
     const response = await this.#request(AUTH_ENDPOINTS.token, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: parameters.toString()
+      body: parameters.toString(),
+      ...(signal === undefined ? {} : { signal })
     });
     const body = await parseJsonObject(response);
     if (!response.ok) throw authResponseError(response.status, body);

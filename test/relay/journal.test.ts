@@ -127,10 +127,14 @@ describe("RelayJournal", () => {
     const stateDirectory = await temporaryDirectory();
     const first = await new RelayJournal({ runId: "run-1", stateDirectory }).open();
     const second = new RelayJournal({ runId: "run-1", stateDirectory });
-    await expect(second.open()).rejects.toMatchObject({ code: "JOURNAL_LOCKED" });
-    await first.close();
-    await expect(second.open()).resolves.toBe(second);
-    await second.close();
+    try {
+      await expect(second.open()).rejects.toMatchObject({ code: "JOURNAL_LOCKED" });
+      await first.close();
+      await expect(second.open()).resolves.toBe(second);
+    } finally {
+      await first.close().catch(() => undefined);
+      await second.close().catch(() => undefined);
+    }
   });
 
   it("refuses a symlinked journal lock", async () => {

@@ -3,16 +3,10 @@ import { Command } from "commander";
 import { getApiOrigin } from "../auth/api-origin.js";
 import { CloudAuthClient } from "../auth/client.js";
 import {
-  createCredentialStore,
-  credentialFromEnvironment,
-  getCredential
+  createAccessTokenManager,
+  type CredentialRefreshLock
 } from "../auth/credential-store.js";
-import type {
-  AuthIdentity,
-  CredentialSource,
-  CredentialStore,
-  StoredCredential
-} from "../auth/types.js";
+import type { AuthIdentity, CredentialSource, CredentialStore } from "../auth/types.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
 import { identityJson } from "./login.js";
 
@@ -27,6 +21,7 @@ export interface WhoamiDependencies {
   readonly stdout?: (message: string) => void;
   readonly stderr?: (message: string) => void;
   readonly now?: () => number;
+  readonly refreshLock?: CredentialRefreshLock;
 }
 
 export interface WhoamiResult {
@@ -43,54 +38,41 @@ export async function runWhoami(
   const client = dependencies.client ?? new CloudAuthClient({ apiOrigin });
   const stdout = dependencies.stdout ?? console.log;
   const stderr = dependencies.stderr ?? console.error;
-  const environmentCredential = credentialFromEnvironment(env);
-  const store =
-    environmentCredential === null
-      ? dependencies.store ??
-        (await createCredentialStore({
-          apiOrigin,
-          env,
-          onWarning: (message) => stderr(sanitizeTerminal(message))
-        }))
-      : dependencies.store;
-
-  const resolved =
-    environmentCredential ??
-    (await getCredential({
-      apiOrigin,
-      env,
-      ...(store === undefined ? {} : { store })
-    }));
-  let credential = resolved.credential;
-  let refreshed = false;
-  if (
-    resolved.source !== "environment" &&
-    credential.refreshToken !== undefined &&
-    expiresSoon(credential, dependencies.now ?? Date.now)
-  ) {
-    credential = await refreshAndPersist(client, credential, store!);
-    refreshed = true;
-  }
+  const manager = await createAccessTokenManager({
+    apiOrigin,
+    env,
+    client,
+    ...(dependencies.store === undefined ? {} : { store: dependencies.store }),
+    ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
+    ...(dependencies.refreshLock === undefined
+      ? {}
+      : { refreshLock: dependencies.refreshLock }),
+    onWarning: (message) => stderr(sanitizeTerminal(message))
+  });
+  let accessToken = await manager.getAccessToken();
 
   let identity: AuthIdentity;
   try {
-    identity = await client.me(credential.accessToken);
+    identity = await client.me(accessToken);
   } catch (cause) {
     if (
-      !refreshed &&
       cause instanceof AwError &&
       cause.code === "TOKEN_REVOKED" &&
-      credential.refreshToken !== undefined &&
-      resolved.source !== "environment"
+      manager.source !== "environment"
     ) {
-      credential = await refreshAndPersist(client, credential, store!);
-      identity = await client.me(credential.accessToken);
+      const replacement = await manager.getAccessToken({
+        forceRefresh: true,
+        rejectedAccessToken: accessToken
+      });
+      if (replacement === accessToken) throw cause;
+      accessToken = replacement;
+      identity = await client.me(accessToken);
     } else {
       throw cause;
     }
   }
 
-  const result = { identity, source: resolved.source };
+  const result = { identity, source: manager.source };
   if (options.json === true) {
     stdout(JSON.stringify({ source: result.source, identity: identityJson(identity) }));
   } else {
@@ -108,34 +90,4 @@ export function createWhoamiCommand(dependencies: WhoamiDependencies = {}): Comm
     .action(async (values: WhoamiOptions) => {
       await runWhoami(values, dependencies);
     });
-}
-
-function expiresSoon(credential: StoredCredential, now: () => number): boolean {
-  if (credential.expiresAt === undefined) return false;
-  const expiresAt = Date.parse(credential.expiresAt);
-  if (!Number.isFinite(expiresAt)) {
-    throw new AwError({
-      code: "CREDENTIAL_STORE",
-      category: "auth",
-      message: "The stored AugmentWorks credential has an invalid expiry."
-    });
-  }
-  return expiresAt <= now() + 60_000;
-}
-
-async function refreshAndPersist(
-  client: CloudAuthClient,
-  credential: StoredCredential,
-  store: CredentialStore
-): Promise<StoredCredential> {
-  const refreshToken = credential.refreshToken;
-  if (refreshToken === undefined) return credential;
-  const refreshed = await client.refresh(refreshToken);
-  const merged: StoredCredential = {
-    ...credential,
-    ...refreshed,
-    refreshToken: refreshed.refreshToken ?? refreshToken
-  };
-  await store.save(merged);
-  return merged;
 }

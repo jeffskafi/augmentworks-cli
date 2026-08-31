@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { chmod, lstat, mkdir, symlink } from "node:fs/promises";
+import { chmod, lstat, mkdir, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getApiOrigin } from "../../src/auth/api-origin.js";
 import { AUTH_ENDPOINTS, CloudAuthClient } from "../../src/auth/client.js";
 import {
+  FileCredentialRefreshLock,
   FileCredentialStore,
+  createAccessTokenManager,
   createCredentialStore,
   credentialFromEnvironment,
   getCredential,
@@ -171,6 +173,26 @@ describe("credential storage and resolution", () => {
     expect(credentialFromEnvironment({ AUGMENTWORKS_TOKEN: TOKEN })?.source).toBe("environment");
   });
 
+  it("keeps the CI environment token static without loading or rotating stored credentials", async () => {
+    const store = new MemoryStore({
+      accessToken: "stored_access_token",
+      refreshToken: REFRESH,
+      tokenType: "Bearer"
+    });
+    const manager = await createAccessTokenManager({
+      apiOrigin: API_ORIGIN,
+      env: { AUGMENTWORKS_TOKEN: TOKEN },
+      store
+    });
+
+    await expect(
+      manager.getAccessToken({ forceRefresh: true, rejectedAccessToken: TOKEN })
+    ).resolves.toBe(TOKEN);
+    expect(manager.source).toBe("environment");
+    expect(store.loads).toBe(0);
+    expect(store.saves).toBe(0);
+  });
+
   it("writes a regular mode-0600 fallback file and rejects symlinks", async () => {
     if (process.platform === "win32") return;
     const directory = await temporaryDirectory();
@@ -240,6 +262,130 @@ describe("credential storage and resolution", () => {
     });
     expect(token).toBe(TOKEN);
     expect((await store.load())?.refreshToken).toBe(REFRESH);
+  });
+
+  it("serializes rotating refresh tokens across independent credential managers", async () => {
+    const directory = await temporaryDirectory();
+    const credentialPath = path.join(directory, "credentials.json");
+    const lockPath = path.join(directory, "credentials.refresh.lock");
+    const oldAccessToken = "aw_connector_old_access_token";
+    const rotatedAccessToken = "aw_connector_rotated_access_token";
+    const rotatedRefreshToken = "aw_refresh_rotated_refresh_token";
+    await new FileCredentialStore(credentialPath).save({
+      accessToken: oldAccessToken,
+      refreshToken: REFRESH,
+      tokenType: "Bearer",
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString()
+    });
+
+    let refreshCalls = 0;
+    const client = authClient(async (url) => {
+      expect(url.pathname).toBe(AUTH_ENDPOINTS.token);
+      refreshCalls += 1;
+      if (refreshCalls > 1) return jsonResponse({ error: "invalid_grant" }, 400);
+      await new Promise((resolve) => setTimeout(resolve, 75));
+      return jsonResponse({
+        access_token: rotatedAccessToken,
+        refresh_token: rotatedRefreshToken,
+        token_type: "Bearer",
+        expires_in: 3_600,
+        scope: "connector:identity connector:run",
+        workspace_id: "workspace_test",
+        connector_id: "connector_test"
+      });
+    });
+    const lockRuntime = {
+      pid: 9_001,
+      hostname: "host-a",
+      bootId: "boot-a",
+      processStartId: "start-9001",
+      nonce: () => "b".repeat(32),
+      probeProcess: () => "alive" as const,
+      processStartIdFor: () => "start-9001"
+    };
+    const managers = await Promise.all(
+      [1, 2].map(async () =>
+        await createAccessTokenManager({
+          apiOrigin: API_ORIGIN,
+          env: {},
+          store: new FileCredentialStore(credentialPath),
+          client,
+          refreshLock: new FileCredentialRefreshLock(lockPath, {
+            runtime: lockRuntime,
+            pollMs: 5
+          })
+        })
+      )
+    );
+
+    const tokens = await Promise.all(
+      managers.map(async (manager) =>
+        await manager.getAccessToken({
+          forceRefresh: true,
+          rejectedAccessToken: oldAccessToken
+        })
+      )
+    );
+
+    expect(tokens).toEqual([rotatedAccessToken, rotatedAccessToken]);
+    expect(refreshCalls).toBe(1);
+    expect((await new FileCredentialStore(credentialPath).load())?.refreshToken).toBe(
+      rotatedRefreshToken
+    );
+  });
+
+  it("securely reclaims a refresh lock left by a crashed process", async () => {
+    const directory = await temporaryDirectory();
+    const credentialPath = path.join(directory, "credentials.json");
+    const lockPath = path.join(directory, "credentials.refresh.lock");
+    const oldAccessToken = "aw_connector_crashed_owner_access";
+    await new FileCredentialStore(credentialPath).save({
+      accessToken: oldAccessToken,
+      refreshToken: REFRESH,
+      tokenType: "Bearer"
+    });
+    await mkdir(lockPath, { mode: 0o700 });
+    await chmod(lockPath, 0o700);
+    await writeFile(
+      path.join(lockPath, "owner.json"),
+      `${JSON.stringify({
+        lock_version: "aw-secure-lock/0.1",
+        pid: 1_234,
+        hostname: "host-a",
+        boot_id: "boot-a",
+        process_start_id: "start-1234",
+        nonce: "a".repeat(32),
+        created_at: new Date().toISOString()
+      })}\n`,
+      { mode: 0o600 }
+    );
+    await chmod(path.join(lockPath, "owner.json"), 0o600);
+    const refreshLock = new FileCredentialRefreshLock(lockPath, {
+      runtime: {
+        pid: 9_001,
+        hostname: "host-a",
+        bootId: "boot-a",
+        processStartId: "start-9001",
+        nonce: () => "b".repeat(32),
+        probeProcess: () => "dead",
+        processStartIdFor: () => null
+      }
+    });
+    const manager = await createAccessTokenManager({
+      apiOrigin: API_ORIGIN,
+      env: {},
+      store: new FileCredentialStore(credentialPath),
+      client: authClient(async () => jsonResponse(tokenBody())),
+      refreshLock
+    });
+
+    await expect(
+      manager.getAccessToken({
+        forceRefresh: true,
+        rejectedAccessToken: oldAccessToken
+      })
+    ).resolves.toBe(TOKEN);
+    await expect(lstat(lockPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
 

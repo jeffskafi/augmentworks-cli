@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { parsePackReport } from "./npm-pack-report.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -69,24 +70,6 @@ async function walkFiles(root) {
 
 function normalizePath(path) {
   return path.split(sep).join("/").replace(/^package\//, "");
-}
-
-function parsePackReport(stdout) {
-  let parsed;
-  try {
-    parsed = JSON.parse(stdout);
-  } catch (error) {
-    throw new SmokeFailure(
-      `npm pack did not return valid JSON: ${error instanceof Error ? error.message : String(error)}\n${stdout}`
-    );
-  }
-
-  assert(Array.isArray(parsed) && parsed.length === 1, "npm pack must produce exactly one tarball");
-  const report = parsed[0];
-  assert(report !== null && typeof report === "object", "npm pack returned an invalid report");
-  assert(typeof report.filename === "string", "npm pack report is missing its filename");
-  assert(Array.isArray(report.files), "npm pack report is missing its file inventory");
-  return report;
 }
 
 function assertInventory(report) {

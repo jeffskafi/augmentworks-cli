@@ -3,7 +3,11 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 
 import { getApiOrigin } from "../auth/api-origin.js";
-import { resolveAccessToken } from "../auth/credential-store.js";
+import {
+  createAccessTokenManager,
+  resolveAccessToken
+} from "../auth/credential-store.js";
+import type { AccessTokenProvider } from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import {
   RELAY_PROTOCOL_VERSION,
@@ -42,7 +46,11 @@ export interface ConnectDependencies {
   readonly doctor?: (options: Parameters<typeof runDoctor>[0]) => Promise<DoctorReport>;
   readonly apiOrigin?: (env: NodeJS.ProcessEnv) => URL;
   readonly accessToken?: (options: Parameters<typeof resolveAccessToken>[0]) => Promise<string>;
-  readonly cloud?: (options: { apiOrigin: URL; accessToken: string }) => CloudClient;
+  readonly cloud?: (options: {
+    apiOrigin: URL;
+    accessToken: string;
+    accessTokenProvider: AccessTokenProvider;
+  }) => CloudClient;
   readonly connector?: (config: ResolvedConfig) => HttpConnector;
   readonly runner?: (options: ConstructorParameters<typeof RelayRunner>[0]) => RelayRunner;
   readonly openBrowser?: BrowserOpener;
@@ -74,17 +82,23 @@ export async function runConnect(
   }
 
   const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
-  const accessToken = await (dependencies.accessToken ?? resolveAccessToken)({
+  const accessTokenOptions = {
     apiOrigin,
     env,
     ...(options.allowFileCredentials === undefined
       ? {}
       : { allowFileFallback: options.allowFileCredentials }),
-    onWarning: (message) => writeLine(dependencies.stderr ?? process.stderr, message)
-  });
+    onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
+  };
+  const accessTokenProvider: AccessTokenProvider =
+    dependencies.accessToken === undefined
+      ? (await createAccessTokenManager(accessTokenOptions)).getAccessToken
+      : async (request = {}) =>
+          await dependencies.accessToken!({ ...accessTokenOptions, ...request });
+  const accessToken = await accessTokenProvider();
   const cloud =
-    dependencies.cloud?.({ apiOrigin, accessToken }) ??
-    new CloudClient({ apiUrl: apiOrigin, accessToken });
+    dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
+    new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
   const request: CreateSessionRequest = {
     protocol_version: RELAY_PROTOCOL_VERSION,
     config_sha256: report.resolvedConfig.configDigest,

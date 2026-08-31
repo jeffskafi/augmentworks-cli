@@ -125,6 +125,76 @@ describe("CloudClient", () => {
     );
   });
 
+  it("obtains a current bearer for requests made more than an hour apart", async () => {
+    let elapsedMs = 0;
+    const bearerHeaders: string[] = [];
+    const accessTokenProvider = vi.fn(async () =>
+      elapsedMs < 3_600_000 ? "hour-one-token" : "hour-two-token"
+    );
+    const client = new CloudClient({
+      apiUrl: "http://127.0.0.1:8787",
+      accessToken: "hour-one-token",
+      accessTokenProvider,
+      fetch: vi.fn<typeof fetch>(async (_input, init) => {
+        bearerHeaders.push(new Headers(init?.headers).get("authorization") ?? "");
+        return Response.json({
+          protocol_version: RELAY_PROTOCOL_VERSION,
+          run_id: "run-1",
+          status: "completed",
+          outcome: "passed",
+          credit_state: "consumed"
+        });
+      })
+    });
+
+    await client.getRunStatus("run-1");
+    elapsedMs = 61 * 60_000;
+    await client.getRunStatus("run-1");
+
+    expect(bearerHeaders).toEqual(["Bearer hour-one-token", "Bearer hour-two-token"]);
+    expect(accessTokenProvider).toHaveBeenCalledTimes(2);
+  });
+
+  it("forces one refresh and retries once when the relay rejects a bearer", async () => {
+    let currentToken = "rejected-token";
+    const accessTokenProvider = vi.fn(async (request?: { forceRefresh?: boolean }) => {
+      if (request?.forceRefresh === true) currentToken = "rotated-token";
+      return currentToken;
+    });
+    const bearerHeaders: string[] = [];
+    const client = new CloudClient({
+      apiUrl: "http://127.0.0.1:8787",
+      accessToken: currentToken,
+      accessTokenProvider,
+      fetch: vi.fn<typeof fetch>(async (_input, init) => {
+        const authorization = new Headers(init?.headers).get("authorization") ?? "";
+        bearerHeaders.push(authorization);
+        if (authorization === "Bearer rejected-token") {
+          return Response.json(
+            { error: { code: "INVALID_TOKEN", message: "The bearer is no longer active." } },
+            { status: 401 }
+          );
+        }
+        return Response.json({
+          protocol_version: RELAY_PROTOCOL_VERSION,
+          run_id: "run-1",
+          status: "completed",
+          outcome: "passed",
+          credit_state: "consumed"
+        });
+      })
+    });
+
+    await expect(client.getRunStatus("run-1")).resolves.toMatchObject({ status: "completed" });
+    expect(bearerHeaders).toEqual(["Bearer rejected-token", "Bearer rotated-token"]);
+    expect(accessTokenProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        forceRefresh: true,
+        rejectedAccessToken: "rejected-token"
+      })
+    );
+  });
+
   it("rejects oversized cloud responses before parsing them", async () => {
     const client = new CloudClient({
       apiUrl: "http://127.0.0.1:8787",

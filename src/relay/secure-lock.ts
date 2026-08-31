@@ -237,27 +237,46 @@ async function reclaimDeadOwner(
   if (first.owner.hostname !== runtime.hostname) {
     throw lockError(options, "foreignOwner", "belongs to a different host");
   }
-  if (first.owner.boot_id === null || runtime.bootId === null) {
-    throw lockError(options, "unknownOwner", "has no verifiable boot identity");
-  }
-  if (first.owner.boot_id !== runtime.bootId) {
-    throw lockError(options, "foreignOwner", "belongs to a different system boot");
-  }
-
-  const probe = await runtime.probeProcess(first.owner.pid);
-  if (probe === "alive") {
-    const currentStart = await runtime.processStartIdFor(first.owner.pid);
-    if (
-      first.owner.process_start_id === null ||
-      currentStart === null ||
-      first.owner.process_start_id !== currentStart
-    ) {
-      throw lockError(options, "unknownOwner", "has an ambiguous or reused process identifier");
+  const previousBoot =
+    first.owner.boot_id !== null &&
+    runtime.bootId !== null &&
+    first.owner.boot_id !== runtime.bootId;
+  // A boot mismatch proves the recorded process cannot still own the lock.
+  // Otherwise, process.kill(pid, 0) gives every supported Node platform a
+  // conservative path to reclaim a positively dead owner even when that OS
+  // has no Linux-style boot ID or /proc process start time.
+  if (!previousBoot) {
+    const probe = await runtime.probeProcess(first.owner.pid);
+    if (probe === "alive") {
+      const currentStart =
+        first.owner.pid === runtime.pid
+          ? runtime.processStartId
+          : await runtime.processStartIdFor(first.owner.pid);
+      // Our own PID is positive proof of a live local owner even on macOS and
+      // Windows, where a portable process-start identifier is unavailable.
+      // Keep the lock rather than misclassifying that owner as ambiguous. A
+      // mismatched start identifier still proves PID reuse when both sides
+      // provide one.
+      if (
+        first.owner.pid === runtime.pid &&
+        (first.owner.process_start_id === null ||
+          currentStart === null ||
+          first.owner.process_start_id === currentStart)
+      ) {
+        throw lockError(options, "locked", "is owned by the current process");
+      }
+      if (first.owner.process_start_id === null || currentStart === null) {
+        throw lockError(options, "unknownOwner", "has an ambiguous process identifier");
+      }
+      if (first.owner.process_start_id === currentStart) {
+        throw lockError(options, "locked", "is owned by a live process");
+      }
+      // A live process with a different start identity is a reused PID. The
+      // recorded owner is gone, so it is safe to continue to the unchanged
+      // inode/nonce check below instead of permanently wedging the lock.
+    } else if (probe !== "dead") {
+      throw lockError(options, "unknownOwner", "owner liveness could not be established");
     }
-    throw lockError(options, "locked", "is owned by a live process");
-  }
-  if (probe !== "dead") {
-    throw lockError(options, "unknownOwner", "owner liveness could not be established");
   }
 
   const currentDirectory = await inspectLockDirectory(options);

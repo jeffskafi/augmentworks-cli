@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceEntrypoint = resolve(projectRoot, "src/index.ts");
-const tsxImport = createRequire(import.meta.url).resolve("tsx");
+const tsxImportUrl = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 const maxCapturedBytes = 2 * 1024 * 1024;
 
 export interface CliProcessOptions {
@@ -26,7 +26,7 @@ export async function runSourceCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  const child = spawn(process.execPath, ["--import", tsxImport, sourceEntrypoint, ...args], {
+  const child = spawn(process.execPath, ["--import", tsxImportUrl, sourceEntrypoint, ...args], {
     cwd: options.cwd,
     env: {
       ...process.env,

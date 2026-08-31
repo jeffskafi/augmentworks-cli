@@ -54,6 +54,18 @@ development build, point the client only at the repository's mock service. When
 production is available, retry browser authorization or use `login --device`
 for a headless machine.
 
+### `CREDENTIAL_STORE_UNAVAILABLE`
+
+On macOS, confirm that `/usr/bin/security` is present and the login Keychain is
+available. On Windows, confirm that the built-in
+`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` is present and
+that the current user owns the AugmentWorks directory under `%LOCALAPPDATA%`.
+The Windows store refuses reparse points, foreign ownership, and broad or
+inherited credential-file ACLs; move an old untrusted path aside and retry only
+after investigating it. The CLI will not downgrade Windows credentials to a
+plaintext file. On Linux or macOS without native storage, an explicit
+`--allow-file-credentials` enables the warned mode-`0600` POSIX fallback.
+
 ### A target operation timed out
 
 If the request may have reached the target and the operation is not declared
@@ -73,19 +85,24 @@ failure as success.
 
 ### `test` was interrupted
 
-Re-run the exact same `test` command as the same OS user on the same machine.
-The CLI retains one active intent per AugmentWorks API origin, replays the same
-create ID and request, and resumes the same run and command journal. A different
-packet or configuration is refused with `ACTIVE_RUN_EXISTS` until an
-authoritative terminal status clears the intent. Changing the resolved target
-base URL or an operation method/path also changes the boundary checksum and is
-refused for that active run. There is no force-new option.
+Re-run the exact same `test` command as the same OS user, authenticated connector,
+and workspace on the same machine. The CLI retains one tenant-bound active intent
+per AugmentWorks API origin, replays the same create ID and request, and resumes
+the same run and command journal. A different connector or workspace is refused
+with `ACTIVE_RUN_TENANT_MISMATCH` before create. A different packet or
+configuration is refused with `ACTIVE_RUN_EXISTS` until an authoritative terminal
+status clears the intent. Changing the resolved target base URL or an operation
+method/path also changes the boundary checksum and is refused for that active run.
+There is no force-new option.
 
 Recovery proceeds only if secure lock ownership can be positively established.
-The CLI refuses a live or foreign owner, unknown process liveness, an ambiguous
-or reused PID, a different system boot, unsafe permissions or symlinks, or a
-lock that changes during inspection. Do not delete such a lock to force a run;
-investigate the owning process and preserve recovery state.
+A same-host lock is reclaimable when its process is positively dead, including
+on macOS or Windows where Linux boot/process metadata is unavailable. A
+verifiable earlier boot or different process-start identity can also prove PID
+reuse. The CLI refuses a verified live or foreign-host owner, unknown process
+liveness/identity, unsafe permissions or symlinks, or a lock that changes during
+inspection. Do not delete such a lock to force a run; investigate the owning
+process and preserve recovery state.
 
 Do not delete the active intent or journal to work around an ambiguous target
 operation or incomplete cleanup. If local recovery state was lost or corrupted,

@@ -7,16 +7,16 @@ AugmentWorks assess chatbots running on localhost or inside a private network.
 It converts fixed assessment operations into calls to your application using a
 versioned YAML file. No model is used in the evidence path.
 
-> **Beta status:** the CLI and its local mock end-to-end lifecycle are under
-> active development. The production AugmentWorks connector-auth and relay
-> service is **not deployed yet**, so `login` and hosted `test` cannot currently
-> complete against `augmentworks.ai`. The commands below are the pinned v0.1
-> interface and are exercised against a mock relay in this repository.
+> **Release status:** the CLI and production connector-auth/relay source are
+> implemented and exercised end to end against local integration services. The
+> production migration, Vercel deployment, smoke assessment, and pinned npm
+> publication must complete before `login` and hosted `test` are enabled on
+> `augmentworks.ai`.
 
 ## Quickstart
 
 Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and a synthetic
-test target. When the v0.1 package and production relay are live, run:
+test target. After the v0.1 package and production relay are released, run:
 
 ```bash
 npx --yes @augmentworks/cli@0.1.0 login
@@ -39,20 +39,17 @@ For an SSH or otherwise headless environment, use device authorization:
 npx --yes @augmentworks/cli@0.1.0 login --device
 ```
 
-If no supported OS credential store is available, `login` fails safely unless
-you explicitly opt into the warned local-file fallback with
-`--allow-file-credentials`. On POSIX systems that file is restricted to mode
-`0600`.
+Interactive credentials use the macOS login Keychain, Windows CurrentUser
+DPAPI, or the Linux Secret Service when available. On POSIX systems only, an
+explicit `--allow-file-credentials` opt-in enables a warned mode-`0600` local
+file when no native store is available. Plaintext fallback is disabled on
+Windows because POSIX file modes cannot establish a safe Windows ACL.
 
-Do not put an AugmentWorks token on the command line. For CI, supply
-`AUGMENTWORKS_TOKEN` through the CI provider's secret store:
-
-```bash
-AUGMENTWORKS_TOKEN="$AUGMENTWORKS_TOKEN" \
-npx --yes @augmentworks/cli@0.1.0 test \
-  -c augmentworks.yaml \
-  --packet support-refunds@0.1.0
-```
+Do not put an AugmentWorks token on the command line. Long-lived project-token
+issuance is not part of the interactive v0.1 connector-auth release, so do not
+substitute its one-hour interactive access token for an unattended CI
+credential. `AUGMENTWORKS_TOKEN` remains reserved for future project tokens and
+local integration harnesses.
 
 ## Configuration
 
@@ -158,16 +155,20 @@ explicitly idempotent; it reports an indeterminate outcome so the relay can
 dispatch bounded typed follow-ups, such as `observe` or `cleanup` when a fixture
 may exist.
 
-Before the create request, `test` persists one secret-free active intent per
-AugmentWorks API origin. Re-running the exact command on the same machine
-replays the same create ID and resumes the same run; a different request is
-refused until the first run reaches an authoritative terminal status. There is
-no force-new bypass, and recovery proceeds only when secure local lock ownership
-can be positively established. Under the hosted protocol, create preflight
-happens before credit reservation, the first real command lease consumes the
-credit, and cancellation or expiry before that lease releases it. A create
-replay never charges again. The production service implementing this contract
-is not yet deployed.
+Before the create request, `test` resolves `/api/v1/cli/auth/me` and persists one
+secret-free active intent per AugmentWorks API origin, bound to that workspace
+and connector. Re-running the exact command on the same machine replays the same
+create ID and resumes the same run; a different request or authenticated tenant
+is refused before another create can reserve credit. There is no force-new
+bypass, and recovery proceeds only when secure local lock ownership can be
+positively established. A same-host lock can be reclaimed after the recorded
+process is positively dead, or when a verifiable boot/process-start identity
+proves that its PID is no longer the owner; inode and nonce identity are then
+rechecked before removal. Under the hosted protocol, create preflight happens
+before credit reservation, the first real command lease consumes the credit,
+and cancellation or expiry before that lease releases it. A create replay never
+charges again. The production service implementing this contract is not yet
+deployed.
 
 ## Commands
 

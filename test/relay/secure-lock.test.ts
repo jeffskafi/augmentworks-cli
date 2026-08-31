@@ -102,7 +102,31 @@ describe("secure lock", () => {
     ).rejects.toMatchObject({ code: "TEST_LOCKED" });
   });
 
-  it("refuses unknown liveness, missing boot identity, and PID-reuse ambiguity", async () => {
+  it("treats its own live PID as locked without platform process-start metadata", async () => {
+    const path = join(await temporaryDirectory(), "same-process.lock");
+    await staleFixture(path, {
+      pid: 9001,
+      boot_id: null,
+      process_start_id: null
+    });
+    const processStartIdFor = vi.fn(() => null);
+    await expect(
+      acquireSecureLock(
+        options(
+          path,
+          runtime({
+            bootId: null,
+            processStartId: null,
+            probeProcess: () => "alive",
+            processStartIdFor
+          })
+        )
+      )
+    ).rejects.toMatchObject({ code: "TEST_LOCKED" });
+    expect(processStartIdFor).not.toHaveBeenCalled();
+  });
+
+  it("refuses unknown liveness and an alive owner without a verifiable process start", async () => {
     const root = await temporaryDirectory();
     const unknown = join(root, "unknown.lock");
     await staleFixture(unknown);
@@ -110,40 +134,83 @@ describe("secure lock", () => {
       acquireSecureLock(options(unknown, runtime({ probeProcess: () => "unknown" })))
     ).rejects.toMatchObject({ code: "TEST_UNKNOWN_OWNER" });
 
-    const missingBoot = join(root, "missing-boot.lock");
-    await staleFixture(missingBoot, { boot_id: null });
-    await expect(acquireSecureLock(options(missingBoot, runtime()))).rejects.toMatchObject({
-      code: "TEST_UNKNOWN_OWNER"
-    });
-
-    const reused = join(root, "reused.lock");
-    await staleFixture(reused);
+    const ambiguous = join(root, "ambiguous.lock");
+    await staleFixture(ambiguous, { boot_id: null, process_start_id: null });
     await expect(
       acquireSecureLock(
         options(
-          reused,
+          ambiguous,
           runtime({
             probeProcess: () => "alive",
-            processStartIdFor: () => "different-process-start"
+            bootId: null,
+            processStartIdFor: () => null
           })
         )
       )
     ).rejects.toMatchObject({ code: "TEST_UNKNOWN_OWNER" });
   });
 
-  it("refuses foreign host and boot owners without probing their PIDs", async () => {
+  it("reclaims a positively dead owner without Linux boot or process metadata", async () => {
+    const path = join(await temporaryDirectory(), "portable-stale.lock");
+    await staleFixture(path, { boot_id: null, process_start_id: null });
+    const lock = await acquireSecureLock(
+      options(
+        path,
+        runtime({
+          bootId: null,
+          processStartId: null,
+          probeProcess: () => "dead",
+          processStartIdFor: () => null
+        })
+      )
+    );
+    await lock.release();
+    await expect(lstat(path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("reclaims a previous-boot owner and a reused PID", async () => {
+    const root = await temporaryDirectory();
+    const previousBoot = join(root, "previous-boot.lock");
+    await staleFixture(previousBoot, { boot_id: "boot-b" });
+    const probe = vi.fn(() => "alive" as const);
+    const bootLock = await acquireSecureLock(options(previousBoot, runtime({ probeProcess: probe })));
+    expect(probe).not.toHaveBeenCalled();
+    await bootLock.release();
+
+    const reused = join(root, "reused.lock");
+    await staleFixture(reused);
+    const reusedLock = await acquireSecureLock(
+      options(
+        reused,
+        runtime({
+          probeProcess: () => "alive",
+          processStartIdFor: () => "different-process-start"
+        })
+      )
+    );
+    await reusedLock.release();
+
+    const reusedCurrentPid = join(root, "reused-current-pid.lock");
+    await staleFixture(reusedCurrentPid, { pid: 9001 });
+    const currentPidLock = await acquireSecureLock(
+      options(
+        reusedCurrentPid,
+        runtime({
+          probeProcess: () => "alive",
+          processStartId: "different-process-start"
+        })
+      )
+    );
+    await currentPidLock.release();
+  });
+
+  it("refuses a foreign host owner without probing its PID", async () => {
     const root = await temporaryDirectory();
     const probe = vi.fn(() => "dead" as const);
     const foreignHost = join(root, "foreign-host.lock");
     await staleFixture(foreignHost, { hostname: "host-b" });
     await expect(
       acquireSecureLock(options(foreignHost, runtime({ probeProcess: probe })))
-    ).rejects.toMatchObject({ code: "TEST_FOREIGN_OWNER" });
-
-    const foreignBoot = join(root, "foreign-boot.lock");
-    await staleFixture(foreignBoot, { boot_id: "boot-b" });
-    await expect(
-      acquireSecureLock(options(foreignBoot, runtime({ probeProcess: probe })))
     ).rejects.toMatchObject({ code: "TEST_FOREIGN_OWNER" });
     expect(probe).not.toHaveBeenCalled();
   });

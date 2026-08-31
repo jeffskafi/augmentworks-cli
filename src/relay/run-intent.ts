@@ -1,11 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { constants, type Stats } from "node:fs";
-import {
-  lstat,
-  open,
-  rename,
-  unlink
-} from "node:fs/promises";
+import { lstat, open, rename, unlink } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
@@ -20,43 +15,88 @@ import {
 import { AwError } from "../errors.js";
 import { canonicalize, sha256 } from "../util/canonical.js";
 import { getStateDirectory } from "./state-dir.js";
-import {
-  acquireSecureLock,
-  ensureSecureDirectory,
-  type SecureLockHandle
-} from "./secure-lock.js";
+import { acquireSecureLock, ensureSecureDirectory, type SecureLockHandle } from "./secure-lock.js";
 
-export const RUN_INTENT_VERSION = "aw-run-intent/0.1" as const;
+export const RUN_INTENT_VERSION = "aw-run-intent/0.2" as const;
+const LEGACY_RUN_INTENT_VERSION = "aw-run-intent/0.1" as const;
 const MAX_INTENT_BYTES = 256 * 1024;
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
+const tenantIdentifier = z
+  .string()
+  .min(1)
+  .max(300)
+  .regex(/^[^\u0000-\u001f\u007f]+$/u);
+const tenantSchema = z
+  .object({
+    workspace_id: tenantIdentifier,
+    connector_id: tenantIdentifier
+  })
+  .strict();
+const intentFields = {
+  phase: z.enum(["pending_create", "bound"]),
+  api_origin: z.string().url(),
+  request: CreateRunRequestSchema,
+  request_sha256: digest,
+  binding: CreateRunResponseSchema.optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true })
+} as const;
 const intentSchema = z
   .object({
     intent_version: z.literal(RUN_INTENT_VERSION),
-    phase: z.enum(["pending_create", "bound"]),
-    api_origin: z.string().url(),
-    request: CreateRunRequestSchema,
-    request_sha256: digest,
-    binding: CreateRunResponseSchema.optional(),
-    created_at: z.string().datetime({ offset: true }),
-    updated_at: z.string().datetime({ offset: true })
+    tenant: tenantSchema,
+    ...intentFields
   })
   .strict()
   .superRefine((value, context) => {
     if (sha256(canonicalize(value.request)) !== value.request_sha256) {
-      context.addIssue({ code: "custom", message: "request digest does not match" });
+      context.addIssue({
+        code: "custom",
+        message: "request digest does not match"
+      });
     }
     if ((value.phase === "bound") !== (value.binding !== undefined)) {
-      context.addIssue({ code: "custom", message: "intent phase and binding disagree" });
+      context.addIssue({
+        code: "custom",
+        message: "intent phase and binding disagree"
+      });
+    }
+  });
+const legacyIntentSchema = z
+  .object({
+    intent_version: z.literal(LEGACY_RUN_INTENT_VERSION),
+    ...intentFields
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (sha256(canonicalize(value.request)) !== value.request_sha256) {
+      context.addIssue({
+        code: "custom",
+        message: "request digest does not match"
+      });
+    }
+    if ((value.phase === "bound") !== (value.binding !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "intent phase and binding disagree"
+      });
     }
   });
 
 export type CreateRunIntentRequest = Omit<CreateRunRequest, "create_request_id">;
 export type RunIntent = z.infer<typeof intentSchema>;
+type LegacyRunIntent = z.infer<typeof legacyIntentSchema>;
+
+export interface RunIntentTenantBinding {
+  readonly workspace_id: string;
+  readonly connector_id: string;
+}
 
 export interface RunIntentStoreOptions {
   readonly apiOrigin: URL;
+  readonly tenant: RunIntentTenantBinding;
   readonly stateDirectory?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly now?: () => Date;
@@ -73,6 +113,7 @@ export class RunIntentStore {
   readonly path: string;
   readonly lockPath: string;
   readonly #apiOrigin: string;
+  readonly #tenant: RunIntentTenantBinding;
   readonly #stateDirectory: string;
   readonly #runsDirectory: string;
   readonly #now: () => Date;
@@ -80,11 +121,12 @@ export class RunIntentStore {
   readonly #platform: NodeJS.Platform;
   #lock: SecureLockHandle | undefined;
   #intent: RunIntent | undefined;
+  #legacyIntent: LegacyRunIntent | undefined;
 
   constructor(options: RunIntentStoreOptions) {
     this.#apiOrigin = normalizedApiBase(options.apiOrigin);
-    this.#stateDirectory =
-      options.stateDirectory ?? getStateDirectory(options.env ?? process.env);
+    this.#tenant = parseTenant(options.tenant);
+    this.#stateDirectory = options.stateDirectory ?? getStateDirectory(options.env ?? process.env);
     this.#runsDirectory = join(this.#stateDirectory, "runs");
     const originHash = sha256(this.#apiOrigin).slice(0, 32);
     this.path = join(this.#runsDirectory, `active-${originHash}.json`);
@@ -126,12 +168,20 @@ export class RunIntentStore {
       now: this.#now
     });
     try {
-      this.#intent = await readIntent(this.path);
-      if (this.#intent !== undefined && this.#intent.api_origin !== this.#apiOrigin) {
+      const persisted = await readIntent(this.path);
+      if (persisted !== undefined && persisted.api_origin !== this.#apiOrigin) {
         throw intentError(
           "RUN_INTENT_ORIGIN_MISMATCH",
           "The active assessment belongs to a different AugmentWorks API origin."
         );
+      }
+      if (persisted?.intent_version === RUN_INTENT_VERSION) {
+        assertTenantMatches(persisted.tenant, this.#tenant);
+        this.#intent = persisted;
+        this.#legacyIntent = undefined;
+      } else {
+        this.#intent = undefined;
+        this.#legacyIntent = persisted;
       }
       return this;
     } catch (error) {
@@ -140,8 +190,52 @@ export class RunIntentStore {
     }
   }
 
+  async migrateLegacyTenantBinding(
+    verifyBoundRun: (binding: CreateRunResponse, tenant: RunIntentTenantBinding) => Promise<boolean>
+  ): Promise<boolean> {
+    this.#assertOpen();
+    const legacy = this.#legacyIntent;
+    if (legacy === undefined) return false;
+    if (legacy.binding === undefined) {
+      throw legacyTenantError(
+        "The active legacy run intent has no server binding that can prove its connector tenant. No create request was sent."
+      );
+    }
+
+    let verified = false;
+    try {
+      verified = await verifyBoundRun(legacy.binding, this.#tenant);
+    } catch (cause) {
+      throw legacyTenantError(
+        "The active legacy run could not be verified for the authenticated connector. No create request was sent.",
+        cause
+      );
+    }
+    if (!verified) {
+      throw legacyTenantError(
+        "The active legacy run does not belong to the authenticated connector. No create request was sent."
+      );
+    }
+
+    const migrated = parseIntent({
+      ...legacy,
+      intent_version: RUN_INTENT_VERSION,
+      tenant: this.#tenant,
+      updated_at: this.#now().toISOString()
+    });
+    await writeIntentAtomic(this.path, this.#runsDirectory, migrated, this.#platform);
+    this.#intent = migrated;
+    this.#legacyIntent = undefined;
+    return true;
+  }
+
   async loadOrCreate(request: CreateRunIntentRequest): Promise<LoadedRunIntent> {
     this.#assertOpen();
+    if (this.#legacyIntent !== undefined) {
+      throw legacyTenantError(
+        "The active legacy run intent must be tenant-verified before it can be resumed. No create request was sent."
+      );
+    }
     if (this.#intent !== undefined) {
       const candidate = CreateRunRequestSchema.safeParse({
         ...request,
@@ -174,6 +268,7 @@ export class RunIntentStore {
       intent_version: RUN_INTENT_VERSION,
       phase: "pending_create",
       api_origin: this.#apiOrigin,
+      tenant: this.#tenant,
       request: parsed.data,
       request_sha256: sha256(canonicalize(parsed.data)),
       created_at: timestamp,
@@ -288,20 +383,28 @@ function immutableBinding(binding: CreateRunResponse): Record<string, unknown> {
   };
 }
 
-async function readIntent(path: string): Promise<RunIntent | undefined> {
+async function readIntent(path: string): Promise<RunIntent | LegacyRunIntent | undefined> {
   let pathIdentity;
   try {
     pathIdentity = await lstat(path);
   } catch (error) {
     if (isErrorCode(error, "ENOENT")) return undefined;
-    throw intentError("UNSAFE_RUN_INTENT", "The active run intent could not be inspected safely.", error);
+    throw intentError(
+      "UNSAFE_RUN_INTENT",
+      "The active run intent could not be inspected safely.",
+      error
+    );
   }
   assertSafeIntentStat(pathIdentity);
   let handle: FileHandle | undefined;
   try {
     handle = await open(path, constants.O_RDONLY | noFollowFlag());
   } catch (error) {
-    throw intentError("UNSAFE_RUN_INTENT", "The active run intent could not be opened safely.", error);
+    throw intentError(
+      "UNSAFE_RUN_INTENT",
+      "The active run intent could not be opened safely.",
+      error
+    );
   }
   try {
     const stat = await handle.stat();
@@ -314,8 +417,7 @@ async function readIntent(path: string): Promise<RunIntent | undefined> {
     if (
       !stat.isFile() ||
       stat.size > MAX_INTENT_BYTES ||
-      (process.platform !== "win32" &&
-        ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
+      (process.platform !== "win32" && ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
     ) {
       throw intentError(
         "UNSAFE_RUN_INTENT",
@@ -332,7 +434,7 @@ async function readIntent(path: string): Promise<RunIntent | undefined> {
     } catch (error) {
       throw intentError("RUN_INTENT_CORRUPT", "The active run intent is invalid JSON.", error);
     }
-    return parseIntent(value);
+    return parsePersistedIntent(value);
   } finally {
     await handle.close().catch(() => undefined);
   }
@@ -344,6 +446,44 @@ function parseIntent(value: unknown): RunIntent {
     throw intentError("RUN_INTENT_CORRUPT", "The active run intent failed validation.");
   }
   return parsed.data;
+}
+
+function parsePersistedIntent(value: unknown): RunIntent | LegacyRunIntent {
+  const current = intentSchema.safeParse(value);
+  if (current.success) return current.data;
+  const legacy = legacyIntentSchema.safeParse(value);
+  if (legacy.success) return legacy.data;
+  throw intentError("RUN_INTENT_CORRUPT", "The active run intent failed validation.");
+}
+
+function parseTenant(value: RunIntentTenantBinding): RunIntentTenantBinding {
+  const parsed = tenantSchema.safeParse(value);
+  if (!parsed.success) {
+    throw intentError(
+      "RUN_INTENT_TENANT_INVALID",
+      "The authenticated connector tenant cannot be bound to local run state."
+    );
+  }
+  return parsed.data;
+}
+
+function assertTenantMatches(
+  persisted: RunIntentTenantBinding,
+  authenticated: RunIntentTenantBinding
+): void {
+  if (
+    persisted.workspace_id !== authenticated.workspace_id ||
+    persisted.connector_id !== authenticated.connector_id
+  ) {
+    throw intentError(
+      "ACTIVE_RUN_TENANT_MISMATCH",
+      "The active assessment belongs to a different AugmentWorks connector or workspace. No create request was sent."
+    );
+  }
+}
+
+function legacyTenantError(message: string, cause?: unknown): AwError {
+  return intentError("LEGACY_RUN_INTENT_TENANT_UNVERIFIED", message, cause);
 }
 
 async function writeIntentAtomic(
@@ -361,10 +501,7 @@ async function writeIntentAtomic(
   try {
     handle = await open(
       temporaryPath,
-      constants.O_CREAT |
-        constants.O_EXCL |
-        constants.O_WRONLY |
-        noFollowFlag(),
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | noFollowFlag(),
       0o600
     );
     await secureFileHandle(handle);
@@ -383,7 +520,11 @@ async function writeIntentAtomic(
     await handle?.close().catch(() => undefined);
     await unlink(temporaryPath).catch(() => undefined);
     if (error instanceof AwError) throw error;
-    throw intentError("RUN_INTENT_WRITE_FAILED", "The active run intent could not be persisted.", error);
+    throw intentError(
+      "RUN_INTENT_WRITE_FAILED",
+      "The active run intent could not be persisted.",
+      error
+    );
   }
 }
 
@@ -393,8 +534,7 @@ async function secureFileHandle(handle: FileHandle): Promise<void> {
     const stat = await handle.stat();
     if (
       !stat.isFile() ||
-      (process.platform !== "win32" &&
-        ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
+      (process.platform !== "win32" && ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
     ) {
       throw new Error("run intent permissions are unsafe");
     }
@@ -422,8 +562,7 @@ function assertSafeIntentStat(stat: Stats): void {
     stat.isSymbolicLink() ||
     !stat.isFile() ||
     stat.size > MAX_INTENT_BYTES ||
-    (process.platform !== "win32" &&
-      ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
+    (process.platform !== "win32" && ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
   ) {
     throw intentError(
       "UNSAFE_RUN_INTENT",

@@ -28,12 +28,16 @@ import { canonicalize, sha256 } from "../../src/util/canonical.js";
 
 const temporaryDirectories: string[] = [];
 const CREATE_ID = `crq_${"a".repeat(32)}`;
+const TENANT = {
+  workspace_id: "workspace-test",
+  connector_id: "connector-test"
+} as const;
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true })
-    )
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true }))
   );
 });
 
@@ -44,9 +48,7 @@ async function temporaryDirectory(): Promise<string> {
   return directory;
 }
 
-function request(
-  overrides: Partial<CreateRunIntentRequest> = {}
-): CreateRunIntentRequest {
+function request(overrides: Partial<CreateRunIntentRequest> = {}): CreateRunIntentRequest {
   return {
     protocol_version: "aw-relay/0.1",
     packet: { key: "support-refunds", version: "0.1.0" },
@@ -92,12 +94,32 @@ function binding(
   };
 }
 
+function createRequest(): CreateRunRequest {
+  return { ...request(), create_request_id: CREATE_ID };
+}
+
+function legacyIntent(bound: boolean): Record<string, unknown> {
+  const create = createRequest();
+  const timestamp = "2026-08-30T12:00:00.000Z";
+  return {
+    intent_version: "aw-run-intent/0.1",
+    phase: bound ? "bound" : "pending_create",
+    api_origin: "https://augmentworks.ai/",
+    request: create,
+    request_sha256: sha256(canonicalize(create)),
+    ...(bound ? { binding: binding(create) } : {}),
+    created_at: timestamp,
+    updated_at: timestamp
+  };
+}
+
 describe("RunIntentStore", () => {
   it("persists before create and resumes the exact secret-free request", async () => {
     const stateDirectory = await temporaryDirectory();
     const apiOrigin = new URL("http://127.0.0.1:8787/api/v1/");
     const first = new RunIntentStore({
       apiOrigin,
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
@@ -117,7 +139,11 @@ describe("RunIntentStore", () => {
       expect((await lstat(dirname(intentPath))).mode & 0o777).toBe(0o700);
     }
 
-    const second = new RunIntentStore({ apiOrigin, stateDirectory });
+    const second = new RunIntentStore({
+      apiOrigin,
+      tenant: TENANT,
+      stateDirectory
+    });
     await second.open();
     const resumed = await second.loadOrCreate(request());
     expect(resumed.resumed).toBe(true);
@@ -126,6 +152,7 @@ describe("RunIntentStore", () => {
 
     const otherPrefix = new RunIntentStore({
       apiOrigin: new URL("http://127.0.0.1:8787/api/v2/"),
+      tenant: TENANT,
       stateDirectory
     });
     expect(otherPrefix.path).not.toBe(intentPath);
@@ -135,6 +162,7 @@ describe("RunIntentStore", () => {
     const stateDirectory = await temporaryDirectory();
     const store = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
@@ -142,9 +170,7 @@ describe("RunIntentStore", () => {
     await store.loadOrCreate(request());
     const before = await readFile(store.path, "utf8");
     await expect(
-      store.loadOrCreate(
-        request({ packet: { key: "another-packet", version: "0.1.0" } })
-      )
+      store.loadOrCreate(request({ packet: { key: "another-packet", version: "0.1.0" } }))
     ).rejects.toMatchObject({ code: "ACTIVE_RUN_EXISTS" });
     await expect(
       store.loadOrCreate(
@@ -160,10 +186,97 @@ describe("RunIntentStore", () => {
     await store.close();
   });
 
+  it("rejects a connector or workspace switch before an active intent can be reused", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const apiOrigin = new URL("https://augmentworks.ai/");
+    const original = new RunIntentStore({
+      apiOrigin,
+      tenant: TENANT,
+      stateDirectory,
+      createRequestId: () => CREATE_ID
+    });
+    await original.open();
+    await original.loadOrCreate(request());
+    const before = await readFile(original.path, "utf8");
+    await original.close();
+
+    const switched = new RunIntentStore({
+      apiOrigin,
+      tenant: {
+        workspace_id: "workspace-other",
+        connector_id: "connector-other"
+      },
+      stateDirectory
+    });
+    await expect(switched.open()).rejects.toMatchObject({
+      code: "ACTIVE_RUN_TENANT_MISMATCH"
+    });
+    expect(await readFile(original.path, "utf8")).toBe(before);
+  });
+
+  it("migrates a legacy bound intent only after authoritative run access is verified", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const store = new RunIntentStore({
+      apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
+      stateDirectory
+    });
+    await mkdir(dirname(store.path), { recursive: true, mode: 0o700 });
+    await writeFile(store.path, `${JSON.stringify(legacyIntent(true))}\n`, {
+      mode: 0o600
+    });
+
+    await store.open();
+    const verifiedRuns: string[] = [];
+    await expect(
+      store.migrateLegacyTenantBinding(async (legacyBinding, tenant) => {
+        verifiedRuns.push(legacyBinding.run_id);
+        expect(tenant).toEqual(TENANT);
+        return true;
+      })
+    ).resolves.toBe(true);
+    expect(verifiedRuns).toEqual(["run-1"]);
+    expect(JSON.parse(await readFile(store.path, "utf8"))).toMatchObject({
+      intent_version: "aw-run-intent/0.2",
+      tenant: TENANT,
+      phase: "bound"
+    });
+    await store.close();
+  });
+
+  it("refuses an unbound legacy intent instead of guessing its tenant", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const store = new RunIntentStore({
+      apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
+      stateDirectory
+    });
+    await mkdir(dirname(store.path), { recursive: true, mode: 0o700 });
+    await writeFile(store.path, `${JSON.stringify(legacyIntent(false))}\n`, {
+      mode: 0o600
+    });
+
+    await store.open();
+    let verificationCalls = 0;
+    await expect(
+      store.migrateLegacyTenantBinding(async () => {
+        verificationCalls += 1;
+        return true;
+      })
+    ).rejects.toMatchObject({ code: "LEGACY_RUN_INTENT_TENANT_UNVERIFIED" });
+    expect(verificationCalls).toBe(0);
+    expect(JSON.parse(await readFile(store.path, "utf8"))).toMatchObject({
+      intent_version: "aw-run-intent/0.1",
+      phase: "pending_create"
+    });
+    await store.close();
+  });
+
   it("persists a binding and rejects immutable drift on replay", async () => {
     const stateDirectory = await temporaryDirectory();
     const store = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
@@ -188,6 +301,7 @@ describe("RunIntentStore", () => {
     const stateDirectory = await temporaryDirectory();
     const store = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
@@ -218,17 +332,21 @@ describe("RunIntentStore", () => {
     const stateDirectory = await temporaryDirectory();
     const probe = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory
     });
     await mkdir(dirname(probe.path), { mode: 0o700 });
     const target = join(stateDirectory, "attacker-state");
     await writeFile(target, "{}\n", { mode: 0o600 });
     await symlink(target, probe.path);
-    await expect(probe.open()).rejects.toMatchObject({ code: "UNSAFE_RUN_INTENT" });
+    await expect(probe.open()).rejects.toMatchObject({
+      code: "UNSAFE_RUN_INTENT"
+    });
 
     await rm(probe.path);
     const valid = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
@@ -239,9 +357,12 @@ describe("RunIntentStore", () => {
     await chmod(path, 0o644);
     const broad = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory
     });
-    await expect(broad.open()).rejects.toMatchObject({ code: "UNSAFE_RUN_INTENT" });
+    await expect(broad.open()).rejects.toMatchObject({
+      code: "UNSAFE_RUN_INTENT"
+    });
     expect((await lstat(path)).mode & 0o777).toBe(0o644);
   });
 
@@ -251,9 +372,12 @@ describe("RunIntentStore", () => {
     await chmod(stateDirectory, 0o755);
     const store = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory
     });
-    await expect(store.open()).rejects.toMatchObject({ code: "UNSAFE_STATE_DIRECTORY" });
+    await expect(store.open()).rejects.toMatchObject({
+      code: "UNSAFE_STATE_DIRECTORY"
+    });
     expect((await lstat(stateDirectory)).mode & 0o777).toBe(0o755);
   });
 
@@ -261,14 +385,19 @@ describe("RunIntentStore", () => {
     const stateDirectory = await temporaryDirectory();
     const store = new RunIntentStore({
       apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
       stateDirectory,
       createRequestId: () => CREATE_ID
     });
     await store.open();
     const loaded = await store.loadOrCreate(request());
     await store.bind(binding(loaded.intent.request));
-    expect(JSON.parse(await readFile(store.path, "utf8"))).toMatchObject({ phase: "bound" });
-    expect((await readdir(dirname(store.path))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+    expect(JSON.parse(await readFile(store.path, "utf8"))).toMatchObject({
+      phase: "bound"
+    });
+    expect((await readdir(dirname(store.path))).filter((name) => name.endsWith(".tmp"))).toEqual(
+      []
+    );
     await store.close();
   });
 });
