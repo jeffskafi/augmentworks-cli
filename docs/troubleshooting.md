@@ -49,10 +49,11 @@ behavior.
 
 ### `login` cannot connect
 
-The production connector-auth and relay endpoints are not deployed yet. In a
-development build, point the client only at the repository's mock service. When
-production is available, retry browser authorization or use `login --device`
-for a headless machine.
+Confirm outbound HTTPS access to `https://augmentworks.ai`, verify the system
+clock, and retry browser authorization. Use `login --device` for an SSH or
+headless machine, or `--no-open` to print the browser URL. Do not set
+`AUGMENTWORKS_API_URL` to another hosted origin; v0.1 accepts the production
+origin or an explicit loopback development origin only.
 
 ### `CREDENTIAL_STORE_UNAVAILABLE`
 
@@ -65,6 +66,13 @@ inherited credential-file ACLs; move an old untrusted path aside and retry only
 after investigating it. The CLI will not downgrade Windows credentials to a
 plaintext file. On Linux or macOS without native storage, an explicit
 `--allow-file-credentials` enables the warned mode-`0600` POSIX fallback.
+
+### Login works, but the target returns 401 or 403
+
+The AugmentWorks connector credential authenticates CLI-to-cloud requests only.
+Check the target credential named by `bearer_env` or `headers_env` in the local
+process environment or the `.env` file beside the selected YAML. Do not copy an
+AugmentWorks access token into a target credential field.
 
 ### A target operation timed out
 
@@ -117,8 +125,8 @@ run, and the hosted service preflights the packet, capabilities, and observation
 aliases before credit reservation. An accepted create reports `reserved`; the
 first real command lease changes it to `consumed`; cancellation or expiry before
 that lease changes it to `released`. Replaying the same create request never
-charges again. Once the hosted service is deployed, its response and dashboard
-are authoritative; the CLI does not meter credits locally.
+charges again. The hosted response and dashboard are authoritative for run and
+credit status; the CLI does not meter credits locally.
 
 When reporting a bug, include CLI version, Node.js version, operating system,
 safe error code, and a redacted configuration. Never attach `.env`, credential
