@@ -57,11 +57,12 @@ describe("customer-facing CLI copy", () => {
   it("documents separate platform and target credentials", async () => {
     const authentication = await readSurface("docs/authentication.md");
     const readme = await readSurface("README.md");
+    const authenticationCopy = authentication.replace(/\\s+/gu, " ");
 
-    expect(authentication).toContain(
+    expect(authenticationCopy).toContain(
       "That connector credential is used only for CLI-to-AugmentWorks API"
     );
-    expect(authentication).toContain("Target authentication is configured independently");
+    expect(authenticationCopy).toContain("Target authentication is configured independently");
     expect(readme).toContain("Target authentication is separate");
   });
 });
