@@ -1,9 +1,10 @@
 # Configuration reference
 
 The v1 configuration describes a local application boundary. It is input to a
-deterministic HTTP connector, not an instruction language. The relay cannot
-change the configured host, path, method, headers, environment-variable names,
-or mappings during a run.
+deterministic HTTP connector, not an instruction language. No Python adapter or
+AugmentWorks target SDK is required: expose the mapped endpoints in the
+application's existing framework. The relay cannot change the configured host,
+path, method, headers, environment-variable names, or mappings during a run.
 
 ## File and environment resolution
 
@@ -32,6 +33,8 @@ auth:
 
 `bearer_env` and `headers_env` values name environment variables. They are not
 secret values. `doctor` rejects credential-like literal values in these fields.
+These credentials authenticate CLI-to-target calls and are separate from the
+revocable connector credential created by `augmentworks login`.
 
 ## Top-level shape
 
@@ -161,7 +164,7 @@ redacted target error.
 | --- | --- | --- |
 | `prepare` | Create a synthetic fixture and return its identifiers | An ambiguous outcome is indeterminate unless explicitly idempotent |
 | `send` | Deliver a scenario message to the application | An ambiguous outcome is indeterminate unless explicitly idempotent |
-| `observe` | Read authoritative, allowlisted synthetic state | An ambiguous outcome is indeterminate unless explicitly idempotent |
+| `observe` | Read allowlisted synthetic state through the configured observer | An ambiguous outcome is indeterminate unless explicitly idempotent |
 | `cleanup` | Remove the synthetic fixture | An ambiguous outcome is indeterminate unless explicitly idempotent |
 
 Target authors should make lifecycle operations idempotent by the attempt or
@@ -198,10 +201,12 @@ only for a typed relay request whose keys passed this allowlist.
 | --- | --- | --- |
 | Chat-only | `send` | Conversational behavior |
 | Tool-aware | `send` and allowed structured events | Attempted tool invocation |
-| Stateful | `prepare`, `send`, `observe`, `cleanup`, and allowed observation fields | Observed synthetic state transition |
+| Stateful | `prepare`, `send`, `observe`, `cleanup`, and allowed observation fields | Values reported by the configured state observer |
 
 If state observation is absent or fails, state is `unknown`; the chatbot's
-message is not substituted as proof.
+message is not substituted as proof. An observation is customer-reported
+evidence, not independent verification that the observer is correct or that a
+test environment matches production.
 
 ## Validation
 
