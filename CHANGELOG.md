@@ -26,5 +26,5 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
-[Unreleased]: https://github.com/jeffskafi/augmentworks-cli/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jeffskafi/augmentworks-cli/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jeffskafi/augmentworks-cli/commits/main
+[0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0
