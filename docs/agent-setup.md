@@ -17,13 +17,18 @@ AugmentWorks into this repository.
 You may inspect the current repository, but do not read, print, move, or expose
 secrets. Do not inspect outside the repository unless I explicitly approve it.
 
-Use the pinned @augmentworks/cli@0.1.0 package. Generate augmentworks.yaml and
-.env.example, and add only the minimum synthetic prepare/send/observe/cleanup
-hooks needed for the selected packet. Use test or staging data only. Never put a
-secret value in YAML, source code, a command argument, chat, or a diff.
+Use the pinned @augmentworks/cli@0.1.0 package. Run `npx --yes
+@augmentworks/cli@0.1.0 init --agent`, then configure the generic YAML HTTP
+connector. Do not require a Python adapter or AugmentWorks target SDK; implement
+only missing synthetic hooks in this application's existing framework.
 
-Run the local doctor command, show me the resulting diff, and explain the
-telemetry allowlist and cleanup behavior. Stop when browser authentication,
+Generate augmentworks.yaml and .env.example, and add only the minimum synthetic
+prepare/send/observe/cleanup hooks needed for the selected packet. Use test or
+staging data only. Never put a secret value in YAML, source code, a command
+argument, chat, or a diff.
+
+Run `npx --yes @augmentworks/cli@0.1.0 doctor -c augmentworks.yaml`, show me the
+resulting diff, and explain the telemetry allowlist and cleanup behavior. Stop when browser authentication,
 device authorization, secret insertion, or human approval is required. Do not
 start an assessment, consume a free credit, or run a paid assessment without
 asking me first.
@@ -34,21 +39,29 @@ asking me first.
 1. Confirm the approved repository root and test/staging target.
 2. Inspect application routes or an OpenAPI description inside that root.
 3. Identify the application endpoint—not merely its model-provider endpoint.
-4. Run `init --agent` and generate `augmentworks.yaml` plus `.env.example`.
-5. Add narrowly scoped, authenticated synthetic lifecycle hooks only if needed.
+4. Run `npx --yes @augmentworks/cli@0.1.0 init --agent` to generate
+   `augmentworks.yaml`, `.env.example`, a local `.env`, and repository guidance.
+5. Use the generic YAML HTTP connector. Add narrowly scoped, authenticated
+   synthetic lifecycle hooks in the application's native framework only if
+   needed.
 6. Make cleanup idempotent and give fixtures a server-side TTL.
 7. Configure the smallest useful telemetry allowlist.
-8. Run `doctor`, which is always offline in v0.1, and report any missing local
-   environment variables to the human without reading their values.
+8. Run `doctor -c augmentworks.yaml`, which is always offline in v0.1, and
+   report missing local environment-variable names without opening or printing
+   `.env` values.
 9. Show the diff and remaining risks.
 10. Stop before authentication or `test` unless the human explicitly approves.
 
 ## Human-only steps
 
-- Sign in and approve the connector in a browser.
-- Insert target credentials into a local `.env` or secret manager.
+- Sign in and approve the connector with `npx --yes
+  @augmentworks/cli@0.1.0 login`.
+- Insert target credentials into a local `.env` or secret manager. These are
+  separate from the AugmentWorks connector credential.
 - Decide whether synthetic target side effects are acceptable.
-- Start an assessment and authorize any paid use.
+- Start the assessment with `npx --yes @augmentworks/cli@0.1.0 test -c
+  augmentworks.yaml --packet support-refunds@0.1.0 --open`, and authorize any
+  paid use.
 - Review findings before publishing or sharing evidence.
 
 Once setup is complete, the AI assistant leaves the evidence path. Every scored
