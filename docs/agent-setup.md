@@ -17,9 +17,11 @@ AugmentWorks into this repository.
 You may inspect the current repository, but do not read, print, move, or expose
 secrets. Do not inspect outside the repository unless I explicitly approve it.
 
-Use the pinned @augmentworks/cli@0.1.0 package. Run `npx --yes
-@augmentworks/cli@0.1.0 init --agent`, then configure the generic YAML HTTP
-connector. Do not require a Python adapter or AugmentWorks target SDK; implement
+Use the pinned @augmentworks/cli@0.1.0 package. Run:
+
+npx --yes @augmentworks/cli@0.1.0 init --agent
+
+Then configure the generic YAML HTTP connector. Do not require a Python adapter or AugmentWorks target SDK; implement
 only missing synthetic hooks in this application's existing framework.
 
 Generate augmentworks.yaml and .env.example, and add only the minimum synthetic
@@ -27,9 +29,13 @@ prepare/send/observe/cleanup hooks needed for the selected packet. Use test or
 staging data only. Never put a secret value in YAML, source code, a command
 argument, chat, or a diff.
 
-Run `npx --yes @augmentworks/cli@0.1.0 doctor -c augmentworks.yaml`, show me the
-resulting diff, and explain the telemetry allowlist and cleanup behavior. Stop when browser authentication,
-device authorization, secret insertion, or human approval is required. Do not
+Run:
+
+npx --yes @augmentworks/cli@0.1.0 doctor -c augmentworks.yaml
+
+Show me the resulting diff, and explain the telemetry allowlist and cleanup
+behavior. Stop when browser authentication, device authorization, secret
+insertion, or human approval is required. Do not
 start an assessment, consume a free credit, or run a paid assessment without
 asking me first.
 ```
@@ -54,14 +60,14 @@ asking me first.
 
 ## Human-only steps
 
-- Sign in and approve the connector with `npx --yes
-  @augmentworks/cli@0.1.0 login`.
+- Sign in and approve the connector:
+  `npx --yes @augmentworks/cli@0.1.0 login`.
 - Insert target credentials into a local `.env` or secret manager. These are
   separate from the AugmentWorks connector credential.
 - Decide whether synthetic target side effects are acceptable.
-- Start the assessment with `npx --yes @augmentworks/cli@0.1.0 test -c
-  augmentworks.yaml --packet support-refunds@0.1.0 --open`, and authorize any
-  paid use.
+- Start the assessment and authorize any paid use:
+  `npx --yes @augmentworks/cli@0.1.0 test -c augmentworks.yaml --packet
+  support-refunds@0.1.0 --open`.
 - Review findings before publishing or sharing evidence.
 
 Once setup is complete, the AI assistant leaves the evidence path. Every scored
