@@ -29,8 +29,8 @@ npx --yes @augmentworks/cli@0.1.0 test \
   --open
 ```
 
-`init` creates the YAML, `.env.example`, a local mode-`0600` `.env`, and
-repository guidance. `doctor` validates the config and local prerequisites
+`init` creates the YAML, `.env.example`, a local `.env`, and repository
+guidance. On POSIX systems, the CLI creates `.env` with mode `0600`. `doctor` validates the config and local prerequisites
 without calling AugmentWorks or the target. `test` is the explicit action that
 starts an assessment; `--open` opens its live dashboard.
 
