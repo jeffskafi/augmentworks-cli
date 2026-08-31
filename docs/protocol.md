@@ -5,8 +5,9 @@ CLI process. Delivery is outbound HTTPS and at least once. Operation inputs are
 typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
-The production relay is not deployed yet. This document is the v0.1 contract
-implemented by the CLI and its mock integration tests.
+This document is the v0.1 contract implemented by the CLI and hosted relay.
+Repository integration tests exercise the same envelope and binding rules
+against local services.
 
 ## Versions
 
@@ -257,9 +258,11 @@ bounded typed `events`, and `finished`. Event variants are:
 Carries `request_id`, a unique bounded `probe_keys` array, and `metadata`.
 
 The result contains the matching `request_id` and observations with `key`,
-bounded JSON `value`, `source`, and `authoritative`. Local telemetry
-configuration rejects a cloud-requested probe that is not explicitly allowed
-before local dispatch, and filters any unallowed key returned by the target.
+bounded JSON `value`, `source`, and `authoritative`. The `authoritative` field is
+a declaration made by the customer-controlled observer; it is not independent
+verification by AugmentWorks. Local telemetry configuration rejects a
+cloud-requested probe that is not explicitly allowed before local dispatch and
+filters any unallowed key returned by the target.
 
 ### `cleanup`
 
@@ -326,9 +329,9 @@ fixtures should also have a server-side TTL.
 The CLI's unkeyed command/result digests are replay checksums: comparison with
 an already-durable local or relay record detects a conflicting replay. They are
 not signatures and do not by themselves provide evidence provenance or
-tamper-evidence; HTTPS authenticates transport only. The undeployed hosted
-evidence service would need a separate authenticated binding or signing design
-to bind packet/scorer/runner/CLI versions, configuration, target identity, and
-ordered results. Even then, it would not independently verify that a
-customer-operated observation is truthful; see
-[security-model.md](security-model.md).
+tamper-evidence; HTTPS authenticates transport only. The hosted relay associates
+accepted results with authenticated connector, session, run, packet,
+configuration, sequence, and fencing bindings. That association records what
+the connector reported. It does not prove target identity, make a
+customer-operated observation truthful, or establish production equivalence;
+see [security-model.md](security-model.md).
