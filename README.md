@@ -180,7 +180,7 @@ instead of silently creating another run or reserving another credit.
 | --- | --- | --- |
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
-| `whoami` | Show the current workspace identity | Network read only |
+| `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline]` | Validate config, mappings, secrets, and local prerequisites | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Calls configured lifecycle endpoints and may create synthetic state |

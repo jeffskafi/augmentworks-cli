@@ -28,8 +28,10 @@ refused.
 
 ## Transport and command safety
 
-- All cloud communication is outbound HTTPS. No inbound listener, public target
-  URL, or tunnel is required.
+- During assessment execution, the CLI initiates all cloud communication over
+  outbound HTTPS. No inbound access to the target, public target URL, or tunnel
+  is required. The default browser login separately uses a temporary
+  `127.0.0.1` callback listener; `login --device` avoids that callback.
 - The only runtime capabilities are `prepare`, `send`, `observe`, and `cleanup`.
 - Envelopes are authenticated and include protocol version, command ID,
   sequence, lease/fencing epoch, issue/expiry time, and idempotency key.

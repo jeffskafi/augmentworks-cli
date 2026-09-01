@@ -103,10 +103,13 @@ run creation.
 ## Future automation credentials
 
 `AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and local integration harnesses. The CLI never loads or
-writes an interactive credential when this environment variable is present.
-Project-token issuance is intentionally separate from the interactive v0.1
-connector-auth endpoints and is not implemented by this release. Do not use the
+future project tokens and local integration harnesses. `login`, `whoami`, and
+`test` give it precedence and do not load or write the interactive credential
+store. `logout` still attempts to revoke the environment token and any stored
+connector credential, removes local stored credential material when accessible,
+and warns that the environment variable remains set. Project-token issuance is
+intentionally separate from the interactive v0.1 connector-auth endpoints and
+is not implemented by this release. Do not use the
 one-hour interactive access token as an unattended CI credential.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a

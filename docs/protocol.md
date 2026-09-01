@@ -5,8 +5,8 @@ CLI process. Delivery is outbound HTTPS and at least once. Operation inputs are
 typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
-This document is the v0.1 contract implemented by the CLI and hosted relay.
-Repository integration tests exercise the same envelope and binding rules
+This document is the v0.1 contract implemented by the CLI and relay service
+code. Repository integration tests exercise the same envelope and binding rules
 against local services.
 
 ## Versions
