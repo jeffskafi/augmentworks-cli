@@ -67,4 +67,22 @@ describe("customer-facing CLI copy", () => {
     expect(authenticationCopy).toContain("Target authentication is configured independently");
     expect(readme).toContain("Target authentication is separate");
   });
+
+  it("requires an isolated synthetic target and synthetic-only data", async () => {
+    const readme = (await readSurface("README.md")).replace(/\s+/gu, " ");
+    const agentSetup = (await readSurface("docs/agent-setup.md")).replace(/\s+/gu, " ");
+    const securityModel = (await readSurface("docs/security-model.md")).replace(/\s+/gu, " ");
+
+    expect(readme).toContain("authorized, isolated synthetic targets");
+    expect(readme).toContain(
+      "Do not connect production systems or use production or regulated data."
+    );
+    expect(agentSetup).toContain(
+      "Use only an authorized, isolated synthetic target in a test or staging environment and synthetic test data."
+    );
+    expect(agentSetup).not.toContain("Use test or staging data only.");
+    expect(securityModel).toContain(
+      "Use only an authorized, isolated synthetic target and synthetic test data."
+    );
+  });
 });

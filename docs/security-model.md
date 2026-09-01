@@ -120,8 +120,9 @@ and target. Therefore the complete assessment packet cannot be considered
 secret from a connector that executes it. The hosted service can retain
 undispatched branches, assertions, scorer logic, and comparative data.
 
-Use synthetic, non-personal test data. Logs and evidence should be treated as
-sensitive even after allowlisting.
+Use only an authorized, isolated synthetic target and synthetic test data. Do
+not connect production systems or use production or regulated data. Logs and
+evidence should be treated as sensitive even after allowlisting.
 
 ## Evidence integrity and truth
 
@@ -143,11 +144,14 @@ inferred success from chatbot text.
 
 ## Operational safeguards
 
-- v0.1 supports synthetic fixtures in test or staging environments only.
+- v0.1 supports authorized, isolated synthetic targets in test or staging
+  environments and synthetic test data only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
 - `test` is the explicit v0.1 action that starts an assessment and keeps the
   connector online for that run. The dashboard can observe or request
-  cancellation; it cannot send arbitrary work, URLs, or shell instructions.
+  cancellation, but cannot start an assessment. There is no v0.1 `connect`
+  command, and the dashboard cannot send arbitrary work, URLs, or shell
+  instructions.
 - Cleanup should be idempotent, and target fixtures should have a server-side
   TTL as a final orphan safeguard.
 - Active intents and command journals are bounded regular files with mode

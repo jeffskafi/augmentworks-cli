@@ -25,8 +25,10 @@ Then configure the generic YAML HTTP connector. Do not require a Python adapter 
 only missing synthetic hooks in this application's existing framework.
 
 Generate augmentworks.yaml and .env.example, and add only the minimum synthetic
-prepare/send/observe/cleanup hooks needed for the selected packet. Use test or
-staging data only. Never put a secret value in YAML, source code, a command
+prepare/send/observe/cleanup hooks needed for the selected packet. Use only an
+authorized, isolated synthetic target in a test or staging environment and
+synthetic test data. Do not connect production systems or use production or
+regulated data. Never put a secret value in YAML, source code, a command
 argument, chat, or a diff.
 
 Run:
@@ -42,7 +44,8 @@ asking me first.
 
 ## Expected assistant workflow
 
-1. Confirm the approved repository root and test/staging target.
+1. Confirm the approved repository root and an authorized, isolated synthetic
+   target in a test or staging environment.
 2. Inspect application routes or an OpenAPI description inside that root.
 3. Identify the application endpoint—not merely its model-provider endpoint.
 4. Run `npx --yes @augmentworks/cli@0.1.0 init --agent` to generate

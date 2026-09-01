@@ -11,8 +11,8 @@ the runtime connector path.
 
 ## Quickstart
 
-Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and a synthetic
-test target. Run:
+Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and an
+authorized, isolated synthetic test target. Run:
 
 ```bash
 npx --yes @augmentworks/cli@0.1.0 login
@@ -220,8 +220,9 @@ that observer is truthful or that staging matches production.
   connector, session, run, packet, configuration, and sequence bindings.
 - A customer-operated observation hook can be incorrect or dishonest, and a
   staging result is not proof of production equivalence.
-- v0.1 is for synthetic test data in test or staging environments. Production
-  execution is unsupported.
+- v0.1 is for authorized, isolated synthetic targets in test or staging
+  environments and synthetic test data only. Do not connect production systems
+  or use production or regulated data.
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
 [relay protocol](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/protocol.md), and
