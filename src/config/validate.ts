@@ -326,7 +326,7 @@ export function validateConfigObject(value: unknown): ValidationResult {
     pushWarning(
       diagnostics,
       "OBSERVATIONS_NOT_ALLOWED",
-      "Stateful hooks are configured, but no authoritative observation keys are allowed to leave this machine.",
+      "Stateful hooks are configured, but no observation keys are allowlisted to leave this machine.",
       "telemetry.allow_observations"
     );
   }
