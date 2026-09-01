@@ -24,7 +24,9 @@ describe("customer-facing CLI copy", () => {
   it.each(documentedSurfaces)("%s does not advertise an unregistered command", async (path) => {
     const content = await readSurface(path);
 
-    expect(content).not.toMatch(/@augmentworks\/cli@0\.1\.0\s+(?:connect|run)\b/u);
+    expect(content).not.toMatch(
+      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+(?:connect|run)\b/u
+    );
     expect(content).not.toMatch(/(?:^|\s)augmentworks\s+(?:connect|run)\b/u);
   });
 
