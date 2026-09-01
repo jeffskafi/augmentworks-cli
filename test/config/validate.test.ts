@@ -54,6 +54,29 @@ describe("configuration validation", () => {
     expect(validateConfigObject(value).diagnostics.map((item) => item.code)).toContain("LIFECYCLE_INCOMPLETE");
   });
 
+  it("uses allowlist language when stateful observation telemetry is not configured", () => {
+    const value = config({
+      operations: {
+        send: config().target.operations.send,
+        prepare: { method: "POST", path: "/prepare" },
+        observe: { method: "POST", path: "/observe" },
+        cleanup: { method: "POST", path: "/cleanup" }
+      }
+    });
+
+    expect(validateConfigObject(value).diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "OBSERVATIONS_NOT_ALLOWED",
+          level: "warning",
+          message:
+            "Stateful hooks are configured, but no observation keys are allowlisted to leave this machine.",
+          path: "telemetry.allow_observations"
+        })
+      ])
+    );
+  });
+
   it("rejects dynamic and cross-origin-looking paths", () => {
     const value = config();
     value.target.operations.send.path = "//attacker.example/collect";

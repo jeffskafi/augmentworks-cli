@@ -1,8 +1,10 @@
 # Authentication
 
-Authentication authorizes a local connector to an AugmentWorks workspace. It
-does not grant the relay access to the local filesystem, shell, environment, or
-network beyond the capabilities represented by the selected configuration.
+Authentication authorizes a local CLI to call AugmentWorks on behalf of one
+workspace. That connector credential is used only for CLI-to-AugmentWorks API
+requests. It does not authenticate requests to the customer application or
+grant the hosted relay access to the local filesystem, shell, environment, or
+network.
 
 ## Interactive login
 
@@ -11,8 +13,8 @@ npx --yes @augmentworks/cli@0.1.0 login
 ```
 
 The default flow uses browser Authorization Code with PKCE and a temporary
-loopback callback. The browser shows the workspace and target authorization;
-the human signs in and approves it. The verifier remains local, the code is
+loopback callback. The browser shows the connector authorization and selected
+workspace; the human signs in and approves it. The verifier remains local, the code is
 single-use and short-lived, and the callback listener closes after completion.
 
 For SSH and other headless environments:
@@ -67,7 +69,7 @@ On POSIX systems the user may explicitly opt into the local fallback with
 enforces mode `0600`. Plaintext fallback is disabled on Windows because a POSIX
 mode cannot prove a safe Windows ACL. No native Node add-on is required.
 
-Long-running `test` and `connect` processes resolve a current access token
+A long-running `test` process resolves a current access token
 before every cloud request. Interactive credentials refresh shortly before
 expiry and once after an HTTP 401. Refresh-token rotation is serialized with a
 secure, API-origin-scoped process lock; a waiting command re-loads and reuses
@@ -85,26 +87,32 @@ npx --yes @augmentworks/cli@0.1.0 whoami
 npx --yes @augmentworks/cli@0.1.0 logout
 ```
 
-`logout` removes local credential material. Revoke a lost machine or connector
-from the AugmentWorks workspace as well.
+`logout` requests server-side revocation and removes local credential material.
+A workspace owner can also revoke a lost machine or connector from the
+AugmentWorks portal.
+
+## Target authentication is separate
+
+The connector credential above authenticates the CLI to AugmentWorks. Target
+authentication is configured independently in `augmentworks.yaml`, for example
+with `bearer_env` or `headers_env`, and resolved from the local process
+environment or the `.env` file beside the selected configuration. Target
+credential values are not put in YAML, sent during login, or uploaded during
+run creation.
 
 ## Future automation credentials
 
 `AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and local integration harnesses. The CLI never loads or
-writes an interactive credential when this environment variable is present.
-Project-token issuance is intentionally separate from the interactive v0.1
-connector-auth endpoints and is not implemented by this release. Do not use the
+future project tokens and local integration harnesses. `login`, `whoami`, and
+`test` give it precedence and do not load or write the interactive credential
+store. `logout` still attempts to revoke the environment token and any stored
+connector credential, removes local stored credential material when accessible,
+and warns that the environment variable remains set. Project-token issuance is
+intentionally separate from the interactive v0.1 connector-auth endpoints and
+is not implemented by this release. Do not use the
 one-hour interactive access token as an unattended CI credential.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a
 build log, or paste it into an AI assistant. Rotate CI credentials on exposure
 and scope them to one workspace and the minimum required target actions.
 
-## Production rollout
-
-The production authorization endpoints are implemented in the AugmentWorks
-platform source. They remain release-gated until the database migration,
-Vercel deployment, production smoke assessment, and pinned npm publication are
-complete. Until then, authentication behavior is exercised against local
-integration services in this repository.

@@ -2,21 +2,17 @@
 
 [![CI](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml)
 
-`@augmentworks/cli` is the deterministic, customer-operated connector that lets
-AugmentWorks assess chatbots running on localhost or inside a private network.
-It converts fixed assessment operations into calls to your application using a
-versioned YAML file. No model is used in the evidence path.
-
-> **Release status:** the CLI and production connector-auth/relay source are
-> implemented and exercised end to end against local integration services. The
-> production migration, Vercel deployment, smoke assessment, and pinned npm
-> publication must complete before `login` and hosted `test` are enabled on
-> `augmentworks.ai`.
+`@augmentworks/cli` is the outbound-only, customer-operated connector for
+stateful AI agent release testing. It maps fixed assessment operations to an
+application on localhost, a private network, or another customer-configured
+endpoint using versioned YAML. The generic HTTP connector does not require a
+Python adapter or AugmentWorks target SDK, and no coding assistant is used in
+the runtime connector path.
 
 ## Quickstart
 
-Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and a synthetic
-test target. After the v0.1 package and production relay are released, run:
+Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and an
+authorized, isolated synthetic test target. Run:
 
 ```bash
 npx --yes @augmentworks/cli@0.1.0 login
@@ -32,6 +28,11 @@ npx --yes @augmentworks/cli@0.1.0 test \
   --packet support-refunds@0.1.0 \
   --open
 ```
+
+`init` creates the YAML, `.env.example`, a local `.env`, and repository
+guidance. On POSIX systems, the CLI creates `.env` with mode `0600`. `doctor` validates the config and local prerequisites
+without calling AugmentWorks or the target. `test` is the explicit action that
+starts an assessment; `--open` opens its live dashboard.
 
 For an SSH or otherwise headless environment, use device authorization:
 
@@ -125,14 +126,28 @@ See the [configuration reference](https://github.com/jeffskafi/augmentworks-cli/
 [`augmentworks.yaml` schema](schemas/v1/augmentworks.schema.json), and the
 [refund-agent example](https://github.com/jeffskafi/augmentworks-cli/blob/main/examples/refund-agent/README.md).
 
+## Data boundary
+
+| Stays local | Exchanged with AugmentWorks |
+| --- | --- |
+| Raw target URL and paths, mapping selectors, environment-variable names and values, target credentials, application code and logs, full fixture state, and unmapped responses | Packet inputs, target display name, secret-free config/boundary checksums, declared capabilities, observation-key aliases, mapped assistant content, opted-in tool events, allowlisted observations, safe errors, and lifecycle status/timing |
+
+The connector credential created by `login` authenticates the CLI to
+AugmentWorks. Target authentication is separate: YAML names local environment
+variables whose values are used only for CLI-to-target requests.
+
 ## What happens during `test`
 
 ```mermaid
-flowchart TD
-    Cloud["AugmentWorks relay"] -->|"typed operation over outbound HTTPS"| CLI["Local CLI"]
-    CLI -->|"configured HTTP call"| App["Customer test application"]
-    App -->|"allowlisted result"| CLI
-    CLI -->|"bounded evidence"| Cloud
+sequenceDiagram
+    participant CLI as Customer-run CLI
+    participant Cloud as AugmentWorks relay
+    participant App as Test application
+    CLI->>Cloud: Create run and long-poll over HTTPS
+    Cloud-->>CLI: One typed operation
+    CLI->>App: Locally configured HTTP request
+    App-->>CLI: Application response
+    CLI->>Cloud: Mapped, bounded result
 ```
 
 1. The CLI authenticates and creates an assessment run.
@@ -141,34 +156,23 @@ flowchart TD
 3. The relay can request only `prepare`, `send`, `observe`, or `cleanup`.
 4. Local configuration—not a cloud command—selects the URL, method, headers,
    environment variables, and response mapping.
-5. The CLI returns only bounded messages, tool events, and allowlisted state.
+5. The CLI returns only mapped assistant content, opted-in tool events,
+   allowlisted observations, safe errors, and lifecycle status.
 6. AugmentWorks evaluates that evidence and updates the dashboard.
 7. When a fixture may exist, the hosted relay can dispatch a typed `cleanup`
    follow-up after success, failure, cancellation, or interruption. The CLI
    does not invent lifecycle operations that the relay did not dispatch.
 
 The relay delivers commands at least once. The CLI journals command IDs and
-returns a durable terminal result for an exact duplicate. A previously started
-operation without a durable result executes again only when configuration marks
-it idempotent. The CLI never blindly retries an ambiguous operation that is not
-explicitly idempotent; it reports an indeterminate outcome so the relay can
-dispatch bounded typed follow-ups, such as `observe` or `cleanup` when a fixture
-may exist.
+returns a durable terminal result for an exact duplicate. It never blindly
+retries an ambiguous operation unless local configuration explicitly declares
+that operation idempotent.
 
-Before the create request, `test` resolves `/api/v1/cli/auth/me` and persists one
-secret-free active intent per AugmentWorks API origin, bound to that workspace
-and connector. Re-running the exact command on the same machine replays the same
-create ID and resumes the same run; a different request or authenticated tenant
-is refused before another create can reserve credit. There is no force-new
-bypass, and recovery proceeds only when secure local lock ownership can be
-positively established. A same-host lock can be reclaimed after the recorded
-process is positively dead, or when a verifiable boot/process-start identity
-proves that its PID is no longer the owner; inode and nonce identity are then
-rechecked before removal. Under the hosted protocol, create preflight happens
-before credit reservation, the first real command lease consumes the credit,
-and cancellation or expiry before that lease releases it. A create replay never
-charges again. The production service implementing this contract is not yet
-deployed.
+Before run creation, `test` validates the config locally, resolves the current
+workspace and connector identity, and persists a secret-free active intent.
+Re-running the exact command on the same machine resumes the same run. A
+different active packet, configuration, connector, or workspace is refused
+instead of silently creating another run or reserving another credit.
 
 ## Commands
 
@@ -176,22 +180,24 @@ deployed.
 | --- | --- | --- |
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
-| `whoami` | Show the current workspace identity | Network read only |
+| `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline]` | Validate config, mappings, secrets, and local prerequisites | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Calls configured lifecycle endpoints and may create synthetic state |
 | `schema` | Print the bundled v1 JSON Schema | None |
 
-## What an integration can prove
+## Evidence levels
 
 | Level | Required mapping | Evidence claim |
 | --- | --- | --- |
 | Chat-only | `send` request and response | Conversational behavior |
 | Tool-aware | `send` plus structured tool events | What the chatbot attempted to invoke |
-| Stateful | `prepare`, `send`, `observe`, and `cleanup` | What changed in a synthetic system, according to the configured observer |
+| Stateful | `prepare`, `send`, `observe`, and `cleanup` | Values returned by the configured synthetic-state observer |
 
-For consequential workflows, a chatbot saying “done” is not proof. A stateful
-packet requires an authoritative observation and cleanup hook.
+For consequential workflows, an agent saying “done” is not proof. Stateful
+evidence requires configured observation and cleanup hooks. AugmentWorks records
+what the customer-controlled observer reports; it does not independently prove
+that observer is truthful or that staging matches production.
 
 ## Security and trust boundary
 
@@ -210,13 +216,13 @@ packet requires an authoritative observation and cleanup hook.
   undispatched packet branches and hosted assertions can remain private.
 - The CLI's unkeyed SHA-256 digests detect a conflicting replay when compared
   with an already-durable local or relay record; they are not evidence
-  signatures. HTTPS authenticates the transport endpoint. The undeployed hosted
-  evidence service would need separate authenticated bindings or signing to
-  provide provenance or tamper-evidence.
+  signatures. The hosted relay associates accepted results with authenticated
+  connector, session, run, packet, configuration, and sequence bindings.
 - A customer-operated observation hook can be incorrect or dishonest, and a
   staging result is not proof of production equivalence.
-- v0.1 is for synthetic test data in test or staging environments. Production
-  execution is unsupported.
+- v0.1 is for authorized, isolated synthetic targets in test or staging
+  environments and synthetic test data only. Do not connect production systems
+  or use production or regulated data.
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
 [relay protocol](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/protocol.md), and
@@ -227,11 +233,10 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 - The generic HTTP connector is the only v0.1 connector.
 - OpenAPI import, OpenAI-compatible presets, LangServe, and custom modules are
   not implemented.
-- An always-online `connect` mode is intentionally deferred.
+- v0.1 exposes no public `connect` command; `test` keeps the connector online
+  only for the assessment it starts.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
-- A hosted run depends on production connector-auth and relay endpoints, which
-  are not deployed yet.
 
 ## Development
 

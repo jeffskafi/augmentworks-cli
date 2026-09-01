@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Reconciled the package documentation with the published v0.1 command surface,
+  outbound relay, generic YAML HTTP connector, and current trust boundaries.
+
+## [0.1.0] - 2026-08-31
+
 ### Added
 
 - Initial deterministic HTTP connector and v1 YAML configuration.
@@ -19,9 +26,5 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
-### Deployment dependency
-
-- The production connector-auth and relay services are not deployed. Hosted
-  login and test commands remain unavailable until that service ships.
-
 [Unreleased]: https://github.com/jeffskafi/augmentworks-cli/commits/main
+[0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0

@@ -6,7 +6,7 @@ selects how that operation reaches the local application.
 
 ## Assets
 
-- AugmentWorks connector and optional static automation credentials
+- Revocable AugmentWorks connector credentials
 - Customer application credentials in the local environment
 - Synthetic fixture identifiers and state
 - Scenario messages, tool events, observations, and scored evidence
@@ -28,8 +28,10 @@ refused.
 
 ## Transport and command safety
 
-- All cloud communication is outbound HTTPS. No inbound listener, public target
-  URL, or tunnel is required.
+- During assessment execution, the CLI initiates all cloud communication over
+  outbound HTTPS. No inbound access to the target, public target URL, or tunnel
+  is required. The default browser login separately uses a temporary
+  `127.0.0.1` callback listener; `login --device` avoids that callback.
 - The only runtime capabilities are `prepare`, `send`, `observe`, and `cleanup`.
 - Envelopes are authenticated and include protocol version, command ID,
   sequence, lease/fencing epoch, issue/expiry time, and idempotency key.
@@ -99,19 +101,28 @@ trusted local principal. A cloud command cannot alter the configured endpoint.
 
 Only mapped content, allowed structured tool events, and explicitly allowlisted
 observation fields can leave the local connector. Run preflight also sends the
-sorted public observation-key aliases, but not their values, local selectors,
-environment-variable names, target URL or paths. It sends a boundary checksum,
-not the raw boundary fields. The CLI does not upload raw environment variables,
+target display name, secret-free configuration and boundary checksums, declared
+capabilities, and sorted public observation-key aliases. It does not send raw
+target URLs or paths, local selectors, environment-variable names or values,
 complete HTTP headers, arbitrary target responses, filesystem contents, or
 application logs.
+
+| Stays in the customer environment | Exchanged with AugmentWorks |
+| --- | --- |
+| Raw target URL and operation paths, mapping selectors, environment-variable names and values, target credentials, application code and logs, full fixture state, and unmapped responses | Packet inputs, target display name, secret-free checksums, declared capabilities, observation-key aliases, mapped assistant content, opted-in tool events, allowlisted observations, safe errors, and lifecycle status/timing |
+
+A checksum can detect configuration drift or a conflicting replay. It does not
+identify the target, reveal its raw boundary, or establish that returned
+evidence is true.
 
 Executed scenario prompts and fixture inputs necessarily reach the local CLI
 and target. Therefore the complete assessment packet cannot be considered
 secret from a connector that executes it. The hosted service can retain
 undispatched branches, assertions, scorer logic, and comparative data.
 
-Use synthetic, non-personal test data. Logs and evidence should be treated as
-sensitive even after allowlisting.
+Use only an authorized, isolated synthetic target and synthetic test data. Do
+not connect production systems or use production or regulated data. Logs and
+evidence should be treated as sensitive even after allowlisting.
 
 ## Evidence integrity and truth
 
@@ -119,25 +130,28 @@ The CLI uses unkeyed SHA-256 digests as replay checksums. Comparing them with an
 already-durable local or relay record detects a conflicting command or result;
 it does not prove evidence provenance or make the evidence independently
 tamper-evident. HTTPS authenticates the transport endpoint, not a later evidence
-artifact. The production hosted relay/evidence source implements authenticated,
-server-side bindings across the packet, scorer, orchestrator, CLI connector,
-configuration boundary, target declaration, and ordered results. It remains
-release-gated until its migration and Vercel deployment are smoke-tested.
+artifact. The hosted relay associates accepted results with the authenticated connector,
+session, run, packet, configuration boundary, and command order. That
+server-side association records what the connector reported; it is not a target
+signature and does not independently verify the underlying observation.
 
 Even a separately authenticated evidence record would **not** turn
 customer-operated code into an independent observer. A target or observation
 hook can be buggy or dishonest. Such a record could bind what that connector
 reported, but could not prove that it matches production or an external system
-of record. Missing or failed authoritative observation produces `unknown`,
-never an inferred success from chatbot text.
+of record. Missing or failed configured state observation produces `unknown`, never an
+inferred success from chatbot text.
 
 ## Operational safeguards
 
-- v0.1 supports synthetic fixtures in test or staging environments only.
+- v0.1 supports authorized, isolated synthetic targets in test or staging
+  environments and synthetic test data only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
-- `test` is an explicit local action. While `connect` is online, a workspace
-  owner may authorize the fixed support/refunds assessment from the dashboard;
-  the dashboard cannot send arbitrary work, URLs, or shell instructions.
+- `test` is the explicit v0.1 action that starts an assessment and keeps the
+  connector online for that run. The dashboard can observe or request
+  cancellation, but cannot start an assessment. There is no v0.1 `connect`
+  command, and the dashboard cannot send arbitrary work, URLs, or shell
+  instructions.
 - Cleanup should be idempotent, and target fixtures should have a server-side
   TTL as a final orphan safeguard.
 - Active intents and command journals are bounded regular files with mode

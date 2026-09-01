@@ -28,7 +28,8 @@ node dist/index.js doctor \
   -c examples/refund-agent/augmentworks.yaml
 ```
 
-The hosted quickstart is:
+After authorizing the CLI with `npx --yes @augmentworks/cli@0.1.0 login`, start
+the assessment from this directory:
 
 ```bash
 npx --yes @augmentworks/cli@0.1.0 test \
@@ -37,8 +38,10 @@ npx --yes @augmentworks/cli@0.1.0 test \
   --open
 ```
 
-That hosted command cannot complete until the production AugmentWorks relay is
-deployed. Repository integration tests use a loopback mock relay instead.
+The CLI creates the assessment, polls the relay over outbound HTTPS, calls this
+loopback target through the local mapping, and opens the live dashboard.
+Repository integration tests exercise the same protocol against a loopback mock
+relay without consuming an assessment credit.
 
 ## API shape
 
