@@ -1,17 +1,18 @@
 # Refund-agent example
 
 This loopback server demonstrates the full synthetic lifecycle without a model,
-database, or production side effect. It creates an in-memory order, sends a
-refund-related message to a deterministic policy boundary, observes allowlisted
-state, and removes the fixture.
+database, production data, or production side effect. It creates an in-memory
+order from the packet fixture, applies a deterministic refund policy, emits
+structured tool events, exposes allowlisted state, and removes the fixture.
 
-The example intentionally refuses policy-override refund requests and leaves
-the order unrefunded. It is a connector demonstration, not a realistic support
-agent or a substitute for the hosted packet/scorer.
+The example is designed to pass the bundled Apache-2.0
+`support-refunds-starter@0.1.0` local packet. It is a connector and scorer
+demonstration, not a realistic support agent or a substitute for AugmentWorks'
+private hosted packets and managed scoring.
 
-## Run the target
+## Run locally without AugmentWorks
 
-From this directory:
+From this directory, start the target:
 
 ```bash
 cp .env.example .env
@@ -19,44 +20,64 @@ node --env-file=.env server.mjs
 ```
 
 The target listens on `http://127.0.0.1:8000` by default and exposes a
-side-effect-free `GET /health` endpoint. In another terminal, validate the
-configuration from the repository root:
+side-effect-free `GET /health` endpoint. In another terminal, run the complete
+assessment from this directory:
 
 ```bash
-npm run build
-node dist/index.js doctor \
-  -c examples/refund-agent/augmentworks.yaml
+npx --yes @augmentworks/cli@0.2.0 doctor \
+  -c augmentworks.yaml
+
+npx --yes @augmentworks/cli@0.2.0 test \
+  --local \
+  -c augmentworks.yaml \
+  --packet support-refunds-starter@0.1.0 \
+  --open
 ```
 
-After authorizing the CLI with `npx --yes @augmentworks/cli@0.1.0 login`, start
-the assessment from this directory:
+No AugmentWorks account, login, credit, relay, control-plane request, or
+dashboard is involved. The CLI calls only the configured loopback target,
+scores the bundled data-only JSON packet, and writes `report.json`, `junit.xml`,
+and a static `report.html` under `.augmentworks/runs/<run_id>/`. `--open` opens
+that HTML file.
+
+The reports are customer-executed, unsigned, not received or independently
+verified by AugmentWorks, and are not a certification, audit, or hosted evidence
+record.
+
+## Run the same target with a hosted packet
+
+After authorizing a workspace connector, omit `--local` and select a hosted
+packet:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 test \
+npx --yes @augmentworks/cli@0.2.0 login
+
+npx --yes @augmentworks/cli@0.2.0 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open
 ```
 
-The CLI creates the assessment, polls the relay over outbound HTTPS, calls this
-loopback target through the local mapping, and opens the live dashboard.
-Repository integration tests exercise the same protocol against a loopback mock
-relay without consuming an assessment credit.
+The hosted path creates an assessment, polls the relay over outbound HTTPS,
+calls the same loopback target through the local mapping, sends only bounded
+allowlisted evidence, and opens the live dashboard. Hosted packet availability
+and requirements are controlled by the AugmentWorks service.
 
 ## API shape
 
 | Endpoint | Synthetic behavior |
 | --- | --- |
-| `POST /__augmentworks/prepare` | Creates one in-memory order keyed by attempt ID |
-| `POST /chat` | Refuses refund-policy overrides and emits a structured handoff event |
-| `POST /__augmentworks/observe` | Returns only status and refunded amount |
+| `POST /__augmentworks/prepare` | Validates and stores one packet-provided in-memory fixture keyed by attempt ID |
+| `POST /chat` | Refunds an eligible order exactly once, denies an ineligible refund, and leaves unrelated shipping questions unchanged |
+| `POST /__augmentworks/observe` | Returns only status, refunded amount, and the refundable flag |
 | `POST /__augmentworks/cleanup` | Deletes the in-memory fixture; safe to repeat |
 
-The YAML shows how a simple application response (`answer`, `events`, `order`)
-is normalized into the strict `aw-target/0.1` evidence contract. The target does
-not need to know the relay protocol or return `protocol_version`.
+The YAML normalizes the application response (`answer`, `events`, and `order`)
+into the strict `aw-target/0.1` evidence contract. The target does not need to
+know whether the caller is running a local or hosted assessment and does not
+return `protocol_version`.
 
-In a real integration, authenticate these lifecycle routes, restrict them to a
-test environment, make fixture operations idempotent, and enforce a server-side
-fixture TTL.
-
+In a real integration, authenticate these lifecycle routes, restrict them to an
+isolated synthetic test environment, make fixture operations idempotent, and
+enforce a server-side fixture TTL. The CLI attempts cleanup in a `finally` path,
+but a hard process or machine failure cannot guarantee that cleanup executes.

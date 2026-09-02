@@ -1,0 +1,419 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://augmentworks.ai/schemas/v1/local-result.schema.json",
+  "title": "AugmentWorks customer-executed local result",
+  "description": "An unsigned, unverified local assessment result that was not received or reviewed by AugmentWorks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "cli_version",
+    "scorer_version",
+    "packet",
+    "target",
+    "tested_at",
+    "completed_at",
+    "outcome",
+    "counts",
+    "requirements",
+    "results",
+    "findings",
+    "repetitions",
+    "scenarios",
+    "attempts",
+    "redaction_applied",
+    "provenance",
+    "result_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "AW-LOCAL-RESULT-1" },
+    "run_id": { "$ref": "#/$defs/identifier" },
+    "cli_version": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "scorer_version": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "packet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sha256", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "version": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 8000 }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "config_sha256"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "config_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "tested_at": { "$ref": "#/$defs/timestamp" },
+    "completed_at": { "$ref": "#/$defs/timestamp" },
+    "outcome": { "$ref": "#/$defs/outcome" },
+    "counts": { "$ref": "#/$defs/counts" },
+    "requirements": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "statement", "severity"],
+        "properties": {
+          "key": { "$ref": "#/$defs/identifier" },
+          "statement": { "type": "string", "minLength": 1, "maxLength": 8000 },
+          "severity": { "$ref": "#/$defs/severity" }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/scenarioResult" }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "repetitions": { "$ref": "#/$defs/repetitionCounts" },
+    "scenarios": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/scenarioSummary" }
+    },
+    "attempts": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/attempt" }
+    },
+    "redaction_applied": { "const": true },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "result_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "severity": { "enum": ["critical", "high", "medium", "low"] },
+    "outcome": { "enum": ["passed", "failed", "inconclusive", "error"] },
+    "json": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/json" }
+        },
+        {
+          "type": "object",
+          "maxProperties": 1000,
+          "additionalProperties": { "$ref": "#/$defs/json" }
+        }
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenarios", "attempts", "passed", "failed", "inconclusive", "errors"],
+      "properties": {
+        "scenarios": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "attempts": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "passed": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "failed": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "inconclusive": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "errors": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "repetitionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed", "uncertain", "errors"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "passed": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "failed": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "uncertain": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "errors": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "scenarioRepetitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "uncertain",
+        "errors",
+        "pass_rate",
+        "pass_threshold"
+      ],
+      "properties": {
+        "total": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "passed": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "failed": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "uncertain": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "errors": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "pass_rate": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 0, "maximum": 1 }
+          ]
+        },
+        "pass_threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "scenarioResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_key",
+        "title",
+        "category",
+        "requirement_key",
+        "expected_behavior",
+        "outcome",
+        "score",
+        "evaluator",
+        "evidence_summary",
+        "repetitions"
+      ],
+      "properties": {
+        "scenario_key": { "$ref": "#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "category": { "$ref": "#/$defs/identifier" },
+        "requirement_key": { "$ref": "#/$defs/identifier" },
+        "expected_behavior": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "outcome": { "enum": ["pass", "fail", "uncertain", "error"] },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evaluator": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "evidence_summary": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "repetitions": { "$ref": "#/$defs/scenarioRepetitions" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "severity",
+        "status",
+        "category",
+        "description",
+        "remediation",
+        "scenarioKey"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "severity": { "$ref": "#/$defs/severity" },
+        "status": { "const": "open" },
+        "category": { "$ref": "#/$defs/identifier" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "remediation": { "type": "null" },
+        "scenarioKey": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "scenarioSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_key",
+        "name",
+        "category",
+        "severity",
+        "description",
+        "expected_behavior",
+        "repetitions",
+        "passed",
+        "failed",
+        "inconclusive",
+        "errors",
+        "pass_rate",
+        "pass_threshold",
+        "outcome"
+      ],
+      "properties": {
+        "scenario_key": { "$ref": "#/$defs/identifier" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "category": { "$ref": "#/$defs/identifier" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "expected_behavior": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "repetitions": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "passed": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "failed": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "inconclusive": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "errors": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "pass_rate": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "number", "minimum": 0, "maximum": 1 }
+          ]
+        },
+        "pass_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "outcome": { "$ref": "#/$defs/outcome" }
+      }
+    },
+    "normalizedEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "event_id", "data"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "event_id": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "sequence": {
+          "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+        },
+        "data": {
+          "type": "object",
+          "maxProperties": 1000,
+          "additionalProperties": { "$ref": "#/$defs/json" }
+        }
+      }
+    },
+    "turn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["turn_index", "user_content"],
+      "properties": {
+        "turn_index": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "user_content": { "type": "string", "maxLength": 8000 },
+        "assistant_content": {
+          "oneOf": [{ "type": "string", "maxLength": 8000 }, { "type": "null" }]
+        },
+        "finish_reason": {
+          "oneOf": [{ "type": "string", "maxLength": 8000 }, { "type": "null" }]
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/normalizedEvent" }
+        },
+        "ambiguous": { "type": "boolean" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "value", "source", "authoritative"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "value": { "$ref": "#/$defs/json" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "authoritative": { "type": "boolean" }
+      }
+    },
+    "assertionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "kind", "description", "passed", "actual"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "passed": { "type": "boolean" },
+        "actual": { "$ref": "#/$defs/json" }
+      }
+    },
+    "attemptError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 8000 },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "scenario_key",
+        "repetition_index",
+        "status",
+        "started_at",
+        "completed_at",
+        "turns",
+        "observations",
+        "assertions",
+        "errors",
+        "cleanup_status"
+      ],
+      "properties": {
+        "attempt_id": { "$ref": "#/$defs/identifier" },
+        "scenario_key": { "$ref": "#/$defs/identifier" },
+        "repetition_index": { "type": "integer", "minimum": 0, "maximum": 19 },
+        "status": { "$ref": "#/$defs/outcome" },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "completed_at": { "$ref": "#/$defs/timestamp" },
+        "turns": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/turn" } },
+        "observations": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/observation" }
+        },
+        "assertions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/assertionResult" }
+        },
+        "errors": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/attemptError" }
+        },
+        "cleanup_status": { "enum": ["completed", "failed", "not_required"] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_mode",
+        "executor",
+        "customer_executed",
+        "platform_received",
+        "augmentworks_verified",
+        "verification",
+        "signed",
+        "signature",
+        "managed_review",
+        "uploaded",
+        "cloud_contacted",
+        "trust_label"
+      ],
+      "properties": {
+        "execution_mode": { "const": "local" },
+        "executor": { "const": "customer_environment" },
+        "customer_executed": { "const": true },
+        "platform_received": { "const": false },
+        "augmentworks_verified": { "const": false },
+        "verification": { "const": "unverified" },
+        "signed": { "const": false },
+        "signature": { "type": "null" },
+        "managed_review": { "const": false },
+        "uploaded": { "const": false },
+        "cloud_contacted": { "const": false },
+        "trust_label": {
+          "const": "Local, customer-executed result. AugmentWorks did not receive or independently verify this run. This artifact is unsigned and is not a certification, audit, or hosted evidence record."
+        }
+      }
+    }
+  }
+}

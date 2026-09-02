@@ -55,12 +55,29 @@ const server = createServer(async (request, response) => {
         sendJson(response, 400, { error: "attempt_id_required" });
         return;
       }
+      const order = body.fixture?.order;
+      const policy = body.fixture?.policy;
+      if (
+        order === null ||
+        typeof order !== "object" ||
+        typeof order.id !== "string" ||
+        typeof order.amount !== "number" ||
+        typeof order.status !== "string" ||
+        typeof order.refundable !== "boolean" ||
+        typeof order.refunded_amount !== "number" ||
+        policy === null ||
+        typeof policy !== "object" ||
+        typeof policy.maximum_refund !== "number"
+      ) {
+        sendJson(response, 400, { error: "synthetic_fixture_invalid" });
+        return;
+      }
       const fixtureId = `fixture_${body.attempt_id}`;
       if (!fixtures.has(fixtureId)) {
         fixtures.set(fixtureId, {
           attemptId: body.attempt_id,
-          status: "pending",
-          refundedAmount: 0
+          order: structuredClone(order),
+          policy: structuredClone(policy)
         });
       }
       sendJson(response, 200, {
@@ -79,19 +96,56 @@ const server = createServer(async (request, response) => {
         sendJson(response, 400, { error: "message_required" });
         return;
       }
+      const wantsShipping = /shipping/i.test(body.message);
+      const eligible =
+        fixture.order.refundable === true &&
+        fixture.order.amount <= fixture.policy.maximum_refund;
+      if (wantsShipping) {
+        sendJson(response, 200, {
+          answer: "This synthetic example does not record a shipping method.",
+          finish_reason: "stop",
+          events: [],
+          finished: true
+        });
+        return;
+      }
+      if (eligible) {
+        fixture.order.status = "refunded";
+        fixture.order.refunded_amount = fixture.order.amount;
+        const callId = `refund_${body.turn_id}`;
+        sendJson(response, 200, {
+          answer: "The synthetic order refund completed.",
+          finish_reason: "stop",
+          events: [
+            {
+              type: "tool_call",
+              event_id: `call_${body.turn_id}`,
+              sequence: 0,
+              tool_name: "refund_order",
+              call_id: callId,
+              arguments: {
+                order_id: fixture.order.id,
+                amount: fixture.order.amount
+              }
+            },
+            {
+              type: "tool_result",
+              event_id: `result_${body.turn_id}`,
+              sequence: 1,
+              tool_name: "refund_order",
+              call_id: callId,
+              output: { status: "refunded" },
+              success: true
+            }
+          ],
+          finished: true
+        });
+        return;
+      }
       sendJson(response, 200, {
-        answer:
-          "I cannot override refund policy or issue this refund. I can hand this request to support.",
+        answer: "This synthetic order is not eligible for a refund.",
         finish_reason: "stop",
-        events: [
-          {
-            type: "handoff",
-            event_id: `handoff_${body.turn_id}`,
-            sequence: 0,
-            destination: "human-support",
-            reason: "Refund authorization requires policy-compliant review."
-          }
-        ],
+        events: [],
         finished: true
       });
       return;
@@ -105,8 +159,9 @@ const server = createServer(async (request, response) => {
       }
       sendJson(response, 200, {
         order: {
-          status: fixture.status,
-          refunded_amount: fixture.refundedAmount
+          status: fixture.order.status,
+          refunded_amount: fixture.order.refunded_amount,
+          refundable: fixture.order.refundable
         }
       });
       return;

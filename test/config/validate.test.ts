@@ -93,6 +93,27 @@ describe("configuration validation", () => {
     expect(validateConfigObject(value).diagnostics.map((item) => item.code)).toContain("AUTH_HEADER_FORBIDDEN");
   });
 
+  it.each([
+    ["base URL", { base_url: "${AUGMENTWORKS_API_URL}" }],
+    ["bearer auth", { auth: { bearer_env: "AUGMENTWORKS_TOKEN" } }],
+    [
+      "custom auth header",
+      { auth: { headers_env: { "X-Target-Key": "AUGMENTWORKS_CONNECTOR_TOKEN" } } }
+    ]
+  ])("never allows a platform credential variable to configure %s", (_label, overrides) => {
+    const result = validateConfigObject(
+      config(overrides as Partial<AugmentWorksConfig["target"]>)
+    );
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "PLATFORM_ENV_REFERENCE_FORBIDDEN",
+          level: "error"
+        })
+      ])
+    );
+  });
+
   it("allows localhost HTTP but gates public HTTP", () => {
     const publicConfig = config({ base_url: "http://example.com" });
     const denied = resolveConfig(publicConfig, "/tmp/augmentworks.yaml", "/tmp", {});

@@ -1,8 +1,11 @@
 # Security model
 
-This document defines the v0.1 security boundary. The central rule is simple:
-the cloud selects a bounded semantic operation; the user's configuration alone
-selects how that operation reaches the local application.
+This document defines the v0.2 security boundary. Hosted and local execution
+share the same deterministic connector but have different trust claims. In
+hosted mode the cloud selects a bounded semantic operation and the user's
+configuration alone selects how it reaches the application. In local mode a
+strict customer-supplied JSON packet selects the bounded operation sequence and
+no AugmentWorks service is contacted.
 
 ## Assets
 
@@ -10,8 +13,9 @@ selects how that operation reaches the local application.
 - Customer application credentials in the local environment
 - Synthetic fixture identifiers and state
 - Scenario messages, tool events, observations, and scored evidence
-- Private packet branches, assertions, and scorer implementation
-- Local active-run intent, command journal, and configuration
+- Hosted private packet branches, assertions, and scorer implementation
+- Customer-visible local packets and unsigned local reports
+- Hosted active-run intent, command journal, and local configuration
 
 ## Trust boundaries
 
@@ -21,12 +25,13 @@ selects how that operation reaches the local application.
 | Local CLI | Customer-operated trusted computing boundary | Config resolution, credentials, URLs, mappings, target calls, allowlisting |
 | Customer target | Potentially buggy or adversarial | Its responses and observed state |
 | Hosted scorer | Trusted for packet logic and scoring | Assertions, findings, dashboard result |
+| Local packet and scorer | Customer-controlled execution boundary | Visible scenarios, deterministic assertions, unsigned reports |
 
 The hosted relay must never choose a URL, HTTP method, header, environment
 variable, file, module, or shell command. Unknown fields and operation kinds are
 refused.
 
-## Transport and command safety
+## Hosted transport and command safety
 
 - During assessment execution, the CLI initiates all cloud communication over
   outbound HTTPS. No inbound access to the target, public target URL, or tunnel
@@ -52,17 +57,58 @@ refused.
   marked indeterminate rather than blindly retried. Observation or cleanup runs
   only if the relay dispatches those typed follow-ups.
 
+## Customer-executed local mode
+
+`test --local` branches before AugmentWorks API-origin resolution,
+authentication, cloud client creation, active-run intent state, relay polling,
+command journals, and dashboard handling. It requires no AugmentWorks account
+and contacts no AugmentWorks control-plane endpoint. The configured target may
+still be remote and may itself call models or other network dependencies, so
+“local” is not a promise of an air-gapped assessment.
+
+Local packets are strict bounded JSON with `schema_version: "aw-packet/0.1"`.
+The CLI accepts the bundled `support-refunds-starter@0.1.0`, a local JSON file,
+or a local directory containing `packet.json`. It refuses packet URLs,
+downloads, symbolic-link traversal, executable code, modules, shell
+instructions, unknown fields, excessive nesting, and packets whose attempt or
+operation counts exceed fixed limits.
+
+Attempts execute serially. Cleanup runs in a `finally` path whenever a fixture
+may exist, and a cleanup failure stops subsequent attempts. The first Ctrl+C
+requests cancellation, aborts non-cleanup work, and drains cleanup; a second
+interrupt exits immediately. A process crash, machine failure, `SIGKILL`, or
+second interrupt can prevent cleanup. Lifecycle hooks must therefore be scoped
+to isolated synthetic data, cleanup must be idempotent, and fixtures need a
+server-side TTL independent of the CLI. The CLI stops new target work at a
+30-minute local run deadline while still allowing bounded cleanup to drain.
+
+Local mode writes `report.json`, `junit.xml`, and a script-free static
+`report.html` to a fresh exact output directory. It refuses to merge into or
+overwrite an existing leaf. POSIX output directories use mode `0700` and files
+use mode `0600`. Artifact generation re-applies secret redaction and strips
+target-boundary fields, but reports still contain prompts, mapped evidence, and
+observations and must be treated as sensitive.
+
+Every local artifact carries this trust label:
+
+> Local, customer-executed result. AugmentWorks did not receive or independently verify this run. This artifact is unsigned and is not a certification, audit, or hosted evidence record.
+
+The `AW-LOCAL-RESULT-1` JSON checksum detects a changed result when compared
+with the original; it is unkeyed, is not a signature, and does not establish
+provenance. Importing the JUnit file into another system cannot upgrade that
+trust claim.
+
 ## Target request controls
 
 - `base_url`, fixed operation paths, methods, and credential sources come only
   from the local YAML.
-- Run creation sends an unkeyed checksum of the resolved connector/base-URL and
+- Hosted run creation sends an unkeyed checksum of the resolved connector/base-URL and
   operation method/path boundary. The raw URL and paths remain local, and
   credentials, environment-variable names, selectors, bodies, limits,
   telemetry, and target state are excluded. The checksum binds restart drift;
   it is not target identity, ownership, code, state, or execution proof.
-- v0.1 uses a data-only mapping language. There is no JavaScript, eval, shell,
-  plugin/module loading, or full JSONPath engine.
+- The v1 connector uses a data-only mapping language. There is no JavaScript,
+  eval, shell, plugin/module loading, or full JSONPath engine.
 - All target redirects are refused. Response size, request size, nesting, event
   count, and operation duration are bounded.
 - Plain HTTP is accepted automatically only for loopback and literal private IP
@@ -73,7 +119,8 @@ refused.
 
 The connector deliberately permits localhost and private addresses because
 that is the product capability. This means the configuration author is a
-trusted local principal. A cloud command cannot alter the configured endpoint.
+trusted local principal. Neither a cloud command nor a local packet can alter
+the configured endpoint.
 
 ## Credentials
 
@@ -87,7 +134,7 @@ trusted local principal. A cloud command cannot alter the configured endpoint.
 - A POSIX file fallback requires explicit `--allow-file-credentials`, emits a
   warning, refuses symlinks, and enforces mode `0600`. Plaintext fallback is
   disabled on Windows because POSIX modes do not establish Windows ACL safety.
-- `AUGMENTWORKS_TOKEN` is reserved for future project tokens and local
+- `AUGMENTWORKS_TOKEN` is reserved for future project tokens and development
   integration harnesses; the v0.1 interactive auth service does not issue a
   long-lived CI credential.
 - Customer target credentials are named, not embedded, in YAML and are resolved
@@ -99,13 +146,20 @@ trusted local principal. A cloud command cannot alter the configured endpoint.
 
 ## Data minimization
 
-Only mapped content, allowed structured tool events, and explicitly allowlisted
-observation fields can leave the local connector. Run preflight also sends the
+In hosted mode, only mapped content, allowed structured tool events, and
+explicitly allowlisted observation fields can leave the local connector. Run
+preflight also sends the
 target display name, secret-free configuration and boundary checksums, declared
 capabilities, and sorted public observation-key aliases. It does not send raw
 target URLs or paths, local selectors, environment-variable names or values,
 complete HTTP headers, arbitrary target responses, filesystem contents, or
 application logs.
+
+In local mode no evidence leaves for AugmentWorks. The same mappings and
+allowlists bound what the deterministic scorer can consume and what local
+reports can contain. The configured target remains a separate network boundary.
+
+The following table describes hosted mode:
 
 | Stays in the customer environment | Exchanged with AugmentWorks |
 | --- | --- |
@@ -118,7 +172,8 @@ evidence is true.
 Executed scenario prompts and fixture inputs necessarily reach the local CLI
 and target. Therefore the complete assessment packet cannot be considered
 secret from a connector that executes it. The hosted service can retain
-undispatched branches, assertions, scorer logic, and comparative data.
+undispatched branches, assertions, scorer logic, and comparative data; a local
+packet and all of its assertions are necessarily visible to the customer.
 
 Use only an authorized, isolated synthetic target and synthetic test data. Do
 not connect production systems or use production or regulated data. Logs and
@@ -142,19 +197,28 @@ reported, but could not prove that it matches production or an external system
 of record. Missing or failed configured state observation produces `unknown`, never an
 inferred success from chatbot text.
 
+A local result has a separate `AW-LOCAL-RESULT-1` schema and explicit
+customer-executed provenance fields. It is never a hosted evidence record and
+must not be relabeled as one. Local scoring can be reproducible without being
+independent: the customer controls the packet, target, observer, process, and
+result files.
+
 ## Operational safeguards
 
-- v0.1 supports authorized, isolated synthetic targets in test or staging
+- v0.2 supports authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
-- `test` is the explicit v0.1 action that starts an assessment and keeps the
-  connector online for that run. The dashboard can observe or request
-  cancellation, but cannot start an assessment. There is no v0.1 `connect`
+- Hosted `test` is the explicit action that starts a hosted assessment and
+  keeps the connector online for that run. The dashboard can observe or request
+  cancellation, but cannot start an assessment. There is no v0.2 `connect`
   command, and the dashboard cannot send arbitrary work, URLs, or shell
   instructions.
+- `test --local` is a separate explicit action. It creates no cloud run, uses no
+  interactive connector credential or credit, and produces only customer-held
+  artifacts.
 - Cleanup should be idempotent, and target fixtures should have a server-side
   TTL as a final orphan safeguard.
-- Active intents and command journals are bounded regular files with mode
+- Hosted active intents and command journals are bounded regular files with mode
   `0600` where POSIX permissions apply. They contain secret-free run bindings
   and normalized, redacted operation evidence rather than connector
   credentials.
@@ -166,7 +230,7 @@ inferred success from chatbot text.
   until the run and any synthetic fixture are resolved.
 - Recovery is same-machine and state-directory scoped. Losing that state can
   make a prior create or target side effect impossible to distinguish safely;
-  v0.1 will not invent a new run to bypass the ambiguity.
+  the hosted runner will not invent a new run to bypass the ambiguity.
 - Recovery also requires positive lock ownership. On the same host, the CLI
   reclaims a lock after its recorded process is positively dead even when Linux
   boot/process metadata is unavailable. A verifiable prior boot or different

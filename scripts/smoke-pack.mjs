@@ -4,7 +4,7 @@ import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile }
 import { constants as fsConstants } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parsePackReport } from "./npm-pack-report.mjs";
 
@@ -91,6 +91,13 @@ function assertInventory(report) {
     files.some((path) => path.startsWith("schemas/") && path.endsWith(".schema.json")),
     "published tarball is missing its versioned JSON Schema"
   );
+  for (const path of [
+    "schemas/v1/local-packet.schema.json",
+    "schemas/v1/local-result.schema.json",
+    "packets/support-refunds-starter/0.1.0/packet.json"
+  ]) {
+    assert(fileSet.has(path), `published tarball is missing ${path}`);
+  }
 
   const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/"];
   for (const path of files) {
@@ -152,6 +159,7 @@ async function main() {
   const packDirectory = join(temporaryRoot, "pack");
   const consumerDirectory = join(temporaryRoot, "consumer");
   const assessmentDirectory = join(consumerDirectory, "assessment");
+  let targetProcess;
 
   try {
     await writeFile(join(temporaryRoot, "README"), "Temporary npm pack smoke workspace.\n", "utf8");
@@ -247,6 +255,10 @@ async function main() {
     }
     assert(schema !== null && typeof schema === "object", "schema command returned a non-object");
     assert(schema.type === "object", "schema command returned an unexpected root schema");
+    for (const kind of ["local-packet", "local-result"]) {
+      const localSchema = JSON.parse(execCli(["schema", "--kind", kind, "--compact"]).stdout);
+      assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
+    }
 
     execCli(["init"], { cwd: assessmentDirectory });
     await Promise.all([
@@ -278,16 +290,109 @@ async function main() {
       }
     });
 
+    process.stdout.write("[pack smoke] running bundled packet locally through packed CLI\n");
+    const targetOrigin = "http://127.0.0.1:18473";
+    targetProcess = spawn(
+      process.execPath,
+      [join(projectRoot, "examples", "refund-agent", "server.mjs")],
+      {
+        cwd: assessmentDirectory,
+        env: {
+          ...process.env,
+          CHATBOT_BASE_URL: targetOrigin,
+          CHATBOT_API_KEY: "pack-smoke-target-key"
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true
+      }
+    );
+    await waitForTarget(targetOrigin, targetProcess);
+    const localOutput = join(assessmentDirectory, "packed-local-report");
+    const localRun = execCli(
+      [
+        "test",
+        "--local",
+        "-c",
+        "augmentworks.yaml",
+        "--packet",
+        "support-refunds-starter@0.1.0",
+        "--output-dir",
+        localOutput,
+        "--json"
+      ],
+      {
+        cwd: assessmentDirectory,
+        env: {
+          CHATBOT_BASE_URL: targetOrigin,
+          CHATBOT_API_KEY: "pack-smoke-target-key",
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      }
+    );
+    const localResult = JSON.parse(localRun.stdout);
+    assert(localResult.schema_version === "AW-LOCAL-RESULT-1", "local result schema is wrong");
+    assert(localResult.outcome === "passed", `packed local assessment was ${localResult.outcome}`);
+    assert(localResult.provenance?.cloud_contacted === false, "local result claims cloud contact");
+    assert(localResult.provenance?.platform_received === false, "local result claims upload");
+    assert(
+      !localRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into local output"
+    );
+    await Promise.all(
+      ["report.json", "junit.xml", "report.html"].map((name) =>
+        access(join(localOutput, name), fsConstants.R_OK)
+      )
+    );
+    await stopTarget(targetProcess);
+    targetProcess = undefined;
+
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`
     );
   } finally {
+    if (targetProcess !== undefined) await stopTarget(targetProcess);
     if (process.env.AUGMENTWORKS_KEEP_SMOKE_TMP === "1") {
       process.stdout.write(`[pack smoke] retained ${temporaryRoot}\n`);
     } else {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
   }
+}
+
+async function waitForTarget(origin, child) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      const stderr = await streamText(child.stderr);
+      throw new SmokeFailure(`refund target exited before startup: ${stderr.trim()}`);
+    }
+    try {
+      const response = await fetch(`${origin}/health`, { signal: AbortSignal.timeout(500) });
+      if (response.ok) return;
+    } catch {
+      // Target startup is bounded by the deadline below.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new SmokeFailure("refund target did not become healthy within 10 seconds");
+}
+
+async function stopTarget(child) {
+  if (child.exitCode !== null) return;
+  child.kill("SIGTERM");
+  await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    new Promise((resolve) => setTimeout(resolve, 5_000))
+  ]);
+  if (child.exitCode === null) child.kill("SIGKILL");
+}
+
+async function streamText(stream) {
+  if (stream === null) return "";
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 main().catch((error) => {

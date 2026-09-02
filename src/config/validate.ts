@@ -10,6 +10,7 @@ const RESPONSE_SELECTOR_PATTERN = /^\$(?:\.[A-Za-z_][A-Za-z0-9_-]*|\[(?:0|[1-9][
 const OBSERVATION_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$/;
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const HIGH_CONFIDENCE_SECRET_PATTERN = /(?:^|[^A-Za-z0-9_-])(?:aw_(?:project|connector)_[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|Bearer\s+\S{12,})(?=$|[^A-Za-z0-9_-])/i;
+const RESERVED_PLATFORM_ENV_PATTERN = /^AUGMENTWORKS_/;
 const FORBIDDEN_HEADERS = new Set([
   "connection",
   "content-length",
@@ -266,6 +267,39 @@ export function validateConfigObject(value: unknown): ValidationResult {
       "target.base_url must be a literal URL or one exact ${ENV_NAME} reference.",
       "target.base_url"
     );
+  }
+
+  const baseUrlEnvironment = EXACT_ENV_REFERENCE_PATTERN.exec(config.target.base_url)?.[1];
+  if (
+    baseUrlEnvironment !== undefined &&
+    RESERVED_PLATFORM_ENV_PATTERN.test(baseUrlEnvironment)
+  ) {
+    pushError(
+      diagnostics,
+      "PLATFORM_ENV_REFERENCE_FORBIDDEN",
+      "AUGMENTWORKS_* variables are reserved for the AugmentWorks control plane and cannot configure a target.",
+      "target.base_url"
+    );
+  }
+
+  const targetCredentialVariables = [
+    ...(config.target.auth?.bearer_env === undefined
+      ? []
+      : [["target.auth.bearer_env", config.target.auth.bearer_env]] as const),
+    ...Object.entries(config.target.auth?.headers_env ?? {}).map(
+      ([header, variable]) =>
+        [`target.auth.headers_env.${header}`, variable] as const
+    )
+  ];
+  for (const [path, variable] of targetCredentialVariables) {
+    if (RESERVED_PLATFORM_ENV_PATTERN.test(variable)) {
+      pushError(
+        diagnostics,
+        "PLATFORM_ENV_REFERENCE_FORBIDDEN",
+        "AUGMENTWORKS_* variables are reserved for the AugmentWorks control plane and cannot authenticate a target.",
+        path
+      );
+    }
   }
 
   const headers = config.target.auth?.headers_env;

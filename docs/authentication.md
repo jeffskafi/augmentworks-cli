@@ -6,10 +6,14 @@ requests. It does not authenticate requests to the customer application or
 grant the hosted relay access to the local filesystem, shell, environment, or
 network.
 
+Authentication is not used by `test --local`. Local mode does not read an
+AugmentWorks connector credential or contact the AugmentWorks control plane; it
+resolves only the target credentials named by the selected configuration.
+
 ## Interactive login
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login
+npx --yes @augmentworks/cli@0.2.0 login
 ```
 
 The default flow uses browser Authorization Code with PKCE and a temporary
@@ -20,7 +24,7 @@ single-use and short-lived, and the callback listener closes after completion.
 For SSH and other headless environments:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login --device
+npx --yes @augmentworks/cli@0.2.0 login --device
 ```
 
 The CLI displays a short user code and verification URL. Entering the code in a
@@ -69,7 +73,7 @@ On POSIX systems the user may explicitly opt into the local fallback with
 enforces mode `0600`. Plaintext fallback is disabled on Windows because a POSIX
 mode cannot prove a safe Windows ACL. No native Node add-on is required.
 
-A long-running `test` process resolves a current access token
+A long-running hosted `test` process resolves a current access token
 before every cloud request. Interactive credentials refresh shortly before
 expiry and once after an HTTP 401. Refresh-token rotation is serialized with a
 secure, API-origin-scoped process lock; a waiting command re-loads and reuses
@@ -83,8 +87,8 @@ before removal; unknown identity remains fail-closed.
 Use:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 whoami
-npx --yes @augmentworks/cli@0.1.0 logout
+npx --yes @augmentworks/cli@0.2.0 whoami
+npx --yes @augmentworks/cli@0.2.0 logout
 ```
 
 `logout` requests server-side revocation and removes local credential material.
@@ -103,16 +107,15 @@ run creation.
 ## Future automation credentials
 
 `AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and local integration harnesses. `login`, `whoami`, and
+future project tokens and integration harnesses. `login`, `whoami`, and hosted
 `test` give it precedence and do not load or write the interactive credential
 store. `logout` still attempts to revoke the environment token and any stored
 connector credential, removes local stored credential material when accessible,
 and warns that the environment variable remains set. Project-token issuance is
-intentionally separate from the interactive v0.1 connector-auth endpoints and
+intentionally separate from the interactive connector-auth endpoints and
 is not implemented by this release. Do not use the
 one-hour interactive access token as an unattended CI credential.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a
 build log, or paste it into an AI assistant. Rotate CI credentials on exposure
 and scope them to one workspace and the minimum required target actions.
-

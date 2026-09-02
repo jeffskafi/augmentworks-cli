@@ -3,7 +3,7 @@
 The distributed CLI bundles the runtime packages listed below, including
 transitive packages pulled into `dist/index.js`. Their licenses apply to those
 components; the AugmentWorks CLI itself is licensed under Apache-2.0. Versions
-were verified against the package lock and the built bundle for v0.1.0.
+were verified against the package lock and the built bundle for v0.2.0.
 
 ## commander 14.0.1
 

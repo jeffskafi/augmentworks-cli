@@ -38,7 +38,7 @@ export function createCli(io: CliIo = {}): Command {
 
   const program = new Command()
     .name("augmentworks")
-    .description("Deterministic, outbound-only connector for AugmentWorks assessments")
+    .description("Deterministic hosted and customer-executed local AI agent testing")
     .version(CLI_VERSION, "-V, --version", "print the CLI version")
     .showSuggestionAfterError(true)
     .showHelpAfterError()

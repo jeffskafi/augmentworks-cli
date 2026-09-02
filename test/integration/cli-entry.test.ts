@@ -26,7 +26,7 @@ describe("CLI entrypoint", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("advertises the complete v0.1 command surface", async () => {
+  it("advertises the complete v0.2 command surface", async () => {
     const result = await runSourceCli(["--help"], { cwd: projectRoot });
 
     expect(result.exitCode).toBe(0);
@@ -58,6 +58,15 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("CONFIG_FILE_NOT_FOUND");
     expect(result.stdout).toContain("Doctor found configuration errors.");
     expect(result.stderr).toBe("");
+  });
+
+  it("rejects inherited or unknown schema kinds as configuration errors", async () => {
+    for (const kind of ["toString", "__proto__", "unknown"]) {
+      const result = await runSourceCli(["schema", "--kind", kind], { cwd: projectRoot });
+      expect(result.exitCode).toBe(2);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Error [SCHEMA_KIND_INVALID]");
+    }
   });
 
   it("can be imported as a library without parsing the host process arguments", async () => {

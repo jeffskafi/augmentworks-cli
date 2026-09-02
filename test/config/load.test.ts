@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -124,6 +124,26 @@ version: 1
     const invalidEnvironment = inspection.diagnostics.find((item) => item.code === "ENV_FILE_INVALID");
     expect(invalidEnvironment?.message).toContain("size limit");
     expect(inspection.resolvedConfig).toBeUndefined();
+  });
+
+  it("rejects symlinked, non-regular, invalid UTF-8, and oversized config inputs", async () => {
+    const directory = await temporaryDirectory();
+    const realConfig = resolve(directory, "real.yaml");
+    await writeFile(realConfig, chatConfig("http://localhost:8000"), "utf8");
+    await symlink(realConfig, resolve(directory, "linked.yaml"));
+    await mkdir(resolve(directory, "directory.yaml"));
+    await writeFile(resolve(directory, "invalid.yaml"), Buffer.from([0xff, 0xfe]));
+    await writeFile(resolve(directory, "oversized.yaml"), Buffer.alloc(1024 * 1024 + 1, 0x20));
+
+    const linked = await inspectConfig({ cwd: directory, configPath: "linked.yaml" });
+    const nonRegular = await inspectConfig({ cwd: directory, configPath: "directory.yaml" });
+    const invalid = await inspectConfig({ cwd: directory, configPath: "invalid.yaml" });
+    const oversized = await inspectConfig({ cwd: directory, configPath: "oversized.yaml" });
+
+    expect(linked.diagnostics[0]).toMatchObject({ code: "CONFIG_FILE_UNREADABLE" });
+    expect(nonRegular.diagnostics[0]).toMatchObject({ code: "CONFIG_FILE_UNREADABLE" });
+    expect(invalid.diagnostics[0]).toMatchObject({ code: "CONFIG_FILE_UNREADABLE" });
+    expect(oversized.diagnostics[0]).toMatchObject({ code: "CONFIG_FILE_TOO_LARGE" });
   });
 
   it.runIf(process.platform !== "win32")("warns when .env permissions expose secrets to other users", async () => {
