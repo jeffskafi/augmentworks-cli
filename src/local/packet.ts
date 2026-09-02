@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { parse as parsePath, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 import { parseDocument } from "yaml";
 import { z } from "zod";
@@ -10,6 +10,7 @@ import starterPacketJson from "../../packets/support-refunds-starter/0.1.0/packe
   type: "json"
 };
 import { AwError } from "../errors.js";
+import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { LIMITS } from "../util/limits.js";
 import { sha256Json } from "./canonical.js";
 import type {
@@ -582,19 +583,11 @@ async function readPacketJson(path: string): Promise<unknown> {
 }
 
 async function assertNoSymbolicLinkComponents(path: string): Promise<void> {
-  const absolute = resolve(path);
-  const root = parsePath(absolute).root;
-  const components = absolute.slice(root.length).split(sep).filter(Boolean);
-  let current = root;
-  for (const component of components) {
-    current = resolve(current, component);
-    if ((await lstat(current)).isSymbolicLink()) {
-      throw packetError(
-        "LOCAL_PACKET_FILE_INVALID",
-        "The local packet path cannot contain symbolic links."
-      );
-    }
-  }
+  if ((await findUnsafeSymbolicLinkComponent(path)) === undefined) return;
+  throw packetError(
+    "LOCAL_PACKET_FILE_INVALID",
+    "The local packet path cannot contain symbolic links."
+  );
 }
 
 function assertNoDuplicateJsonKeys(source: string): void {

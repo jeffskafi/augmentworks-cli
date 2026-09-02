@@ -1,9 +1,10 @@
 import { Buffer } from "node:buffer";
 import { constants as fsConstants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { dirname, parse as parsePath, resolve, sep } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { AwError } from "../errors.js";
+import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { loadEnvironment } from "./environment.js";
 import { resolveConfig } from "./resolve.js";
 import type { ConfigInspection, Diagnostic, InspectConfigOptions, ResolvedConfig } from "./types.js";
@@ -159,19 +160,11 @@ async function readConfigFile(path: string): Promise<string> {
 }
 
 async function assertNoSymbolicLinkComponents(path: string): Promise<void> {
-  const absolute = resolve(path);
-  const root = parsePath(absolute).root;
-  const components = absolute.slice(root.length).split(sep).filter(Boolean);
-  let current = root;
-  for (const component of components) {
-    current = resolve(current, component);
-    if ((await lstat(current)).isSymbolicLink()) {
-      throw new ConfigFileError(
-        "CONFIG_FILE_UNREADABLE",
-        "The configuration path cannot contain symbolic links."
-      );
-    }
-  }
+  if ((await findUnsafeSymbolicLinkComponent(path)) === undefined) return;
+  throw new ConfigFileError(
+    "CONFIG_FILE_UNREADABLE",
+    "The configuration path cannot contain symbolic links."
+  );
 }
 
 function configTooLarge(): ConfigFileError {

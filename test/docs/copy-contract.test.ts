@@ -17,7 +17,7 @@ const documentedSurfaces = [
 ] as const;
 
 async function readSurface(path: string): Promise<string> {
-  return await readFile(resolve(projectRoot, path), "utf8");
+  return (await readFile(resolve(projectRoot, path), "utf8")).replace(/\r\n?/gu, "\n");
 }
 
 describe("customer-facing CLI copy", () => {
