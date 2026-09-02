@@ -9,6 +9,12 @@ This document is the v0.1 contract implemented by the CLI and relay service
 code. Repository integration tests exercise the same envelope and binding rules
 against local services.
 
+This protocol applies only to hosted `test`. `test --local` branches before
+authentication, run-intent state, cloud clients, relay polling, command
+journals, and dashboard handling. It loads a strict local JSON packet and calls
+only the target selected by `augmentworks.yaml`; no `aw-relay/0.1` message or
+AugmentWorks control-plane request exists in that mode.
+
 ## Versions
 
 - Cloud envelopes use `protocol_version: "aw-relay/0.1"`.

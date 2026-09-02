@@ -3,8 +3,9 @@
 The v1 configuration describes a local application boundary. It is input to a
 deterministic HTTP connector, not an instruction language. No Python adapter or
 AugmentWorks target SDK is required: expose the mapped endpoints in the
-application's existing framework. The relay cannot change the configured host,
-path, method, headers, environment-variable names, or mappings during a run.
+application's existing framework. In hosted mode the relay cannot change the
+configured host, path, method, headers, environment-variable names, or mappings
+during a run. In local mode no relay or AugmentWorks service is contacted.
 
 ## File and environment resolution
 
@@ -46,7 +47,7 @@ telemetry: {}
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `version` | Yes | Configuration schema version; v0.1 accepts `1` |
+| `version` | Yes | Configuration schema version; CLI 0.2 accepts `1` |
 | `target` | Yes | Local connector and operation mappings |
 | `telemetry` | No | Explicit evidence allowlist |
 
@@ -78,7 +79,7 @@ timeouts must be between 100 and 120,000 milliseconds.
 
 ### Target boundary checksum
 
-At run creation, the CLI hashes a canonical boundary containing the connector,
+For a hosted run, the CLI hashes a canonical boundary containing the connector,
 the fully resolved and normalized base URL, and each configured operation's
 kind, method, and fixed path. Only `boundary_sha256` leaves the machine; the raw
 URL, paths, and any environment-variable names do not.
@@ -189,11 +190,13 @@ telemetry:
 
 `allow_tool_events` permits structured tool-event results from `send`.
 `allow_observations` is a field-level allowlist applied to observation output.
-It does not permit arbitrary database records or logs. At run creation, the CLI
-sends only these public key aliases, sorted and deduplicated, for hosted packet
+It does not permit arbitrary database records or logs. At hosted run creation,
+the CLI sends only these public key aliases, sorted and deduplicated, for packet
 preflight. Observation values, local response selectors, environment-variable
 names, and the target URL remain local. Returned values leave the connector
-only for a typed relay request whose keys passed this allowlist.
+only for a typed relay request whose keys passed this allowlist. During
+`test --local`, the same allowlist constrains which observations may be scored
+and written to reports, but nothing is sent to AugmentWorks.
 
 ## Capability levels
 
@@ -213,13 +216,26 @@ test environment matches production.
 Use offline validation while editing:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 ```
 
-`doctor` is always offline in v0.1. It makes no target or cloud network request,
-never invokes `prepare`, `send`, `observe`, or `cleanup`, and consumes no
-assessment credit.
+`doctor` makes no target or cloud network request, never invokes `prepare`,
+`send`, `observe`, or `cleanup`, and consumes no assessment credit.
 
 The canonical machine-readable definition is
 [`schemas/v1/augmentworks.schema.json`](../schemas/v1/augmentworks.schema.json).
+
+Print any bundled schema with:
+
+```bash
+npx --yes @augmentworks/cli@0.2.0 schema --kind config
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
+```
+
+Local assessment packets are separate strict JSON documents with
+`schema_version: "aw-packet/0.1"`; they do not add executable configuration to
+the YAML boundary. A local path may identify a JSON file or a directory whose
+`packet.json` is loaded. URLs, downloaded packets, JavaScript, and modules are
+not accepted.

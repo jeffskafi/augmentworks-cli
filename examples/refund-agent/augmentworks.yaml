@@ -21,6 +21,7 @@ target:
       request:
         attempt_id: $input.attempt_id
         scenario_key: $input.scenario_key
+        fixture: $input.fixture
       response:
         status: $.status
 
@@ -48,6 +49,7 @@ target:
       response:
         order.status: $.order.status
         order.refunded_amount: $.order.refunded_amount
+        order.refundable: $.order.refundable
 
     cleanup:
       method: POST
@@ -61,3 +63,4 @@ telemetry:
   allow_observations:
     - order.status
     - order.refunded_amount
+    - order.refundable

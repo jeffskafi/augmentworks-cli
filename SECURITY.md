@@ -3,7 +3,7 @@
 ## Supported versions
 
 Before the first stable release, security fixes are made on `main` and included
-in the next `0.1.x` release. After v1.0, the latest major release and the
+in the next `0.2.x` release. After v1.0, the latest major release and the
 immediately previous major release will receive coordinated security fixes.
 
 ## Reporting a vulnerability
@@ -16,14 +16,14 @@ the AugmentWorks website.
 Include:
 
 - affected CLI version and operating system
-- whether the issue affects auth, config, relay, target execution, evidence, or
-  cleanup
+- whether the issue affects auth, config, local packet loading/scoring,
+  artifacts, relay, target execution, evidence, or cleanup
 - minimal reproduction using synthetic data
 - expected impact and any known mitigations
 
 Do not include real connector credentials, customer target secrets, production
-data, private packet content, `.env`, or raw command journals. Revoke and rotate
-any credential that was exposed while investigating.
+data, private packet content, local reports, `.env`, or raw command journals.
+Revoke and rotate any credential that was exposed while investigating.
 
 We will acknowledge a complete report, coordinate validation and remediation,
 and agree on disclosure timing before publishing details. Please allow a fix to

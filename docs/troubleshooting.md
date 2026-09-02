@@ -3,11 +3,11 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 ```
 
-`doctor` is always offline in v0.1: it makes no target or cloud request and does
+`doctor` makes no target or cloud request and does
 not check AugmentWorks authentication.
 
 ## Common failures
@@ -18,7 +18,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -47,12 +47,54 @@ Confirm that the target returns JSON and that selectors use the supported
 mock example or a separately approved synthetic run to inspect application
 behavior.
 
+### A local packet is not found or is refused
+
+`test --local` accepts exactly one of:
+
+- the bundled `support-refunds-starter@0.1.0` reference
+- a local JSON file
+- a local directory containing `packet.json`
+
+It does not download packet references or accept URLs, YAML, JavaScript,
+modules, symlinks, or executable instructions. Validate the expected data shape
+with:
+
+```bash
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+```
+
+An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
+fixed attempt and operation limits, and use only capabilities and observation
+keys available in `augmentworks.yaml`.
+
+### `LOCAL_PACKET_INCOMPATIBLE`
+
+The packet requires a lifecycle capability that the target configuration does
+not provide. Add only the required synthetic `prepare`, `observe`, or `cleanup`
+mapping, enable structured tool events if required, and add every requested
+observation alias to `telemetry.allow_observations`. Run `doctor` again before
+starting the assessment.
+
+### `LOCAL_OUTPUT_EXISTS`
+
+Local artifacts are never merged into or written over an existing directory.
+Omit `--output-dir` to use a new `.augmentworks/runs/<run_id>` leaf, or select a
+different path. `--output-dir` identifies the exact fresh leaf, not a parent in
+which the CLI chooses another subdirectory.
+
+### Does local mode require login or internet access?
+
+No AugmentWorks login or control-plane access is used by `test --local`. The
+configured target may still be an HTTP network service and may call a model or
+other dependency. Local mode is independent of the AugmentWorks website; it is
+not necessarily air-gapped.
+
 ### `login` cannot connect
 
 Confirm outbound HTTPS access to `https://augmentworks.ai`, verify the system
 clock, and retry browser authorization. Use `login --device` for an SSH or
 headless machine, or `--no-open` to print the browser URL. Do not set
-`AUGMENTWORKS_API_URL` to another hosted origin; v0.1 accepts the production
+`AUGMENTWORKS_API_URL` to another hosted origin; hosted authentication accepts the production
 origin or an explicit loopback development origin only.
 
 ### `CREDENTIAL_STORE_UNAVAILABLE`
@@ -78,20 +120,33 @@ AugmentWorks access token into a target credential field.
 
 If the request may have reached the target and the operation is not declared
 idempotent, the CLI records an indeterminate outcome rather than retrying. It
-does not invent the next operation: the relay should dispatch the appropriate
-typed follow-up when configured capabilities permit it, such as `observe` or
-`cleanup` when a fixture may exist. Check the target using its synthetic attempt
-or fixture identifier.
+does not blindly repeat it. In hosted mode the relay may dispatch an appropriate
+typed follow-up. In local mode the fixed lifecycle attempts observation after an
+ambiguous send and cleanup whenever a fixture may exist. Check the target using
+its synthetic attempt or fixture identifier.
 
 ### Cleanup failed
 
 The assessment reports cleanup separately from requirement scoring. There is no
-standalone cleanup-recovery command in v0.1; confirm whether the relay dispatched
+standalone hosted cleanup-recovery command; confirm whether the relay dispatched
 cleanup, preserve the synthetic identifier for investigation, and rely on a
 target-side fixture TTL as the final safeguard. Never silently treat a cleanup
 failure as success.
 
-### `test` was interrupted
+In local mode cleanup failure has exit code `6`, takes precedence over assertion
+status, and stops new attempts. A hard process or machine failure can prevent
+the `finally` path from running, so a server-side fixture TTL is required even
+when cleanup is idempotent.
+
+### Local `test --local` was interrupted
+
+The first Ctrl+C aborts the active non-cleanup operation, stops new attempts,
+and drains cleanup before exiting with `130`. A second Ctrl+C exits immediately
+and can leave a fixture behind. Local mode has no cloud run or restart journal;
+inspect the target using the synthetic identifier and rely on its fixture TTL
+if cleanup was not confirmed.
+
+### Hosted `test` was interrupted
 
 Re-run the exact same `test` command as the same OS user, authenticated connector,
 and workspace on the same machine. The CLI retains one tenant-bound active intent
@@ -127,6 +182,23 @@ first real command lease changes it to `consumed`; cancellation or expiry before
 that lease changes it to `released`. Replaying the same create request never
 charges again. The hosted response and dashboard are authoritative for run and
 credit status; the CLI does not meter credits locally.
+
+### Understanding a local result
+
+Local mode always attempts to write `report.json`, `junit.xml`, and
+`report.html` to a fresh private directory. `--open` opens only the static HTML
+file; it does not open or create an AugmentWorks dashboard run.
+
+The result is intentionally labeled: “Local, customer-executed result.
+AugmentWorks did not receive or independently verify this run. This artifact is
+unsigned and is not a certification, audit, or hosted evidence record.” The
+JSON checksum detects change; it is not a signature.
+
+Local exit codes are `0` for pass, `1` for an internal/report failure, `2` for
+configuration/packet/output preflight, `5` for target or evidence execution
+error, `6` for cleanup failure, `10` for failed or inconclusive assertions, and
+`130` for interruption after cleanup draining. Hosted-only auth and relay codes
+`3` and `4` are unreachable from `--local`.
 
 When reporting a bug, include CLI version, Node.js version, operating system,
 safe error code, and a redacted configuration. Never attach `.env`, credential

@@ -34,7 +34,8 @@ target:
       idempotent: false
       request:
         message: $input.message.content
-        session_id: $input.attempt_id
+        attempt_id: $input.attempt_id
+        turn_id: $input.turn_id
       response:
         content: $.answer
         tool_events: $.events
@@ -50,6 +51,7 @@ target:
       response:
         order.status: $.order.status
         order.refunded_amount: $.order.refunded_amount
+        order.refundable: $.order.refundable
 
     cleanup:
       method: POST
@@ -63,6 +65,7 @@ telemetry:
   allow_observations:
     - order.status
     - order.refunded_amount
+    - order.refundable
 `;
 
 const ENV_TEMPLATE = `# Local target settings. Keep .env out of version control.
@@ -75,7 +78,7 @@ const AGENT_TEMPLATE = `# AugmentWorks agent setup
 Use the pinned AugmentWorks CLI when working on this integration:
 
 \`\`\`bash
-npx --yes @augmentworks/cli@0.1.0 doctor -c augmentworks.yaml
+npx --yes @augmentworks/cli@0.2.0 doctor -c augmentworks.yaml
 \`\`\`
 
 - Read \`augmentworks.yaml\` and \`.env.example\`; never read, print, or commit \`.env\`.
@@ -141,8 +144,22 @@ async function ensureIgnored(gitignorePath: string): Promise<"created" | "update
     hadFile = false;
   }
   const lines = current.split(/\r?\n/).map((line) => line.trim());
-  if (lines.includes(".env") || lines.includes("*.env") || lines.includes(".env*")) return "preserved";
-  const next = `${current}${current !== "" && !current.endsWith("\n") ? "\n" : ""}.env\n`;
+  const additions: string[] = [];
+  if (!(lines.includes(".env") || lines.includes("*.env") || lines.includes(".env*"))) {
+    additions.push(".env");
+  }
+  if (
+    !(
+      lines.includes(".augmentworks") ||
+      lines.includes(".augmentworks/") ||
+      lines.includes("/.augmentworks") ||
+      lines.includes("/.augmentworks/")
+    )
+  ) {
+    additions.push(".augmentworks/");
+  }
+  if (additions.length === 0) return "preserved";
+  const next = `${current}${current !== "" && !current.endsWith("\n") ? "\n" : ""}${additions.join("\n")}\n`;
   const result = hadFile ? "updated" : "created";
   await atomicWrite(gitignorePath, next, 0o644, hadFile);
   return result;

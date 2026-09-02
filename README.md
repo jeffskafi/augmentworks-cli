@@ -2,42 +2,71 @@
 
 [![CI](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml)
 
-`@augmentworks/cli` is the outbound-only, customer-operated connector for
+`@augmentworks/cli` is a deterministic, customer-operated connector for
 stateful AI agent release testing. It maps fixed assessment operations to an
 application on localhost, a private network, or another customer-configured
-endpoint using versioned YAML. The generic HTTP connector does not require a
-Python adapter or AugmentWorks target SDK, and no coding assistant is used in
-the runtime connector path.
+endpoint using versioned YAML. The same connector supports two explicit modes:
 
-## Quickstart
+- `test --local` loads and scores a data-only packet entirely in the customer
+  environment. It requires no AugmentWorks account and contacts no
+  AugmentWorks service.
+- `test` starts a hosted AugmentWorks assessment, exchanges bounded evidence
+  through the outbound HTTPS relay, and shows the result in the dashboard.
 
-Prerequisites: Node.js 20 or newer, an AugmentWorks workspace, and an
-authorized, isolated synthetic test target. Run:
+The generic HTTP connector does not require a Python adapter or AugmentWorks
+target SDK, and no coding assistant is used in either runtime path.
+
+## Local quickstart
+
+Prerequisites: Node.js 20 or newer and an authorized, isolated synthetic test
+target. No AugmentWorks account, login, credit, relay, or dashboard is required.
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login
-
-npx --yes @augmentworks/cli@0.1.0 init --agent
+npx --yes @augmentworks/cli@0.2.0 init --agent
 # Edit augmentworks.yaml and .env
 
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.1.0 test \
+npx --yes @augmentworks/cli@0.2.0 test \
+  --local \
+  -c augmentworks.yaml \
+  --packet support-refunds-starter@0.1.0 \
+  --open
+```
+
+`init` creates the YAML, `.env.example`, a local `.env`, and repository
+guidance. On POSIX systems, the CLI creates `.env` with mode `0600`. `doctor`
+validates the config and local prerequisites without calling AugmentWorks or
+the target. `test --local` then calls only the target selected by the local
+configuration and writes private JSON, JUnit, and static HTML reports beneath
+`.augmentworks/runs/<run_id>/`. `--open` opens that static HTML file.
+
+“Local” describes the AugmentWorks boundary, not an air gap. The CLI makes no
+AugmentWorks control-plane request, but the configured target may itself be a
+network service and may call models or other dependencies.
+
+## Hosted quickstart
+
+Hosted assessment prerequisites add an AugmentWorks workspace and connector
+authorization:
+
+```bash
+npx --yes @augmentworks/cli@0.2.0 login
+
+npx --yes @augmentworks/cli@0.2.0 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open
 ```
 
-`init` creates the YAML, `.env.example`, a local `.env`, and repository
-guidance. On POSIX systems, the CLI creates `.env` with mode `0600`. `doctor` validates the config and local prerequisites
-without calling AugmentWorks or the target. `test` is the explicit action that
-starts an assessment; `--open` opens its live dashboard.
+Without `--local`, `test` starts a hosted assessment and `--open` opens its live
+dashboard. The hosted packet and scorer remain in AugmentWorks.
 
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login --device
+npx --yes @augmentworks/cli@0.2.0 login --device
 ```
 
 Interactive credentials use the macOS login Keychain, Windows CurrentUser
@@ -47,7 +76,7 @@ file when no native store is available. Plaintext fallback is disabled on
 Windows because POSIX file modes cannot establish a safe Windows ACL.
 
 Do not put an AugmentWorks token on the command line. Long-lived project-token
-issuance is not part of the interactive v0.1 connector-auth release, so do not
+issuance is not part of the interactive connector-auth release, so do not
 substitute its one-hour interactive access token for an unattended CI
 credential. `AUGMENTWORKS_TOKEN` remains reserved for future project tokens and
 local integration harnesses.
@@ -75,6 +104,7 @@ target:
       idempotent: true
       request:
         attempt_id: $input.attempt_id
+        fixture: $input.fixture
       response:
         status: $.status
 
@@ -101,6 +131,7 @@ target:
       response:
         order.status: $.order.status
         order.refunded_amount: $.order.refunded_amount
+        order.refundable: $.order.refundable
 
     cleanup:
       method: POST
@@ -114,6 +145,7 @@ telemetry:
   allow_observations:
     - order.status
     - order.refunded_amount
+    - order.refundable
 ```
 
 ```dotenv
@@ -128,15 +160,16 @@ See the [configuration reference](https://github.com/jeffskafi/augmentworks-cli/
 
 ## Data boundary
 
-| Stays local | Exchanged with AugmentWorks |
-| --- | --- |
-| Raw target URL and paths, mapping selectors, environment-variable names and values, target credentials, application code and logs, full fixture state, and unmapped responses | Packet inputs, target display name, secret-free config/boundary checksums, declared capabilities, observation-key aliases, mapped assistant content, opted-in tool events, allowlisted observations, safe errors, and lifecycle status/timing |
+| Mode | AugmentWorks contact | Evidence boundary |
+| --- | --- | --- |
+| Local (`test --local`) | None | Packet inputs, mapped responses, tool events, observations, scoring, and reports stay in the customer environment. Only the locally configured target is contacted. |
+| Hosted (`test`) | Outbound HTTPS authentication and relay | Raw target boundary and secrets stay local. Bounded packet inputs and mapped, allowlisted evidence are exchanged with AugmentWorks. |
 
 The connector credential created by `login` authenticates the CLI to
 AugmentWorks. Target authentication is separate: YAML names local environment
 variables whose values are used only for CLI-to-target requests.
 
-## What happens during `test`
+## What happens during hosted `test`
 
 ```mermaid
 sequenceDiagram
@@ -174,6 +207,60 @@ Re-running the exact command on the same machine resumes the same run. A
 different active packet, configuration, connector, or workspace is refused
 instead of silently creating another run or reserving another credit.
 
+## What happens during `test --local`
+
+1. The CLI validates the YAML, resolves target credentials locally, and loads
+   either the bundled `support-refunds-starter@0.1.0` packet or a local
+   `packet.json`.
+2. It verifies that the configured lifecycle mappings and telemetry allowlist
+   satisfy the packet's declared capabilities.
+3. It executes attempts serially: `prepare`, one or more `send` operations,
+   `observe`, and `cleanup` in a `finally` path.
+4. It deterministically evaluates the packet assertions and writes
+   `report.json`, `junit.xml`, and `report.html` to a fresh private directory.
+5. If `--open` is present, it opens the generated static HTML report. No
+   dashboard or hosted evidence record is created.
+
+The CLI does not blindly retry an ambiguous non-idempotent operation. It still
+attempts observation when a send outcome is ambiguous and attempts cleanup when
+a fixture may exist. A cleanup failure stops new attempts. The first Ctrl+C
+requests cancellation and drains cleanup; a second exits immediately. A hard
+process or machine failure cannot guarantee cleanup, so synthetic fixtures need
+an independent server-side TTL. New target work is bounded by a 30-minute local
+run deadline; bounded cleanup is still allowed to drain after that deadline.
+
+### Local packets
+
+Local packets use the strict `aw-packet/0.1` JSON format. They are data, not
+executable plugins: no JavaScript, modules, shell commands, remote URLs, or
+download step is accepted. `--packet` may name the bundled
+`support-refunds-starter@0.1.0`, a local JSON file, or a local directory
+containing `packet.json`.
+
+Print the packet and result schemas with:
+
+```bash
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
+```
+
+### Local reports and trust
+
+The default exact output directory is `.augmentworks/runs/<run_id>`. Override
+it with `--output-dir <path>`; the selected leaf must not already exist, and the
+CLI never merges into or overwrites an existing directory. On POSIX systems the
+leaf is mode `0700` and report files are mode `0600`.
+
+Every local report is labeled:
+
+> Local, customer-executed result. AugmentWorks did not receive or independently verify this run. This artifact is unsigned and is not a certification, audit, or hosted evidence record.
+
+The JSON uses `AW-LOCAL-RESULT-1` and includes a SHA-256 change-detection
+checksum. That checksum is not a signature or proof of provenance. The HTML is
+a self-contained static file with no scripts or external assets. Treat all
+three artifacts as sensitive customer-controlled evidence. `--json` emits the
+same final local result on stdout; the three files are still generated.
+
 ## Commands
 
 | Command | Purpose | Side effects |
@@ -183,8 +270,23 @@ instead of silently creating another run or reserving another credit.
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline]` | Validate config, mappings, secrets, and local prerequisites | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
-| `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Calls configured lifecycle endpoints and may create synthetic state |
-| `schema` | Print the bundled v1 JSON Schema | None |
+| `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
+| `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
+| `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Assessment passed |
+| `1` | Internal or report-generation failure |
+| `2` | Configuration, packet, capability, or output preflight failure |
+| `3` | Hosted authentication failure; unreachable from `--local` |
+| `4` | Hosted relay/protocol failure; unreachable from `--local` |
+| `5` | Target, protocol-evidence, or indeterminate execution error |
+| `6` | Cleanup failure; takes precedence over assessment status |
+| `10` | Assertions failed or the assessment was inconclusive |
+| `130` | Interrupted after cleanup was drained; a second interrupt exits immediately |
 
 ## Evidence levels
 
@@ -195,9 +297,10 @@ instead of silently creating another run or reserving another credit.
 | Stateful | `prepare`, `send`, `observe`, and `cleanup` | Values returned by the configured synthetic-state observer |
 
 For consequential workflows, an agent saying “done” is not proof. Stateful
-evidence requires configured observation and cleanup hooks. AugmentWorks records
-what the customer-controlled observer reports; it does not independently prove
-that observer is truthful or that staging matches production.
+evidence requires configured observation and cleanup hooks. A hosted run records
+what the customer-controlled observer reports in AugmentWorks; a local run
+records it only in the customer-held reports. Neither mode independently proves
+that the observer is truthful or that staging matches production.
 
 ## Security and trust boundary
 
@@ -214,13 +317,16 @@ that observer is truthful or that staging matches production.
   not target identity, ownership, code, state, or execution proof.
 - Executed prompts and synthetic fixtures are visible to the local connector;
   undispatched packet branches and hosted assertions can remain private.
+- A local packet is fully visible to the customer process, and its unsigned
+  report is customer-controlled. It must not be presented as hosted or
+  independently verified AugmentWorks evidence.
 - The CLI's unkeyed SHA-256 digests detect a conflicting replay when compared
   with an already-durable local or relay record; they are not evidence
   signatures. The hosted relay associates accepted results with authenticated
   connector, session, run, packet, configuration, and sequence bindings.
 - A customer-operated observation hook can be incorrect or dishonest, and a
   staging result is not proof of production equivalence.
-- v0.1 is for authorized, isolated synthetic targets in test or staging
+- v0.2 is for authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only. Do not connect production systems
   or use production or regulated data.
 
@@ -230,11 +336,11 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 
 ## Current limitations
 
-- The generic HTTP connector is the only v0.1 connector.
+- The generic HTTP connector is the only v0.2 connector.
 - OpenAPI import, OpenAI-compatible presets, LangServe, and custom modules are
   not implemented.
-- v0.1 exposes no public `connect` command; `test` keeps the connector online
-  only for the assessment it starts.
+- v0.2 exposes no public `connect` command; hosted `test` keeps the connector
+  online only for the assessment it starts.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
 

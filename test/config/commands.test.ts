@@ -38,6 +38,18 @@ describe("configuration commands", () => {
     expect(forced.preserved).toContain(resolve(directory, ".env"));
     expect(await readFile(resolve(directory, ".env"), "utf8")).toBe("CHATBOT_API_KEY=keep-me\n");
     expect(await readFile(resolve(directory, ".gitignore"), "utf8")).toContain(".env\n");
+    expect(await readFile(resolve(directory, ".gitignore"), "utf8")).toContain(
+      ".augmentworks/\n"
+    );
+  });
+
+  it("adds the local artifact directory even when .env is already ignored", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(resolve(directory, ".gitignore"), ".env\n", "utf8");
+    await runInit({ cwd: directory });
+    expect(await readFile(resolve(directory, ".gitignore"), "utf8")).toBe(
+      ".env\n.augmentworks/\n"
+    );
   });
 
   it("refuses to overwrite generated files without --force", async () => {
@@ -66,5 +78,10 @@ describe("configuration commands", () => {
     const schema = JSON.parse(await runSchema()) as Record<string, unknown>;
     expect(schema["$id"]).toBe("https://augmentworks.ai/schemas/v1/augmentworks.schema.json");
     expect(schema["additionalProperties"]).toBe(false);
+
+    const packet = JSON.parse(await runSchema(false, "local-packet")) as Record<string, unknown>;
+    const result = JSON.parse(await runSchema(true, "local-result")) as Record<string, unknown>;
+    expect(packet["$id"]).toBe("https://augmentworks.ai/schemas/v1/local-packet.schema.json");
+    expect(result["$id"]).toBe("https://augmentworks.ai/schemas/v1/local-result.schema.json");
   });
 });

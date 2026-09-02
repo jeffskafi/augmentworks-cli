@@ -4,12 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-02
+
+### Added
+
+- Customer-executed `test --local` mode that branches before authentication and
+  cloud setup, loads strict data-only JSON packets, executes the synthetic
+  lifecycle directly, and scores results without contacting AugmentWorks.
+- Bundled Apache-2.0 `support-refunds-starter@0.1.0` packet plus local packet and
+  local result JSON Schemas.
+- Private JSON, JUnit, and static HTML local reports with explicit unsigned,
+  unverified provenance; fresh-output enforcement; change-detection checksum;
+  redaction; and cleanup-aware exit codes.
+- `schema --kind config|local-packet|local-result` and local report
+  `--output-dir`/`--open` support.
 
 ### Changed
 
-- Reconciled the package documentation with the published v0.1 command surface,
-  outbound relay, generic YAML HTTP connector, and current trust boundaries.
+- Pinned v0.2 setup examples and documented the separate hosted and local
+  security, evidence, authentication, packet, cleanup, and networking
+  boundaries.
 
 ## [0.1.0] - 2026-08-31
 
@@ -26,5 +40,5 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
-[Unreleased]: https://github.com/jeffskafi/augmentworks-cli/commits/main
+[0.2.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.0
 [0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0

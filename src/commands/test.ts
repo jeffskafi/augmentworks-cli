@@ -26,6 +26,13 @@ import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { getStateDirectory } from "../relay/state-dir.js";
 import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../system/browser.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
+import {
+  formatLocalTestHuman,
+  formatLocalTestJson,
+  localExitCode,
+  runLocalTest,
+  type LocalTestDependencies
+} from "./local-test.js";
 
 export interface TestOptions {
   readonly config?: string;
@@ -76,6 +83,7 @@ export interface TestDependencies {
   readonly signals?: SignalHost;
   readonly setExitCode?: (code: number) => void;
   readonly onProgress?: (event: RelayProgressEvent) => void;
+  readonly local?: LocalTestDependencies;
 }
 
 export async function runTest(
@@ -253,10 +261,15 @@ export async function runTest(
 
 export function createTestCommand(dependencies: TestDependencies = {}): Command {
   return new Command("test")
-    .description("Run a deterministic assessment through the local connector")
+    .description("Run a deterministic hosted or customer-executed local assessment")
     .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
-    .requiredOption("--packet <key@version>", "pinned AugmentWorks packet")
-    .option("--open", "open the live dashboard run")
+    .requiredOption(
+      "--packet <reference>",
+      "hosted key@version, or a bundled/local JSON packet with --local"
+    )
+    .option("--local", "run entirely in the customer environment without AugmentWorks services")
+    .option("--output-dir <path>", "fresh exact report directory for --local")
+    .option("--open", "open the hosted dashboard or generated local HTML report")
     .option("--json", "emit the final run status as JSON")
     .option(
       "--allow-file-credentials",
@@ -266,10 +279,54 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       async (values: {
         config: string;
         packet: string;
+        local?: boolean;
+        outputDir?: string;
         open?: boolean;
         json?: boolean;
         allowFileCredentials?: boolean;
       }) => {
+        const stdout = dependencies.stdout ?? process.stdout;
+        const stderr = dependencies.stderr ?? process.stderr;
+        const setExitCode =
+          dependencies.setExitCode ??
+          ((code: number) => {
+            process.exitCode = code;
+          });
+        if (values.local === true) {
+          if (values.allowFileCredentials === true) {
+            throw new AwError({
+              code: "LOCAL_FILE_CREDENTIALS_UNSUPPORTED",
+              category: "config",
+              message:
+                "--allow-file-credentials applies only to hosted AugmentWorks authentication and cannot be used with --local."
+            });
+          }
+          const local = await runLocalTest(
+            {
+              config: values.config,
+              packet: values.packet,
+              ...(values.outputDir === undefined ? {} : { outputDirectory: values.outputDir }),
+              ...(values.open === undefined ? {} : { open: values.open }),
+              ...(values.json === undefined ? {} : { json: values.json })
+            },
+            {
+              ...dependencies.local,
+              stdout,
+              stderr
+            }
+          );
+          stdout.write(values.json === true ? formatLocalTestJson(local) : formatLocalTestHuman(local));
+          const exitCode = localExitCode(local);
+          if (exitCode !== EXIT.OK) setExitCode(exitCode);
+          return;
+        }
+        if (values.outputDir !== undefined) {
+          throw new AwError({
+            code: "LOCAL_OUTPUT_REQUIRES_LOCAL_MODE",
+            category: "config",
+            message: "--output-dir can be used only with --local."
+          });
+        }
         const result = await runTest(
           {
             config: values.config,
@@ -282,7 +339,6 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           },
           dependencies
         );
-        const stdout = dependencies.stdout ?? process.stdout;
         if (values.json === true) {
           stdout.write(
             `${JSON.stringify({
@@ -301,11 +357,6 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
             }.`
           );
         }
-        const setExitCode =
-          dependencies.setExitCode ??
-          ((code: number) => {
-            process.exitCode = code;
-          });
         if (result.run.status === "cancelled") setExitCode(EXIT.INTERRUPTED);
         else if (
           result.run.status === "failed" ||
