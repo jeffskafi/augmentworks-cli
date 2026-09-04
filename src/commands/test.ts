@@ -25,6 +25,7 @@ import {
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { getStateDirectory } from "../relay/state-dir.js";
 import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../system/browser.js";
+import { HOSTED_TEST_KEEP_TERMINAL } from "../release.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
 import {
   formatLocalTestHuman,
@@ -207,6 +208,7 @@ export async function runTest(
       stderr,
       `${loaded.resumed ? "Resuming" : "Run"} ${sanitizeTerminal(binding.run_id)}: ${sanitizeTerminal(dashboard.toString())}`
     );
+    writeLine(stderr, HOSTED_TEST_KEEP_TERMINAL);
     if (options.open === true) {
       try {
         await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [apiOrigin.origin])))(

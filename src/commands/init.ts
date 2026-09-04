@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { Command } from "commander";
 
 import { AwError } from "../errors.js";
+import { HOSTED_COMMAND_PIN, INIT_NEXT_STEPS, NPM_PACKAGE } from "../release.js";
 
 const CONFIG_TEMPLATE = `# yaml-language-server: $schema=https://augmentworks.ai/schemas/v1/augmentworks.schema.json
 version: 1
@@ -78,7 +79,7 @@ const AGENT_TEMPLATE = `# AugmentWorks agent setup
 Use the pinned AugmentWorks CLI when working on this integration:
 
 \`\`\`bash
-npx --yes @augmentworks/cli@0.2.0 doctor -c augmentworks.yaml
+npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c augmentworks.yaml
 \`\`\`
 
 - Read \`augmentworks.yaml\` and \`.env.example\`; never read, print, or commit \`.env\`.
@@ -236,6 +237,6 @@ export function createInitCommand(dependencies: InitCommandDependencies = {}): C
       for (const path of result.created) output.write(`created ${path}\n`);
       for (const path of result.updated) output.write(`updated ${path}\n`);
       for (const path of result.preserved) output.write(`preserved ${path}\n`);
-      output.write("Next: edit .env, then run `augmentworks doctor`.\n");
+      output.write(`${INIT_NEXT_STEPS}\n`);
     });
 }

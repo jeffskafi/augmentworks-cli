@@ -16,6 +16,7 @@ import {
   type StoredCredential
 } from "../auth/types.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
+import { LOGIN_NEXT_STEPS } from "../release.js";
 import { openBrowserUrl, type BrowserOpener } from "../system/browser.js";
 
 export interface LoginOptions {
@@ -160,6 +161,7 @@ function writeLoginResult(
   const connector = result.identity.connectorName ?? result.identity.connectorId;
   const workspace = result.identity.workspaceName ?? result.identity.workspaceId;
   stderr(`Connected ${sanitizeTerminal(connector)} to ${sanitizeTerminal(workspace)}.`);
+  stderr(LOGIN_NEXT_STEPS);
 }
 
 export function identityJson(identity: AuthIdentity): Record<string, unknown> {

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { runDoctor } from "../../src/commands/doctor.js";
 import { runInit } from "../../src/commands/init.js";
 import { runSchema } from "../../src/commands/schema.js";
+import { HOSTED_COMMAND_PIN, LOCAL_DISTRIBUTION, SOURCE_PACKAGE_VERSION } from "../../src/release.js";
 
 const directories: string[] = [];
 
@@ -41,6 +42,11 @@ describe("configuration commands", () => {
     expect(await readFile(resolve(directory, ".gitignore"), "utf8")).toContain(
       ".augmentworks/\n"
     );
+    const agent = await readFile(resolve(directory, "augmentworks.agent.md"), "utf8");
+    expect(agent).toContain(`npx --yes @augmentworks/cli@${HOSTED_COMMAND_PIN} doctor -c augmentworks.yaml`);
+    if (LOCAL_DISTRIBUTION === "git") {
+      expect(agent).not.toContain(`npx --yes @augmentworks/cli@${SOURCE_PACKAGE_VERSION}`);
+    }
   });
 
   it("adds the local artifact directory even when .env is already ignored", async () => {

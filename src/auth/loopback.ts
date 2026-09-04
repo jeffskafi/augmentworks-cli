@@ -8,7 +8,7 @@ import type { AddressInfo } from "node:net";
 
 import { AwError } from "../errors.js";
 import type { BrowserOpener } from "../system/browser.js";
-import type { CloudAuthClient } from "./client.js";
+import { AUTH_USER_MESSAGES, type CloudAuthClient } from "./client.js";
 import { createPkcePair, randomUrlSafeString } from "./pkce.js";
 import { DEFAULT_AUTH_SCOPES, type StoredCredential } from "./types.js";
 
@@ -120,7 +120,7 @@ function deferredCallback(
       }
       if (completed) {
         response.writeHead(409, { "content-type": "text/plain; charset=utf-8" });
-        response.end("Authorization callback already used");
+        response.end(AUTH_USER_MESSAGES.alreadyUsed);
         return;
       }
       const returnedState = requestUrl.searchParams.get("state");
@@ -140,12 +140,15 @@ function deferredCallback(
       }
       if (error !== null) {
         response.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
-        response.end("Authorization denied");
+        response.end(
+          error === "access_denied" ? AUTH_USER_MESSAGES.denied : AUTH_USER_MESSAGES.incomplete
+        );
         rejectOnce(
           new AwError({
             code: error === "access_denied" ? "AUTH_DENIED" : "AUTH_RESPONSE_ERROR",
             category: "auth",
-            message: "AugmentWorks authorization was denied."
+            message:
+              error === "access_denied" ? AUTH_USER_MESSAGES.denied : AUTH_USER_MESSAGES.incomplete
           })
         );
         return;
@@ -173,7 +176,9 @@ function deferredCallback(
       response.end(
         "<!doctype html><meta charset=utf-8><title>AugmentWorks connected</title>" +
           "<style>body{font:16px system-ui;margin:4rem;max-width:42rem}h1{font-size:1.5rem}</style>" +
-          "<h1>AugmentWorks is connected</h1><p>You can close this tab and return to your terminal.</p>"
+          "<h1>AugmentWorks is connected</h1>" +
+          "<p>This authorized the CLI connector. It did not start an assessment.</p>" +
+          "<p>You can close this tab and return to your terminal.</p>"
       );
       resolvePromise(code);
     }
