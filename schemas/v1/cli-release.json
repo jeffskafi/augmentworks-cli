@@ -1,0 +1,19 @@
+{
+  "schema_version": "aw-cli-release/0.1",
+  "npm_package": "@augmentworks/cli",
+  "source_package_version": "0.2.0",
+  "published_package_version": "0.1.0",
+  "published_package_verified": true,
+  "recommended_cli_version": "0.1.0",
+  "hosted_command_pin": "0.1.0",
+  "local_distribution": "git",
+  "local_source_repository": "https://github.com/jeffskafi/augmentworks-cli.git",
+  "local_source_ref": "main",
+  "local_example_path": "examples/refund-agent",
+  "hosted_packet": "support-refunds@0.1.0",
+  "local_packet": "support-refunds-starter@0.1.0",
+  "protocol_version": "aw-relay/0.1",
+  "target_protocol_version": "aw-target/0.1",
+  "config_version": 1,
+  "notes": "Hosted npx commands pin the verified published package. Local mode and the refund-agent example ship in source 0.2.0 and are not in published 0.1.0; the npm tarball also omits examples/."
+}

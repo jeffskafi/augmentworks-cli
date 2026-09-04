@@ -6,6 +6,7 @@ import { runCli } from "./cli.js";
 
 export { createCli, runCli, type CliIo } from "./cli.js";
 export { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION } from "./version.js";
+export { CLI_RELEASE, HOSTED_COMMANDS, LOCAL_COMMANDS } from "./release.js";
 
 function isDirectInvocation(metaUrl: string, argvEntry: string | undefined): boolean {
   if (argvEntry === undefined) return false;

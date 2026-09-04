@@ -94,7 +94,8 @@ function assertInventory(report) {
   for (const path of [
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
-    "packets/support-refunds-starter/0.1.0/packet.json"
+    "packets/support-refunds-starter/0.1.0/packet.json",
+    "schemas/v1/cli-release.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
