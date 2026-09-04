@@ -21,15 +21,13 @@ target SDK, and no coding assistant is used in either runtime path.
 | Identity | Current value |
 | --- | --- |
 | Source package (`package.json`) | `0.2.0` |
-| Verified published npm package | `@augmentworks/cli@0.1.0` |
+| Verified published npm package | `@augmentworks/cli@0.2.0` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.1.0**, the package that is actually on the
-npm registry. Source `0.2.0` adds `test --local` and the bundled starter
-packet; those commands are not in the published 0.1.0 tarball. The npm package
-also omits `examples/`. Use a git checkout of this repository for the local
-example until `0.2.0` is published.
+Executable `npx` examples pin **0.2.0**. The published tarball includes
+`test --local` and the bundled starter packet. It omits `examples/`; clone this
+repository for the refund-agent example server.
 
 ## Hosted quickstart
 
@@ -37,15 +35,15 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target.
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login
+npx --yes @augmentworks/cli@0.2.0 login
 
-npx --yes @augmentworks/cli@0.1.0 init --agent
+npx --yes @augmentworks/cli@0.2.0 init --agent
 # Edit augmentworks.yaml and .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.1.0 test \
+npx --yes @augmentworks/cli@0.2.0 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open
@@ -63,22 +61,18 @@ finishes.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 login --device
+npx --yes @augmentworks/cli@0.2.0 login --device
 ```
 
 ## Local quickstart
 
 No AugmentWorks account, login, credit, relay, or dashboard is required. Clone
-this repository because local mode ships in source `0.2.0` and the example is
-not in the npm tarball.
+this repository for the example server; `examples/` is not in the npm tarball.
+The local CLI itself is the published package.
 
 ```bash
 git clone https://github.com/jeffskafi/augmentworks-cli.git
-cd augmentworks-cli
-npm ci
-npm run build
-
-cd examples/refund-agent
+cd augmentworks-cli/examples/refund-agent
 cp .env.example .env
 # Windows: copy .env.example .env
 node --env-file=.env server.mjs
@@ -87,10 +81,10 @@ node --env-file=.env server.mjs
 In another terminal, from `examples/refund-agent`:
 
 ```bash
-node ../../dist/index.js doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 
-node ../../dist/index.js test \
+npx --yes @augmentworks/cli@0.2.0 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -274,11 +268,11 @@ download step is accepted. `--packet` may name the bundled
 `support-refunds-starter@0.1.0`, a local JSON file, or a local directory
 containing `packet.json`.
 
-Print the packet and result schemas from this source tree with:
+Print the packet and result schemas with:
 
 ```bash
-node dist/index.js schema --kind local-packet
-node dist/index.js schema --kind local-result
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
 ```
 
 ### Local reports and trust
@@ -376,10 +370,9 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 - The generic HTTP connector is the only v0.2 connector.
 - OpenAPI import, OpenAI-compatible presets, LangServe, and custom modules are
   not implemented.
-- v0.2 source exposes no public `connect` command; hosted `test` keeps the
+- v0.2 exposes no public `connect` command; hosted `test` keeps the
   connector online only for the assessment it starts.
-- Hosted `npx` pins remain `@augmentworks/cli@0.1.0` until `0.2.0` is published.
-  Re-running the same hosted `test` command resumes an active bound intent or
+- Re-running the same hosted `test` command resumes an active bound intent or
   follows the workspace's remaining baseline/remediation allowance. There is no
   `--rerun` flag.
 - Pointing the CLI directly at a model provider tests the model endpoint, not

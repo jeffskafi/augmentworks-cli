@@ -4,17 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-
-- Hosted `npx` examples pin the verified published package `@augmentworks/cli@0.1.0`.
-- Local `--local` docs use a git checkout of this repository until `0.2.0` is
-  published; the npm tarball still omits `examples/`.
-- Login, init, and hosted `test` print the next first-user action without a
-  `connect` or `--rerun` command.
-
-## [0.2.0] - 2026-09-02
+## [0.2.0] - 2026-09-04
 
 ### Added
 
@@ -34,6 +24,10 @@ All notable changes to this project are documented here. The format follows
 - Pinned v0.2 setup examples and documented the separate hosted and local
   security, evidence, authentication, packet, cleanup, and networking
   boundaries.
+- Hosted and local `npx` examples pin `@augmentworks/cli@0.2.0`. The refund-agent
+  example remains git-checkout-only because the npm tarball omits `examples/`.
+- Login, init, and hosted `test` print the next first-user action without a
+  `connect` or `--rerun` command.
 
 ## [0.1.0] - 2026-08-31
 
@@ -50,6 +44,5 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
-[Unreleased]: https://github.com/jeffskafi/augmentworks-cli/compare/v0.1.0...HEAD
-[0.2.0]: https://github.com/jeffskafi/augmentworks-cli
+[0.2.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.0
 [0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0
