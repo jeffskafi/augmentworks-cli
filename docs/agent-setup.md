@@ -18,9 +18,9 @@ AugmentWorks into this repository.
 You may inspect the current repository, but do not read, print, move, or expose
 secrets. Do not inspect outside the repository unless I explicitly approve it.
 
-Use the pinned @augmentworks/cli@0.2.0 package. Run:
+Use the pinned @augmentworks/cli@0.1.0 package for hosted commands. Run:
 
-npx --yes @augmentworks/cli@0.2.0 init --agent
+npx --yes @augmentworks/cli@0.1.0 init --agent
 
 Then configure the generic YAML HTTP connector. Do not require a Python adapter
 or AugmentWorks target SDK; implement only missing synthetic hooks in this
@@ -35,7 +35,7 @@ argument, chat, or a diff.
 
 Run:
 
-npx --yes @augmentworks/cli@0.2.0 doctor -c augmentworks.yaml
+npx --yes @augmentworks/cli@0.1.0 doctor -c augmentworks.yaml
 
 Show me the resulting diff, and explain the telemetry allowlist and cleanup
 behavior. Stop and ask before running either a customer-executed local
@@ -51,7 +51,7 @@ or any paid action requires human approval.
    target in a test or staging environment.
 2. Inspect application routes or an OpenAPI description inside that root.
 3. Identify the application endpoint—not merely its model-provider endpoint.
-4. Run `npx --yes @augmentworks/cli@0.2.0 init --agent` to generate
+4. Run `npx --yes @augmentworks/cli@0.1.0 init --agent` to generate
    `augmentworks.yaml`, `.env.example`, a local `.env`, and repository guidance.
 5. Use the generic YAML HTTP connector. Add narrowly scoped, authenticated
    synthetic lifecycle hooks in the application's native framework only if
@@ -64,8 +64,8 @@ or any paid action requires human approval.
    values.
 9. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
    add JavaScript, modules, shell instructions, remote URLs, or secret values.
-   Validate its contract against
-   `npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet`.
+   Validate its contract from a source 0.2.0 checkout with
+   `node dist/index.js schema --kind local-packet`.
 10. Show the diff, explain which target operations will run, and stop for human
     approval before `test`.
 
@@ -79,18 +79,29 @@ or any paid action requires human approval.
   require an AugmentWorks account:
 
   ```bash
-  npx --yes @augmentworks/cli@0.2.0 test \
+  git clone https://github.com/jeffskafi/augmentworks-cli.git
+  cd augmentworks-cli
+  npm ci
+  npm run build
+  node dist/index.js test \
     --local \
     -c augmentworks.yaml \
     --packet support-refunds-starter@0.1.0 \
     --open
   ```
 
-- Or sign in, approve the connector, and separately authorize a hosted run:
+  Local `--local` and `support-refunds-starter@0.1.0` ship in source 0.2.0 and
+  are not in published `@augmentworks/cli@0.1.0`.
+
+- Or sign in, approve the connector, and separately authorize a hosted run.
+  Browser approval does not start an assessment. Keep the terminal open for
+  `test`; there is no separate `connect` command and no `--rerun` flag.
+  Re-running the same hosted `test` command resumes an active bound intent or
+  follows the workspace's remaining baseline/remediation allowance:
 
   ```bash
-  npx --yes @augmentworks/cli@0.2.0 login
-  npx --yes @augmentworks/cli@0.2.0 test \
+  npx --yes @augmentworks/cli@0.1.0 login
+  npx --yes @augmentworks/cli@0.1.0 test \
     -c augmentworks.yaml \
     --packet support-refunds@0.1.0 \
     --open

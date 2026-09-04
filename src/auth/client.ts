@@ -16,6 +16,16 @@ export const AUTH_ENDPOINTS = {
   me: "/api/v1/cli/auth/me"
 } as const;
 
+export const AUTH_USER_MESSAGES = {
+  denied:
+    "Authorization was declined. Return to the terminal and run login again when you are ready.",
+  expired: "This authorization request expired. Return to the terminal and run login again.",
+  alreadyUsed:
+    "This login callback was already used. Return to the terminal and run login again.",
+  incomplete:
+    "Authorization did not complete. Return to the terminal and run login again."
+} as const;
+
 const MAX_AUTH_RESPONSE_BYTES = 256 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -158,7 +168,7 @@ export class CloudAuthClient {
         throw new AwError({
           code: "AUTH_DENIED",
           category: "auth",
-          message: "AugmentWorks authorization was denied."
+          message: AUTH_USER_MESSAGES.denied
         });
       }
       if (oauthError === "expired_token") break;
@@ -167,7 +177,7 @@ export class CloudAuthClient {
     throw new AwError({
       code: "AUTH_EXPIRED",
       category: "auth",
-      message: "The AugmentWorks device authorization expired. Run login again."
+      message: AUTH_USER_MESSAGES.expired
     });
   }
 
@@ -447,7 +457,7 @@ function authResponseError(status: number, body: Record<string, unknown>): AwErr
     return new AwError({
       code: "AUTH_DENIED",
       category: "auth",
-      message: "AugmentWorks authorization was denied."
+      message: AUTH_USER_MESSAGES.denied
     });
   }
   return new AwError({

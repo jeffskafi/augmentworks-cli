@@ -19,6 +19,7 @@ import {
 import { loginWithLoopback } from "../../src/auth/loopback.js";
 import type { CredentialStore, StoredCredential } from "../../src/auth/types.js";
 import { runLogin } from "../../src/commands/login.js";
+import { LOGIN_NEXT_STEPS } from "../../src/release.js";
 import { runLogout } from "../../src/commands/logout.js";
 import { runWhoami } from "../../src/commands/whoami.js";
 import { AwError } from "../../src/errors.js";
@@ -410,6 +411,29 @@ describe("commands", () => {
     expect(result.source).toBe("environment");
     expect(store.saves).toBe(0);
     expect(outputs[0]).not.toContain(TOKEN);
+  });
+
+  it("prints the next hosted-setup action after a human login", async () => {
+    const store = new MemoryStore();
+    const outputs: string[] = [];
+    const client = authClient(async (url) => {
+      expect(url.pathname).toBe(AUTH_ENDPOINTS.me);
+      return jsonResponse(identityBody());
+    });
+    await runLogin(
+      {},
+      {
+        env: { AUGMENTWORKS_TOKEN: TOKEN },
+        client,
+        store,
+        stdout: () => undefined,
+        stderr: (message) => outputs.push(message)
+      }
+    );
+    expect(outputs.some((line) => line.includes("Connected Refunds Staging to Test Workspace."))).toBe(
+      true
+    );
+    expect(outputs).toContain(LOGIN_NEXT_STEPS);
   });
 
   it("refreshes an expiring stored credential before whoami", async () => {

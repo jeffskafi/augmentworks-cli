@@ -216,7 +216,7 @@ test environment matches production.
 Use offline validation while editing:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.1.0 doctor \
   -c augmentworks.yaml
 ```
 
@@ -229,9 +229,15 @@ The canonical machine-readable definition is
 Print any bundled schema with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 schema --kind config
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
+npx --yes @augmentworks/cli@0.1.0 schema --kind config
+```
+
+Local packet and result schemas ship in source 0.2.0. From a checkout after
+`npm run build`:
+
+```bash
+node dist/index.js schema --kind local-packet
+node dist/index.js schema --kind local-result
 ```
 
 Local assessment packets are separate strict JSON documents with
