@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   HOSTED_COMMANDS,
   HOSTED_PACKET_REFERENCE,
+  LOCAL_COMMANDS,
   LOCAL_PACKET_REFERENCE,
   SOURCE_PACKAGE_VERSION,
   SOURCE_REPOSITORY,
@@ -67,16 +68,15 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(LOCAL_PACKET_REFERENCE);
     expect(readme).toContain(SOURCE_REPOSITORY);
     expect(readme).toContain("npm ci");
-    expect(readme).toContain("node ../../dist/index.js test");
-    expect(readme).toContain("--local");
+    expect(readme).toContain(LOCAL_COMMANDS.test);
 
     const hostedTestAt = readme.indexOf(HOSTED_COMMANDS.test);
     const localCloneAt = readme.indexOf("git clone");
-    const localTestAt = readme.indexOf("node ../../dist/index.js test");
+    const localTestAt = readme.indexOf(LOCAL_COMMANDS.test);
     expect(hostedTestAt).toBeGreaterThan(-1);
     expect(localCloneAt).toBeGreaterThan(hostedTestAt);
     expect(localTestAt).toBeGreaterThan(localCloneAt);
-    expect(readme).toContain(`Source \`${SOURCE_PACKAGE_VERSION}\``);
+    expect(readme).toContain(`@augmentworks/cli@${SOURCE_PACKAGE_VERSION}`);
     const tick = String.fromCharCode(96);
     for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
       expect(readme).toContain("| " + tick + command);
@@ -180,7 +180,7 @@ describe("customer-facing CLI copy", () => {
     expect(troubleshooting).toContain("Re-run the exact same `test` command");
     expect(example).toContain("git clone https://github.com/jeffskafi/augmentworks-cli.git");
     expect(example).toContain("copy .env.example .env");
-    expect(example).toContain("node ../../dist/index.js test");
+    expect(example).toContain(LOCAL_COMMANDS.test);
     expect(example).toContain(HOSTED_PACKET_REFERENCE);
     expect(example).toContain(LOCAL_PACKET_REFERENCE);
   });

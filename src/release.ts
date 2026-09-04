@@ -6,7 +6,7 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-export const PUBLISHED_PACKAGE_VERSION: string = "0.1.0";
+export const PUBLISHED_PACKAGE_VERSION: string = "0.2.0";
 export const PUBLISHED_PACKAGE_VERIFIED = true;
 export const HOSTED_COMMAND_PIN: string = PUBLISHED_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Hosted npx commands pin the verified published package. Local mode and the refund-agent example ship in source 0.2.0 and are not in published 0.1.0; the npm tarball also omits examples/."
+    "Hosted and local npx commands pin the verified published package. The npm tarball includes the bundled starter packet and omits examples/; clone this repository for the refund-agent example server."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -101,8 +101,14 @@ export const HOSTED_COMMANDS = {
 
 export const LOCAL_COMMANDS = {
   doctor: formatDocumentedCli("doctor", ["-c augmentworks.yaml"]),
-  schemaPacket: formatSourceCli(["schema", "--kind", "local-packet"]),
-  schemaResult: formatSourceCli(["schema", "--kind", "local-result"]),
+  schemaPacket:
+    LOCAL_DISTRIBUTION === "npm"
+      ? formatNpx(PUBLISHED_PACKAGE_VERSION, ["schema", "--kind", "local-packet"])
+      : formatSourceCli(["schema", "--kind", "local-packet"]),
+  schemaResult:
+    LOCAL_DISTRIBUTION === "npm"
+      ? formatNpx(PUBLISHED_PACKAGE_VERSION, ["schema", "--kind", "local-result"])
+      : formatSourceCli(["schema", "--kind", "local-result"]),
   test: formatDocumentedCli("test", [
     "--local",
     "-c augmentworks.yaml",
@@ -117,7 +123,10 @@ Doctor passed.`;
 export const HOSTED_TEST_KEEP_TERMINAL =
   "Keep this terminal open until the assessment finishes. There is no separate connect command.";
 
-export const INIT_NEXT_STEPS = `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open. Local --local requires source ${SOURCE_PACKAGE_VERSION} until that version is published.`;
+export const INIT_NEXT_STEPS =
+  LOCAL_DISTRIBUTION === "npm"
+    ? `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open.`
+    : `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open. Local --local requires source ${SOURCE_PACKAGE_VERSION} until that version is published.`;
 
 export const LOGIN_NEXT_STEPS = `Next: run doctor, then keep this terminal open for hosted test --packet ${HOSTED_PACKET_REFERENCE} --open. There is no separate connect command.`;
 

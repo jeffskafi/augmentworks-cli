@@ -3,7 +3,7 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c augmentworks.yaml
 ```
 
@@ -23,7 +23,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.1.0 doctor \
+npx --yes @augmentworks/cli@0.2.0 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -62,13 +62,11 @@ behavior.
 
 It does not download packet references or accept URLs, YAML, JavaScript,
 modules, symlinks, or executable instructions. Validate the expected data shape
-with this source tree:
+with:
 
 ```bash
-node dist/index.js schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
 ```
-
-Published `@augmentworks/cli@0.1.0` does not include local packet schemas.
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
 fixed attempt and operation limits, and use only capabilities and observation
