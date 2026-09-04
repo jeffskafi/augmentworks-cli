@@ -4,6 +4,15 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  HOSTED_COMMANDS,
+  HOSTED_PACKET_REFERENCE,
+  LOCAL_PACKET_REFERENCE,
+  SOURCE_PACKAGE_VERSION,
+  SOURCE_REPOSITORY,
+  allowedDocumentedNpxPins
+} from "../../src/release.js";
+
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const documentedSurfaces = [
   "README.md",
@@ -38,29 +47,36 @@ describe("customer-facing CLI copy", () => {
     );
   });
 
-  it.each(documentedSurfaces)("%s pins executable examples to CLI 0.2.0", async (path) => {
+  it.each(documentedSurfaces)("%s pins executable npx examples to the verified published package", async (path) => {
     const content = await readSurface(path);
+    const allowed = allowedDocumentedNpxPins();
 
-    expect(content).not.toContain("@augmentworks/cli@0.1.0");
-    for (const match of content.matchAll(/@augmentworks\/cli@(\d+\.\d+\.\d+)/gu)) {
-      expect(match[1]).toBe("0.2.0");
+    for (const match of content.matchAll(
+      /npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@(\d+\.\d+\.\d+)/gu
+    )) {
+      expect(allowed).toContain(match[1]);
     }
   });
 
-  it("documents the registered local quickstart in execution order", async () => {
+  it("documents hosted then local quickstarts with distinct pack references", async () => {
     const readme = await readSurface("README.md");
-    const commands = [
-      "npx --yes @augmentworks/cli@0.2.0 init --agent",
-      "npx --yes @augmentworks/cli@0.2.0 doctor",
-      "npx --yes @augmentworks/cli@0.2.0 test"
-    ];
 
-    const offsets = commands.map((command) => readme.indexOf(command));
-    expect(offsets.every((offset) => offset >= 0)).toBe(true);
-    expect(offsets).toEqual([...offsets].sort((left, right) => left - right));
-    expect(readme.slice(offsets[2]!)).toMatch(
-      /test\s+\\\n\s+--local\s+\\\n[\s\S]{0,200}--packet support-refunds-starter@0\.1\.0/u
-    );
+    expect(readme).toContain(HOSTED_COMMANDS.login);
+    expect(readme).toContain(HOSTED_COMMANDS.test);
+    expect(readme).toContain(HOSTED_PACKET_REFERENCE);
+    expect(readme).toContain(LOCAL_PACKET_REFERENCE);
+    expect(readme).toContain(SOURCE_REPOSITORY);
+    expect(readme).toContain("npm ci");
+    expect(readme).toContain("node ../../dist/index.js test");
+    expect(readme).toContain("--local");
+
+    const hostedTestAt = readme.indexOf(HOSTED_COMMANDS.test);
+    const localCloneAt = readme.indexOf("git clone");
+    const localTestAt = readme.indexOf("node ../../dist/index.js test");
+    expect(hostedTestAt).toBeGreaterThan(-1);
+    expect(localCloneAt).toBeGreaterThan(hostedTestAt);
+    expect(localTestAt).toBeGreaterThan(localCloneAt);
+    expect(readme).toContain(`Source \`${SOURCE_PACKAGE_VERSION}\``);
     const tick = String.fromCharCode(96);
     for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
       expect(readme).toContain("| " + tick + command);
@@ -147,5 +163,25 @@ describe("customer-facing CLI copy", () => {
     expect(securityModel).toContain("a second interrupt exits immediately");
     expect(troubleshooting).toContain("cleanup failure has exit code `6`");
     expect(troubleshooting).toContain("Hosted-only auth and relay codes `3` and `4` are unreachable");
+  });
+
+  it("documents resume and remediation as the same hosted test command", async () => {
+    const readme = await readSurface("README.md");
+    const troubleshooting = await readSurface("docs/troubleshooting.md");
+    const agentSetup = await readSurface("docs/agent-setup.md");
+    const example = await readSurface("examples/refund-agent/README.md");
+
+    for (const content of [readme, troubleshooting, agentSetup, example]) {
+      expect(content).toMatch(/no[\s`]*--rerun[\s`]*flag/u);
+      expect(content).not.toMatch(
+        /npx(?:[^\n]|\\\n)*@augmentworks\/cli@[^\n]*(?:[^\n]|\\\n)*test(?:[^\n]|\\\n)*--rerun/u
+      );
+    }
+    expect(troubleshooting).toContain("Re-run the exact same `test` command");
+    expect(example).toContain("git clone https://github.com/jeffskafi/augmentworks-cli.git");
+    expect(example).toContain("copy .env.example .env");
+    expect(example).toContain("node ../../dist/index.js test");
+    expect(example).toContain(HOSTED_PACKET_REFERENCE);
+    expect(example).toContain(LOCAL_PACKET_REFERENCE);
   });
 });

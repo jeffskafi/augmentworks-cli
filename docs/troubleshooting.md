@@ -3,12 +3,17 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.1.0 doctor \
   -c augmentworks.yaml
 ```
 
 `doctor` makes no target or cloud request and does
-not check AugmentWorks authentication.
+not check AugmentWorks authentication. Example successful output (illustrative):
+
+```text
+OK OFFLINE_CHECK_COMPLETE: No target hooks or cloud operations were invoked.
+Doctor passed.
+```
 
 ## Common failures
 
@@ -18,7 +23,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.1.0 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -57,11 +62,13 @@ behavior.
 
 It does not download packet references or accept URLs, YAML, JavaScript,
 modules, symlinks, or executable instructions. Validate the expected data shape
-with:
+with this source tree:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+node dist/index.js schema --kind local-packet
 ```
+
+Published `@augmentworks/cli@0.1.0` does not include local packet schemas.
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
 fixed attempt and operation limits, and use only capabilities and observation
@@ -156,7 +163,7 @@ with `ACTIVE_RUN_TENANT_MISMATCH` before create. A different packet or
 configuration is refused with `ACTIVE_RUN_EXISTS` until an authoritative terminal
 status clears the intent. Changing the resolved target base URL or an operation
 method/path also changes the boundary checksum and is refused for that active run.
-There is no force-new option.
+There is no `--rerun` flag and no force-new option.
 
 Recovery proceeds only if secure lock ownership can be positively established.
 A same-host lock is reclaimable when its process is positively dead, including

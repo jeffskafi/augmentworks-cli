@@ -13,18 +13,19 @@ resolves only the target credentials named by the selected configuration.
 ## Interactive login
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login
+npx --yes @augmentworks/cli@0.1.0 login
 ```
 
 The default flow uses browser Authorization Code with PKCE and a temporary
 loopback callback. The browser shows the connector authorization and selected
-workspace; the human signs in and approves it. The verifier remains local, the code is
+workspace; the human signs in and approves it. Browser approval authorizes this
+terminal; it does not start an assessment. The verifier remains local, the code is
 single-use and short-lived, and the callback listener closes after completion.
 
 For SSH and other headless environments:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login --device
+npx --yes @augmentworks/cli@0.1.0 login --device
 ```
 
 The CLI displays a short user code and verification URL. Entering the code in a
@@ -87,8 +88,8 @@ before removal; unknown identity remains fail-closed.
 Use:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 whoami
-npx --yes @augmentworks/cli@0.2.0 logout
+npx --yes @augmentworks/cli@0.1.0 whoami
+npx --yes @augmentworks/cli@0.1.0 logout
 ```
 
 `logout` requests server-side revocation and removes local credential material.
