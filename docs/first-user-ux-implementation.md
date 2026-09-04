@@ -14,7 +14,7 @@ and is out of scope here.
 | Node requirement | `>=20` |
 | Node used for verification | v22.23.2 |
 | Source package version | `0.2.0` |
-| Verified published package | `@augmentworks/cli@0.2.0` (pin flipped on this release commit; registry confirmation is Phase 15) |
+| Verified published package | `@augmentworks/cli@0.2.0` (npm `latest`, 2026-09-04) |
 | Hosted protocol | `aw-relay/0.1` |
 | Local packet | `support-refunds-starter@0.1.0` (bundled in source/tarball of 0.2.0) |
 | Hosted packet | `support-refunds@0.1.0` (catalog lives in the platform, not this repo) |
@@ -43,7 +43,7 @@ and is out of scope here.
 | 05 Guided setup commands | `init`/`doctor`/`test` next-steps; no connect command | verified |
 | 08 Rerun guidance | Same `test` command; no invented `--rerun` | verified |
 | 11 Local example from git | Clone/build/run path; pack distinction | verified (docs + `smoke:pack` local packet) |
-| 15 Publish 0.2.0 | GitHub release + npm trusted publishing | in progress |
+| 15 Publish 0.2.0 | GitHub release + npm trusted publishing | verified |
 
 ## Verification
 
@@ -58,7 +58,7 @@ Occasional flake observed once under parallel load: `serializes rotating refresh
 
 | ID | Result in this repo |
 | --- | --- |
-| A09 | Published pin remains `0.1.0`. Source `0.2.0` is not on npm. Tarball smoke passed for this source tree. |
+| A09 | `@augmentworks/cli@0.2.0` is on npm (`latest`). GitHub Release `v0.2.0` published via trusted publishing with provenance. Installed bin prints `0.2.0`. |
 | A10 | Documented clone/`npm ci`/`test --local` path; packed CLI still runs bundled starter packet. Full clean-machine example clone not re-executed in this session. |
 | A12 | `doctor` remains offline; copy-contract and doctor unit tests pass. |
 | A20 | Existing create-resume integration still passes; docs say re-run the same `test` command. |
@@ -69,7 +69,15 @@ Website-only rows (A01–A08, A11, A13–A19, A21–A36, A38–A42) are not clai
 
 ## Remaining external actions
 
-1. Create GitHub release `v0.2.0` from this commit after CI passes (`.github/workflows/release.yml`).
-2. Confirm npm trusted publisher: GitHub owner `jeffskafi`, repository `augmentworks-cli`, workflow `release.yml`, environment `npm`.
-3. Verify `npm view @augmentworks/cli version` is `0.2.0`.
-4. Website repo must consume `schemas/v1/cli-release.json` so public commands stay on the verified pin.
+1. Website repo (`jeffskafi/augmentworks`) must consume `schemas/v1/cli-release.json` so public commands stay on the verified `0.2.0` pin.
+
+## Phase 15 evidence
+
+| Check | Result |
+| --- | --- |
+| GitHub Release | [v0.2.0](https://github.com/jeffskafi/augmentworks-cli/releases/tag/v0.2.0) |
+| Publish workflow | [success](https://github.com/jeffskafi/augmentworks-cli/actions/runs/33928829354) (`publish` job after trusted-publisher rerun) |
+| `npm view @augmentworks/cli version` | `0.2.0` |
+| `npm view @augmentworks/cli@0.2.0 version` | `0.2.0` |
+| Installed `augmentworks --version` | `0.2.0` |
+| Provenance | [Sigstore log](https://search.sigstore.dev/?logIndex=2717498322) |
