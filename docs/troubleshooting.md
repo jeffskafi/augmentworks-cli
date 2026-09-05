@@ -158,10 +158,28 @@ and workspace on the same machine. The CLI retains one tenant-bound active inten
 per AugmentWorks API origin, replays the same create ID and request, and resumes
 the same run and command journal. A different connector or workspace is refused
 with `ACTIVE_RUN_TENANT_MISMATCH` before create. A different packet or
-configuration is refused with `ACTIVE_RUN_EXISTS` until an authoritative terminal
-status clears the intent. Changing the resolved target base URL or an operation
+configuration is refused with `ACTIVE_RUN_EXISTS` until the existing assessment
+is recovered. Changing the resolved target base URL or an operation
 method/path also changes the boundary checksum and is refused for that active run.
 There is no `--rerun` flag and no force-new option.
+
+Inspect the existing assessment without creating another run:
+
+```text
+augmentworks recover
+augmentworks recover --json
+```
+
+`--retire` retires a create only after the server proves it never became a run,
+or retires local execution state after target execution is terminal and cleanup
+is reconciled. It never cancels an active run. `--resume` continues the recorded
+assessment after verifying the original configuration. `--cancel` requests
+cancellation and drains cleanup. Those three flags are mutually exclusive. Do
+not delete journal files, and there is no `--force-delete`.
+
+If the hosted service does not yet support reconciliation, `recover` keeps local
+state and reports that limitation. Re-running the same `test` command remains
+the resume path while the create-replay window is open.
 
 Recovery proceeds only if secure lock ownership can be positively established.
 A same-host lock is reclaimable when its process is positively dead, including

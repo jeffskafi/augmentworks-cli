@@ -327,6 +327,61 @@ describe("RunIntentStore", () => {
     await store.close();
   });
 
+  it("archives minimum identifiers when a pending create is retired", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const store = new RunIntentStore({
+      apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
+      stateDirectory,
+      createRequestId: () => CREATE_ID
+    });
+    await store.open();
+    const loaded = await store.loadOrCreate(request());
+    await store.retirePendingUncreated("rejected_uncreated");
+    await expect(lstat(store.path)).rejects.toMatchObject({ code: "ENOENT" });
+    const archive = await store.readArchive(loaded.intent.request.create_request_id);
+    expect(archive).toMatchObject({
+      archive_version: "aw-run-intent-archive/0.1",
+      create_request_id: loaded.intent.request.create_request_id,
+      reason: "rejected_uncreated",
+      phase: "pending_create"
+    });
+    expect(JSON.stringify(archive)).not.toContain("refunds-staging");
+    expect(JSON.stringify(archive)).not.toContain("dashboard");
+    await store.close();
+  });
+
+  it("CLI-09: retirement is idempotent after a crash between archive and unlink", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const store = new RunIntentStore({
+      apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
+      stateDirectory,
+      createRequestId: () => CREATE_ID
+    });
+    await store.open();
+    const loaded = await store.loadOrCreate(request());
+    const intentBytes = await readFile(store.path);
+    await store.retirePendingUncreated("rejected_uncreated");
+    await writeFile(store.path, intentBytes, { encoding: "utf8", mode: 0o600 });
+    await store.close();
+
+    const recovered = new RunIntentStore({
+      apiOrigin: new URL("https://augmentworks.ai/"),
+      tenant: TENANT,
+      stateDirectory
+    });
+    await recovered.open();
+    expect(recovered.intent?.phase).toBe("pending_create");
+    await recovered.retirePendingUncreated("rejected_uncreated");
+    expect(recovered.intent).toBeUndefined();
+    await expect(lstat(recovered.path)).rejects.toMatchObject({ code: "ENOENT" });
+    const archive = await recovered.readArchive(loaded.intent.request.create_request_id);
+    expect(archive?.reason).toBe("rejected_uncreated");
+    expect(archive?.create_request_id).toBe(loaded.intent.request.create_request_id);
+    await recovered.close();
+  });
+
   it("rejects symlinks and broad file permissions", async () => {
     if (process.platform === "win32") return;
     const stateDirectory = await temporaryDirectory();

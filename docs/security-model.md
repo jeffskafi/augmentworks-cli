@@ -222,12 +222,13 @@ result files.
   `0600` where POSIX permissions apply. They contain secret-free run bindings
   and normalized, redacted operation evidence rather than connector
   credentials.
-- After an authoritative terminal status, the CLI removes the active intent and
+- After an authoritative terminal **target execution** status, the CLI removes the active intent and
   purges the journal only when every command is acknowledged and no prepared
-  fixture remains. Interruption, an unavailable terminal status, unacknowledged
+  fixture remains. Pending grading is not an active target slot. Interruption, an unavailable terminal status, unacknowledged
   evidence, or incomplete cleanup intentionally retains recovery state. There
   is no time-based retention job; protect these files and do not remove them
-  until the run and any synthetic fixture are resolved.
+  until the run and any synthetic fixture are resolved. Use `recover` rather
+  than deleting the journal.
 - Recovery is same-machine and state-directory scoped. Losing that state can
   make a prior create or target side effect impossible to distinguish safely;
   the hosted runner will not invent a new run to bypass the ambiguity.

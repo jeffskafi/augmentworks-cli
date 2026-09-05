@@ -25,6 +25,15 @@ import {
   type RunStatusResponse,
   type SessionPollResponse
 } from "./protocol.js";
+import {
+  ReconcileRunIntentRequestSchema,
+  ReconcileRunIntentResponseSchema,
+  readTypedCreateRejection,
+  reconcileIdentityMismatch,
+  recoveryUnsupportedError,
+  type ReconcileRunIntentRequest,
+  type ReconcileRunIntentResponse
+} from "./recovery-protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -101,14 +110,81 @@ export class CloudClient {
         }
         return response;
       } catch (error) {
-        lastError = error;
-        if (!(error instanceof AwError) || !error.retryable || attempt === 2 || signal?.aborted) {
-          throw error;
+        lastError = annotateCreateRunError(error, validated.data, requestSha256);
+        if (
+          !(lastError instanceof AwError) ||
+          !lastError.retryable ||
+          attempt === 2 ||
+          signal?.aborted ||
+          isTypedRejectedUncreated(lastError)
+        ) {
+          throw lastError;
         }
         await retryDelay(Math.min(100 * 2 ** attempt, 500), signal);
       }
     }
     throw lastError;
+  }
+
+  async reconcileRunIntent(
+    request: ReconcileRunIntentRequest,
+    signal?: AbortSignal
+  ): Promise<ReconcileRunIntentResponse> {
+    const validated = ReconcileRunIntentRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_RECOVERY_REQUEST",
+        category: "protocol",
+        message: "The run-intent reconciliation request is invalid."
+      });
+    }
+    let value: unknown;
+    try {
+      value = await this.#request(
+        "POST",
+        "/v1/relay/run-intents:reconcile",
+        validated.data,
+        signal
+      );
+    } catch (error) {
+      if (isMissingRecoveryCapability(error)) throw recoveryUnsupportedError(error);
+      throw error;
+    }
+    const response = parseResponse(
+      ReconcileRunIntentResponseSchema,
+      value,
+      "run-intent reconcile response"
+    );
+    if (reconcileIdentityMismatch(response, validated.data)) {
+      throw new AwError({
+        code: "RUN_BINDING_MISMATCH",
+        category: "protocol",
+        message: "AugmentWorks returned a reconciliation result for a different create request."
+      });
+    }
+    if (response.outcome === "bound") {
+      if (
+        response.binding.create_request_id !== validated.data.create_request_id ||
+        response.binding.create_request_sha256 !== validated.data.create_request_sha256
+      ) {
+        throw new AwError({
+          code: "RUN_BINDING_MISMATCH",
+          category: "protocol",
+          message: "AugmentWorks returned a run binding for a different create request."
+        });
+      }
+      if (
+        validated.data.run_id !== undefined &&
+        response.binding.run_id !== validated.data.run_id
+      ) {
+        throw new AwError({
+          code: "RUN_BINDING_MISMATCH",
+          category: "protocol",
+          message: "AugmentWorks returned a run binding that does not match the local run ID."
+        });
+      }
+    }
+    return response;
   }
 
   async createConnectorSession(
@@ -374,7 +450,7 @@ export class CloudClient {
         );
       }
     }
-    if (!response.ok) throw cloudHttpError(response.status, value);
+    if (!response.ok) throw cloudHttpError(response.status, value, method, path);
     if (value === undefined) {
       throw new AwError({
         code: "INVALID_CLOUD_RESPONSE",
@@ -531,7 +607,12 @@ function responseTooLarge(): AwError {
   });
 }
 
-function cloudHttpError(status: number, value: unknown): AwError {
+function cloudHttpError(
+  status: number,
+  value: unknown,
+  method?: "GET" | "POST",
+  path?: string
+): AwError {
   const serverError = safeServerError(value);
   const category = status === 401 || status === 403 ? "auth" : status === 409 || status === 410 ? "protocol" : "relay";
   const code =
@@ -543,6 +624,15 @@ function cloudHttpError(status: number, value: unknown): AwError {
         : status === 410
           ? "COMMAND_EXPIRED"
           : "CLOUD_REQUEST_FAILED");
+  const details: Record<string, string | number | boolean> = { http_status: status };
+  if (method !== undefined) details["http_method"] = method;
+  if (path !== undefined) details["http_path"] = path;
+  const rejectionFields = typedRejectionDetails(value);
+  if (rejectionFields !== undefined) {
+    details["create_disposition"] = rejectionFields.create_disposition;
+    details["create_request_id"] = rejectionFields.create_request_id;
+    details["create_request_sha256"] = rejectionFields.create_request_sha256;
+  }
   return new AwError({
     code,
     category,
@@ -552,8 +642,102 @@ function cloudHttpError(status: number, value: unknown): AwError {
         ? "AugmentWorks rejected the connector credential."
         : "The AugmentWorks relay rejected the request."),
     retryable: status === 408 || status === 429 || status >= 500,
-    details: { http_status: status }
+    details
   });
+}
+
+function typedRejectionDetails(
+  value: unknown
+):
+  | {
+      create_disposition: "rejected_uncreated";
+      create_request_id: string;
+      create_request_sha256: string;
+    }
+  | undefined {
+  if (value === null || typeof value !== "object") return undefined;
+  const error = (value as Record<string, unknown>)["error"];
+  if (error === null || typeof error !== "object") return undefined;
+  const record = error as Record<string, unknown>;
+  if (
+    record["create_disposition"] !== "rejected_uncreated" ||
+    typeof record["create_request_id"] !== "string" ||
+    typeof record["create_request_sha256"] !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    create_disposition: "rejected_uncreated",
+    create_request_id: record["create_request_id"],
+    create_request_sha256: record["create_request_sha256"]
+  };
+}
+
+function annotateCreateRunError(
+  error: unknown,
+  request: CreateRunRequest,
+  requestSha256: string
+): unknown {
+  if (!(error instanceof AwError)) return error;
+  const rejection = readTypedCreateRejection(
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+        create_disposition: error.details?.["create_disposition"],
+        create_request_id: error.details?.["create_request_id"],
+        create_request_sha256: error.details?.["create_request_sha256"]
+      }
+    },
+    request,
+    requestSha256
+  );
+  if (rejection === undefined) {
+    if (error.details?.["create_disposition"] !== "rejected_uncreated") return error;
+    const details = { ...error.details };
+    delete details["create_disposition"];
+    delete details["create_request_id"];
+    delete details["create_request_sha256"];
+    return new AwError({
+      code: error.code,
+      category: error.category,
+      message: error.message,
+      retryable: error.retryable,
+      details,
+      cause: error
+    });
+  }
+  return new AwError({
+    code: error.code,
+    category: error.category,
+    message: error.message,
+    retryable: false,
+    details: {
+      ...error.details,
+      create_disposition: "rejected_uncreated",
+      create_request_id: request.create_request_id,
+      create_request_sha256: requestSha256
+    },
+    cause: error
+  });
+}
+
+export function isTypedRejectedUncreated(error: unknown): boolean {
+  return (
+    error instanceof AwError &&
+    error.details?.["create_disposition"] === "rejected_uncreated" &&
+    typeof error.details["create_request_id"] === "string" &&
+    typeof error.details["create_request_sha256"] === "string"
+  );
+}
+
+function isMissingRecoveryCapability(error: unknown): boolean {
+  if (!(error instanceof AwError)) return false;
+  const status = error.details?.["http_status"];
+  const path = error.details?.["http_path"];
+  if (path !== "/v1/relay/run-intents:reconcile") return false;
+  if (status !== 404 && status !== 405 && status !== 501) return false;
+  return error.code === "CLOUD_REQUEST_FAILED" || error.code === "NOT_FOUND";
 }
 
 function safeServerError(value: unknown): { code: string; message: string } | undefined {

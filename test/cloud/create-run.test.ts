@@ -80,6 +80,12 @@ describe("idempotent run creation", () => {
         credit_state: "unknown"
       }).success
     ).toBe(false);
+    expect(
+      CreateRunResponseSchema.safeParse({
+        ...replayedResponse(),
+        recovery_outcome: "bound"
+      }).success
+    ).toBe(false);
   });
 
   it("retries a lost committed response with a byte-identical body and key", async () => {

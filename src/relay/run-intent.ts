@@ -21,7 +21,7 @@ export const RUN_INTENT_VERSION = "aw-run-intent/0.2" as const;
 const LEGACY_RUN_INTENT_VERSION = "aw-run-intent/0.1" as const;
 const MAX_INTENT_BYTES = 256 * 1024;
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
-
+const RUN_INTENT_ARCHIVE_VERSION = "aw-run-intent-archive/0.1" as const;
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const tenantIdentifier = z
   .string()
@@ -34,6 +34,26 @@ const tenantSchema = z
     connector_id: tenantIdentifier
   })
   .strict();
+const archiveSchema = z
+  .object({
+    archive_version: z.literal(RUN_INTENT_ARCHIVE_VERSION),
+    create_request_id: z
+      .string()
+      .min(24)
+      .max(100)
+      .regex(/^crq_[A-Za-z0-9_-]+$/),
+    request_sha256: digest,
+    api_origin: z.string().url(),
+    tenant: tenantSchema,
+    phase: z.enum(["pending_create", "bound"]),
+    run_id: z.string().min(1).max(300).optional(),
+    retired_at: z.string().datetime({ offset: true }),
+    reason: z.enum(["rejected_uncreated", "retired_uncreated", "terminal_bound"])
+  })
+  .strict();
+
+export type RunIntentArchive = z.infer<typeof archiveSchema>;
+export type RunIntentRetirementReason = RunIntentArchive["reason"];
 const intentFields = {
   phase: z.enum(["pending_create", "bound"]),
   api_origin: z.string().url(),
@@ -116,6 +136,7 @@ export class RunIntentStore {
   readonly #tenant: RunIntentTenantBinding;
   readonly #stateDirectory: string;
   readonly #runsDirectory: string;
+  readonly #archiveDirectory: string;
   readonly #now: () => Date;
   readonly #createRequestId: () => string;
   readonly #platform: NodeJS.Platform;
@@ -128,6 +149,7 @@ export class RunIntentStore {
     this.#tenant = parseTenant(options.tenant);
     this.#stateDirectory = options.stateDirectory ?? getStateDirectory(options.env ?? process.env);
     this.#runsDirectory = join(this.#stateDirectory, "runs");
+    this.#archiveDirectory = join(this.#runsDirectory, "archive");
     const originHash = sha256(this.#apiOrigin).slice(0, 32);
     this.path = join(this.#runsDirectory, `active-${originHash}.json`);
     this.lockPath = `${this.path}.lock`;
@@ -304,6 +326,25 @@ export class RunIntentStore {
   }
 
   async removeTerminal(run: RunStatusResponse): Promise<void> {
+    await this.retireBoundTerminal(run, "terminal_bound");
+  }
+
+  async retirePendingUncreated(reason: "rejected_uncreated" | "retired_uncreated"): Promise<void> {
+    this.#assertOpen();
+    const current = this.#requireIntent();
+    if (current.phase !== "pending_create" || current.binding !== undefined) {
+      throw intentError(
+        "RUN_INTENT_NOT_PENDING",
+        "Only an unbound pending create can be retired as uncreated."
+      );
+    }
+    await this.#retireCurrent({ reason, runId: undefined });
+  }
+
+  async retireBoundTerminal(
+    run: RunStatusResponse,
+    reason: "terminal_bound" = "terminal_bound"
+  ): Promise<void> {
     this.#assertOpen();
     const current = this.#requireIntent();
     if (current.binding === undefined || current.binding.run_id !== run.run_id) {
@@ -318,6 +359,72 @@ export class RunIntentStore {
         "The active run intent cannot be removed before an authoritative terminal status."
       );
     }
+    await this.#retireCurrent({ reason, runId: run.run_id });
+  }
+
+  archivePathFor(createRequestId: string): string {
+    return join(
+      this.#archiveDirectory,
+      `retired-${sha256(this.#apiOrigin).slice(0, 32)}-${sha256(createRequestId).slice(0, 32)}.json`
+    );
+  }
+
+  async readArchive(createRequestId: string): Promise<RunIntentArchive | undefined> {
+    const path = this.archivePathFor(createRequestId);
+    let pathIdentity;
+    try {
+      pathIdentity = await lstat(path);
+    } catch (error) {
+      if (isErrorCode(error, "ENOENT")) return undefined;
+      throw intentError(
+        "UNSAFE_RUN_INTENT_ARCHIVE",
+        "The retired run intent archive could not be inspected safely.",
+        error
+      );
+    }
+    assertSafeIntentStat(pathIdentity);
+    const bytes = await readFileNoFollow(path);
+    let value: unknown;
+    try {
+      value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch (error) {
+      throw intentError("RUN_INTENT_ARCHIVE_CORRUPT", "The retired run intent archive is invalid JSON.", error);
+    }
+    const parsed = archiveSchema.safeParse(value);
+    if (!parsed.success) {
+      throw intentError("RUN_INTENT_ARCHIVE_CORRUPT", "The retired run intent archive failed validation.");
+    }
+    return parsed.data;
+  }
+
+  async #retireCurrent(options: {
+    reason: RunIntentRetirementReason;
+    runId: string | undefined;
+  }): Promise<void> {
+    const current = this.#requireIntent();
+    await ensureSecureDirectory({
+      path: this.#archiveDirectory,
+      recursive: false,
+      label: "run intent archive",
+      errorCode: "UNSAFE_STATE_DIRECTORY"
+    });
+    const archive = archiveSchema.parse({
+      archive_version: RUN_INTENT_ARCHIVE_VERSION,
+      create_request_id: current.request.create_request_id,
+      request_sha256: current.request_sha256,
+      api_origin: current.api_origin,
+      tenant: current.tenant,
+      phase: current.phase,
+      ...(options.runId === undefined ? {} : { run_id: options.runId }),
+      retired_at: this.#now().toISOString(),
+      reason: options.reason
+    });
+    await writeArchiveAtomic(
+      this.archivePathFor(current.request.create_request_id),
+      this.#archiveDirectory,
+      archive,
+      this.#platform
+    );
     await rejectUnsafeIntentPath(this.path, false);
     await unlink(this.path);
     await syncDirectory(this.#runsDirectory, this.#platform);
@@ -343,6 +450,17 @@ export class RunIntentStore {
     }
     return intent;
   }
+}
+
+export function intentRequestMatches(
+  intent: Pick<RunIntent, "request">,
+  candidate: CreateRunIntentRequest
+): boolean {
+  const parsed = CreateRunRequestSchema.safeParse({
+    ...candidate,
+    create_request_id: intent.request.create_request_id
+  });
+  return parsed.success && canonicalize(parsed.data) === canonicalize(intent.request);
 }
 
 function normalizedApiBase(value: URL): string {
@@ -492,6 +610,33 @@ async function writeIntentAtomic(
   intent: RunIntent,
   platform: NodeJS.Platform
 ): Promise<void> {
+  await writeSecureJsonAtomic(path, directory, intent, platform, "RUN_INTENT_TOO_LARGE", "RUN_INTENT_WRITE_FAILED");
+}
+
+async function writeArchiveAtomic(
+  path: string,
+  directory: string,
+  archive: RunIntentArchive,
+  platform: NodeJS.Platform
+): Promise<void> {
+  await writeSecureJsonAtomic(
+    path,
+    directory,
+    archive,
+    platform,
+    "RUN_INTENT_ARCHIVE_TOO_LARGE",
+    "RUN_INTENT_ARCHIVE_WRITE_FAILED"
+  );
+}
+
+async function writeSecureJsonAtomic(
+  path: string,
+  directory: string,
+  value: unknown,
+  platform: NodeJS.Platform,
+  tooLargeCode: string,
+  writeFailedCode: string
+): Promise<void> {
   await rejectUnsafeIntentPath(path, true);
   const temporaryPath = join(
     directory,
@@ -505,9 +650,9 @@ async function writeIntentAtomic(
       0o600
     );
     await secureFileHandle(handle);
-    const serialized = `${canonicalize(intent)}\n`;
+    const serialized = `${canonicalize(value)}\n`;
     if (Buffer.byteLength(serialized, "utf8") > MAX_INTENT_BYTES) {
-      throw intentError("RUN_INTENT_TOO_LARGE", "The active run intent is too large.");
+      throw intentError(tooLargeCode, "The active run intent is too large.");
     }
     await handle.writeFile(serialized, "utf8");
     await handle.sync();
@@ -520,11 +665,32 @@ async function writeIntentAtomic(
     await handle?.close().catch(() => undefined);
     await unlink(temporaryPath).catch(() => undefined);
     if (error instanceof AwError) throw error;
-    throw intentError(
-      "RUN_INTENT_WRITE_FAILED",
-      "The active run intent could not be persisted.",
-      error
-    );
+    throw intentError(writeFailedCode, "The active run intent could not be persisted.", error);
+  }
+}
+
+async function readFileNoFollow(path: string): Promise<Buffer> {
+  let handle: FileHandle | undefined;
+  try {
+    handle = await open(path, constants.O_RDONLY | noFollowFlag());
+    const stat = await handle.stat();
+    if (
+      !stat.isFile() ||
+      stat.size > MAX_INTENT_BYTES ||
+      (process.platform !== "win32" && ((stat.mode & 0o777) !== 0o600 || !isCurrentOwner(stat.uid)))
+    ) {
+      throw intentError(
+        "UNSAFE_RUN_INTENT_ARCHIVE",
+        "The retired run intent archive must be a bounded mode-0600 regular file."
+      );
+    }
+    const bytes = await handle.readFile();
+    if (bytes.byteLength > MAX_INTENT_BYTES) {
+      throw intentError("UNSAFE_RUN_INTENT_ARCHIVE", "The retired run intent archive is too large.");
+    }
+    return bytes;
+  } finally {
+    await handle?.close().catch(() => undefined);
   }
 }
 
