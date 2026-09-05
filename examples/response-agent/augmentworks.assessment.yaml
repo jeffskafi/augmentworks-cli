@@ -1,0 +1,13 @@
+# Synthetic assessment file for the response-agent example.
+# Not a real customer policy. Hosted judging credentials must never appear here.
+schema_version: aw-assessment-file/1
+profile: quick
+evaluation_mode: hybrid
+packets:
+  - key: response-quality
+    version: 0.1.0
+references:
+  local:
+    - path: references/faq.md
+      id: synthetic-faq
+      kind: reference_facts

@@ -11,7 +11,11 @@ demonstration, not a realistic support agent or a substitute for AugmentWorks'
 private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
-for the example server, then run the published CLI against it.
+and build source `0.3.0` (`npm ci && npm run build`) so `node dist/index.js`
+can run the local starter from this example directory after copying
+`augmentworks.yaml` to the working directory, or invoke the built CLI with
+`-c` pointing here. Published `@augmentworks/cli@0.2.0` still supports
+`--local` via npx but does not include `--assessment`.
 
 ## Obtain the example
 
@@ -35,10 +39,10 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+node dist/index.js doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+node dist/index.js test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \

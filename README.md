@@ -20,14 +20,12 @@ target SDK, and no coding assistant is used in either runtime path.
 
 | Identity | Current value |
 | --- | --- |
-| Source package (`package.json`) | `0.2.0` |
+| Source package (`package.json`) | `0.3.0` |
 | Verified published npm package | `@augmentworks/cli@0.2.0` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.2.0**. The published tarball includes
-`test --local` and the bundled starter packet. It omits `examples/`; clone this
-repository for the refund-agent example server.
+Executable `npx` examples pin **0.2.0**. That published tarball does **not** include `--assessment`. Source checkout `@augmentworks/cli@0.3.0` adds hosted assessment compilation (`--assessment`, `--profile`) and `aw-relay/0.2`. The npm tarball includes `test --local` and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
 
 ## Hosted quickstart
 
@@ -72,19 +70,22 @@ The local CLI itself is the published package.
 
 ```bash
 git clone https://github.com/jeffskafi/augmentworks-cli.git
-cd augmentworks-cli/examples/refund-agent
+cd augmentworks-cli
+npm ci
+npm run build
+cd examples/refund-agent
 cp .env.example .env
 # Windows: copy .env.example .env
 node --env-file=.env server.mjs
 ```
 
-In another terminal, from `examples/refund-agent`:
+In another terminal, from the repository root after `npm run build`, copy or point at the example YAML. The source-local command is:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+node dist/index.js doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+node dist/index.js test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -266,7 +267,11 @@ Local packets use the strict `aw-packet/0.1` JSON format. They are data, not
 executable plugins: no JavaScript, modules, shell commands, remote URLs, or
 download step is accepted. `--packet` may name the bundled
 `support-refunds-starter@0.1.0`, a local JSON file, or a local directory
-containing `packet.json`.
+containing `packet.json`. Packets with `schema_version: "aw-packet/0.2"`,
+`evaluation_mode: hybrid`, or `llm_rubric` criteria are refused in `--local`
+before any target call.
+
+Print the packet and result schemas with:
 
 Print the packet and result schemas with:
 
@@ -292,6 +297,39 @@ a self-contained static file with no scripts or external assets. Treat all
 three artifacts as sensitive customer-controlled evidence. `--json` emits the
 same final local result on stdout; the three files are still generated.
 
+## Source assessment files (`0.3.0`)
+
+`--assessment` is **not** in npm `@augmentworks/cli@0.2.0`. From a source
+checkout of `@augmentworks/cli@0.3.0` after `npm ci` and `npm run build`:
+
+```bash
+node dist/index.js doctor \
+  --assessment ./augmentworks.assessment.yaml \
+  --profile quick
+
+node dist/index.js test \
+  --assessment ./augmentworks.assessment.yaml \
+  --profile quick \
+  --open
+
+node dist/index.js test \
+  --assessment ./augmentworks.assessment.yaml \
+  --profile full \
+  --open
+```
+
+The assessment file is `aw-assessment-file/1` YAML. It selects packet versions
+and optional scenario IDs, a profile (`quick`, `full`, `combined`, or `custom`),
+and `evaluation_mode` (`deterministic` or `hybrid`). It may attach local
+`.md`/`.txt` reference files under the assessment directory or hosted reference
+ids, not both. It never contains judging credentials. Hosted `--assessment`
+uses relay protocol `aw-relay/0.2`, freezes the YAML and reference bytes, and
+refuses resume if those hashes change. `--assessment` cannot be combined with
+`--local`. If grading is still pending after target work, the CLI exits `11`
+and does not print a hybrid pass.
+
+See `examples/response-agent/` for a synthetic FAQ assessment file.
+
 ## Commands
 
 | Command | Purpose | Side effects |
@@ -300,8 +338,9 @@ same final local result on stdout; the three files are still generated.
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
-| `doctor [-c path] [--offline]` | Validate config, mappings, secrets, and local prerequisites | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
+| `doctor [-c path] [--offline] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
+| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from a source 0.3.0 assessment file | Uses `aw-relay/0.2`; published `@augmentworks/cli@0.2.0` does not include this flag |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
 
@@ -317,6 +356,8 @@ same final local result on stdout; the three files are still generated.
 | `5` | Target, protocol-evidence, or indeterminate execution error |
 | `6` | Cleanup failure; takes precedence over assessment status |
 | `10` | Assertions failed or the assessment was inconclusive |
+| `11` | Hosted hybrid grading is pending or incomplete after target work finished |
+| `12` | Required hosted evaluation did not complete because of an operational judging error |
 | `130` | Interrupted after cleanup was drained; a second interrupt exits immediately |
 
 ## Evidence levels
@@ -359,7 +400,8 @@ that the observer is truthful or that staging matches production.
   staging result is not proof of production equivalence.
 - v0.2 is for authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only. Do not connect production systems
-  or use production or regulated data.
+  or use production or regulated data. Source 0.3.0 keeps that same target
+  boundary.
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
 [relay protocol](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/protocol.md), and
@@ -377,6 +419,8 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
   `--rerun` flag.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
+- Published `@augmentworks/cli@0.2.0` does not include `--assessment`. Use a
+  source 0.3.0 checkout (`node dist/index.js`) for assessment files.
 
 ## Development
 

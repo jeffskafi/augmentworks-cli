@@ -22,6 +22,7 @@ import {
   type PollResponse,
   type RelayCommand,
   type RelayResult,
+  type RelayProtocolVersion,
   type RunStatusResponse,
   type SessionPollResponse
 } from "./protocol.js";
@@ -41,6 +42,7 @@ export interface PollOperationOptions {
   fencingEpoch: number;
   waitMs?: number;
   signal?: AbortSignal;
+  protocolVersion?: RelayProtocolVersion;
 }
 
 export interface SafeRelayFailure {
@@ -72,7 +74,7 @@ export class CloudClient {
       throw new AwError({
         code: "INVALID_RUN_REQUEST",
         category: "protocol",
-        message: "The assessment request does not match aw-relay/0.1."
+        message: "The assessment request does not match the aw-relay create-run contract."
       });
     }
     const requestSha256 = sha256(canonicalize(validated.data));
@@ -177,7 +179,7 @@ export class CloudClient {
       "POST",
       `/v1/relay/sessions/${segment(options.sessionId)}/commands:poll`,
       {
-        protocol_version: RELAY_PROTOCOL_VERSION,
+        protocol_version: options.protocolVersion ?? RELAY_PROTOCOL_VERSION,
         run_id: options.runId,
         after_sequence: options.afterSequence,
         fencing_epoch: options.fencingEpoch,
@@ -229,11 +231,16 @@ export class CloudClient {
     return parseResponse(CommandAckSchema, value, "failure acknowledgement");
   }
 
-  async cancelRun(runId: string, reason = "user_requested", signal?: AbortSignal): Promise<RunStatusResponse> {
+  async cancelRun(
+    runId: string,
+    reason = "user_requested",
+    signal?: AbortSignal,
+    protocolVersion: RelayProtocolVersion = RELAY_PROTOCOL_VERSION
+  ): Promise<RunStatusResponse> {
     const value = await this.#request(
       "POST",
       `/v1/relay/runs/${segment(runId)}:cancel`,
-      { protocol_version: RELAY_PROTOCOL_VERSION, reason: reason.slice(0, 120) },
+      { protocol_version: protocolVersion, reason: reason.slice(0, 120) },
       signal
     );
     return parseResponse(RunStatusResponseSchema, value, "cancellation response");
@@ -479,7 +486,7 @@ function segment(value: string): string {
 
 function commandBoundBody(command: RelayCommand, extra: Record<string, unknown>): Record<string, unknown> {
   return {
-    protocol_version: RELAY_PROTOCOL_VERSION,
+    protocol_version: command.protocol_version,
     command_id: command.command_id,
     session_id: command.session_id,
     run_id: command.run_id,
@@ -543,28 +550,74 @@ function cloudHttpError(status: number, value: unknown): AwError {
         : status === 410
           ? "COMMAND_EXPIRED"
           : "CLOUD_REQUEST_FAILED");
+  const setupUrl = serverError?.setupUrl;
+  const disclosureMissing = isDisclosureError(code);
+  const message =
+    serverError?.message ??
+    (category === "auth"
+      ? "AugmentWorks rejected the connector credential."
+      : "The AugmentWorks relay rejected the request.");
+  const disclosureSuffix = disclosureMissing
+    ? setupUrl === undefined
+      ? " Complete the authenticated judging disclosure, then re-run the same test command. Target work was not started."
+      : ` Complete setup at ${setupUrl}, then re-run the same test command. Target work was not started.`
+    : setupUrl === undefined
+      ? ""
+      : ` Setup: ${setupUrl}`;
   return new AwError({
     code,
-    category,
-    message:
-      serverError?.message ??
-      (category === "auth"
-        ? "AugmentWorks rejected the connector credential."
-        : "The AugmentWorks relay rejected the request."),
+    category: disclosureMissing ? "relay" : category,
+    message: `${message}${disclosureSuffix}`,
     retryable: status === 408 || status === 429 || status >= 500,
-    details: { http_status: status }
+    details: {
+      http_status: status,
+      ...(setupUrl === undefined ? {} : { setup_url: setupUrl })
+    }
   });
 }
 
-function safeServerError(value: unknown): { code: string; message: string } | undefined {
+function isDisclosureError(code: string): boolean {
+  return (
+    code === "DISCLOSURE_REQUIRED" ||
+    code === "DISCLOSURE_MISSING" ||
+    code === "JUDGE_DISCLOSURE_REQUIRED" ||
+    code === "JUDGE_DISCLOSURE_MISSING" ||
+    code === "MISSING_DISCLOSURE"
+  );
+}
+
+function safeServerError(
+  value: unknown
+): { code: string; message: string; setupUrl?: string } | undefined {
   if (value === null || typeof value !== "object") return undefined;
   const error = (value as Record<string, unknown>)["error"];
   if (error === null || typeof error !== "object") return undefined;
-  const code = (error as Record<string, unknown>)["code"];
-  const message = (error as Record<string, unknown>)["message"];
+  const record = error as Record<string, unknown>;
+  const code = record["code"];
+  const message = record["message"];
   if (typeof code !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/.test(code)) return undefined;
   if (typeof message !== "string" || message.length < 1 || message.length > 500) return undefined;
-  return { code, message: message.replace(/[\u0000-\u001f\u007f-\u009f]/g, "") };
+  const setupCandidate = record["setup_url"] ?? record["setupUrl"];
+  const setupUrl =
+    typeof setupCandidate === "string" && isHttpUrl(setupCandidate) ? setupCandidate : undefined;
+  return {
+    code,
+    message: message.replace(/[\u0000-\u001f\u007f-\u009f]/g, ""),
+    ...(setupUrl === undefined ? {} : { setupUrl })
+  };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.username === "" &&
+      url.password === ""
+    );
+  } catch {
+    return false;
+  }
 }
 
 function parseResponse<T>(schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }, value: unknown, label: string): T {

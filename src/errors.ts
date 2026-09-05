@@ -60,11 +60,15 @@ export const EXIT = {
   TARGET: 5,
   CLEANUP: 6,
   ASSESSMENT_FAILED: 10,
+  EVALUATION_INCOMPLETE: 11,
+  EVALUATION_ERROR: 12,
   INTERRUPTED: 130
 } as const;
 
 export function exitCodeFor(error: unknown): number {
   if (!(error instanceof AwError)) return EXIT.INTERNAL;
+  if (error.code === "EVALUATION_INCOMPLETE") return EXIT.EVALUATION_INCOMPLETE;
+  if (error.code === "EVALUATION_ERROR") return EXIT.EVALUATION_ERROR;
   switch (error.category) {
     case "config":
       return EXIT.CONFIG;

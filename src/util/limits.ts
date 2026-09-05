@@ -11,6 +11,7 @@ export const LIMITS = {
   maxObservations: 64,
   maxEvents: 100,
   maxCommands: 100,
+  maxCommandsExpanded: 512,
   maxRunMs: 30 * 60 * 1000
 } as const;
 

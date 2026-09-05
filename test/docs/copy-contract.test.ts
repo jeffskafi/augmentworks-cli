@@ -9,6 +9,7 @@ import {
   HOSTED_PACKET_REFERENCE,
   LOCAL_COMMANDS,
   LOCAL_PACKET_REFERENCE,
+  SOURCE_ASSESSMENT_COMMANDS,
   SOURCE_PACKAGE_VERSION,
   SOURCE_REPOSITORY,
   allowedDocumentedNpxPins
@@ -77,6 +78,10 @@ describe("customer-facing CLI copy", () => {
     expect(localCloneAt).toBeGreaterThan(hostedTestAt);
     expect(localTestAt).toBeGreaterThan(localCloneAt);
     expect(readme).toContain(`@augmentworks/cli@${SOURCE_PACKAGE_VERSION}`);
+    expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.doctor);
+    expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testQuick);
+    expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
+    expect(HOSTED_COMMANDS.test).not.toContain("--assessment");
     const tick = String.fromCharCode(96);
     for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
       expect(readme).toContain("| " + tick + command);

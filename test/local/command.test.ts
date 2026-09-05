@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -279,5 +279,43 @@ describe("test --local", () => {
         }
       })
     ).toBe(EXIT.CLEANUP);
+  });
+
+  it("rejects a hybrid packet file before any target call", async () => {
+    const cwd = await temporaryDirectory();
+    await writeFile(
+      resolve(cwd, "hybrid.json"),
+      JSON.stringify({
+        schema_version: "aw-packet/0.2",
+        evaluation_mode: "hybrid",
+        packet_id: "response-quality",
+        version: "0.1.0",
+        scenarios: [
+          {
+            criteria: [{ kind: "llm_rubric", id: "tone" }]
+          }
+        ]
+      }),
+      "utf8"
+    );
+    const execute = vi.fn(async () => {
+      throw new Error("target must not be called");
+    });
+    const local = localDependencies();
+    await expect(
+      runLocalTest(
+        { cwd, packet: "hybrid.json", handleSignals: false },
+        {
+          doctor: local.doctor,
+          connector: () => ({ execute, isIdempotent: () => false }),
+          signals: local.signals,
+          stderr: { write: () => true }
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "UNSUPPORTED_LOCAL_GRADER",
+      category: "config"
+    });
+    expect(execute).not.toHaveBeenCalled();
   });
 });

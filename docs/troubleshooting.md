@@ -70,7 +70,16 @@ npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
 fixed attempt and operation limits, and use only capabilities and observation
-keys available in `augmentworks.yaml`.
+keys available in `augmentworks.yaml`. Hybrid `aw-packet/0.2` packets and any
+packet with `evaluation_mode: hybrid` or `llm_rubric` criteria fail with
+`UNSUPPORTED_LOCAL_GRADER` before the target is contacted.
+
+### `--assessment` is missing from npx 0.2.0
+
+Published `@augmentworks/cli@0.2.0` does not include `--assessment`. Build
+source 0.3.0 and use `node dist/index.js test --assessment ...`. `--assessment`
+cannot be combined with `--local`. If hosted grading is pending after target
+work, the exit code is `11`, not `0`.
 
 ### `LOCAL_PACKET_INCOMPATIBLE`
 
@@ -203,7 +212,9 @@ Local exit codes are `0` for pass, `1` for an internal/report failure, `2` for
 configuration/packet/output preflight, `5` for target or evidence execution
 error, `6` for cleanup failure, `10` for failed or inconclusive assertions, and
 `130` for interruption after cleanup draining. Hosted-only auth and relay codes
-`3` and `4` are unreachable from `--local`.
+`3` and `4` are unreachable from `--local`. Hosted hybrid grading uses `11`
+when evaluation is pending or incomplete and `12` when required judging fails
+to complete.
 
 When reporting a bug, include CLI version, Node.js version, operating system,
 safe error code, and a redacted configuration. Never attach `.env`, credential

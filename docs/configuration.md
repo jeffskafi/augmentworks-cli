@@ -238,4 +238,13 @@ Local assessment packets are separate strict JSON documents with
 `schema_version: "aw-packet/0.1"`; they do not add executable configuration to
 the YAML boundary. A local path may identify a JSON file or a directory whose
 `packet.json` is loaded. URLs, downloaded packets, JavaScript, and modules are
-not accepted.
+not accepted. `aw-packet/0.2` and hybrid/`llm_rubric` packets are refused in
+`--local` before any target call.
+
+Source 0.3.0 can validate a hosted assessment file without running tests:
+
+```bash
+node dist/index.js doctor \
+  --assessment ./augmentworks.assessment.yaml \
+  --profile quick
+```

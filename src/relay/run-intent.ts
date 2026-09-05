@@ -85,7 +85,8 @@ const legacyIntentSchema = z
     }
   });
 
-export type CreateRunIntentRequest = Omit<CreateRunRequest, "create_request_id">;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+export type CreateRunIntentRequest = DistributiveOmit<CreateRunRequest, "create_request_id">;
 export type RunIntent = z.infer<typeof intentSchema>;
 type LegacyRunIntent = z.infer<typeof legacyIntentSchema>;
 

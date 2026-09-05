@@ -45,7 +45,7 @@ const acceptedSchema = z
     run_id: z.string().min(1).max(300),
     packet: PacketBindingSchema,
     config_sha256: z.string().regex(/^[a-f0-9]{64}$/),
-    sequence: z.number().int().min(1).max(LIMITS.maxCommands),
+    sequence: z.number().int().min(1).max(LIMITS.maxCommandsExpanded),
     fencing_epoch: z.number().int().min(1),
     request_sha256: z.string().regex(/^[a-f0-9]{64}$/)
   })

@@ -82,6 +82,39 @@ describe("idempotent run creation", () => {
     ).toBe(false);
   });
 
+  it("accepts aw-relay/0.2 create requests with assessment metadata", () => {
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...createRequest,
+        protocol_version: "aw-relay/0.2",
+        assessment: {
+          plan_hash: "e".repeat(64),
+          profile: "quick",
+          evaluation_mode: "hybrid",
+          disclosure_version: "aw-judge-disclosure/1"
+        },
+        target: {
+          ...createRequest.target,
+          capabilities: {
+            ...createRequest.target.capabilities,
+            multi_turn: true
+          }
+        }
+      }).success
+    ).toBe(true);
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...createRequest,
+        assessment: {
+          plan_hash: "e".repeat(64),
+          profile: "quick",
+          evaluation_mode: "hybrid",
+          disclosure_version: "aw-judge-disclosure/1"
+        }
+      }).success
+    ).toBe(false);
+  });
+
   it("retries a lost committed response with a byte-identical body and key", async () => {
     const bodies: string[] = [];
     const keys: string[] = [];

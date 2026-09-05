@@ -9,6 +9,7 @@ import type { AccessTokenProvider, AuthIdentity } from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import {
   RELAY_PROTOCOL_VERSION,
+  RELAY_PROTOCOL_VERSION_V2,
   type CreateRunRequest,
   type CreateRunResponse,
   type RunStatusResponse
@@ -17,6 +18,10 @@ import type { ResolvedConfig } from "../config/types.js";
 import { targetBoundarySha256 } from "../config/boundary.js";
 import { HttpConnector } from "../connector/http.js";
 import { AwError, EXIT, sanitizeTerminal } from "../errors.js";
+import {
+  loadAssessmentFile,
+  primaryPacket
+} from "../assessment/index.js";
 import {
   RunIntentStore,
   type CreateRunIntentRequest,
@@ -37,7 +42,9 @@ import {
 
 export interface TestOptions {
   readonly config?: string;
-  readonly packet: string;
+  readonly packet?: string;
+  readonly assessment?: string;
+  readonly profile?: string;
   readonly open?: boolean;
   readonly json?: boolean;
   readonly allowFileCredentials?: boolean;
@@ -105,7 +112,23 @@ export async function runTest(
     });
   }
 
-  const packet = parsePacketReference(options.packet);
+  const assessment =
+    options.assessment === undefined
+      ? undefined
+      : await loadAssessmentFile({
+          path: options.assessment,
+          cwd,
+          ...(options.profile === undefined ? {} : { profile: options.profile })
+        });
+  const packet =
+    assessment === undefined
+      ? parsePacketReference(requirePacket(options.packet))
+      : {
+          key: primaryPacket(assessment).key,
+          version: primaryPacket(assessment).version
+        };
+  const protocolVersion =
+    assessment === undefined ? RELAY_PROTOCOL_VERSION : RELAY_PROTOCOL_VERSION_V2;
   const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
   const accessTokenOptions = {
     apiOrigin,
@@ -172,7 +195,7 @@ export async function runTest(
     ? [...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
     : [];
   const request: CreateRunIntentRequest = {
-    protocol_version: RELAY_PROTOCOL_VERSION,
+    protocol_version: protocolVersion,
     packet,
     config_sha256: report.resolvedConfig.configDigest,
     target: {
@@ -183,10 +206,21 @@ export async function runTest(
         observation: report.resolvedConfig.capabilities.observation,
         cleanup: report.resolvedConfig.capabilities.cleanup,
         tool_events: report.resolvedConfig.capabilities.tool_events,
-        observation_keys: observationKeys
+        observation_keys: observationKeys,
+        ...(assessment === undefined ? {} : { multi_turn: true })
       }
-    }
-  };
+    },
+    ...(assessment === undefined
+      ? {}
+      : {
+          assessment: {
+            plan_hash: assessment.freezeSha256,
+            profile: assessment.profile,
+            evaluation_mode: assessment.evaluationMode,
+            disclosure_version: assessment.disclosureVersion
+          }
+        })
+  } as CreateRunIntentRequest;
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
   const intentStore =
     dependencies.intentStore?.({ apiOrigin, tenant, stateDirectory, env }) ??
@@ -265,10 +299,15 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
   return new Command("test")
     .description("Run a deterministic hosted or customer-executed local assessment")
     .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
-    .requiredOption(
+    .option(
       "--packet <reference>",
       "hosted key@version, or a bundled/local JSON packet with --local"
     )
+    .option(
+      "--assessment <path>",
+      "hosted assessment file (source 0.3.0; not in published 0.2.0)"
+    )
+    .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--local", "run entirely in the customer environment without AugmentWorks services")
     .option("--output-dir <path>", "fresh exact report directory for --local")
     .option("--open", "open the hosted dashboard or generated local HTML report")
@@ -280,7 +319,9 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     .action(
       async (values: {
         config: string;
-        packet: string;
+        packet?: string;
+        assessment?: string;
+        profile?: string;
         local?: boolean;
         outputDir?: string;
         open?: boolean;
@@ -294,6 +335,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           ((code: number) => {
             process.exitCode = code;
           });
+        assertTestSelection(values);
         if (values.local === true) {
           if (values.allowFileCredentials === true) {
             throw new AwError({
@@ -306,7 +348,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           const local = await runLocalTest(
             {
               config: values.config,
-              packet: values.packet,
+              packet: requirePacket(values.packet),
               ...(values.outputDir === undefined ? {} : { outputDirectory: values.outputDir }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json })
@@ -332,7 +374,9 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         const result = await runTest(
           {
             config: values.config,
-            packet: values.packet,
+            ...(values.packet === undefined ? {} : { packet: values.packet }),
+            ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
+            ...(values.profile === undefined ? {} : { profile: values.profile }),
             ...(values.open === undefined ? {} : { open: values.open }),
             ...(values.json === undefined ? {} : { json: values.json }),
             ...(values.allowFileCredentials === undefined
@@ -342,30 +386,12 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           dependencies
         );
         if (values.json === true) {
-          stdout.write(
-            `${JSON.stringify({
-              run_id: result.run.run_id,
-              status: result.run.status,
-              credit_state: result.run.credit_state,
-              outcome: result.run.outcome ?? null,
-              dashboard_url: result.binding.dashboard_url
-            })}\n`
-          );
+          stdout.write(`${JSON.stringify(hostedJsonResult(result))}\n`);
         } else {
-          writeLine(
-            stdout,
-            `Assessment ${sanitizeTerminal(result.run.status)}${
-              result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
-            }.`
-          );
+          writeHostedResult(stdout, result);
         }
-        if (result.run.status === "cancelled") setExitCode(EXIT.INTERRUPTED);
-        else if (
-          result.run.status === "failed" ||
-          (result.run.outcome != null && result.run.outcome !== "passed")
-        ) {
-          setExitCode(EXIT.ASSESSMENT_FAILED);
-        }
+        const exitCode = hostedExitCode(result.run);
+        if (exitCode !== EXIT.OK) setExitCode(exitCode);
       }
     );
 }
@@ -410,6 +436,109 @@ export function parsePacketReference(value: string): {
     });
   }
   return { key: match[1], version: match[2] };
+}
+
+export function hostedExitCode(run: RunStatusResponse): number {
+  if (run.status === "cancelled") return EXIT.INTERRUPTED;
+  if (run.evaluation_status === "pending" || run.evaluation_status === "partial") {
+    return EXIT.EVALUATION_INCOMPLETE;
+  }
+  if (run.evaluation_status === "error") return EXIT.EVALUATION_ERROR;
+  if (run.status === "failed" || (run.outcome != null && run.outcome !== "passed")) {
+    return EXIT.ASSESSMENT_FAILED;
+  }
+  return EXIT.OK;
+}
+
+function assertTestSelection(values: {
+  packet?: string;
+  assessment?: string;
+  profile?: string;
+  local?: boolean;
+}): void {
+  if (values.assessment !== undefined && values.local === true) {
+    throw new AwError({
+      code: "ASSESSMENT_LOCAL_UNSUPPORTED",
+      category: "config",
+      message:
+        "--assessment is a hosted compiler and cannot be used with --local. Hybrid packets are also rejected in local mode."
+    });
+  }
+  if (values.assessment !== undefined && values.packet !== undefined) {
+    throw new AwError({
+      code: "ASSESSMENT_PACKET_CONFLICT",
+      category: "config",
+      message: "Use either --assessment or --packet, not both."
+    });
+  }
+  if (values.profile !== undefined && values.assessment === undefined) {
+    throw new AwError({
+      code: "ASSESSMENT_PROFILE_REQUIRES_FILE",
+      category: "config",
+      message: "--profile requires --assessment."
+    });
+  }
+  if (values.assessment === undefined && values.packet === undefined) {
+    throw new AwError({
+      code: "PACKET_OR_ASSESSMENT_REQUIRED",
+      category: "config",
+      message: "Provide --packet or --assessment."
+    });
+  }
+}
+
+function requirePacket(value: string | undefined): string {
+  if (value === undefined || value.trim() === "") {
+    throw new AwError({
+      code: "PACKET_OR_ASSESSMENT_REQUIRED",
+      category: "config",
+      message: "Provide --packet or --assessment."
+    });
+  }
+  return value;
+}
+
+function hostedJsonResult(result: TestResult): Record<string, unknown> {
+  return {
+    run_id: result.run.run_id,
+    status: result.run.status,
+    credit_state: result.run.credit_state,
+    outcome: result.run.outcome ?? null,
+    dashboard_url: result.binding.dashboard_url,
+    ...(result.run.evaluation_status === undefined
+      ? {}
+      : { evaluation_status: result.run.evaluation_status })
+  };
+}
+
+function writeHostedResult(stdout: Pick<NodeJS.WriteStream, "write">, result: TestResult): void {
+  writeLine(stdout, `Run ${sanitizeTerminal(result.binding.dashboard_url)}`);
+  if (result.run.evaluation_status !== undefined) {
+    writeLine(stdout, `Grading: ${sanitizeTerminal(result.run.evaluation_status)}`);
+  }
+  if (
+    result.run.evaluation_status === "pending" ||
+    result.run.evaluation_status === "partial"
+  ) {
+    writeLine(
+      stdout,
+      "Response evaluation is incomplete. Re-run the same test command to resume. This is not a hybrid pass."
+    );
+    return;
+  }
+  if (result.run.evaluation_status === "error") {
+    writeLine(
+      stdout,
+      "Required response evaluation did not complete. Re-run the same test command after the judging error is resolved."
+    );
+    return;
+  }
+  writeLine(
+    stdout,
+    `Assessment ${sanitizeTerminal(result.run.status)}${
+      result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
+    }.`
+  );
 }
 
 function assertRunBinding(binding: CreateRunResponse, request: CreateRunRequest): void {

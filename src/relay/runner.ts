@@ -102,7 +102,12 @@ export class RelayRunner {
       this.#operationAbort?.abort("cancellation requested");
     }
     this.#onProgress?.({ type: "cancellation_requested", runId: this.#binding.run_id });
-    this.#cancelPromise = this.#cloud.cancelRun(this.#binding.run_id, reason);
+    this.#cancelPromise = this.#cloud.cancelRun(
+      this.#binding.run_id,
+      reason,
+      this.#signal,
+      this.#binding.protocol_version
+    );
     return this.#cancelPromise;
   }
 
@@ -144,7 +149,8 @@ export class RelayRunner {
             afterSequence: this.#journal.lastAcknowledgedSequence,
             fencingEpoch: this.#binding.fencing_epoch,
             waitMs: this.#pollWaitMs,
-            signal: pollSignal
+            signal: pollSignal,
+            protocolVersion: this.#binding.protocol_version
           });
         } catch (error) {
           if (this.#cancelRequested && isCancellationError(error)) continue;

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRelayCommand, parseRelayResult } from "../../src/cloud/protocol.js";
+import {
+  CreateRunRequestSchema,
+  RunStatusResponseSchema,
+  parseRelayCommand,
+  parseRelayResult
+} from "../../src/cloud/protocol.js";
 import { LIMITS } from "../../src/util/limits.js";
 import { relayCommand, resultFor } from "./helpers.js";
 
@@ -122,5 +127,77 @@ describe("aw-relay/0.1 protocol", () => {
         message: { ...result.message, content: oversizedContent }
       })
     ).toThrowError(expect.objectContaining({ code: "EVIDENCE_LIMIT_EXCEEDED" }));
+  });
+
+  it("allows command sequence 512 only on aw-relay/0.2", () => {
+    const command = relayCommand("send");
+    expect(() => parseRelayCommand({ ...command, sequence: 101 })).toThrowError(
+      expect.objectContaining({ code: "INVALID_RELAY_PAYLOAD" })
+    );
+    expect(
+      parseRelayCommand({
+        ...command,
+        protocol_version: "aw-relay/0.2",
+        sequence: 512
+      }).sequence
+    ).toBe(512);
+    expect(() =>
+      parseRelayCommand({
+        ...command,
+        protocol_version: "aw-relay/0.2",
+        sequence: 513
+      })
+    ).toThrowError(expect.objectContaining({ code: "INVALID_RELAY_PAYLOAD" }));
+  });
+
+  it("recognizes optional evaluation_status on run status without requiring it", () => {
+    expect(
+      RunStatusResponseSchema.safeParse({
+        protocol_version: "aw-relay/0.1",
+        run_id: "run-1",
+        status: "completed",
+        credit_state: "consumed",
+        outcome: "passed"
+      }).success
+    ).toBe(true);
+    expect(
+      RunStatusResponseSchema.safeParse({
+        protocol_version: "aw-relay/0.2",
+        run_id: "run-1",
+        status: "completed",
+        credit_state: "consumed",
+        outcome: "passed",
+        evaluation_status: "pending"
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts a v2 create-run assessment envelope", () => {
+    expect(
+      CreateRunRequestSchema.safeParse({
+        protocol_version: "aw-relay/0.2",
+        create_request_id: `crq_${"a".repeat(32)}`,
+        packet: { key: "response-quality", version: "0.1.0" },
+        config_sha256: "b".repeat(64),
+        target: {
+          name: "chat",
+          boundary_sha256: "c".repeat(64),
+          capabilities: {
+            prepare: false,
+            observation: false,
+            cleanup: false,
+            tool_events: false,
+            multi_turn: true,
+            observation_keys: []
+          }
+        },
+        assessment: {
+          plan_hash: "d".repeat(64),
+          profile: "full",
+          evaluation_mode: "hybrid",
+          disclosure_version: "aw-judge-disclosure/1"
+        }
+      }).success
+    ).toBe(true);
   });
 });

@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Hosted and local npx commands pin the verified published package. The npm tarball includes the bundled starter packet and omits examples/; clone this repository for the refund-agent example server."
+    "Assessment flags (--assessment, --profile) exist in source 0.3.0 and are not in the published 0.2.0 pin. Hosted npx commands pin the verified published package. Clone this repository and run node dist/index.js for source-only assessment compilation. The npm tarball includes the bundled starter packet and omits examples/; clone this repository for example servers."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -113,6 +113,23 @@ export const LOCAL_COMMANDS = {
     "--local",
     "-c augmentworks.yaml",
     `--packet ${LOCAL_PACKET_REFERENCE}`,
+    "--open"
+  ])
+} as const;
+
+export const SOURCE_ASSESSMENT_COMMANDS = {
+  doctor: formatWrappedCommand("node dist/index.js", "doctor", [
+    "--assessment ./augmentworks.assessment.yaml",
+    "--profile quick"
+  ]),
+  testQuick: formatWrappedCommand("node dist/index.js", "test", [
+    "--assessment ./augmentworks.assessment.yaml",
+    "--profile quick",
+    "--open"
+  ]),
+  testFull: formatWrappedCommand("node dist/index.js", "test", [
+    "--assessment ./augmentworks.assessment.yaml",
+    "--profile full",
     "--open"
   ])
 } as const;

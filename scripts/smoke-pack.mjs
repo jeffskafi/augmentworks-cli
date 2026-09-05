@@ -132,6 +132,30 @@ async function assertNoEmbeddedSecrets(packageRoot) {
   }
 }
 
+async function assertNoHostedJudgeClient(packageRoot) {
+  const forbidden = [
+    /@anthropic-ai(?:\/sdk)?/,
+    /ANTHROPIC_API_KEY/,
+    /from ["']@anthropic-ai/
+  ];
+  for (const path of await walkFiles(packageRoot)) {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.size > 5 * 1024 * 1024) continue;
+    const normalized = normalizePath(relative(packageRoot, path));
+    assert(
+      !normalized.includes("anthropic"),
+      `hosted judge client path leaked into the tarball: ${normalized}`
+    );
+    const content = await readFile(path, "utf8");
+    for (const pattern of forbidden) {
+      assert(
+        !pattern.test(content),
+        `hosted judge client or ANTHROPIC credential leaked into ${normalized}`
+      );
+    }
+  }
+}
+
 async function assertBundledLicenseCoverage(packageRoot) {
   const bundle = await readFile(join(packageRoot, "dist", "index.js"), "utf8");
   const notices = await readFile(join(packageRoot, "THIRD_PARTY_NOTICES.md"), "utf8");
@@ -221,6 +245,7 @@ async function main() {
     assert(installedManifest.version === rootManifest.version, "installed package has the wrong version");
     assert(installedManifest.bin?.augmentworks === "dist/index.js", "installed package has the wrong bin mapping");
     await assertNoEmbeddedSecrets(installedRoot);
+    await assertNoHostedJudgeClient(installedRoot);
     await assertBundledLicenseCoverage(installedRoot);
 
     const installedBin = join(

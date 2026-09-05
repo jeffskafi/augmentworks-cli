@@ -208,6 +208,33 @@ describe("local packet loading", () => {
       code: "LOCAL_PACKET_JSON_INVALID"
     });
   });
+
+  it("rejects hybrid and llm_rubric packets before any local scoring", async () => {
+    expect(() =>
+      parseLocalPacket({
+        schema_version: "aw-packet/0.2",
+        evaluation_mode: "hybrid",
+        packet_id: "response-quality",
+        scenarios: []
+      })
+    ).toThrowError(/hosted LLM judging/u);
+
+    const hybridMode = structuredClone(await starterManifest()) as PacketManifest & {
+      evaluation_mode?: string;
+    };
+    hybridMode.evaluation_mode = "hybrid";
+    expect(() => parseLocalPacket(hybridMode)).toThrowError(
+      expect.objectContaining({ code: "UNSUPPORTED_LOCAL_GRADER" })
+    );
+
+    const rubric = structuredClone(await starterManifest());
+    Object.assign(rubric.scenarios[0]!, {
+      criteria: [{ kind: "llm_rubric", id: "tone" }]
+    });
+    expect(() => parseLocalPacket(rubric)).toThrowError(
+      expect.objectContaining({ code: "UNSUPPORTED_LOCAL_GRADER" })
+    );
+  });
 });
 
 describe("local packet validation", () => {

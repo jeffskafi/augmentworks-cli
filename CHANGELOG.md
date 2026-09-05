@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - Unreleased
+
+### Added
+
+- Source-only hosted `--assessment` / `--profile` compiler for
+  `augmentworks.assessment.yaml` (`aw-assessment-file/1`), including local
+  reference file freeze hashes and `doctor --assessment` validation without
+  target or credit use.
+- Relay protocol `aw-relay/0.2` create-run assessment metadata, optional
+  `multi_turn` capability, command sequences up to 512, and optional hosted
+  `evaluation_status` (`pending` / `complete` / `partial` / `error`).
+- Distinguishable hosted grading exit codes `11` (incomplete) and `12`
+  (evaluation error). Behavioral failures remain `10`.
+- Local-mode rejection of `aw-packet/0.2`, `evaluation_mode: hybrid`, and
+  `llm_rubric` packets before any target call.
+
+### Changed
+
+- Source package version is `0.3.0`. Published npx pin remains
+  `@augmentworks/cli@0.2.0`, which does not include `--assessment`.
+- Local documented commands use `node dist/index.js` while source and published
+  versions differ.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

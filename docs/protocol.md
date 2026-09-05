@@ -6,21 +6,27 @@ typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
 This document is the v0.1 contract implemented by the CLI and relay service
-code. Repository integration tests exercise the same envelope and binding rules
+code, plus the source-0.3.0 `aw-relay/0.2` create-run assessment extension.
+Repository integration tests exercise the same envelope and binding rules
 against local services.
 
 This protocol applies only to hosted `test`. `test --local` branches before
 authentication, run-intent state, cloud clients, relay polling, command
 journals, and dashboard handling. It loads a strict local JSON packet and calls
-only the target selected by `augmentworks.yaml`; no `aw-relay/0.1` message or
-AugmentWorks control-plane request exists in that mode.
+only the target selected by `augmentworks.yaml`; no `aw-relay/0.1` or
+`aw-relay/0.2` message or AugmentWorks control-plane request exists in that
+mode. Hybrid local packets are refused before any target call.
 
 ## Versions
 
-- Cloud envelopes use `protocol_version: "aw-relay/0.1"`.
+- Cloud envelopes use `protocol_version: "aw-relay/0.1"` for legacy `--packet`
+  runs such as `support-refunds@0.1.0`.
+- Source 0.3.0 hosted `--assessment` / hybrid / expanded plans use
+  `aw-relay/0.2`. Command sequence 101–512 is accepted only on 0.2.
 - Normalized target operation inputs and results use
   `protocol_version: "aw-target/0.1"`.
 - Unknown versions, fields, and operation variants are rejected.
+- Published `@augmentworks/cli@0.2.0` speaks `aw-relay/0.1` only.
 
 ## Run lifecycle
 

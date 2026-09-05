@@ -252,6 +252,7 @@ export function parseLocalPacket(value: unknown): PacketManifest {
       "The local packet must contain only bounded, finite JSON values."
     );
   }
+  rejectUnsupportedLocalGrader(value);
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_LOCAL_PACKET_BYTES) {
     throw packetError(
       "LOCAL_PACKET_TOO_LARGE",
@@ -603,6 +604,40 @@ function assertNoDuplicateJsonKeys(source: string): void {
       "The local packet contains a duplicate JSON object key."
     );
   }
+}
+
+function rejectUnsupportedLocalGrader(value: LocalJson): void {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return;
+  const record = value as LocalJsonObject;
+  if (record["schema_version"] === "aw-packet/0.2" || record["evaluation_mode"] === "hybrid") {
+    throw unsupportedLocalGrader();
+  }
+  const scenarios = record["scenarios"];
+  if (!Array.isArray(scenarios)) return;
+  for (const scenario of scenarios) {
+    if (scenario === null || typeof scenario !== "object" || Array.isArray(scenario)) continue;
+    for (const field of ["criteria", "assertions"] as const) {
+      const items = scenario[field];
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        if (
+          item !== null &&
+          typeof item === "object" &&
+          !Array.isArray(item) &&
+          item["kind"] === "llm_rubric"
+        ) {
+          throw unsupportedLocalGrader();
+        }
+      }
+    }
+  }
+}
+
+function unsupportedLocalGrader(): AwError {
+  return packetError(
+    "UNSUPPORTED_LOCAL_GRADER",
+    "This packet requires hosted LLM judging and cannot run in local mode."
+  );
 }
 
 function looksLikeNonFileReference(reference: string): boolean {

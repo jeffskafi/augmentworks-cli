@@ -4,9 +4,23 @@ import type { JsonValue } from "../config/types.js";
 import { AwError } from "../errors.js";
 import { canonicalize } from "../util/canonical.js";
 import { assertJsonLimits, LIMITS } from "../util/limits.js";
+import {
+  RELAY_PROTOCOL_VERSION as RELAY_PROTOCOL_VERSION_VALUE,
+  RELAY_PROTOCOL_VERSION_V2 as RELAY_PROTOCOL_VERSION_V2_VALUE
+} from "../version.js";
 
-export const RELAY_PROTOCOL_VERSION = "aw-relay/0.1" as const;
+export const RELAY_PROTOCOL_VERSION = RELAY_PROTOCOL_VERSION_VALUE;
+export const RELAY_PROTOCOL_VERSION_V2 = RELAY_PROTOCOL_VERSION_V2_VALUE;
 export const TARGET_PROTOCOL_VERSION = "aw-target/0.1" as const;
+export const RelayProtocolVersionSchema = z.enum([
+  RELAY_PROTOCOL_VERSION,
+  RELAY_PROTOCOL_VERSION_V2
+]);
+export type RelayProtocolVersion = z.infer<typeof RelayProtocolVersionSchema>;
+
+export function maxCommandsForProtocol(protocol: string): number {
+  return protocol === RELAY_PROTOCOL_VERSION_V2 ? LIMITS.maxCommandsExpanded : LIMITS.maxCommands;
+}
 
 const identifier = z
   .string()
@@ -61,14 +75,14 @@ export const PacketBindingSchema = z
   .strict();
 
 const baseCommandShape = {
-  protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+  protocol_version: RelayProtocolVersionSchema,
   command_id: identifier,
   session_id: identifier,
   run_id: identifier,
   attempt_id: identifier,
   packet: PacketBindingSchema,
   config_sha256: sha256,
-  sequence: z.number().int().min(1).max(LIMITS.maxCommands),
+  sequence: z.number().int().min(1).max(LIMITS.maxCommandsExpanded),
   fencing_epoch: z.number().int().min(1),
   idempotency_key: identifier,
   issued_at: timestamp,
@@ -138,12 +152,23 @@ export const CleanupCommandSchema = z
   .object({ ...baseCommandShape, kind: z.literal("cleanup"), input: CleanupInputSchema })
   .strict();
 
-export const RelayCommandSchema = z.discriminatedUnion("kind", [
-  PrepareCommandSchema,
-  SendCommandSchema,
-  ObserveCommandSchema,
-  CleanupCommandSchema
-]);
+export const RelayCommandSchema = z
+  .discriminatedUnion("kind", [
+    PrepareCommandSchema,
+    SendCommandSchema,
+    ObserveCommandSchema,
+    CleanupCommandSchema
+  ])
+  .superRefine((value, context) => {
+    const maximum = maxCommandsForProtocol(value.protocol_version);
+    if (value.sequence > maximum) {
+      context.addIssue({
+        code: "custom",
+        message: `command sequence exceeds the ${value.protocol_version} limit of ${maximum}`,
+        path: ["sequence"]
+      });
+    }
+  });
 
 export const MetadataSchema = JsonObjectSchema.default({});
 export const AssistantMessageSchema = z
@@ -264,7 +289,66 @@ export const RunStatusSchema = z.enum([
   "failed"
 ]);
 
-export const CreateRunRequestSchema = z
+export const AssessmentProfileSchema = z.enum(["quick", "full", "combined", "custom"]);
+export const EvaluationModeSchema = z.enum(["deterministic", "hybrid"]);
+export const EvaluationStatusSchema = z.enum(["pending", "complete", "partial", "error"]);
+
+export const TargetCapabilitiesSchema = z
+  .object({
+    prepare: z.boolean(),
+    observation: z.boolean(),
+    cleanup: z.boolean(),
+    tool_events: z.boolean(),
+    multi_turn: z.boolean().optional(),
+    observation_keys: z.array(observationKey).max(LIMITS.maxObservations)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.observation_keys).size !== value.observation_keys.length) {
+      context.addIssue({
+        code: "custom",
+        message: "observation_keys must be unique",
+        path: ["observation_keys"]
+      });
+    }
+    if (
+      value.observation_keys.some(
+        (key, index) => index > 0 && value.observation_keys[index - 1]! >= key
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "observation_keys must be sorted in ascending order",
+        path: ["observation_keys"]
+      });
+    }
+    if (!value.observation && value.observation_keys.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "observation_keys require the observation capability",
+        path: ["observation_keys"]
+      });
+    }
+  });
+
+export const TargetBindingSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    boundary_sha256: sha256,
+    capabilities: TargetCapabilitiesSchema
+  })
+  .strict();
+
+export const CreateRunAssessmentSchema = z
+  .object({
+    plan_hash: sha256,
+    profile: AssessmentProfileSchema,
+    evaluation_mode: EvaluationModeSchema,
+    disclosure_version: z.string().min(1).max(80).nullable()
+  })
+  .strict();
+
+export const CreateRunRequestV1Schema = z
   .object({
     protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
     create_request_id: createRequestId,
@@ -272,54 +356,31 @@ export const CreateRunRequestSchema = z
       .object({ key: identifier, version: PacketBindingSchema.shape.version })
       .strict(),
     config_sha256: sha256,
-    target: z
-      .object({
-        name: z.string().min(1).max(200),
-        boundary_sha256: sha256,
-        capabilities: z
-          .object({
-            prepare: z.boolean(),
-            observation: z.boolean(),
-            cleanup: z.boolean(),
-            tool_events: z.boolean(),
-            observation_keys: z.array(observationKey).max(LIMITS.maxObservations)
-          })
-          .strict()
-          .superRefine((value, context) => {
-            if (new Set(value.observation_keys).size !== value.observation_keys.length) {
-              context.addIssue({
-                code: "custom",
-                message: "observation_keys must be unique",
-                path: ["observation_keys"]
-              });
-            }
-            if (
-              value.observation_keys.some(
-                (key, index) => index > 0 && value.observation_keys[index - 1]! >= key
-              )
-            ) {
-              context.addIssue({
-                code: "custom",
-                message: "observation_keys must be sorted in ascending order",
-                path: ["observation_keys"]
-              });
-            }
-            if (!value.observation && value.observation_keys.length > 0) {
-              context.addIssue({
-                code: "custom",
-                message: "observation_keys require the observation capability",
-                path: ["observation_keys"]
-              });
-            }
-          })
-      })
-      .strict()
+    target: TargetBindingSchema
   })
   .strict();
 
+export const CreateRunRequestV2Schema = z
+  .object({
+    protocol_version: z.literal(RELAY_PROTOCOL_VERSION_V2),
+    create_request_id: createRequestId,
+    packet: z
+      .object({ key: identifier, version: PacketBindingSchema.shape.version })
+      .strict(),
+    config_sha256: sha256,
+    target: TargetBindingSchema,
+    assessment: CreateRunAssessmentSchema.optional()
+  })
+  .strict();
+
+export const CreateRunRequestSchema = z.union([
+  CreateRunRequestV1Schema,
+  CreateRunRequestV2Schema
+]);
+
 export const CreateRunResponseSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     create_request_id: createRequestId,
     create_request_sha256: sha256,
     create_disposition: z.enum(["created", "replayed"]),
@@ -338,15 +399,15 @@ export const CreateRunResponseSchema = z
 
 export const CreateSessionRequestSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     config_sha256: sha256,
-    target: CreateRunRequestSchema.shape.target
+    target: TargetBindingSchema
   })
   .strict();
 
 export const ConnectorSessionResponseSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     session_id: identifier,
     fencing_epoch: z.number().int().min(1),
     status: z.enum(["connected", "closed"]),
@@ -356,7 +417,7 @@ export const ConnectorSessionResponseSchema = z
 
 export const SessionPollResponseSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     session_id: identifier,
     fencing_epoch: z.number().int().min(1),
     status: z.enum(["connected", "closed"]),
@@ -367,7 +428,7 @@ export const SessionPollResponseSchema = z
 
 export const PollResponseSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     run_id: identifier,
     session_id: identifier,
     status: RunStatusSchema,
@@ -378,7 +439,7 @@ export const PollResponseSchema = z
 
 export const CommandAckSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     command_id: identifier,
     accepted: z.literal(true)
   })
@@ -386,14 +447,15 @@ export const CommandAckSchema = z
 
 export const RunStatusResponseSchema = z
   .object({
-    protocol_version: z.literal(RELAY_PROTOCOL_VERSION),
+    protocol_version: RelayProtocolVersionSchema,
     run_id: identifier,
     status: RunStatusSchema,
     dashboard_url: z.string().url().optional(),
     credit_state: z.enum(["reserved", "consumed", "released"]),
     outcome: z.enum(["passed", "failed", "inconclusive", "error"]).nullable().optional(),
     error_code: identifier.nullable().optional(),
-    error_message: z.string().max(1_000).nullable().optional()
+    error_message: z.string().max(1_000).nullable().optional(),
+    evaluation_status: EvaluationStatusSchema.optional()
   })
   .strict();
 
@@ -411,6 +473,7 @@ export type SendResult = z.infer<typeof SendResultSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type CleanupResult = z.infer<typeof CleanupResultSchema>;
 export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
+export type CreateRunAssessment = z.infer<typeof CreateRunAssessmentSchema>;
 export type CreateRunResponse = z.infer<typeof CreateRunResponseSchema>;
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>;
 export type ConnectorSessionResponse = z.infer<typeof ConnectorSessionResponseSchema>;
@@ -420,6 +483,9 @@ export type CommandAck = z.infer<typeof CommandAckSchema>;
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 export type RunStatusResponse = z.infer<typeof RunStatusResponseSchema>;
 export type PacketBinding = z.infer<typeof PacketBindingSchema>;
+export type AssessmentProfile = z.infer<typeof AssessmentProfileSchema>;
+export type EvaluationMode = z.infer<typeof EvaluationModeSchema>;
+export type EvaluationStatus = z.infer<typeof EvaluationStatusSchema>;
 
 export function parseRelayCommand(value: unknown): RelayCommand {
   const candidateContent =
