@@ -20,4 +20,5 @@ export {
   parseAssessmentProfile,
   primaryPacket
 } from "./load.js";
+export { buildAssessmentReferencePayload } from "./bundle.js";
 export type { LoadedAssessment, LoadedLocalReference, LoadAssessmentOptions } from "./load.js";

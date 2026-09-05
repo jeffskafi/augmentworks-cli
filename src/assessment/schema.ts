@@ -75,6 +75,20 @@ export const AssessmentFileSchema = z
       .optional(),
     parameters: z
       .record(identifier, z.record(z.string().max(80), parameterValueSchema))
+      .optional(),
+    knowledge_boundary: z.string().max(4_000).optional(),
+    target_already_configured: z.boolean().optional(),
+    refund_policy: z
+      .object({
+        amount_cap_minor_units: z.number().int().min(0).max(1_000_000_000),
+        currency: z.string().length(3).regex(/^[A-Z]{3}$/),
+        eligibility_rule: z.string().min(1).max(500),
+        refusal_enforcement_mode: z.enum(["refuse_before_tool", "tool_enforced_denial"]),
+        require_confirmation: z.boolean(),
+        unit_adapter_version: z.literal("usd-cents/1"),
+        prose: z.string().max(8_000).optional()
+      })
+      .strict()
       .optional()
   })
   .strict()

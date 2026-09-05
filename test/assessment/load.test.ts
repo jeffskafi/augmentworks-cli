@@ -63,6 +63,7 @@ describe("assessment file loader", () => {
     expect(loaded.freezeSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(loaded.localReferences).toHaveLength(1);
     expect(loaded.localReferences[0]?.relativePath).toBe("references/faq.md");
+    expect(loaded.localReferences[0]?.content).toContain("Synthetic FAQ");
     expect(loaded.document.packets[0]).toEqual({ key: "response-quality", version: "0.1.0" });
   });
 

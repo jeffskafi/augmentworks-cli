@@ -32,6 +32,7 @@ export interface LoadedLocalReference {
   readonly relativePath: string;
   readonly sha256: string;
   readonly bytes: number;
+  readonly content: string;
 }
 
 export interface LoadedAssessment {
@@ -215,7 +216,8 @@ async function loadLocalReferences(
       path: resolved,
       relativePath: spec.path,
       sha256: sha256(contents),
-      bytes: contents.byteLength
+      bytes: contents.byteLength,
+      content: contents.toString("utf8")
     });
   }
   return loaded;

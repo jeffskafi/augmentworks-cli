@@ -195,7 +195,24 @@ describe("aw-relay/0.1 protocol", () => {
           plan_hash: "d".repeat(64),
           profile: "full",
           evaluation_mode: "hybrid",
-          disclosure_version: "aw-judge-disclosure/1"
+          disclosure_version: "aw-judge-disclosure/1",
+          reference_bundle: {
+            bundleId: "bundle_test",
+            entries: [
+              {
+                id: "faq-current-returns",
+                kind: "reference_facts",
+                sourceLabel: "FAQ",
+                scope: "complete",
+                content: "Unused items may be returned within 30 days.",
+                contentHash: "a".repeat(64),
+                complete: true
+              }
+            ],
+            refundPolicy: null,
+            knowledgeBoundary: "complete for the synthetic FAQ",
+            targetAlreadyConfigured: true
+          }
         }
       }).success
     ).toBe(true);

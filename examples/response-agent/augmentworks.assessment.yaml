@@ -6,8 +6,15 @@ evaluation_mode: hybrid
 packets:
   - key: response-quality
     version: 0.1.0
+knowledge_boundary: >
+  This synthetic FAQ is the complete knowledge scope for the example
+  chatbot. Facts not present here are unknowable for this test.
+target_already_configured: true
 references:
   local:
     - path: references/faq.md
-      id: synthetic-faq
+      id: faq-current-returns
+      kind: reference_facts
+    - path: references/restocking.md
+      id: faq-restocking-fee
       kind: reference_facts

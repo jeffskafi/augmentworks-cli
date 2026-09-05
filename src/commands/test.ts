@@ -19,6 +19,7 @@ import { targetBoundarySha256 } from "../config/boundary.js";
 import { HttpConnector } from "../connector/http.js";
 import { AwError, EXIT, sanitizeTerminal } from "../errors.js";
 import {
+  buildAssessmentReferencePayload,
   loadAssessmentFile,
   primaryPacket
 } from "../assessment/index.js";
@@ -217,7 +218,15 @@ export async function runTest(
             plan_hash: assessment.freezeSha256,
             profile: assessment.profile,
             evaluation_mode: assessment.evaluationMode,
-            disclosure_version: assessment.disclosureVersion
+            disclosure_version: assessment.disclosureVersion,
+            selected_scenario_ids: assessment.document.packets.flatMap(
+              (packet) => packet.scenarios ?? []
+            ),
+            packet_bindings: assessment.document.packets.map((packet) => ({
+              key: packet.key,
+              version: packet.version
+            })),
+            reference_bundle: buildAssessmentReferencePayload(assessment)
           }
         })
   } as CreateRunIntentRequest;

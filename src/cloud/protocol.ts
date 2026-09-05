@@ -344,7 +344,53 @@ export const CreateRunAssessmentSchema = z
     plan_hash: sha256,
     profile: AssessmentProfileSchema,
     evaluation_mode: EvaluationModeSchema,
-    disclosure_version: z.string().min(1).max(80).nullable()
+    disclosure_version: z.string().min(1).max(80).nullable(),
+    selected_scenario_ids: z.array(identifier).max(20).optional(),
+    packet_bindings: z
+      .array(z.object({ key: identifier, version: PacketBindingSchema.shape.version }).strict())
+      .min(1)
+      .max(2)
+      .optional(),
+    reference_bundle: z
+      .object({
+        bundleId: identifier,
+        entries: z
+          .array(
+            z
+              .object({
+                id: identifier,
+                kind: z.enum([
+                  "approved_policy",
+                  "reference_answer",
+                  "reference_facts",
+                  "allowed_escalation_route",
+                  "synthetic_fixture_facts"
+                ]),
+                sourceLabel: z.string().min(1).max(200),
+                scope: z.string().min(1).max(2_000),
+                content: z.string().max(16_000),
+                contentHash: sha256,
+                complete: z.boolean()
+              })
+              .strict()
+          )
+          .max(16),
+        refundPolicy: z
+          .object({
+            amountCapMinorUnits: z.number().int().min(0).max(1_000_000_000),
+            currency: z.string().length(3).regex(/^[A-Z]{3}$/),
+            eligibilityRule: z.string().min(1).max(500),
+            refusalEnforcementMode: z.enum(["refuse_before_tool", "tool_enforced_denial"]),
+            requireConfirmation: z.boolean(),
+            unitAdapterVersion: z.literal("usd-cents/1"),
+            prose: z.string().max(8_000)
+          })
+          .strict()
+          .nullable(),
+        knowledgeBoundary: z.string().max(4_000).nullable(),
+        targetAlreadyConfigured: z.boolean()
+      })
+      .strict()
   })
   .strict();
 
