@@ -774,7 +774,7 @@ describe("CLI recovery (B04)", () => {
       }
       if (url.pathname === "/v1/relay/run-intents:reconcile") {
         const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        expect(body["retire_if_uncreated"]).toBe(true);
+        expect(body["retire_if_uncreated"]).toBe(false);
         return Response.json({
           protocol_version: RUN_INTENT_RECONCILE_PROTOCOL_VERSION,
           outcome: "bound",

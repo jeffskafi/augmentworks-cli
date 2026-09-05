@@ -44,6 +44,14 @@ npm run smoke:pack
 Expected: typecheck, unit/integration tests, build, packed `recover --help`,
 and local `--local` smoke.
 
+Recorded on this branch after implementation:
+
+- `npm run check`: typecheck, 290 tests, build passed
+- `npm run test:integration:recovery`: 21 tests passed
+- `npm run test:e2e:cli-auth`: 4 tests passed
+- `npm run smoke:pack`: passed (packed `recover --help` present)
+
+
 ## Rollback
 
 - Keep pending journals and retirement archives. Do not tell users to delete

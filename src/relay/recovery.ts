@@ -467,10 +467,17 @@ async function retireBoundIfSafe(
       message: "The active assessment has no server binding to retire."
     });
   }
-  const status =
-    reconciledBound?.run ?? (await readBoundStatus(context, intent.binding));
-  const targetExecution =
-    reconciledBound?.target_execution ?? targetExecutionFromStatus(status.status);
+  let bound = reconciledBound;
+  if (bound === undefined) {
+    const reconciled = await reconcileIntent(context, intent, false);
+    if (reconciled.kind === "response" && reconciled.response.outcome === "bound") {
+      bound = reconciled.response;
+    } else if (reconciled.kind === "error" && isPreservedAuthOrIsolation(reconciled.error)) {
+      throw reconciled.error;
+    }
+  }
+  const status = bound?.run ?? (await readBoundStatus(context, intent.binding));
+  const targetExecution = bound?.target_execution ?? targetExecutionFromStatus(status.status);
   if (targetExecution === "active" || !isTargetExecutionTerminal(status.status)) {
     throw new AwError({
       code: "RUN_NOT_TERMINAL",
@@ -481,11 +488,17 @@ async function retireBoundIfSafe(
   }
   await assertJournalSafeToRelease(intent.binding.run_id, context.stateDirectory);
   await context.intentStore.retireBoundTerminal(status);
-  return terminalReport(
-    intent,
-    status,
-    "Local execution state was retired. Evaluation, if still pending, was left unchanged. You can start a new hosted test."
-  );
+  const evaluation = bound?.evaluation ?? "unknown";
+  return {
+    ...terminalReport(
+      intent,
+      status,
+      evaluation === "pending"
+        ? "Local execution state was retired. Grading is still pending and was not cancelled. You can start a new hosted test."
+        : "Local execution state was retired. Evaluation, if still pending, was left unchanged. You can start a new hosted test."
+    ),
+    evaluation
+  };
 }
 
 type ReconcileResult =

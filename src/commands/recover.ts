@@ -95,12 +95,7 @@ export async function runRecover(
       tenant: session.tenant,
       stateDirectory,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      ...(resolvedConfig === undefined
-        ? {}
-        : {
-            connector: dependencies.connector?.(resolvedConfig) ?? new HttpConnector(resolvedConfig),
-            resolvedConfig
-          }),
+      ...(resolvedConfig === undefined ? {} : { resolvedConfig }),
       ...(dependencies.runner === undefined ? {} : { runner: dependencies.runner }),
       ...(dependencies.onProgress === undefined ? {} : { onProgress: dependencies.onProgress })
     };
@@ -111,6 +106,11 @@ export async function runRecover(
     let removeSignals = (): void => undefined;
     const executionContext = {
       ...context,
+      ...(resolvedConfig === undefined
+        ? {}
+        : {
+            connector: dependencies.connector?.(resolvedConfig) ?? new HttpConnector(resolvedConfig)
+          }),
       runner: (runnerOptions: ConstructorParameters<typeof RelayRunner>[0]) => {
         const runner = runnerFactory?.(runnerOptions) ?? new RelayRunner(runnerOptions);
         if (options.handleSignals !== false) {

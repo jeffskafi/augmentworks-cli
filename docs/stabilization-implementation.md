@@ -38,7 +38,7 @@ and `recover`. Dashboard URLs returned to the CLI remain query-free
 
 | ID | Status | Owner | Changed files | Tests | Remaining deployment verification |
 | --- | --- | --- | --- | --- | --- |
-| B04 | implemented | CLI | `src/commands/recover.ts`, `src/commands/test.ts`, `src/relay/recovery.ts`, `src/relay/run-intent.ts`, `src/cloud/client.ts`, `src/cloud/recovery-protocol.ts` | CLI-01–CLI-13 (see below) | Hosted `POST /v1/relay/run-intents:reconcile` must be deployed before `--retire` of an unbound create works against production |
+| B04 | verified locally | CLI | `src/commands/recover.ts`, `src/commands/test.ts`, `src/relay/recovery.ts`, `src/relay/run-intent.ts`, `src/cloud/client.ts`, `src/cloud/recovery-protocol.ts` | CLI-01–CLI-13 (see below) | Hosted `POST /v1/relay/run-intents:reconcile` must be deployed before `--retire` of an unbound create works against production |
 | C01 | verified locally (Node redirect fixture) | CLI listener | `src/auth/loopback.ts`, `test/auth/loopback-callback.test.ts` | CSP-01–CSP-03 (Node HTTP + real listener) | Chromium/WebKit against production-equivalent website CSP (`form-action 'self'` + `upgrade-insecure-requests`) remains a website+browser check |
 | B01–B03, B05–B10, B12–B14 | not in this repo | website | — | — | — |
 | B11 | not in this repo (dashboard URLs) | website | CLI still rejects query/fragment on returned dashboard URLs | existing dashboard URL tests | — |
@@ -68,3 +68,16 @@ and `recover`. Dashboard URLs returned to the CLI remain query-free
 ## Validation commands
 
 See `docs/stabilization-rollout.md`.
+
+| Command | Result (this branch) |
+| --- | --- |
+| `npm run typecheck` | pass |
+| `npm test` | 34 files / 290 tests pass |
+| `npm run build` | pass (`dist/index.js`) |
+| `npm run test:integration:recovery` | 3 files / 21 tests pass |
+| `npm run test:e2e:cli-auth` | 1 file / 4 tests pass |
+| `npm run smoke:pack` | pass, packed `recover --help` includes `--retire`/`--resume`/`--cancel` |
+
+Working commit after local verification is recorded in git history on `cursor/cli-stabilization-recovery-8ae6`.
+
+Externally blocked: Chromium/WebKit against production-equivalent website CSP on a same-machine browser; website reconcile endpoint deployment; npm publication of a version that includes `recover`.
