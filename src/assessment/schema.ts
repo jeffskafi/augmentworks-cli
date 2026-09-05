@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const ASSESSMENT_FILE_SCHEMA = "aw-assessment-file/1" as const;
-export const DISCLOSURE_VERSION = "aw-judge-disclosure/1" as const;
+export const DISCLOSURE_VERSION = "aw-judge-disclosure/2" as const;
 export const MAX_ASSESSMENT_FILE_BYTES = 64 * 1024;
 export const MAX_REFERENCE_BYTES_TOTAL = 64 * 1024;
 export const MAX_REFERENCE_ENTRIES = 16;

@@ -58,7 +58,7 @@ describe("assessment file loader", () => {
 
     expect(loaded.profile).toBe("quick");
     expect(loaded.evaluationMode).toBe("hybrid");
-    expect(loaded.disclosureVersion).toBe("aw-judge-disclosure/1");
+    expect(loaded.disclosureVersion).toBe("aw-judge-disclosure/2");
     expect(loaded.yamlSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(loaded.freezeSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(loaded.localReferences).toHaveLength(1);

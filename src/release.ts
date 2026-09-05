@@ -6,7 +6,7 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-export const PUBLISHED_PACKAGE_VERSION: string = "0.3.0";
+export const PUBLISHED_PACKAGE_VERSION: string = "0.3.1";
 export const PUBLISHED_PACKAGE_VERIFIED = true;
 export const HOSTED_COMMAND_PIN: string = PUBLISHED_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Published @augmentworks/cli@0.3.0 includes hosted --assessment / --profile, aw-relay/0.2, recover, and test --local. Hosted npx commands pin this verified package. Clone this repository for example servers; the npm tarball omits examples/."
+    "Published @augmentworks/cli@0.3.1 includes hosted --assessment / --profile, aw-relay/0.2, recover, test --local, and aw-judge-disclosure/2. Hosted npx commands pin this verified package. Clone this repository for example servers; the npm tarball omits examples/."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {

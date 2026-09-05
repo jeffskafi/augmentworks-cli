@@ -216,7 +216,7 @@ test environment matches production.
 Use offline validation while editing:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 doctor \
+npx --yes @augmentworks/cli@0.3.1 doctor \
   -c augmentworks.yaml
 ```
 
@@ -229,9 +229,9 @@ The canonical machine-readable definition is
 Print any bundled schema with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 schema --kind config
-npx --yes @augmentworks/cli@0.3.0 schema --kind local-packet
-npx --yes @augmentworks/cli@0.3.0 schema --kind local-result
+npx --yes @augmentworks/cli@0.3.1 schema --kind config
+npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.1 schema --kind local-result
 ```
 
 Local assessment packets are separate strict JSON documents with
@@ -241,7 +241,7 @@ the YAML boundary. A local path may identify a JSON file or a directory whose
 not accepted. `aw-packet/0.2` and hybrid/`llm_rubric` packets are refused in
 `--local` before any target call.
 
-Source 0.3.0 can validate a hosted assessment file without running tests:
+Source 0.3.1 can validate a hosted assessment file without running tests:
 
 ```bash
 node dist/index.js doctor \

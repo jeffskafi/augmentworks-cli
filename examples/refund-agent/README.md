@@ -11,7 +11,7 @@ demonstration, not a realistic support agent or a substitute for AugmentWorks'
 private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
-for the example server. Published `@augmentworks/cli@0.3.0` supports `--local`
+for the example server. Published `@augmentworks/cli@0.3.1` supports `--local`
 and hosted `--assessment` via npx.
 
 ## Obtain the example
@@ -36,10 +36,10 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 doctor \
+npx --yes @augmentworks/cli@0.3.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -65,9 +65,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 login
+npx --yes @augmentworks/cli@0.3.1 login
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

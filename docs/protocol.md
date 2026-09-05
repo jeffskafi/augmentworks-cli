@@ -6,7 +6,7 @@ typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
 This document is the v0.1 contract implemented by the CLI and relay service
-code, plus the source-0.3.0 `aw-relay/0.2` create-run assessment extension.
+code, plus the 0.3.1 `aw-relay/0.2` create-run assessment extension.
 Repository integration tests exercise the same envelope and binding rules
 against local services.
 
@@ -21,7 +21,7 @@ mode. Hybrid local packets are refused before any target call.
 
 - Cloud envelopes use `protocol_version: "aw-relay/0.1"` for legacy `--packet`
   runs such as `support-refunds@0.1.0`.
-- Source 0.3.0 hosted `--assessment` / hybrid / expanded plans use
+- Source 0.3.1 hosted `--assessment` / hybrid / expanded plans use
   `aw-relay/0.2`. Command sequence 101–512 is accepted only on 0.2.
 - Normalized target operation inputs and results use
   `protocol_version: "aw-target/0.1"`.

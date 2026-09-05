@@ -287,7 +287,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     )
     .option(
       "--assessment <path>",
-      "hosted assessment file (published 0.3.0; aw-relay/0.2)"
+      "hosted assessment file (published 0.3.1; aw-relay/0.2)"
     )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--local", "run entirely in the customer environment without AugmentWorks services")

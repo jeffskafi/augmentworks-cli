@@ -20,12 +20,12 @@ target SDK, and no coding assistant is used in either runtime path.
 
 | Identity | Current value |
 | --- | --- |
-| Source package (`package.json`) | `0.3.0` |
-| Verified published npm package | `@augmentworks/cli@0.3.0` |
+| Source package (`package.json`) | `0.3.1` |
+| Verified published npm package | `@augmentworks/cli@0.3.1` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.0**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
+Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
 
 ## Hosted quickstart
 
@@ -33,15 +33,15 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 login
+npx --yes @augmentworks/cli@0.3.1 login
 
-npx --yes @augmentworks/cli@0.3.0 init --agent
+npx --yes @augmentworks/cli@0.3.1 init --agent
 # Edit augmentworks.yaml and .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.3.0 doctor \
+npx --yes @augmentworks/cli@0.3.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   -c augmentworks.yaml \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
@@ -61,7 +61,7 @@ terminal open until the assessment finishes.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 login --device
+npx --yes @augmentworks/cli@0.3.1 login --device
 ```
 
 ## Local quickstart
@@ -84,10 +84,10 @@ node --env-file=.env server.mjs
 In another terminal, from the example directory, run the published local CLI:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 doctor \
+npx --yes @augmentworks/cli@0.3.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -276,8 +276,8 @@ before any target call.
 Print the packet and result schemas with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 schema --kind local-packet
-npx --yes @augmentworks/cli@0.3.0 schema --kind local-result
+npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.1 schema --kind local-result
 ```
 
 ### Local reports and trust
@@ -297,23 +297,23 @@ a self-contained static file with no scripts or external assets. Treat all
 three artifacts as sensitive customer-controlled evidence. `--json` emits the
 same final local result on stdout; the three files are still generated.
 
-## Hosted assessment files (`0.3.0`)
+## Hosted assessment files (`0.3.1`)
 
-`--assessment` is in npm `@augmentworks/cli@0.3.0`. Copy or write
+`--assessment` is in npm `@augmentworks/cli@0.3.1`. Copy or write
 `augmentworks.assessment.yaml` first; `init` does not create it. See
 `examples/response-agent/` for a synthetic FAQ assessment file.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.0 doctor \
+npx --yes @augmentworks/cli@0.3.1 doctor \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
   --open
 
-npx --yes @augmentworks/cli@0.3.0 test \
+npx --yes @augmentworks/cli@0.3.1 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile full \
   --open
@@ -341,7 +341,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from an assessment file | Uses `aw-relay/0.2`; included in `@augmentworks/cli@0.3.0` |
+| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from an assessment file | Uses `aw-relay/0.2`; included in `@augmentworks/cli@0.3.1` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
@@ -402,7 +402,7 @@ that the observer is truthful or that staging matches production.
   staging result is not proof of production equivalence.
 - v0.2 is for authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only. Do not connect production systems
-  or use production or regulated data. Source 0.3.0 keeps that same target
+  or use production or regulated data. Source 0.3.1 keeps that same target
   boundary.
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
@@ -422,7 +422,7 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
   without starting another run.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
-- Published `@augmentworks/cli@0.3.0` includes `--assessment`. Copy or write
+- Published `@augmentworks/cli@0.3.1` includes `--assessment`. Copy or write
   `augmentworks.assessment.yaml` before that hosted path; `init` does not
   create the assessment file.
 
