@@ -26,10 +26,12 @@ schemas. Recovery uses a separate endpoint and protocol version.
 2. Verify ordinary-role create, replay, and reconcile against a disposable
    environment (website repo).
 3. Publish `@augmentworks/cli@0.3.1` through the existing trusted-publishing
-   workflow. Do not republish `0.2.0`.
-4. Update the website CLI pin and recovery copy only to `0.2.1`.
+   workflow. Do not republish `0.2.0`. `0.2.1` is already on npm
+   ([v0.2.1](https://github.com/jeffskafi/augmentworks-cli/releases/tag/v0.2.1)).
+4. Update the website CLI pin and recovery copy to `0.3.1` after npm lists it.
 5. `npx --yes @augmentworks/cli@0.3.1 recover --help` must list
    `--retire`, `--resume`, and `--cancel`, and must not list `--force-delete`.
+   **Done:** verified on the published tarball.
 
 ## Local verification
 
@@ -46,7 +48,7 @@ and local `--local` smoke.
 
 Recorded on this branch after implementation:
 
-- `npm run check`: typecheck, 290 tests, build passed
+- `npm run check`: typecheck, 291 tests, build passed
 - `npm run test:integration:recovery`: 21 tests passed
 - `npm run test:e2e:cli-auth`: 4 tests passed
 - `npm run smoke:pack`: passed (packed `recover --help` present)

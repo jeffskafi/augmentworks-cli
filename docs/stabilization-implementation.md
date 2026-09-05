@@ -12,7 +12,7 @@ only CLI-owned phases of the September 5, 2026 stabilization plan.
 | Package manager | npm |
 | Node requirement | `>=20` |
 | Source package version | `0.2.1` |
-| Verified published package | `@augmentworks/cli@0.3.1` (release candidate pin; npm confirmation follows GitHub Release `v0.2.1`) |
+| Verified published package | `@augmentworks/cli@0.2.1` (npm `latest`, 2026-09-05) |
 | Hosted protocol | `aw-relay/0.1` |
 | Recovery protocol | `aw-run-intent-reconcile/0.1` |
 | Intent format | `aw-run-intent/0.2` with `0.1` tenant migration |
@@ -72,12 +72,24 @@ See `docs/stabilization-rollout.md`.
 | Command | Result (this branch) |
 | --- | --- |
 | `npm run typecheck` | pass |
-| `npm test` | 34 files / 290 tests pass |
+| `npm test` | 34 files / 291 tests pass |
 | `npm run build` | pass (`dist/index.js`) |
 | `npm run test:integration:recovery` | 3 files / 21 tests pass |
 | `npm run test:e2e:cli-auth` | 1 file / 4 tests pass |
 | `npm run smoke:pack` | pass, packed `recover --help` includes `--retire`/`--resume`/`--cancel` |
 
-Working commit after local verification is recorded in git history on `cursor/cli-stabilization-recovery-8ae6`.
+Working commit after local verification is recorded in git history on `cursor/cli-stabilization-recovery-8ae6`. Release pins and the credential-lock reclaim fix landed on `main` via [PR #10](https://github.com/jeffskafi/augmentworks-cli/pull/10).
 
-Externally blocked: Chromium/WebKit against production-equivalent website CSP on a same-machine browser; website reconcile endpoint deployment; npm publication of a version that includes `recover`.
+Externally blocked: Chromium/WebKit against production-equivalent website CSP on a same-machine browser; website `POST /v1/relay/run-intents:reconcile` plus typed `rejected_uncreated` must be deployed before documenting `--retire` of unbound creates in production; website CLI pin in `jeffskafi/augmentworks` should move to `0.2.1`.
+
+## Publish evidence (0.2.1)
+
+| Check | Result |
+| --- | --- |
+| GitHub Release | [v0.2.1](https://github.com/jeffskafi/augmentworks-cli/releases/tag/v0.2.1) |
+| Publish workflow | [success](https://github.com/jeffskafi/augmentworks-cli/actions/runs/33988894523) |
+| `npm view @augmentworks/cli version` | `0.2.1` |
+| `npm view @augmentworks/cli@0.2.1 version` | `0.2.1` |
+| Installed `augmentworks --version` | `0.2.1` |
+| Packed `recover --help` | lists `--retire` / `--resume` / `--cancel`; does not list `--force-delete` |
+| Provenance | [Sigstore log](https://search.sigstore.dev/?logIndex=2730171707) |
