@@ -20,12 +20,12 @@ target SDK, and no coding assistant is used in either runtime path.
 
 | Identity | Current value |
 | --- | --- |
-| Source package (`package.json`) | `0.2.0` |
-| Verified published npm package | `@augmentworks/cli@0.2.0` |
+| Source package (`package.json`) | `0.2.1` |
+| Verified published npm package | `@augmentworks/cli@0.2.1` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.2.0**. The published tarball includes
+Executable `npx` examples pin **0.2.1**. The published tarball includes
 `test --local` and the bundled starter packet. It omits `examples/`; clone this
 repository for the refund-agent example server.
 
@@ -35,15 +35,15 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login
+npx --yes @augmentworks/cli@0.2.1 login
 
-npx --yes @augmentworks/cli@0.2.0 init --agent
+npx --yes @augmentworks/cli@0.2.1 init --agent
 # Edit augmentworks.yaml and .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open
@@ -61,7 +61,7 @@ finishes.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login --device
+npx --yes @augmentworks/cli@0.2.1 login --device
 ```
 
 ## Local quickstart
@@ -81,10 +81,10 @@ node --env-file=.env server.mjs
 In another terminal, from `examples/refund-agent`:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -271,8 +271,8 @@ containing `packet.json`.
 Print the packet and result schemas with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
+npx --yes @augmentworks/cli@0.2.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.1 schema --kind local-result
 ```
 
 ### Local reports and trust

@@ -231,9 +231,11 @@ async function reclaimDeadOwner(
   options: SecureLockOptions,
   runtime: SecureLockRuntime
 ): Promise<void> {
-  const directory = await inspectLockDirectory(options);
+  const directory = await inspectLockDirectoryIfPresent(options);
+  if (directory === undefined) return;
   const ownerPath = join(options.path, OWNER_FILE);
-  const first = await readOwner(ownerPath, options);
+  const first = await readOwnerIfLockPresent(ownerPath, options);
+  if (first === undefined) return;
   if (first.owner.hostname !== runtime.hostname) {
     throw lockError(options, "foreignOwner", "belongs to a different host");
   }
@@ -279,8 +281,10 @@ async function reclaimDeadOwner(
     }
   }
 
-  const currentDirectory = await inspectLockDirectory(options);
-  const currentOwner = await readOwner(ownerPath, options);
+  const currentDirectory = await inspectLockDirectoryIfPresent(options);
+  if (currentDirectory === undefined) return;
+  const currentOwner = await readOwnerIfLockPresent(ownerPath, options);
+  if (currentOwner === undefined) return;
   if (
     !sameIdentity(directory, currentDirectory) ||
     !sameIdentity(first.identity, currentOwner.identity) ||
@@ -291,9 +295,39 @@ async function reclaimDeadOwner(
 
   try {
     await unlink(ownerPath);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw lockError(options, "changed", "could not atomically claim its dead owner", error);
+    }
+  }
+  try {
     await rmdir(options.path);
   } catch (error) {
+    if (isMissingPathError(error)) return;
     throw lockError(options, "changed", "could not atomically claim its dead owner", error);
+  }
+}
+
+async function inspectLockDirectoryIfPresent(options: SecureLockOptions): Promise<Stats | undefined> {
+  try {
+    return await inspectLockDirectory(options);
+  } catch (error) {
+    // Holder already released: mkdir can create the lock on the next attempt.
+    // Do not re-stat here; a replacement lock may already exist.
+    if (isMissingPathError(error)) return undefined;
+    throw error;
+  }
+}
+
+async function readOwnerIfLockPresent(
+  path: string,
+  options: SecureLockOptions
+): Promise<OwnerSnapshot | undefined> {
+  try {
+    return await readOwner(path, options);
+  } catch (error) {
+    if (isMissingPathError(error) && (await pathIsMissing(options.path))) return undefined;
+    throw error;
   }
 }
 
@@ -486,4 +520,18 @@ function isErrorCode(error: unknown, code: string): boolean {
     "code" in error &&
     (error as { code?: unknown }).code === code
   );
+}
+
+function isMissingPathError(error: unknown): boolean {
+  if (isErrorCode(error, "ENOENT")) return true;
+  return error instanceof AwError && isMissingPathError(error.cause);
+}
+
+async function pathIsMissing(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return false;
+  } catch (error) {
+    return isErrorCode(error, "ENOENT");
+  }
 }

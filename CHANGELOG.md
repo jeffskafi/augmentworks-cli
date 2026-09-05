@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-05
+
 ### Added
 
 - `recover` inspects a hosted assessment without creating a new run. `--retire`,
@@ -25,6 +27,14 @@ All notable changes to this project are documented here. The format follows
   intent active.
 - Browser login callback responses send `cache-control: no-store` and
   `referrer-policy: no-referrer`.
+- Hosted and local `npx` examples pin `@augmentworks/cli@0.2.1`.
+
+### Fixed
+
+- Credential refresh no longer fails with `CREDENTIAL_REFRESH_LOCK_CHANGED` when
+  the lock directory disappears during reclaim (Windows waiter `EEXIST` then
+  holder `release()` race). Acquire retries `mkdir` instead of treating
+  disappearance as a fatal identity change.
 
 ## [0.2.0] - 2026-09-04
 
@@ -66,5 +76,6 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.2.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.1
 [0.2.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.0
 [0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0
