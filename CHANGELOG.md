@@ -29,6 +29,13 @@ All notable changes to this project are documented here. The format follows
   `referrer-policy: no-referrer`.
 - Hosted and local `npx` examples pin `@augmentworks/cli@0.2.1`.
 
+### Fixed
+
+- Credential refresh no longer fails with `CREDENTIAL_REFRESH_LOCK_CHANGED` when
+  the lock directory disappears during reclaim (Windows waiter `EEXIST` then
+  holder `release()` race). Acquire retries `mkdir` instead of treating
+  disappearance as a fatal identity change.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

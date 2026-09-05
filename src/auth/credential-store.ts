@@ -600,7 +600,8 @@ export class FileCredentialRefreshLock implements CredentialRefreshLock {
           cause instanceof AwError &&
           (cause.code === "CREDENTIAL_REFRESH_LOCKED" ||
             cause.code === "CREDENTIAL_REFRESH_LOCK_OWNER_UNKNOWN" ||
-            cause.code === "CREDENTIAL_REFRESH_LOCK_FOREIGN_OWNER");
+            cause.code === "CREDENTIAL_REFRESH_LOCK_FOREIGN_OWNER" ||
+            (cause.code === "CREDENTIAL_REFRESH_LOCK_CHANGED" && isEnoentCause(cause)));
         if (!occupied) {
           throw cause;
         }
@@ -1003,6 +1004,10 @@ function credentialIoError(message: string, cause?: unknown): AwError {
 
 function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code;
+}
+
+function isEnoentCause(error: AwError): boolean {
+  return isNodeError(error.cause, "ENOENT");
 }
 
 function isCanonicalBase64(value: string): boolean {

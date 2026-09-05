@@ -263,4 +263,36 @@ describe("secure lock", () => {
     });
     await expect(lstat(path)).resolves.toBeDefined();
   });
+
+  it("retries acquire when the lock directory disappears during reclaim", async () => {
+    const path = join(await temporaryDirectory(), "run.lock");
+    const held = await acquireSecureLock(
+      options(
+        path,
+        runtime({
+          pid: 1111,
+          processStartId: "start-1111",
+          nonce: () => "a".repeat(32),
+          probeProcess: () => "alive",
+          processStartIdFor: () => "start-1111"
+        })
+      )
+    );
+    const lock = await acquireSecureLock(
+      options(
+        path,
+        runtime({
+          pid: 2222,
+          processStartId: "start-2222",
+          probeProcess: async () => {
+            await held.release();
+            return "dead";
+          }
+        })
+      )
+    );
+    expect((await lstat(path)).isDirectory()).toBe(true);
+    await lock.release();
+    await expect(lstat(path)).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
