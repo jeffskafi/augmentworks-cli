@@ -24,6 +24,8 @@ const documentedSurfaces = [
   "docs/protocol.md",
   "docs/security-model.md",
   "docs/troubleshooting.md",
+  "docs/stabilization-implementation.md",
+  "docs/stabilization-rollout.md",
   "examples/refund-agent/README.md"
 ] as const;
 
@@ -83,7 +85,7 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
     expect(HOSTED_COMMANDS.test).not.toContain("--assessment");
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

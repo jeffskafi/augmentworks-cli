@@ -2,9 +2,6 @@ import { resolve } from "node:path";
 
 import { Command } from "commander";
 
-import { CloudAuthClient } from "../auth/client.js";
-import { getApiOrigin } from "../auth/api-origin.js";
-import { createAccessTokenManager, resolveAccessToken } from "../auth/credential-store.js";
 import type { AccessTokenProvider, AuthIdentity } from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import {
@@ -24,15 +21,25 @@ import {
   primaryPacket
 } from "../assessment/index.js";
 import {
+  prepareCreateAttempt,
+  releaseTerminalIfSafe,
+  settleCreateFailure,
+  type RecoveryContext
+} from "../relay/recovery.js";
+import {
   RunIntentStore,
   type CreateRunIntentRequest,
-  type RunIntentTenantBinding
+  type RunIntent
 } from "../relay/run-intent.js";
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { getStateDirectory } from "../relay/state-dir.js";
 import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../system/browser.js";
 import { HOSTED_TEST_KEEP_TERMINAL } from "../release.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
+import {
+  authenticateHostedSession,
+  type HostedAuthDependencies
+} from "./hosted-auth.js";
 import {
   formatLocalTestHuman,
   formatLocalTestJson,
@@ -67,20 +74,8 @@ export interface SignalHost {
   exit(code: number): never;
 }
 
-export interface TestDependencies {
+export interface TestDependencies extends HostedAuthDependencies {
   readonly doctor?: (options: Parameters<typeof runDoctor>[0]) => Promise<DoctorReport>;
-  readonly apiOrigin?: (env: NodeJS.ProcessEnv) => URL;
-  readonly accessToken?: (options: Parameters<typeof resolveAccessToken>[0]) => Promise<string>;
-  readonly identity?: (options: {
-    readonly apiOrigin: URL;
-    readonly accessToken: string;
-    readonly signal?: AbortSignal;
-  }) => Promise<AuthIdentity>;
-  readonly cloud?: (options: {
-    apiOrigin: URL;
-    accessToken: string;
-    accessTokenProvider: AccessTokenProvider;
-  }) => CloudClient;
   readonly connector?: (config: ResolvedConfig) => HttpConnector;
   readonly runner?: (options: ConstructorParameters<typeof RelayRunner>[0]) => RelayRunner;
   readonly intentStore?: (
@@ -88,7 +83,6 @@ export interface TestDependencies {
   ) => RunIntentStore;
   readonly openBrowser?: BrowserOpener;
   readonly stdout?: Pick<NodeJS.WriteStream, "write">;
-  readonly stderr?: Pick<NodeJS.WriteStream, "write">;
   readonly signals?: SignalHost;
   readonly setExitCode?: (code: number) => void;
   readonly onProgress?: (event: RelayProgressEvent) => void;
@@ -130,68 +124,7 @@ export async function runTest(
         };
   const protocolVersion =
     assessment === undefined ? RELAY_PROTOCOL_VERSION : RELAY_PROTOCOL_VERSION_V2;
-  const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
-  const accessTokenOptions = {
-    apiOrigin,
-    env,
-    ...(options.allowFileCredentials === undefined
-      ? {}
-      : { allowFileFallback: options.allowFileCredentials }),
-    onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
-  };
-  const rawAccessTokenProvider: AccessTokenProvider =
-    dependencies.accessToken === undefined
-      ? (await createAccessTokenManager(accessTokenOptions)).getAccessToken
-      : async (request = {}) =>
-          await dependencies.accessToken!({
-            ...accessTokenOptions,
-            ...request
-          });
-  const authClient = new CloudAuthClient({ apiOrigin });
-  const lookupIdentity =
-    dependencies.identity ??
-    (async (identityOptions: { readonly accessToken: string; readonly signal?: AbortSignal }) =>
-      await authClient.me(identityOptions.accessToken));
-  let accessToken = await rawAccessTokenProvider();
-  let identity: AuthIdentity;
-  try {
-    identity = await lookupIdentity({
-      apiOrigin,
-      accessToken,
-      ...(options.signal === undefined ? {} : { signal: options.signal })
-    });
-  } catch (cause) {
-    if (!(cause instanceof AwError) || cause.code !== "TOKEN_REVOKED") throw cause;
-    const replacement = await rawAccessTokenProvider({
-      forceRefresh: true,
-      rejectedAccessToken: accessToken,
-      ...(options.signal === undefined ? {} : { signal: options.signal })
-    });
-    if (replacement === accessToken) throw cause;
-    accessToken = replacement;
-    identity = await lookupIdentity({
-      apiOrigin,
-      accessToken,
-      ...(options.signal === undefined ? {} : { signal: options.signal })
-    });
-  }
-  const tenant = tenantBinding(identity);
-  let verifiedAccessToken = accessToken;
-  const accessTokenProvider: AccessTokenProvider = async (request = {}) => {
-    const current = await rawAccessTokenProvider(request);
-    if (current === verifiedAccessToken) return current;
-    const currentIdentity = await lookupIdentity({
-      apiOrigin,
-      accessToken: current,
-      ...(request.signal === undefined ? {} : { signal: request.signal })
-    });
-    assertSameTenant(tenant, currentIdentity);
-    verifiedAccessToken = current;
-    return current;
-  };
-  const cloud =
-    dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
-    new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
+  const session = await authenticateHostedSession(options, dependencies);
   const observationKeys = report.resolvedConfig.capabilities.observation
     ? [...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
     : [];
@@ -232,29 +165,57 @@ export async function runTest(
   } as CreateRunIntentRequest;
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
   const intentStore =
-    dependencies.intentStore?.({ apiOrigin, tenant, stateDirectory, env }) ??
-    new RunIntentStore({ apiOrigin, tenant, stateDirectory, env });
+    dependencies.intentStore?.({
+      apiOrigin: session.apiOrigin,
+      tenant: session.tenant,
+      stateDirectory,
+      env
+    }) ??
+    new RunIntentStore({
+      apiOrigin: session.apiOrigin,
+      tenant: session.tenant,
+      stateDirectory,
+      env
+    });
   await intentStore.open();
   try {
     await intentStore.migrateLegacyTenantBinding(async (legacyBinding) => {
-      const status = await cloud.getRunStatus(legacyBinding.run_id, options.signal);
+      const status = await session.cloud.getRunStatus(legacyBinding.run_id, options.signal);
       return status.run_id === legacyBinding.run_id;
     });
-    const loaded = await intentStore.loadOrCreate(request);
-    const binding = await cloud.createRun(loaded.intent.request, options.signal);
-    assertRunBinding(binding, loaded.intent.request);
-    await intentStore.bind(binding);
+    const recovery: RecoveryContext = {
+      cloud: session.cloud,
+      intentStore,
+      tenant: session.tenant,
+      stateDirectory,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    };
+    const prepared = await prepareCreateAttempt(recovery, request);
+    let binding: CreateRunResponse;
+    if (prepared.kind === "resume_bound") {
+      binding = prepared.binding;
+    } else {
+      const loaded =
+        prepared.kind === "replay_pending"
+          ? { intent: prepared.intent, resumed: true }
+          : await intentStore.loadOrCreate(request);
+      binding = await createOrRecover(recovery, loaded.intent, options.signal);
+    }
+    assertRunBinding(binding, intentStore.intent?.request ?? { ...request, create_request_id: binding.create_request_id });
+    if (intentStore.intent?.phase !== "bound") {
+      await intentStore.bind(binding);
+    }
 
-    const dashboard = dashboardUrl(binding.dashboard_url, apiOrigin);
+    const dashboard = dashboardUrl(binding.dashboard_url, session.apiOrigin);
     const stderr = dependencies.stderr ?? process.stderr;
     writeLine(
       stderr,
-      `${loaded.resumed ? "Resuming" : "Run"} ${sanitizeTerminal(binding.run_id)}: ${sanitizeTerminal(dashboard.toString())}`
+      `${prepared.kind === "resume_bound" || prepared.kind === "replay_pending" ? "Resuming" : "Run"} ${sanitizeTerminal(binding.run_id)}: ${sanitizeTerminal(dashboard.toString())}`
     );
     writeLine(stderr, HOSTED_TEST_KEEP_TERMINAL);
     if (options.open === true) {
       try {
-        await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [apiOrigin.origin])))(
+        await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [session.apiOrigin.origin])))(
           dashboard
         );
       } catch (error) {
@@ -264,8 +225,8 @@ export async function runTest(
     }
 
     if (isTerminal(binding.status)) {
-      const run = await cloud.getRunStatus(binding.run_id, options.signal);
-      await intentStore.removeTerminal(run);
+      const run = await session.cloud.getRunStatus(binding.run_id, options.signal);
+      await releaseTerminalIfSafe(recovery, binding, run);
       return { binding, run };
     }
 
@@ -277,7 +238,7 @@ export async function runTest(
         ? undefined
         : (event: RelayProgressEvent) => writeProgress(stderr, event));
     const runnerOptions: ConstructorParameters<typeof RelayRunner>[0] = {
-      cloud,
+      cloud: session.cloud,
       connector,
       binding,
       stateDirectory,
@@ -294,13 +255,25 @@ export async function runTest(
           });
     try {
       const run = await runner.run();
-      await intentStore.removeTerminal(run);
+      await releaseTerminalIfSafe(recovery, binding, run);
       return { binding, run };
     } finally {
       removeSignals();
     }
   } finally {
     await intentStore.close();
+  }
+}
+
+async function createOrRecover(
+  recovery: RecoveryContext,
+  intent: RunIntent,
+  signal?: AbortSignal
+): Promise<CreateRunResponse> {
+  try {
+    return await recovery.cloud.createRun(intent.request, signal);
+  } catch (error) {
+    return await settleCreateFailure(recovery, intent, error);
   }
 }
 
@@ -314,7 +287,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     )
     .option(
       "--assessment <path>",
-      "hosted assessment file (source 0.3.0; not in published 0.2.0)"
+      "hosted assessment file (source 0.3.0; not in published 0.2.1)"
     )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--local", "run entirely in the customer environment without AugmentWorks services")
@@ -565,27 +538,6 @@ function assertRunBinding(binding: CreateRunResponse, request: CreateRunRequest)
   }
 }
 
-function tenantBinding(identity: AuthIdentity): RunIntentTenantBinding {
-  return {
-    workspace_id: identity.workspaceId,
-    connector_id: identity.connectorId
-  };
-}
-
-function assertSameTenant(expected: RunIntentTenantBinding, identity: AuthIdentity): void {
-  if (
-    identity.workspaceId !== expected.workspace_id ||
-    identity.connectorId !== expected.connector_id
-  ) {
-    throw new AwError({
-      code: "AUTH_TENANT_CHANGED",
-      category: "auth",
-      message:
-        "The authenticated AugmentWorks connector or workspace changed while the assessment was starting. No request was sent with the changed credential."
-    });
-  }
-}
-
 function isTerminal(status: CreateRunResponse["status"]): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
@@ -616,3 +568,5 @@ function writeProgress(stream: Pick<NodeJS.WriteStream, "write">, event: RelayPr
 function writeLine(stream: Pick<NodeJS.WriteStream, "write">, value: string): void {
   stream.write(`${sanitizeTerminal(value)}\n`);
 }
+
+export type { AccessTokenProvider, AuthIdentity };

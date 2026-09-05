@@ -21,11 +21,11 @@ target SDK, and no coding assistant is used in either runtime path.
 | Identity | Current value |
 | --- | --- |
 | Source package (`package.json`) | `0.3.0` |
-| Verified published npm package | `@augmentworks/cli@0.2.0` |
+| Verified published npm package | `@augmentworks/cli@0.2.1` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.2.0**. That published tarball does **not** include `--assessment`. Source checkout `@augmentworks/cli@0.3.0` adds hosted assessment compilation (`--assessment`, `--profile`) and `aw-relay/0.2`. The npm tarball includes `test --local` and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
+Executable `npx` examples pin **0.2.1**. That published tarball does **not** include `--assessment`. Source checkout `@augmentworks/cli@0.3.0` adds hosted assessment compilation (`--assessment`, `--profile`) and `aw-relay/0.2`. The npm tarball includes `test --local`, `recover`, and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
 
 ## Hosted quickstart
 
@@ -33,15 +33,15 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login
+npx --yes @augmentworks/cli@0.2.1 login
 
-npx --yes @augmentworks/cli@0.2.0 init --agent
+npx --yes @augmentworks/cli@0.2.1 init --agent
 # Edit augmentworks.yaml and .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open
@@ -59,7 +59,7 @@ finishes.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login --device
+npx --yes @augmentworks/cli@0.2.1 login --device
 ```
 
 ## Local quickstart
@@ -276,8 +276,8 @@ Print the packet and result schemas with:
 Print the packet and result schemas with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-result
+npx --yes @augmentworks/cli@0.2.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.1 schema --kind local-result
 ```
 
 ### Local reports and trust
@@ -299,7 +299,7 @@ same final local result on stdout; the three files are still generated.
 
 ## Source assessment files (`0.3.0`)
 
-`--assessment` is **not** in npm `@augmentworks/cli@0.2.0`. From a source
+`--assessment` is **not** in npm `@augmentworks/cli@0.2.1`. From a source
 checkout of `@augmentworks/cli@0.3.0` after `npm ci` and `npm run build`:
 
 ```bash
@@ -340,7 +340,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from a source 0.3.0 assessment file | Uses `aw-relay/0.2`; published `@augmentworks/cli@0.2.0` does not include this flag |
+| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from a source 0.3.0 assessment file | Uses `aw-relay/0.2`; published `@augmentworks/cli@0.2.1` does not include this flag |
+| `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
 
@@ -416,10 +417,11 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
   connector online only for the assessment it starts.
 - Re-running the same hosted `test` command resumes an active bound intent or
   follows the workspace's remaining baseline/remediation allowance. There is no
-  `--rerun` flag.
+  `--rerun` flag. Use `recover` to inspect an interrupted or rejected create
+  without starting another run.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
-- Published `@augmentworks/cli@0.2.0` does not include `--assessment`. Use a
+- Published `@augmentworks/cli@0.2.1` does not include `--assessment`. Use a
   source 0.3.0 checkout (`node dist/index.js`) for assessment files.
 
 ## Development

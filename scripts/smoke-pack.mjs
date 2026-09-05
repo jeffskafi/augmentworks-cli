@@ -269,6 +269,12 @@ async function main() {
     const installedVersion = execCli(["--version"]);
     assert(installedVersion.stdout.trim() === rootManifest.version, "installed CLI version is inconsistent");
 
+    const recoverHelp = execCli(["recover", "--help"]);
+    assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");
+    assert(recoverHelp.stdout.includes("--resume"), "packed CLI is missing recover --resume");
+    assert(recoverHelp.stdout.includes("--cancel"), "packed CLI is missing recover --cancel");
+    assert(!recoverHelp.stdout.includes("--force-delete"), "packed CLI advertised --force-delete");
+
     process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
     const schemaResult = execCli(["schema"]);
     let schema;

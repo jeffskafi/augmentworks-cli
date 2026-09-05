@@ -14,7 +14,7 @@ This directory is **not included in the npm tarball**. Clone the CLI repository
 and build source `0.3.0` (`npm ci && npm run build`) so `node dist/index.js`
 can run the local starter from this example directory after copying
 `augmentworks.yaml` to the working directory, or invoke the built CLI with
-`-c` pointing here. Published `@augmentworks/cli@0.2.0` still supports
+`-c` pointing here. Published `@augmentworks/cli@0.2.1` still supports
 `--local` via npx but does not include `--assessment`.
 
 ## Obtain the example
@@ -68,9 +68,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login
+npx --yes @augmentworks/cli@0.2.1 login
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

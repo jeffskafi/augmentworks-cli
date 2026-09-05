@@ -19,13 +19,46 @@ All notable changes to this project are documented here. The format follows
   (evaluation error). Behavioral failures remain `10`.
 - Local-mode rejection of `aw-packet/0.2`, `evaluation_mode: hybrid`, and
   `llm_rubric` packets before any target call.
+- Hosted `test` uses the 0.2.1 recover/reconcile path, so interrupted creates
+  can be rebound or retired instead of treating a corrected command as a
+  second active run.
 
 ### Changed
 
 - Source package version is `0.3.0`. Published npx pin remains
-  `@augmentworks/cli@0.2.0`, which does not include `--assessment`.
+  `@augmentworks/cli@0.2.1`, which does not include `--assessment`.
 - Local documented commands use `node dist/index.js` while source and published
   versions differ.
+
+## [0.2.1] - 2026-09-05
+
+### Added
+
+- `recover` inspects a hosted assessment without creating a new run. `--retire`,
+  `--resume`, and `--cancel` are mutually exclusive; default recovery is
+  inspection only.
+- Client support for `POST /v1/relay/run-intents:reconcile`
+  (`aw-run-intent-reconcile/0.1`) so a definitive rejected create can be
+  retired and an interrupted run can be rebound after the create-replay window.
+
+### Changed
+
+- Hosted `test` reconciles an existing intent before treating a corrected
+  command as `ACTIVE_RUN_EXISTS`. Generic create HTTP errors no longer clear
+  pending state.
+- Terminal local execution retirement now checks the relay journal for
+  outstanding cleanup, and pending grading no longer keeps the local execution
+  intent active.
+- Browser login callback responses send `cache-control: no-store` and
+  `referrer-policy: no-referrer`.
+- Hosted and local `npx` examples pin `@augmentworks/cli@0.2.1`.
+
+### Fixed
+
+- Credential refresh no longer fails with `CREDENTIAL_REFRESH_LOCK_CHANGED` when
+  the lock directory disappears during reclaim (Windows waiter `EEXIST` then
+  holder `release()` race). Acquire retries `mkdir` instead of treating
+  disappearance as a fatal identity change.
 
 ## [0.2.0] - 2026-09-04
 
@@ -67,5 +100,6 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.2.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.1
 [0.2.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.0
 [0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0
