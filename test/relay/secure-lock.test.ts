@@ -286,7 +286,7 @@ describe("secure lock", () => {
           processStartId: "start-2222",
           probeProcess: async () => {
             await held.release();
-            return "dead";
+            return "dead" as const;
           }
         })
       )
