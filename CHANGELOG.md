@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `recover` inspects a hosted assessment without creating a new run. `--retire`,
+  `--resume`, and `--cancel` are mutually exclusive; default recovery is
+  inspection only.
+- Client support for `POST /v1/relay/run-intents:reconcile`
+  (`aw-run-intent-reconcile/0.1`) so a definitive rejected create can be
+  retired and an interrupted run can be rebound after the create-replay window.
+
+### Changed
+
+- Hosted `test` reconciles an existing intent before treating a corrected
+  command as `ACTIVE_RUN_EXISTS`. Generic create HTTP errors no longer clear
+  pending state.
+- Terminal local execution retirement now checks the relay journal for
+  outstanding cleanup, and pending grading no longer keeps the local execution
+  intent active.
+- Browser login callback responses send `cache-control: no-store` and
+  `referrer-policy: no-referrer`.
+
 ## [0.2.0] - 2026-09-04
 
 ### Added

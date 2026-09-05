@@ -707,6 +707,45 @@ export class RelayJournal {
   }
 }
 
+export interface RelayJournalInspection {
+  readonly present: boolean;
+  readonly outstandingPreparedAttempts: readonly string[];
+  readonly unacknowledged: boolean;
+}
+
+export async function inspectRelayJournal(
+  options: RelayJournalOptions
+): Promise<RelayJournalInspection> {
+  const journal = new RelayJournal(options);
+  let exists = false;
+  try {
+    const stat = await lstat(journal.path);
+    if (stat.isSymbolicLink() || !stat.isFile()) {
+      throw new AwError({
+        code: "UNSAFE_JOURNAL_PATH",
+        category: "local",
+        message: "The relay journal must be a regular file and cannot be a symbolic link."
+      });
+    }
+    exists = true;
+  } catch (error) {
+    if (!isMissingPath(error)) throw error;
+  }
+  if (!exists) {
+    return { present: false, outstandingPreparedAttempts: [], unacknowledged: false };
+  }
+  await journal.open();
+  try {
+    return {
+      present: true,
+      outstandingPreparedAttempts: journal.outstandingPreparedAttempts(),
+      unacknowledged: journal.pending() !== undefined
+    };
+  } finally {
+    await journal.close({ purge: false });
+  }
+}
+
 function freezeState(state: MutableCommandState): JournalCommandState {
   return structuredClone({
     accepted: state.accepted,

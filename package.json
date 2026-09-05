@@ -24,6 +24,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "npm run typecheck && npm test && npm run build",
+    "test:integration:recovery": "vitest run test/recovery/recovery.test.ts test/integration/create-resume.test.ts test/integration/cli-entry.test.ts",
+    "test:e2e:cli-auth": "vitest run test/auth/loopback-callback.test.ts",
     "audit:ci": "npm audit --audit-level=high",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "prepare": "npm run build",

@@ -48,6 +48,7 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | Method and path | Purpose |
 | --- | --- |
 | `POST /v1/relay/runs` | Create or replay one run for a packet/config binding |
+| `POST /v1/relay/run-intents:reconcile` | Authoritative create-key lookup, binding past replay, and optional uncreated-key retirement (`aw-run-intent-reconcile/0.1`) |
 | `POST /v1/relay/sessions/{session_id}/commands:poll` | Long-poll after the last accepted sequence |
 | `POST /v1/relay/commands/{command_id}:complete` | Commit a normalized successful result |
 | `POST /v1/relay/commands/{command_id}:fail` | Commit a safe failure or indeterminate outcome |
@@ -174,11 +175,20 @@ connector may already own its create ID and therefore fails closed without
 sending a create request.
 
 The intent is removed only after the runner or a status GET returns an
-authoritative `completed`, `failed`, or `cancelled` status. A crash, network
+authoritative `completed`, `failed`, or `cancelled` **target execution** status
+and local cleanup or acknowledgements are complete. Pending background grading
+does not keep the local execution intent active. A crash, network
 failure, indeterminate operation, incomplete cleanup, or unavailable terminal
 status keeps recovery state. Recovery is local to that state directory; copying
 only the command line to another machine does not transfer ownership or safely
 reconstruct a lost create ID.
+
+`augmentworks recover` inspects that state without creating a run. A generic
+HTTP 400/404/409/410 from create is not proof that no run exists. The CLI
+retires a pending create only after an explicit typed `rejected_uncreated`
+result or `aw-run-intent-reconcile/0.1` proof. Old servers that lack the
+reconcile endpoint leave pending state in place and return
+`RECOVERY_UNSUPPORTED` rather than clearing the journal.
 
 Recovery proceeds only when the secure lock owner can be positively
 established. On the same host, a positively dead recorded process is reclaimable

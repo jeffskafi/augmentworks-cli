@@ -23,6 +23,8 @@ const documentedSurfaces = [
   "docs/protocol.md",
   "docs/security-model.md",
   "docs/troubleshooting.md",
+  "docs/stabilization-implementation.md",
+  "docs/stabilization-rollout.md",
   "examples/refund-agent/README.md"
 ] as const;
 
@@ -78,7 +80,7 @@ describe("customer-facing CLI copy", () => {
     expect(localTestAt).toBeGreaterThan(localCloneAt);
     expect(readme).toContain(`@augmentworks/cli@${SOURCE_PACKAGE_VERSION}`);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

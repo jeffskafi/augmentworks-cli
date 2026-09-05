@@ -26,15 +26,27 @@ describe("CLI entrypoint", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("advertises the complete v0.2 command surface", async () => {
+  it("advertises the complete command surface", async () => {
     const result = await runSourceCli(["--help"], { cwd: projectRoot });
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
+  });
+
+  it("documents recover as inspect-only with mutually exclusive actions", async () => {
+    const result = await runSourceCli(["recover", "--help"], { cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Inspect or recover a hosted assessment without creating a new run");
+    expect(result.stdout).toContain("--retire");
+    expect(result.stdout).toContain("--resume");
+    expect(result.stdout).toContain("--cancel");
+    expect(result.stdout).toContain("--json");
+    expect(result.stdout).not.toContain("--force-delete");
   });
 
   it("uses Commander errors, suggestions, help, and a non-zero exit for invalid commands", async () => {

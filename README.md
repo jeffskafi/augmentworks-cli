@@ -302,6 +302,7 @@ same final local result on stdout; the three files are still generated.
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline]` | Validate config, mappings, secrets, and local prerequisites | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
+| `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
 
@@ -374,7 +375,8 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
   connector online only for the assessment it starts.
 - Re-running the same hosted `test` command resumes an active bound intent or
   follows the workspace's remaining baseline/remediation allowance. There is no
-  `--rerun` flag.
+  `--rerun` flag. Use `recover` to inspect an interrupted or rejected create
+  without starting another run.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
 
