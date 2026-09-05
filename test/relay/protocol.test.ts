@@ -195,7 +195,7 @@ describe("aw-relay/0.1 protocol", () => {
           plan_hash: "d".repeat(64),
           profile: "full",
           evaluation_mode: "hybrid",
-          disclosure_version: "aw-judge-disclosure/1",
+          disclosure_version: "aw-judge-disclosure/2",
           reference_bundle: {
             bundleId: "bundle_test",
             entries: [

@@ -91,7 +91,7 @@ describe("idempotent run creation", () => {
           plan_hash: "e".repeat(64),
           profile: "quick",
           evaluation_mode: "hybrid",
-          disclosure_version: "aw-judge-disclosure/1",
+          disclosure_version: "aw-judge-disclosure/2",
           reference_bundle: {
             bundleId: "bundle_test",
             entries: [
@@ -116,17 +116,49 @@ describe("idempotent run creation", () => {
             ...createRequest.target.capabilities,
             multi_turn: true
           }
-        }
-      }).success
-    ).toBe(true);
     expect(
       CreateRunRequestSchema.safeParse({
         ...createRequest,
+        protocol_version: "aw-relay/0.2",
         assessment: {
           plan_hash: "e".repeat(64),
           profile: "quick",
           evaluation_mode: "hybrid",
           disclosure_version: "aw-judge-disclosure/1",
+          reference_bundle: {
+            bundleId: "bundle_test",
+            entries: [
+              {
+                id: "faq-current-returns",
+                kind: "reference_facts",
+                sourceLabel: "FAQ",
+                scope: "complete",
+                content: "é".repeat(8_001),
+                contentHash: "a".repeat(64),
+                complete: true
+              }
+            ],
+            refundPolicy: null,
+            knowledgeBoundary: "complete for the synthetic FAQ",
+            targetAlreadyConfigured: true
+          }
+        },
+        target: {
+          ...createRequest.target,
+          capabilities: {
+            ...createRequest.target.capabilities,
+            multi_turn: true
+          }
+        }
+      }).success
+    ).toBe(false);
+  });
+        ...createRequest,
+        assessment: {
+          plan_hash: "e".repeat(64),
+          profile: "quick",
+          evaluation_mode: "hybrid",
+          disclosure_version: "aw-judge-disclosure/2",
           reference_bundle: {
             bundleId: "bundle_test",
             entries: [

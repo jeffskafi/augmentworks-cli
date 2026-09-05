@@ -23,7 +23,7 @@ import {
 } from "./schema.js";
 
 const CREDENTIAL_KEY =
-  /(?:api[_-]?key|secret|password|token|credential|anthropic|judge[_-]?key|grader[_-]?key)/iu;
+  /(?:api[_-]?key|secret|password|token|credential|anthropic|openai|judge[_-]?key|grader[_-]?key)/iu;
 
 export interface LoadedLocalReference {
   readonly id: string;

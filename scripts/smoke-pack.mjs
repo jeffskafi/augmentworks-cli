@@ -94,6 +94,7 @@ function assertInventory(report) {
   for (const path of [
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
+    "schemas/v1/assessment.schema.json",
     "packets/support-refunds-starter/0.1.0/packet.json",
     "schemas/v1/cli-release.json"
   ]) {
@@ -136,7 +137,10 @@ async function assertNoHostedJudgeClient(packageRoot) {
   const forbidden = [
     /@anthropic-ai(?:\/sdk)?/,
     /ANTHROPIC_API_KEY/,
-    /from ["']@anthropic-ai/
+    /from ["']@anthropic-ai/,
+    /from ["']openai["']/,
+    /OPENAI_API_KEY/,
+    /openai\/resources/,
   ];
   for (const path of await walkFiles(packageRoot)) {
     const metadata = await lstat(path);
@@ -150,7 +154,7 @@ async function assertNoHostedJudgeClient(packageRoot) {
     for (const pattern of forbidden) {
       assert(
         !pattern.test(content),
-        `hosted judge client or ANTHROPIC credential leaked into ${normalized}`
+        `hosted judge client or judge credential leaked into ${normalized}`
       );
     }
   }
@@ -281,7 +285,7 @@ async function main() {
     }
     assert(schema !== null && typeof schema === "object", "schema command returned a non-object");
     assert(schema.type === "object", "schema command returned an unexpected root schema");
-    for (const kind of ["local-packet", "local-result"]) {
+    for (const kind of ["local-packet", "local-result", "assessment"]) {
       const localSchema = JSON.parse(execCli(["schema", "--kind", kind, "--compact"]).stdout);
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
     }
