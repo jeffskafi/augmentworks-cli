@@ -26,7 +26,10 @@ export async function runSourceCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  const child = spawn(process.execPath, ["--import", tsxImportUrl, sourceEntrypoint, ...args], {
+  const child = spawn(
+    process.execPath,
+    ["--disable-warning=DEP0205", "--import", tsxImportUrl, sourceEntrypoint, ...args],
+    {
     cwd: options.cwd,
     env: {
       ...process.env,
