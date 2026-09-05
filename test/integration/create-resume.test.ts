@@ -105,6 +105,12 @@ test("a lost create response is resumed with one durable request and reservation
       });
       return;
     }
+    if (request.method === "POST" && path === "/v1/relay/run-intents:reconcile") {
+      sendJson(response, 404, {
+        error: { code: "NOT_FOUND", message: "Not found" }
+      });
+      return;
+    }
     if (request.method === "GET" && path === "/v1/relay/runs/run-resume-1") {
       sendJson(response, 200, {
         protocol_version: "aw-relay/0.1",

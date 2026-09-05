@@ -107,19 +107,24 @@ function deferredCallback(
   return {
     promise,
     handler: (request, response) => {
+      const noStore = {
+        "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
+        "x-content-type-options": "nosniff"
+      } as const;
       if (request.method !== "GET") {
-        response.writeHead(405, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(405, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end("Method not allowed");
         return;
       }
       const requestUrl = new URL(request.url ?? "/", `http://${LOOPBACK_HOST}`);
       if (requestUrl.pathname !== callbackPath) {
-        response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(404, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end("Not found");
         return;
       }
       if (completed) {
-        response.writeHead(409, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(409, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end(AUTH_USER_MESSAGES.alreadyUsed);
         return;
       }
@@ -127,7 +132,7 @@ function deferredCallback(
       const error = requestUrl.searchParams.get("error");
       const code = requestUrl.searchParams.get("code");
       if (returnedState !== expectedState) {
-        response.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(400, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end("Invalid authorization state");
         rejectOnce(
           new AwError({
@@ -139,7 +144,7 @@ function deferredCallback(
         return;
       }
       if (error !== null) {
-        response.writeHead(403, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(403, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end(
           error === "access_denied" ? AUTH_USER_MESSAGES.denied : AUTH_USER_MESSAGES.incomplete
         );
@@ -154,7 +159,7 @@ function deferredCallback(
         return;
       }
       if (code === null || code === "" || code.length > 8_192 || /[\r\n\0]/.test(code)) {
-        response.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+        response.writeHead(400, { "content-type": "text/plain; charset=utf-8", ...noStore });
         response.end("Missing authorization code");
         rejectOnce(
           new AwError({
@@ -170,6 +175,7 @@ function deferredCallback(
       response.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "no-store",
+        "referrer-policy": "no-referrer",
         "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
         "x-content-type-options": "nosniff"
       });
