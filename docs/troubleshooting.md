@@ -3,7 +3,7 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c augmentworks.yaml
 ```
 
@@ -23,7 +23,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -65,7 +65,7 @@ modules, symlinks, or executable instructions. Validate the expected data shape
 with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 schema --kind local-packet
+npx --yes @augmentworks/cli@0.2.1 schema --kind local-packet
 ```
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
@@ -165,9 +165,9 @@ There is no `--rerun` flag and no force-new option.
 
 Inspect the existing assessment without creating another run:
 
-```text
-augmentworks recover
-augmentworks recover --json
+```bash
+npx --yes @augmentworks/cli@0.2.1 recover
+npx --yes @augmentworks/cli@0.2.1 recover --json
 ```
 
 `--retire` retires a create only after the server proves it never became a run,

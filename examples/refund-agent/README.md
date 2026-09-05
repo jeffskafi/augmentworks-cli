@@ -35,10 +35,10 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 doctor \
+npx --yes @augmentworks/cli@0.2.1 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -64,9 +64,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.0 login
+npx --yes @augmentworks/cli@0.2.1 login
 
-npx --yes @augmentworks/cli@0.2.0 test \
+npx --yes @augmentworks/cli@0.2.1 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

@@ -6,7 +6,7 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-export const PUBLISHED_PACKAGE_VERSION: string = "0.2.0";
+export const PUBLISHED_PACKAGE_VERSION: string = "0.2.1";
 export const PUBLISHED_PACKAGE_VERIFIED = true;
 export const HOSTED_COMMAND_PIN: string = PUBLISHED_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
@@ -92,6 +92,7 @@ export const HOSTED_COMMANDS = {
     "-c augmentworks.yaml"
   ]),
   schemaConfig: formatNpx(HOSTED_COMMAND_PIN, ["schema", "--kind", "config"]),
+  recover: formatNpx(HOSTED_COMMAND_PIN, ["recover"]),
   test: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN}`, "test", [
     "-c augmentworks.yaml",
     `--packet ${HOSTED_PACKET_REFERENCE}`,

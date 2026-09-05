@@ -11,8 +11,8 @@ only CLI-owned phases of the September 5, 2026 stabilization plan.
 | Working branch | `cursor/cli-stabilization-recovery-8ae6` |
 | Package manager | npm |
 | Node requirement | `>=20` |
-| Source package version | `0.2.0` |
-| Verified published package | `@augmentworks/cli@0.2.0` |
+| Source package version | `0.2.1` |
+| Verified published package | `@augmentworks/cli@0.2.1` (release candidate pin; npm confirmation follows GitHub Release `v0.2.1`) |
 | Hosted protocol | `aw-relay/0.1` |
 | Recovery protocol | `aw-run-intent-reconcile/0.1` |
 | Intent format | `aw-run-intent/0.2` with `0.1` tenant migration |
