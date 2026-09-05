@@ -2,11 +2,11 @@
   "schema_version": "aw-cli-release/0.1",
   "npm_package": "@augmentworks/cli",
   "source_package_version": "0.3.0",
-  "published_package_version": "0.2.1",
+  "published_package_version": "0.3.0",
   "published_package_verified": true,
-  "recommended_cli_version": "0.2.1",
-  "hosted_command_pin": "0.2.1",
-  "local_distribution": "git",
+  "recommended_cli_version": "0.3.0",
+  "hosted_command_pin": "0.3.0",
+  "local_distribution": "npm",
   "local_source_repository": "https://github.com/jeffskafi/augmentworks-cli.git",
   "local_source_ref": "main",
   "local_example_path": "examples/refund-agent",
@@ -15,5 +15,5 @@
   "protocol_version": "aw-relay/0.1",
   "target_protocol_version": "aw-target/0.1",
   "config_version": 1,
-  "notes": "Assessment flags (--assessment, --profile) exist in source 0.3.0 and are not in the published 0.2.1 pin. Hosted npx commands pin the verified published package, including recover. Clone this repository and run node dist/index.js for source-only assessment compilation. The npm tarball includes the bundled starter packet and omits examples/; clone this repository for example servers."
+  "notes": "Published @augmentworks/cli@0.3.0 includes hosted --assessment / --profile, aw-relay/0.2, recover, and test --local. Hosted npx commands pin this verified package. Clone this repository for example servers; the npm tarball omits examples/."
 }

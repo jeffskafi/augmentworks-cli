@@ -3,7 +3,7 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.1 doctor \
+npx --yes @augmentworks/cli@0.3.0 doctor \
   -c augmentworks.yaml
 ```
 
@@ -23,7 +23,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.1 doctor \
+npx --yes @augmentworks/cli@0.3.0 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -65,7 +65,7 @@ modules, symlinks, or executable instructions. Validate the expected data shape
 with:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.0 schema --kind local-packet
 ```
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
@@ -74,12 +74,12 @@ keys available in `augmentworks.yaml`. Hybrid `aw-packet/0.2` packets and any
 packet with `evaluation_mode: hybrid` or `llm_rubric` criteria fail with
 `UNSUPPORTED_LOCAL_GRADER` before the target is contacted.
 
-### `--assessment` is missing from npx 0.2.0
+### `--assessment` requires an assessment file
 
-Published `@augmentworks/cli@0.2.0` does not include `--assessment`. Build
-source 0.3.0 and use `node dist/index.js test --assessment ...`. `--assessment`
-cannot be combined with `--local`. If hosted grading is pending after target
-work, the exit code is `11`, not `0`.
+Published `@augmentworks/cli@0.3.0` includes `--assessment`. Copy or write
+`augmentworks.assessment.yaml` first; `init` does not create it. See
+`examples/response-agent/`. `--assessment` cannot be combined with `--local`.
+If hosted grading is pending after target work, the exit code is `11`, not `0`.
 
 ### `LOCAL_PACKET_INCOMPATIBLE`
 
@@ -175,8 +175,8 @@ There is no `--rerun` flag and no force-new option.
 Inspect the existing assessment without creating another run:
 
 ```bash
-npx --yes @augmentworks/cli@0.2.1 recover
-npx --yes @augmentworks/cli@0.2.1 recover --json
+npx --yes @augmentworks/cli@0.3.0 recover
+npx --yes @augmentworks/cli@0.3.0 recover --json
 ```
 
 `--retire` retires a create only after the server proves it never became a run,

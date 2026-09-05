@@ -12,8 +12,8 @@ running customer targets.
 | Client / server | Behavior |
 | --- | --- |
 | Published `@augmentworks/cli@0.2.0` + stabilized server | Existing strict `aw-relay/0.1` create/poll/status/cancel contracts remain valid. `recover` is absent from that published tarball. |
-| Published `@augmentworks/cli@0.2.1` + stabilized server | Full inspect/retire/resume/cancel once `POST /v1/relay/run-intents:reconcile` (`aw-run-intent-reconcile/0.1`) is deployed. |
-| `@augmentworks/cli@0.2.1` + old server | Create/resume within the replay window still works. Reconcile 404/405/501 becomes `RECOVERY_UNSUPPORTED`. Pending journals are not cleared. |
+| Published `@augmentworks/cli@0.3.0` + stabilized server | Full inspect/retire/resume/cancel once `POST /v1/relay/run-intents:reconcile` (`aw-run-intent-reconcile/0.1`) is deployed. |
+| `@augmentworks/cli@0.3.0` + old server | Create/resume within the replay window still works. Reconcile 404/405/501 becomes `RECOVERY_UNSUPPORTED`. Pending journals are not cleared. |
 | Packed CLI + `--local` | Unchanged; no AugmentWorks connection. |
 
 Do not add unknown fields to existing strict create/status/poll success
@@ -25,10 +25,10 @@ schemas. Recovery uses a separate endpoint and protocol version.
    create errors. Keep old create/status contracts.
 2. Verify ordinary-role create, replay, and reconcile against a disposable
    environment (website repo).
-3. Publish `@augmentworks/cli@0.2.1` through the existing trusted-publishing
+3. Publish `@augmentworks/cli@0.3.0` through the existing trusted-publishing
    workflow. Do not republish `0.2.0`.
 4. Update the website CLI pin and recovery copy only to `0.2.1`.
-5. `npx --yes @augmentworks/cli@0.2.1 recover --help` must list
+5. `npx --yes @augmentworks/cli@0.3.0 recover --help` must list
    `--retire`, `--resume`, and `--cancel`, and must not list `--force-delete`.
 
 ## Local verification

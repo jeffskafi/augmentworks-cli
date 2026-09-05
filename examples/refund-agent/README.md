@@ -11,11 +11,8 @@ demonstration, not a realistic support agent or a substitute for AugmentWorks'
 private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
-and build source `0.3.0` (`npm ci && npm run build`) so `node dist/index.js`
-can run the local starter from this example directory after copying
-`augmentworks.yaml` to the working directory, or invoke the built CLI with
-`-c` pointing here. Published `@augmentworks/cli@0.2.1` still supports
-`--local` via npx but does not include `--assessment`.
+for the example server. Published `@augmentworks/cli@0.3.0` supports `--local`
+and hosted `--assessment` via npx.
 
 ## Obtain the example
 
@@ -39,10 +36,10 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-node dist/index.js doctor \
+npx --yes @augmentworks/cli@0.3.0 doctor \
   -c augmentworks.yaml
 
-node dist/index.js test \
+npx --yes @augmentworks/cli@0.3.0 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -68,9 +65,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.2.1 login
+npx --yes @augmentworks/cli@0.3.0 login
 
-npx --yes @augmentworks/cli@0.2.1 test \
+npx --yes @augmentworks/cli@0.3.0 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

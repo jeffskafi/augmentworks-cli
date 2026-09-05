@@ -35,7 +35,7 @@ describe("CLI release metadata", () => {
     expect(HOSTED_COMMANDS.login).toBe(formatNpx(HOSTED_COMMAND_PIN, ["login"]));
     expect(HOSTED_COMMANDS.recover).toBe(formatNpx(HOSTED_COMMAND_PIN, ["recover"]));
     expect(HOSTED_COMMANDS.test).toContain(`@augmentworks/cli@${HOSTED_COMMAND_PIN}`);
-    expect(HOSTED_COMMANDS.test).toContain("support-refunds@0.1.0");
+    expect(HOSTED_COMMANDS.test).toContain("--assessment");
     expect(HOSTED_COMMANDS.test).not.toContain("--local");
   });
 

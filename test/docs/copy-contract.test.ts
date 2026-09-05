@@ -83,7 +83,7 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.doctor);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testQuick);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
-    expect(HOSTED_COMMANDS.test).not.toContain("--assessment");
+    expect(HOSTED_COMMANDS.test).toContain("--assessment");
     const tick = String.fromCharCode(96);
     for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);

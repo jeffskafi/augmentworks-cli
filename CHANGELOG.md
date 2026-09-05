@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - Unreleased
+## [0.3.0] - 2026-09-05
 
 ### Added
 
@@ -25,10 +25,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Source package version is `0.3.0`. Published npx pin remains
-  `@augmentworks/cli@0.2.1`, which does not include `--assessment`.
-- Local documented commands use `node dist/index.js` while source and published
-  versions differ.
+- Source and published package version is `0.3.0`. Hosted and local npx
+  examples pin `@augmentworks/cli@0.3.0`, including `--assessment`.
 
 ## [0.2.1] - 2026-09-05
 
@@ -100,6 +98,7 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.3.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.0
 [0.2.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.1
 [0.2.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.0
 [0.1.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.1.0
