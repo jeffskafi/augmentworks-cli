@@ -6,17 +6,31 @@ import { canonicalize } from "../util/canonical.js";
 import { assertJsonLimits, LIMITS } from "../util/limits.js";
 import {
   RELAY_PROTOCOL_VERSION as RELAY_PROTOCOL_VERSION_VALUE,
-  RELAY_PROTOCOL_VERSION_V2 as RELAY_PROTOCOL_VERSION_V2_VALUE
+  RELAY_PROTOCOL_VERSION_V2 as RELAY_PROTOCOL_VERSION_V2_VALUE,
+  RELAY_PROTOCOL_VERSION_V3 as RELAY_PROTOCOL_VERSION_V3_VALUE
 } from "../version.js";
 
 export const RELAY_PROTOCOL_VERSION = RELAY_PROTOCOL_VERSION_VALUE;
 export const RELAY_PROTOCOL_VERSION_V2 = RELAY_PROTOCOL_VERSION_V2_VALUE;
+export const RELAY_PROTOCOL_VERSION_V3 = RELAY_PROTOCOL_VERSION_V3_VALUE;
 export const TARGET_PROTOCOL_VERSION = "aw-target/0.1" as const;
 export const RelayProtocolVersionSchema = z.enum([
   RELAY_PROTOCOL_VERSION,
   RELAY_PROTOCOL_VERSION_V2
 ]);
+export const CreateRunProtocolVersionSchema = z.enum([
+  RELAY_PROTOCOL_VERSION,
+  RELAY_PROTOCOL_VERSION_V2,
+  RELAY_PROTOCOL_VERSION_V3
+]);
 export type RelayProtocolVersion = z.infer<typeof RelayProtocolVersionSchema>;
+export type CreateRunProtocolVersion = z.infer<typeof CreateRunProtocolVersionSchema>;
+
+export function commandProtocolForCreate(
+  protocol: CreateRunProtocolVersion
+): RelayProtocolVersion {
+  return protocol === RELAY_PROTOCOL_VERSION_V3 ? RELAY_PROTOCOL_VERSION_V2 : protocol;
+}
 
 export function maxCommandsForProtocol(protocol: string): number {
   return protocol === RELAY_PROTOCOL_VERSION_V2 ? LIMITS.maxCommandsExpanded : LIMITS.maxCommands;
@@ -40,6 +54,10 @@ const createRequestId = z
   .min(24)
   .max(100)
   .regex(/^crq_[A-Za-z0-9_-]+$/, "must be an AugmentWorks create request identifier");
+const quoteId = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+const maxCredits = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const observationKey = z
   .string()
   .min(1)
@@ -419,14 +437,40 @@ export const CreateRunRequestV2Schema = z
   })
   .strict();
 
+export const CreateRunRequestV3Schema = z
+  .object({
+    protocol_version: z.literal(RELAY_PROTOCOL_VERSION_V3),
+    create_request_id: createRequestId,
+    packet: z
+      .object({ key: identifier, version: PacketBindingSchema.shape.version })
+      .strict(),
+    config_sha256: sha256,
+    target: TargetBindingSchema,
+    assessment: CreateRunAssessmentSchema,
+    quote_id: quoteId,
+    max_credits: maxCredits.optional()
+  })
+  .strict();
+
 export const CreateRunRequestSchema = z.union([
   CreateRunRequestV1Schema,
-  CreateRunRequestV2Schema
+  CreateRunRequestV2Schema,
+  CreateRunRequestV3Schema
 ]);
+
+export const RetryEvaluationResponseSchema = z
+  .object({
+    protocol_version: CreateRunProtocolVersionSchema,
+    run_id: identifier,
+    evaluation_id: identifier,
+    reused_target_evidence: z.literal(true),
+    customer_units_debited: z.literal(0)
+  })
+  .strict();
 
 export const CreateRunResponseSchema = z
   .object({
-    protocol_version: RelayProtocolVersionSchema,
+    protocol_version: CreateRunProtocolVersionSchema,
     create_request_id: createRequestId,
     create_request_sha256: sha256,
     create_disposition: z.enum(["created", "replayed"]),
@@ -519,8 +563,10 @@ export type SendResult = z.infer<typeof SendResultSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type CleanupResult = z.infer<typeof CleanupResultSchema>;
 export type CreateRunRequest = z.infer<typeof CreateRunRequestSchema>;
+export type CreateRunRequestV3 = z.infer<typeof CreateRunRequestV3Schema>;
 export type CreateRunAssessment = z.infer<typeof CreateRunAssessmentSchema>;
 export type CreateRunResponse = z.infer<typeof CreateRunResponseSchema>;
+export type RetryEvaluationResponse = z.infer<typeof RetryEvaluationResponseSchema>;
 export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>;
 export type ConnectorSessionResponse = z.infer<typeof ConnectorSessionResponseSchema>;
 export type SessionPollResponse = z.infer<typeof SessionPollResponseSchema>;
@@ -529,6 +575,7 @@ export type CommandAck = z.infer<typeof CommandAckSchema>;
 export type RunStatus = z.infer<typeof RunStatusSchema>;
 export type RunStatusResponse = z.infer<typeof RunStatusResponseSchema>;
 export type PacketBinding = z.infer<typeof PacketBindingSchema>;
+export type TargetBinding = z.infer<typeof TargetBindingSchema>;
 export type AssessmentProfile = z.infer<typeof AssessmentProfileSchema>;
 export type EvaluationMode = z.infer<typeof EvaluationModeSchema>;
 export type EvaluationStatus = z.infer<typeof EvaluationStatusSchema>;

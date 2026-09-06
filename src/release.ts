@@ -124,6 +124,31 @@ export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
 export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
 export const SOURCE_USAGE_COMMAND = formatSourceCli(["usage"]);
 export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);
+export const SOURCE_ESTIMATE_COMMAND = formatSourceCli([
+  "test",
+  "--assessment",
+  "./augmentworks.assessment.yaml",
+  "--estimate"
+]);
+export const SOURCE_ESTIMATE_JSON_COMMAND = formatSourceCli([
+  "test",
+  "--assessment",
+  "./augmentworks.assessment.yaml",
+  "--estimate",
+  "--json"
+]);
+export const SOURCE_MAX_CREDITS_COMMAND = formatSourceCli([
+  "test",
+  "--assessment",
+  "./augmentworks.assessment.yaml",
+  "--profile",
+  "quick",
+  "--max-credits",
+  "30",
+  "--yes"
+]);
+export const SOURCE_RUN_STATUS_COMMAND = formatSourceCli(["run", "status", "<run-id>"]);
+export const SOURCE_RUN_WAIT_COMMAND = formatSourceCli(["run", "wait", "<run-id>"]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
   doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [

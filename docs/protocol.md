@@ -6,7 +6,8 @@ typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
 This document is the v0.1 contract implemented by the CLI and relay service
-code, plus the 0.3.1 `aw-relay/0.2` create-run assessment extension.
+code, plus the `aw-relay/0.2` create-run assessment extension and source
+`0.3.2` quoted `aw-relay/0.3` create.
 Repository integration tests exercise the same envelope and binding rules
 against local services.
 
@@ -23,10 +24,16 @@ mode. Hybrid local packets are refused before any target call.
   runs such as `support-refunds@0.1.0`.
 - Source 0.3.1 hosted `--assessment` / hybrid / expanded plans use
   `aw-relay/0.2`. Command sequence 101–512 is accepted only on 0.2.
+- Source 0.3.2 quoted hosted `--assessment` uses `aw-relay/0.3` create with
+  `quote_id` and optional `max_credits`. Command polling stays on 0.1/0.2.
+  Do not send those fields through an unchanged 0.1/0.2 object.
 - Normalized target operation inputs and results use
   `protocol_version: "aw-target/0.1"`.
 - Unknown versions, fields, and operation variants are rejected.
 - Published `@augmentworks/cli@0.2.0` speaks `aw-relay/0.1` only.
+- Published `@augmentworks/cli@0.3.1` speaks `aw-relay/0.1` and `0.2`.
+  After server cutover, new billed work from that package receives
+  `UPDATE_REQUIRED`.
 
 ## Run lifecycle
 

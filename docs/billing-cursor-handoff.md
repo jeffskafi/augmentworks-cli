@@ -1,4 +1,4 @@
-# Billing Stage 1B → main Stage 2A handoff
+# Billing Stage 2B → main Stage 3A handoff
 
 Owned by `jeffskafi/augmentworks-cli`. Main owns the wire contract. This
 repository vendors that contract; it does not change it.
@@ -11,32 +11,48 @@ handoff.
 
 | Item | Value |
 | --- | --- |
-| CLI baseline HEAD | `d36ec8590b005445dba940d2df3abcb53971cea5` (`origin/main`, source 0.3.2; published npm 0.3.1) |
-| Working branch | `cursor/billing-stage-1b-91a7` |
-| Implementation commit | `3d2bdfa32a727ac35c1b0ea49a9dfd376151b895` |
-| Vendored main commit | `e037958ba3c9f38a436b6065cddb5fb8ee3943fa` |
-| Stage | **1B code complete and deterministically verified.** Not npm-published. Not production-verified against a live 1A host. Not live-sales ready. |
+| CLI 1B baseline HEAD | `b26927f679e634692b89c6c080a694b30d94b6bd` (`cursor/billing-stage-1b-91a7`) |
+| Working branch | `cursor/billing-stage-2b-91a7` |
+| Implementation | `901f82ea11a69a136364ea9c604629886c1cf878` (feature), `77b17f0514bfe9a06dc9eefefa01c2c5c6f30e9c` (verification record) |
+| Vendored main commit | `67749b22f04bbb8d94c0309acd36be3cb3144400` (`cursor/billing-stage-2a-91a7`) |
+| Stage | **2B code complete.** Deterministic verification is recorded in the phase-2 completion file. Not npm-published. Not production-verified against a live 2A host. Not live-sales ready. |
 
-## What Stage 1B implemented
+## What Stage 2B implemented
 
-Authenticated **usage display** and **identity-preserving refresh** only.
+Quotes, spending ceilings, quoted create, and original-run status/recovery:
 
-- `augmentworks usage`
-- `augmentworks usage --json`
+- `augmentworks test --estimate` / `test --estimate --json`
+- `augmentworks test --assessment … --max-credits N [--yes]`
+- `augmentworks run status <run-id>`
+- `augmentworks run wait <run-id>`
+- `augmentworks run retry-evaluation <run-id>`
 
-No quotes, Checkout, subscriptions, Stripe, Clerk, packs, or a competing
-route layout.
+No Checkout, subscriptions, Stripe credentials, Clerk, pack purchase, or a
+competing route layout.
 
-Human output identifies the workspace, shows available credits prominently,
-then reserved and consumed credits with their ledger meanings, then grant lots
-(trial/promotional, purchased, recurring, or unrecognized origin). Nullable
-expiry prints as `no expiry` when the server sends `null`; dates are never
-invented. Values are a server snapshot at `asOf`, not a guaranteed future
-balance. The CLI never recomputes `availableUnits`.
+`--estimate` compiles the same assessment as admission and calls
+`POST /v1/billing/quote`. It does not create a run, reserve credits, grant
+credits, call a model, or contact the target. The server `assessmentPlanHash`
+is not interchangeable with the local freeze hash.
 
-`--json` success: one object on stdout (`ok: true` plus contract fields).
-`--json` failure: one `{ ok: false, code, category, safe_message, retryable, exit_code }`
-object on stdout. Hints stay on stderr in human mode.
+Quoted create uses `aw-relay/0.3` with `quote_id` (required UUID) and
+`max_credits` (optional nonnegative safe integer). Those fields are not sent
+through strict `aw-relay/0.1` or `0.2` objects. Legacy `--packet` hosted tests
+keep `aw-relay/0.1` and do not quote.
+
+`--max-credits` is a customer-unit ceiling, not provider dollars. Zero rejects
+every positive-unit run. `--yes` skips the prompt and is not an unlimited
+budget. Noninteractive hosted `--assessment` requires an explicit ceiling
+before quoting.
+
+A dropped or ambiguous create retries/reconciles the same create identity.
+It does not fetch a fresh quote while the original intent is still ambiguous.
+A proven-uncreated expired quote is retired; the next invocation may re-quote.
+
+Pending grading after target completion tells the user evidence is saved and
+to `run wait` / `run status` the original run. It does not tell them to
+re-run the test command. `retry-evaluation` is opt-in, reuses saved evidence,
+and must report `customer_units_debited: 0`.
 
 ## Vendored contract
 
@@ -45,9 +61,9 @@ object on stdout. Hints stay on stderr in human mode.
 SHA-256:
 
 - `contracts/aw-billing-v1.schema.json` =
-  `2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d`
+  `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`
 - `contracts/aw-billing-v1.fixtures.json` =
-  `6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556`
+  `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1`
 
 Lock: `contracts/aw-billing-v1.lock.json`
 Generated bindings: `src/billing/generated/contract.ts`
@@ -65,103 +81,112 @@ Primary only:
 
 - `GET /v1/billing/capabilities`
 - `GET /v1/billing/usage`
+- `POST /v1/billing/quote`
+- `GET /v1/billing/status?runId=<uuid>`
+- `POST /v1/relay/runs` (`aw-relay/0.3` quoted create, `0.1` packet-only)
+- `GET /v1/relay/runs/{runId}` (strict execution status; unchanged 1B JSON)
+- `POST /v1/relay/run-intents:reconcile`
+- `POST /v1/relay/runs/{runId}:retry-evaluation`
 
 Server aliases `/api/v1/billing/*` exist and are not called by this CLI.
 
 ### Authentication
 
-Existing opaque CLI bearer. Required read scope: `connector:identity`.
+Existing opaque CLI bearer. Usage/capabilities: `connector:identity`.
+Quote, status, create, reconcile, and evaluation retry: `connector:run`.
 Refresh-once after HTTP 401. Workspace comes from the validated connector.
 A cached `billingAccountId` or email never selects the wallet.
 
-Usage does not need target YAML, a target API key, or a target server.
-
-Read permission does not imply billing-management permission. The command is
-GET-only: it does not create a trial, grant credits, reserve units, initialize
-a paid order, or call the target.
+Read permission does not imply billing-management permission.
 
 ### Capabilities treated as available
 
-Only `usage_v1`. Reserved names `quote_v1`, `status_v1`,
-`billing_portal_link_v1`, and `subscriptions_v1` are ignored if present and
-are not advertised by this CLI. A server without `usage_v1` fails as
-`USAGE_UNSUPPORTED` (exit 13), never as a zero balance, and does not call
-`GET /v1/billing/usage`.
+Implemented when advertised: `usage_v1`, `quote_v1`, `status_v1`. Reserved
+names `billing_portal_link_v1` and `subscriptions_v1` are ignored if present
+and are not advertised by this CLI.
+
+A server without `quote_v1` fails hosted `--assessment` as `UPDATE_REQUIRED`
+(exit 13) and does not fall back to `aw-relay/0.2`. A server without
+`status_v1` fails `run status` / `run wait` / `run retry-evaluation` as
+`UPDATE_REQUIRED`. Missing `usage_v1` remains `USAGE_UNSUPPORTED`.
 
 Consumers tolerate additive optional fields and a later non-null
 `subscription` object without treating it as a live sale. Unknown
-`accessState` values fail closed (`BILLING_UNSUPPORTED_STATE`). Unknown
-capability strings are ignored.
+`accessState` / `evaluationStatus` / pricing versions fail closed.
 
 ### Errors (CLI mapping)
 
-| Server `error.code` / HTTP | CLI code | Exit |
-| --- | --- | --- |
-| 401 / `unauthenticated` | `TOKEN_REVOKED` | 3 |
-| 403 / `unauthorized` | `CLOUD_AUTH_REJECTED` | 3 |
-| 403 / `insufficient_scope` | `SCOPE_DENIED` | 3 |
-| `workspace_mismatch` | `WORKSPACE_MISMATCH` | 3 |
-| `billing_unprovisioned` | `BILLING_UNPROVISIONED` | 13 |
-| `unsupported_state` | `BILLING_UNSUPPORTED_STATE` | 13 |
-| 404 / 405 / 501 | `USAGE_UNSUPPORTED` | 13 |
-| 408 / 429 / 5xx / `service_unavailable` | `BILLING_UNAVAILABLE` | 13 (retryable; GET retried once) |
-| Missing application profile (auth message) | `PROFILE_RECOVERY_REQUIRED` | 13 |
-| Malformed body | `INVALID_CLOUD_RESPONSE` | 4 |
-| Unexpected redirect | `RELAY_UNREACHABLE` (redirect not followed) | 4 |
+Parse typed `error.code` and `error.billingCode`. Do not guess from HTTP
+status or message strings alone.
 
-Unprovisioned / missing-profile recovery points at `{apiOrigin}/portal`. The
-CLI does not create a replacement account.
+| Stable / wire | CLI code | Exit | Category |
+| --- | --- | --- | --- |
+| `INSUFFICIENT_CREDITS` / `insufficient_credits` | `INSUFFICIENT_CREDITS` | 13 | billing |
+| `QUOTE_EXPIRED` / `quote_expired` | `QUOTE_EXPIRED` | 13 | billing |
+| `QUOTE_MISMATCH` / `quote_mismatch` | `QUOTE_MISMATCH` | 13 | billing |
+| `BUDGET_EXCEEDED` / `budget_exceeded` | `BUDGET_EXCEEDED` | 13 | billing |
+| `UPDATE_REQUIRED` / `update_required` | `UPDATE_REQUIRED` | 13 | billing |
+| `WORKSPACE_CLOSING` / `workspace_closing` | `WORKSPACE_CLOSING` | 13 | billing |
+| `BILLING_UNAVAILABLE` / `service_unavailable` | `BILLING_UNAVAILABLE` | 13 | billing |
+| `MEMBERSHIP_REVOKED` / `membership_revoked` | `MEMBERSHIP_REVOKED` | 3 | auth |
 
-`billingPageUrl` must be a trusted first-party origin (`https://augmentworks.ai`
-or the current API origin), path `/portal/billing…`, no tokens. Unexpected
-redirects are rejected before forwarding credentials.
+Quote/status HTTP 404/405/501 map to `UPDATE_REQUIRED`, not a zero balance.
+Assessment failures remain exit 10. Incomplete grading remains 11. Grading
+errors remain 12. Interrupt remains 130. `EXIT.BILLING` stays 13.
 
-## Exit codes
+## Intent versions
 
-Existing codes 0, 1, 2, 3, 4, 5, 6, 10, 11, 12, 130 keep their meanings.
-`EXIT.BILLING = 13` is assigned to category `billing` and was unused.
-
-Auth failures from billing (revoked token, missing scope, membership
-revocation, workspace mismatch) remain exit 3.
+Writes `aw-run-intent/0.3`. Reads `aw-run-intent/0.2` as compatible current.
+`aw-run-intent/0.1` remains the legacy migrate path. Admission fingerprints
+omit `create_request_id` and, for 0.3, `quote_id`, so a freshly minted quote
+id is not treated as a different run.
 
 ## Local-mode independence
 
 `demo`, `test --local`, offline `doctor`, and `schema` make no billing calls.
+`--estimate`, `--max-credits`, and `--yes` are rejected with `--local`.
 
-## Logout
+## Copyable commands (source 0.3.2)
 
-Unchanged: revokes/removes CLI credentials, preserves run journals, does not
-delete a workspace, and does not call a billing mutation. Login refresh, token
-rotation, logout, and browser reauthentication do not imply a new trial.
+```bash
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate --json
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits 30 --yes
+node dist/index.js run status <run-id>
+node dist/index.js run wait <run-id>
+node dist/index.js run retry-evaluation <run-id>
+```
+
+Do not document `npx @augmentworks/cli@0.3.2`. Published npm remains 0.3.1.
 
 ## Verification actually run
 
 ```bash
 npm run check:billing-contract
-# ok: aw-billing/1 from e037958ba3c9f38a436b6065cddb5fb8ee3943fa
-# schema=2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d
-# fixtures=6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556
+# ok: aw-billing/1 from 67749b22f04bbb8d94c0309acd36be3cb3144400
+# schema=4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901
+# fixtures=cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1
 
 npm run typecheck          # pass
-npm test                   # 46 files, 360 tests pass
+npm test                   # 47 files, 379 tests pass
 npm run build              # pass
 npm run check              # pass
-npm run smoke:pack         # pass (20 files, 342396 compressed bytes)
+npm run smoke:pack         # pass (20 files, 354301 compressed bytes)
 ```
 
-Live `GET /v1/billing/usage` against a deployed Stage 1A host was **not run**.
+Live quote/create/status against a deployed Stage 2A host was **not run**.
 Stripe, production RLS, and model-provider behavior are out of scope and are
 not claimed.
 
-## Stage 2A prerequisites (main repository)
+## Stage 3A prerequisites (main repository)
 
-1. Keep `aw-billing/1` usage schema stable (additive optional fields only).
-2. Add `quote_v1` and `status_v1` only when those handlers exist. Do not
-   advertise unfinished endpoints.
-3. Do not require this CLI to compute prices or invent quote routes.
-4. Read this handoff plus `docs/billing/phase-1-completion.md` before 2A.
-5. CLI 2B will re-import the exact schema/fixtures after 2A publishes them.
-6. Preserve `connector:identity` usage reads; quote/admission consent is 2B.
+1. Keep `aw-billing/1` usage/quote/status schemas stable (additive optional
+   fields only).
+2. Do not require this CLI to create Checkout Sessions or Stripe customers.
+3. If Stage 3A adds `billing_portal_link_v1`, advertise it only when the
+   first-party billing page exists. The CLI will open that URL in 3B.
+4. Read this handoff plus `docs/billing/phase-2-completion.md` before 3A.
+5. CLI 3B will re-import the exact schema/fixtures after 3A publishes them.
 
 ## Live activation
 

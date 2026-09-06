@@ -16,6 +16,8 @@ import {
   SOURCE_REPOSITORY,
   SOURCE_USAGE_COMMAND,
   SOURCE_USAGE_JSON_COMMAND,
+  SOURCE_ESTIMATE_COMMAND,
+  SOURCE_ESTIMATE_JSON_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -45,9 +47,15 @@ describe("customer-facing CLI copy", () => {
     const content = await readSurface(path);
 
     expect(content).not.toMatch(
-      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+(?:connect|run)\b/u
+      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+connect\b/u
     );
-    expect(content).not.toMatch(/(?:^|\s)augmentworks\s+(?:connect|run)\b/u);
+    expect(content).not.toMatch(
+      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+run(?!\s+(?:status|wait|retry-evaluation)\b)/u
+    );
+    expect(content).not.toMatch(/(?:^|\s)augmentworks\s+connect\b/u);
+    expect(content).not.toMatch(
+      /(?:^|\s)augmentworks\s+run(?!\s+(?:status|wait|retry-evaluation)\b)/u
+    );
   });
 
   it.each(documentedSurfaces)("%s does not contain a stale deployment gate", async (path) => {
@@ -89,6 +97,8 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
     expect(readme).toContain(SOURCE_USAGE_COMMAND);
     expect(readme).toContain(SOURCE_USAGE_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_ESTIMATE_COMMAND);
+    expect(readme).toContain(SOURCE_ESTIMATE_JSON_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
@@ -98,7 +108,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "demo", "test", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "demo", "test", "run", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

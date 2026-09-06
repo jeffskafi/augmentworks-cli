@@ -48,7 +48,10 @@ async function temporaryDirectory(): Promise<string> {
   return directory;
 }
 
-function request(overrides: Partial<CreateRunIntentRequest> = {}): CreateRunIntentRequest {
+function request(overrides: {
+  packet?: { key: string; version: string };
+  target?: Extract<CreateRunIntentRequest, { protocol_version: "aw-relay/0.1" }>["target"];
+} = {}): Extract<CreateRunIntentRequest, { protocol_version: "aw-relay/0.1" }> {
   return {
     protocol_version: "aw-relay/0.1",
     packet: { key: "support-refunds", version: "0.1.0" },
@@ -237,7 +240,7 @@ describe("RunIntentStore", () => {
     ).resolves.toBe(true);
     expect(verifiedRuns).toEqual(["run-1"]);
     expect(JSON.parse(await readFile(store.path, "utf8"))).toMatchObject({
-      intent_version: "aw-run-intent/0.2",
+      intent_version: "aw-run-intent/0.3",
       tenant: TENANT,
       phase: "bound"
     });

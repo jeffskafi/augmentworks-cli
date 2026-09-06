@@ -45,11 +45,14 @@ origins containing credentials, paths, queries, or fragments are refused.
 | `POST /api/v1/cli/auth/token` | Exchange authorization-code, device-code, or refresh-token grants |
 | `POST /api/v1/cli/auth/revoke` | Revoke the active connector credential |
 | `GET /api/v1/cli/auth/me` | Resolve workspace and connector identity |
-| `GET /v1/billing/capabilities` | Discover implemented billing read capabilities (`usage_v1` in Stage 1) |
+| `GET /v1/billing/capabilities` | Discover implemented billing capabilities (`usage_v1`, `quote_v1`, `status_v1` when the server advertises them) |
 | `GET /v1/billing/usage` | Read the workspace billing snapshot |
+| `POST /v1/billing/quote` | Compile a hosted estimate; does not reserve credits or start a run (`connector:run`) |
+| `GET /v1/billing/status?runId=` | Read original-run execution/grading status (`connector:run`) |
 
-Aliases `GET /api/v1/billing/capabilities` and `GET /api/v1/billing/usage`
-exist on the server. The CLI uses the primary `/v1/billing/*` paths.
+Aliases `GET /api/v1/billing/*` exist on the server. The CLI uses the primary
+`/v1/billing/*` paths. Quote and status require `connector:run`. Usage and
+capabilities discovery use `connector:identity`.
 
 Browser authorization uses `client_id=augmentworks-cli`,
 `response_type=code`, exact loopback `redirect_uri`, `state`, `scope`,
