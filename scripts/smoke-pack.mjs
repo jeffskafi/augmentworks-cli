@@ -288,7 +288,7 @@ async function main() {
       ".bin",
       process.platform === "win32" ? "augmentworks.cmd" : "augmentworks"
     );
-    await access(installedBin, fsConstants.X_OK);
+    await access(installedBin, process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
     if (process.platform !== "win32") {
       const executable = await stat(join(installedRoot, "dist", "index.js"));
       assert((executable.mode & 0o111) !== 0, "published CLI entrypoint is not executable");
