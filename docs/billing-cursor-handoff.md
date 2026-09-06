@@ -159,6 +159,25 @@ node dist/index.js run retry-evaluation <run-id>
 
 Do not document `npx @augmentworks/cli@0.3.2`. Published npm remains 0.3.1.
 
+## Verification actually run
+
+```bash
+npm run check:billing-contract
+# ok: aw-billing/1 from 67749b22f04bbb8d94c0309acd36be3cb3144400
+# schema=4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901
+# fixtures=cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1
+
+npm run typecheck          # pass
+npm test                   # 47 files, 379 tests pass
+npm run build              # pass
+npm run check              # pass
+npm run smoke:pack         # pass (20 files, 354301 compressed bytes)
+```
+
+Live quote/create/status against a deployed Stage 2A host was **not run**.
+Stripe, production RLS, and model-provider behavior are out of scope and are
+not claimed.
+
 ## Stage 3A prerequisites (main repository)
 
 1. Keep `aw-billing/1` usage/quote/status schemas stable (additive optional
