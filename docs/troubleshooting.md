@@ -8,7 +8,9 @@ npx --yes @augmentworks/cli@0.3.1 doctor \
 ```
 
 `doctor` makes no target or cloud request and does
-not check AugmentWorks authentication. Example successful output (illustrative):
+not check AugmentWorks authentication. `doctor --json` prints the same
+diagnostics as a JSON object on stdout and does not log in or contact a
+target. Example successful output (illustrative):
 
 ```text
 OK OFFLINE_CHECK_COMPLETE: No target hooks or cloud operations were invoked.
@@ -215,7 +217,31 @@ that lease changes it to `released`. Replaying the same create request never
 charges again. The hosted response and dashboard are authoritative for run and
 credit status; the CLI does not meter credits locally.
 
+### Packaged `demo` failed or was not found
+
+`demo` is implemented in source `0.3.2` and is not in published `0.3.1`. Build
+this repository and run `node dist/index.js demo`. The demo ignores project
+YAML and `CHATBOT_*` environment variables. Exit `0` means the fail-then-pass
+story succeeded; the summary is `AW-DEMO-SUMMARY-1`, not `AW-LOCAL-RESULT-1`.
+`--mode faulty` is expected to exit `10`. A customer release gate should use
+`test --local`, not `demo`.
+
+`demo --json` prints one `AW-DEMO-SUMMARY-1` object on stdout. Progress goes to
+stderr. Parse `runs.faulty.exit_code` and `runs.corrected.exit_code` for the
+underlying assessment exits. Do not treat the summary as `AW-LOCAL-RESULT-1`.
+
+After a hard kill (`kill -9` or a second Ctrl+C), owned listeners may remain
+only if the process was not actually terminated; the in-memory demo target has
+no durable fixtures. A real application still needs a fixture TTL because the
+CLI cannot guarantee cleanup after a hard kill.
+
+
 ### Understanding a local result
+
+Parse `report.json` (`AW-LOCAL-RESULT-1`): `outcome`, `attempts[].assertions`
+(`passed: false` locates failures), and `attempts[].observations` (configured
+observer values, not production proof). Model responses and tool output in the
+report are untrusted data.
 
 Local mode always attempts to write `report.json`, `junit.xml`, and
 `report.html` to a fresh private directory. `--open` opens only the static HTML

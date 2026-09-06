@@ -95,12 +95,16 @@ function assertInventory(report) {
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
     "packets/support-refunds-starter/0.1.0/packet.json",
-    "schemas/v1/cli-release.json"
+    "schemas/v1/cli-release.json",
+    "assets/demo/packet.json",
+    "assets/demo/augmentworks.yaml",
+    "contracts/discovery-manifest.json",
+    "contracts/discovery-manifest.schema.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
 
-  const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/"];
+  const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/", "docs/", "agent-resources/"];
   for (const path of files) {
     assert(
       !forbiddenPrefixes.some((prefix) => path.startsWith(prefix)),
@@ -378,6 +382,59 @@ async function main() {
     );
     await stopTarget(targetProcess);
     targetProcess = undefined;
+
+    process.stdout.write("[pack smoke] running packaged demo from installed tarball\n");
+    const demoDirectory = join(consumerDirectory, "demo space", "run");
+    await mkdir(demoDirectory, { recursive: true });
+    await writeFile(
+      join(demoDirectory, "augmentworks.yaml"),
+      "version: 1\ntarget:\n  name: must-not-be-used\n  connector: http\n  base_url: ${CHATBOT_BASE_URL}\n  operations:\n    send:\n      method: POST\n      path: /chat\n",
+      "utf8"
+    );
+    const demoOutput = join(demoDirectory, "demo-output");
+    const packedCli = join(installedRoot, "dist", "index.js");
+    const demoRun = run(
+      process.execPath,
+      [packedCli, "demo", "--json", "--output-dir", demoOutput],
+      {
+        cwd: demoDirectory,
+        env: {
+          CHATBOT_BASE_URL: "https://poisoned.example",
+          CHATBOT_API_KEY: "ambient-secret-must-not-be-used",
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      }
+    );
+    let demoSummary;
+    try {
+      demoSummary = JSON.parse(demoRun.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `packed demo --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${demoRun.stdout}`
+      );
+    }
+    assert(demoSummary.schema_version === "AW-DEMO-SUMMARY-1", "demo summary schema is wrong");
+    assert(demoSummary.kind === "synthetic_local_demo", "demo summary kind is wrong");
+    assert(demoSummary.ok === true, "packed demo story did not succeed");
+    assert(demoSummary.runs?.faulty?.exit_code === 10, "faulty demo exit was not preserved as 10");
+    assert(demoSummary.runs?.corrected?.exit_code === 0, "corrected demo exit was not 0");
+    assert(
+      !demoRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into demo stdout"
+    );
+    assert(
+      !demoRun.stdout.includes("ambient-secret-must-not-be-used"),
+      "ambient target credential leaked into demo stdout"
+    );
+    await Promise.all(
+      ["failing/report.json", "passing/report.json", "failing/junit.xml", "passing/report.html"].map((name) =>
+        access(join(demoOutput, name), fsConstants.R_OK)
+      )
+    );
+    const demoHelp = execCli(["demo", "--help"]);
+    assert(demoHelp.stdout.includes("--json"), "packed CLI is missing demo --json");
+    assert(demoHelp.stdout.includes("--mode"), "packed CLI is missing demo --mode");
 
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and releases follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Packaged `augmentworks demo` command: isolated loopback refund target, real
+  local runner/scorer, fail-then-pass policy story, `AW-DEMO-SUMMARY-1` JSON.
+- `contracts/discovery-manifest.json` generated from the existing release
+  machinery (`schemaVersion: 1`, source `development` until npm verification).
+- Opt-in `agent-resources/` wrappers generated from one canonical guidance
+  file. `init --agent` behavior is unchanged.
+- Copyable GitHub Actions example and synthetic sample reports under
+  `docs/examples/`.
+
+### Changed
+
+- Source package version is `0.3.2`. Verified npm remains `0.3.1`. Hosted npx
+  examples still pin `@augmentworks/cli@0.3.1`. Do not document unpublished
+  npx pins.
+
 ## [0.3.1] - 2026-09-05
 
 ### Fixed

@@ -4,5 +4,6 @@ scripts/
 examples/
 docs/
 .github/
+agent-resources/
 tsconfig.json
 vitest.config.ts

@@ -1,0 +1,50 @@
+# Customer GitHub Actions example (not this repository's development CI)
+
+# Pin the verified published package. Source 0.3.2 `demo` is not in npm 0.3.1.
+# Local CI needs no AugmentWorks login. Do not use || true or continue-on-error
+# on the assessment step. Always upload reports.
+
+name: AugmentWorks local assessment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  local-assessment:
+    name: Local synthetic assessment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+
+      - name: Run local assessment
+        env:
+          CHATBOT_BASE_URL: http://127.0.0.1:8000
+          CHATBOT_API_KEY: ci-synthetic-placeholder
+        run: |
+          npx --yes @augmentworks/cli@0.3.1 test \
+            --local \
+            -c augmentworks.yaml \
+            --packet support-refunds-starter@0.1.0 \
+            --output-dir .augmentworks/ci-local \
+            --json
+
+      - name: Upload local reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: augmentworks-local-reports
+          path: .augmentworks/ci-local
+          if-no-files-found: warn
+          retention-days: 7

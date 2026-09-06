@@ -11,7 +11,8 @@ export {
   RELAY_PROTOCOL_VERSION,
   RELAY_PROTOCOL_VERSION_V2
 } from "./version.js";
-export { CLI_RELEASE, HOSTED_COMMANDS, LOCAL_COMMANDS } from "./release.js";
+export { CLI_RELEASE, HOSTED_COMMANDS, LOCAL_COMMANDS, SOURCE_DEMO_COMMAND } from "./release.js";
+export { buildDiscoveryManifest, parseDiscoveryManifest, sourceDiscoveryManifest } from "./discovery.js";
 
 function isDirectInvocation(metaUrl: string, argvEntry: string | undefined): boolean {
   if (argvEntry === undefined) return false;

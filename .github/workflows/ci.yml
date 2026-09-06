@@ -57,6 +57,9 @@ jobs:
           node dist/index.js doctor --offline -c examples/basic-chat/augmentworks.yaml
           node dist/index.js doctor --offline -c examples/refund-agent/augmentworks.yaml
 
+      - name: Run source packaged demo
+        run: node dist/index.js demo --json --output-dir .augmentworks/ci-source-demo
+
       - name: Smoke-test packed npx package
-        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        if: matrix.node == 22
         run: npm run smoke:pack

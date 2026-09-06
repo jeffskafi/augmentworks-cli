@@ -9,6 +9,8 @@ import {
   HOSTED_PACKET_REFERENCE,
   LOCAL_COMMANDS,
   LOCAL_PACKET_REFERENCE,
+  PUBLISHED_LOCAL_COMMANDS,
+  PUBLISHED_PACKAGE_VERSION,
   SOURCE_ASSESSMENT_COMMANDS,
   SOURCE_PACKAGE_VERSION,
   SOURCE_REPOSITORY,
@@ -24,9 +26,12 @@ const documentedSurfaces = [
   "docs/protocol.md",
   "docs/security-model.md",
   "docs/troubleshooting.md",
+  "docs/discovery-handoff.md",
+  "docs/distribution-runbook.md",
   "docs/stabilization-implementation.md",
   "docs/stabilization-rollout.md",
-  "examples/refund-agent/README.md"
+  "examples/refund-agent/README.md",
+  "agent-resources/guidance.md"
 ] as const;
 
 async function readSurface(path: string): Promise<string> {
@@ -62,7 +67,7 @@ describe("customer-facing CLI copy", () => {
     }
   });
 
-  it("documents hosted then local quickstarts with distinct pack references", async () => {
+  it("leads with the source demo, then verified published local and hosted paths", async () => {
     const readme = await readSurface("README.md");
 
     expect(readme).toContain(HOSTED_COMMANDS.login);
@@ -71,21 +76,25 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(LOCAL_PACKET_REFERENCE);
     expect(readme).toContain(SOURCE_REPOSITORY);
     expect(readme).toContain("npm ci");
-    expect(readme).toContain(LOCAL_COMMANDS.test);
-
-    const hostedTestAt = readme.indexOf(HOSTED_COMMANDS.test);
-    const localCloneAt = readme.indexOf("git clone");
-    const localTestAt = readme.indexOf(LOCAL_COMMANDS.test);
-    expect(hostedTestAt).toBeGreaterThan(-1);
-    expect(localCloneAt).toBeGreaterThan(hostedTestAt);
-    expect(localTestAt).toBeGreaterThan(localCloneAt);
-    expect(readme).toContain(`@augmentworks/cli@${SOURCE_PACKAGE_VERSION}`);
+    expect(readme).toContain(LOCAL_COMMANDS.demo);
+    expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.test);
+    expect(readme).toContain(`@augmentworks/cli@${PUBLISHED_PACKAGE_VERSION}`);
+    expect(readme).not.toMatch(
+      new RegExp(`npx(?:\\s+(?:--yes|-y))?\\s+@augmentworks/cli@${SOURCE_PACKAGE_VERSION}\\b`, "u")
+    );
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.doctor);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testQuick);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
+
+    const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
+    const publishedLocalAt = readme.indexOf(PUBLISHED_LOCAL_COMMANDS.test);
+    const hostedTestAt = readme.indexOf(HOSTED_COMMANDS.test);
+    expect(demoAt).toBeGreaterThan(-1);
+    expect(publishedLocalAt).toBeGreaterThan(demoAt);
+    expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "init", "doctor", "demo", "test", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });
@@ -187,7 +196,7 @@ describe("customer-facing CLI copy", () => {
     expect(troubleshooting).toContain("Re-run the exact same `test` command");
     expect(example).toContain("git clone https://github.com/jeffskafi/augmentworks-cli.git");
     expect(example).toContain("copy .env.example .env");
-    expect(example).toContain(LOCAL_COMMANDS.test);
+    expect(example).toContain(PUBLISHED_LOCAL_COMMANDS.test);
     expect(example).toContain(HOSTED_PACKET_REFERENCE);
     expect(example).toContain(LOCAL_PACKET_REFERENCE);
   });
