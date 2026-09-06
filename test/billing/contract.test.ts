@@ -19,8 +19,12 @@ async function readJson(relative: string): Promise<unknown> {
   return JSON.parse(await readFile(resolve(root, relative), "utf8"));
 }
 
+function canonicalLfBytes(buffer: Buffer): Buffer {
+  return Buffer.from(buffer.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n"), "utf8");
+}
+
 function sha256(buffer: Buffer): string {
-  return createHash("sha256").update(buffer).digest("hex");
+  return createHash("sha256").update(canonicalLfBytes(buffer)).digest("hex");
 }
 
 describe("vendored aw-billing/1 contract", () => {
@@ -36,6 +40,15 @@ describe("vendored aw-billing/1 contract", () => {
       "6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556"
     );
     expect(AW_BILLING_CONTRACT.source.commit).toBe("e037958ba3c9f38a436b6065cddb5fb8ee3943fa");
+  });
+
+  it("hashes a CRLF working-tree copy to the same locked LF digest", async () => {
+    const schema = await readFile(resolve(root, "contracts/aw-billing-v1.schema.json"));
+    const lf = schema.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
+    const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
+    expect(crlf.includes(0x0d)).toBe(true);
+    expect(sha256(crlf)).toBe("2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d");
+    expect(sha256(crlf)).toBe(sha256(schema));
   });
 
   it("reuses the 200 granted / 10 reserved-then-consumed fixture as 190 available", async () => {

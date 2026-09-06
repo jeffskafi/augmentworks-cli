@@ -89,6 +89,7 @@ Billing-focused tests in `test/billing/` cover: locked hashes and the 190-availa
 - Restored `SOURCE_DEMO_COMMAND` / `SOURCE_DEMO_JSON_COMMAND` that Stage 1B wiring had dropped from `src/release.ts`.
 - Usage dependency types no longer conflict with hosted-auth `stderr`.
 - Cloud GET abort now fails closed when the caller signal is already aborted, instead of completing the read.
+- Windows CI hashed CRLF working-tree copies of the vendored schema. Hashes are now canonical LF bytes, and `.gitattributes` locks those files to LF. Windows lock-directory `rmdir` retries `ENOTEMPTY`/`EBUSY` after owner-file unlink.
 
 ## Required configuration
 

@@ -9,8 +9,17 @@ export const GENERATED_PATH = resolve(root, "src/billing/generated/contract.ts")
 export const SCHEMA_PATH = resolve(root, "contracts/aw-billing-v1.schema.json");
 export const FIXTURES_PATH = resolve(root, "contracts/aw-billing-v1.fixtures.json");
 
+export function canonicalLfText(value) {
+  return String(value).replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
+}
+
+export function canonicalLfBytes(buffer) {
+  const text = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer);
+  return Buffer.from(canonicalLfText(text), "utf8");
+}
+
 export function sha256Bytes(buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
+  return createHash("sha256").update(canonicalLfBytes(buffer)).digest("hex");
 }
 
 export async function hashFile(path) {
@@ -61,7 +70,7 @@ export async function assertVendoredContract() {
     errors.push("lock readScope diverges from vendored fixtures");
   }
   const generated = generatedContractSource(lock);
-  const committed = await readFile(GENERATED_PATH, "utf8");
+  const committed = canonicalLfText(await readFile(GENERATED_PATH, "utf8"));
   if (committed !== generated) {
     errors.push("src/billing/generated/contract.ts is out of date. Re-run the billing contract import.");
   }

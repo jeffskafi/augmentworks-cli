@@ -220,8 +220,9 @@ class OwnedSecureLock implements SecureLockHandle {
     await handle.close();
     try {
       await unlink(ownerPath);
-      await rmdir(this.path);
+      await rmdirLockDirectory(this.path, this.#options, "could not be released atomically");
     } catch (error) {
+      if (error instanceof AwError) throw error;
       throw lockError(this.#options, "changed", "could not be released atomically", error);
     }
   }
@@ -301,9 +302,9 @@ async function reclaimDeadOwner(
     }
   }
   try {
-    await rmdir(options.path);
+    await rmdirLockDirectory(options.path, options, "could not atomically claim its dead owner");
   } catch (error) {
-    if (isMissingPathError(error)) return;
+    if (error instanceof AwError) throw error;
     throw lockError(options, "changed", "could not atomically claim its dead owner", error);
   }
 }
@@ -493,6 +494,41 @@ function assertOwnedDirectory(stat: Stats): void {
 
 function sameIdentity(left: Stats, right: Stats): boolean {
   return left.dev === right.dev && left.ino === right.ino;
+}
+
+async function rmdirLockDirectory(
+  path: string,
+  options: SecureLockOptions,
+  reason: string
+): Promise<void> {
+  const attempts = process.platform === "win32" ? 8 : 1;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await rmdir(path);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (isMissingPathError(error)) return;
+      const retryable =
+        process.platform === "win32" &&
+        (isErrorCode(error, "ENOTEMPTY") ||
+          isErrorCode(error, "EBUSY") ||
+          isErrorCode(error, "EPERM"));
+      if (!retryable || attempt === attempts - 1) {
+        throw lockError(options, "changed", reason, error);
+      }
+      await delay(10 * 2 ** attempt);
+    }
+  }
+  throw lockError(options, "changed", reason, lastError);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref?.();
+  });
 }
 
 function noFollowFlag(): number {

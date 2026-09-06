@@ -56,6 +56,8 @@ command journals, or generated credential-store files.
 - If you change the vendored billing contract, import it from main with
   `node scripts/import-aw-billing-contract.mjs --from <augmentworks>` and keep
   `npm run check:billing-contract` green. Do not edit the schema by hand.
+  Contract JSON and generated bindings are LF-locked (`.gitattributes`); hashes
+  are computed from canonical LF bytes so Windows CRLF checkouts still match.
 
 A pull request should explain its user-visible outcome, security implications,
 test evidence, and any deployment dependency. Mark cloud functionality as
