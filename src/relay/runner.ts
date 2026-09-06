@@ -2,6 +2,7 @@ import type { HttpConnector } from "../connector/http.js";
 import type { ConnectorExecutionContext } from "../connector/types.js";
 import type { CloudClient, SafeRelayFailure } from "../cloud/client.js";
 import {
+  commandProtocolForCreate,
   parseRelayResult,
   type CreateRunResponse,
   type RelayCommand,
@@ -106,7 +107,7 @@ export class RelayRunner {
       this.#binding.run_id,
       reason,
       this.#signal,
-      this.#binding.protocol_version
+      commandProtocolForCreate(this.#binding.protocol_version)
     );
     return this.#cancelPromise;
   }
@@ -150,7 +151,7 @@ export class RelayRunner {
             fencingEpoch: this.#binding.fencing_epoch,
             waitMs: this.#pollWaitMs,
             signal: pollSignal,
-            protocolVersion: this.#binding.protocol_version
+            protocolVersion: commandProtocolForCreate(this.#binding.protocol_version)
           });
         } catch (error) {
           if (this.#cancelRequested && isCancellationError(error)) continue;

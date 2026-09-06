@@ -217,4 +217,50 @@ describe("aw-relay/0.1 protocol", () => {
       }).success
     ).toBe(true);
   });
+
+  it("requires quote_id on aw-relay/0.3 and rejects it on 0.1/0.2", () => {
+    const v3 = {
+      protocol_version: "aw-relay/0.3",
+      create_request_id: `crq_${"a".repeat(32)}`,
+      packet: { key: "response-quality", version: "0.1.0" },
+      config_sha256: "b".repeat(64),
+      target: {
+        name: "chat",
+        boundary_sha256: "c".repeat(64),
+        capabilities: {
+          prepare: false,
+          observation: false,
+          cleanup: false,
+          tool_events: false,
+          multi_turn: true,
+          observation_keys: []
+        }
+      },
+      assessment: {
+        plan_hash: "d".repeat(64),
+        profile: "quick",
+        evaluation_mode: "hybrid",
+        disclosure_version: "aw-judge-disclosure/1",
+        reference_bundle: {
+          bundleId: "bundle_test",
+          entries: [],
+          refundPolicy: null,
+          knowledgeBoundary: null,
+          targetAlreadyConfigured: true
+        }
+      },
+      quote_id: "55555555-5555-4555-8555-555555555555",
+      max_credits: 30
+    };
+    expect(CreateRunRequestSchema.safeParse(v3).success).toBe(true);
+    expect(CreateRunRequestSchema.safeParse({ ...v3, max_credits: 0 }).success).toBe(true);
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...v3,
+        protocol_version: "aw-relay/0.2",
+        quote_id: v3.quote_id
+      }).success
+    ).toBe(false);
+    expect(CreateRunRequestSchema.safeParse({ ...v3, quote_id: undefined }).success).toBe(false);
+  });
 });

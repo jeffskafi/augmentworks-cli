@@ -57,7 +57,21 @@ if (schemaHash !== expectedSchema || fixturesHash !== expectedFixtures) {
   );
 }
 
+function routePath(value) {
+  return String(value)
+    .replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/iu, "")
+    .replace(/\?.*$/u, "")
+    .trim();
+}
+
+function routePaths(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map(routePath);
+}
+
 const fixtures = JSON.parse(await readFile(FIXTURES_PATH, "utf8"));
+const primary = fixtures.contract.primaryPaths ?? {};
+const aliases = fixtures.contract.aliases ?? {};
 const lock = {
   schemaVersion: "aw-billing/1",
   algorithm: "sha256",
@@ -74,16 +88,34 @@ const lock = {
   },
   contract: {
     primaryPaths: {
-      capabilities: "/v1/billing/capabilities",
-      usage: "/v1/billing/usage"
+      capabilities: routePath(primary.capabilities ?? "/v1/billing/capabilities"),
+      usage: routePath(primary.usage ?? "/v1/billing/usage"),
+      quote: routePath(primary.quote ?? "/v1/billing/quote"),
+      status: routePath(primary.status ?? "/v1/billing/status")
     },
     aliases: {
-      capabilities: ["/api/v1/billing/capabilities"],
-      usage: ["/api/v1/billing/usage"]
+      capabilities: routePaths(aliases.capabilities),
+      usage: routePaths(aliases.usage),
+      quote: routePaths(aliases.quote),
+      status: routePaths(aliases.status)
     },
     readScope: fixtures.contract.readScope,
+    quoteScope: fixtures.contract.quoteScope ?? "connector:run",
+    statusScope: fixtures.contract.statusScope ?? "connector:run",
     advertisedCapabilities: fixtures.contract.advertisedCapabilities,
-    reservedCapabilities: fixtures.contract.reservedCapabilities
+    reservedCapabilities: fixtures.contract.reservedCapabilities,
+    quotedCreateProtocol: fixtures.contract.quotedCreateProtocol ?? "aw-relay/0.3",
+    pricingVersion: fixtures.contract.pricingVersion ?? "aw-pricing/execution-unit/1",
+    createRequestQuoteFields: fixtures.contract.createRequestQuoteFields ?? {
+      quoteId: "quote_id",
+      maxCredits: "max_credits"
+    },
+    canonicalStatusUrls: fixtures.contract.canonicalStatusUrls ?? {
+      execution: "GET /v1/relay/runs/{runId}",
+      billingStatus: "GET /v1/billing/status?runId={runId}",
+      evaluationRetry: "POST /v1/relay/runs/{runId}:retry-evaluation"
+    },
+    stableErrorCodes: fixtures.contract.stableErrorCodes ?? {}
   }
 };
 

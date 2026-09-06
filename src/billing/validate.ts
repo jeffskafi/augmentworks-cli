@@ -5,17 +5,25 @@ import { AwError } from "../errors.js";
 import {
   billingMalformedError,
   billingUnsupportedStateError,
+  quoteUnsupportedError,
+  statusUnsupportedError,
   usageUnsupportedError,
   workspaceMismatchError
 } from "./errors.js";
 import {
+  BILLING_PRICING_VERSION,
   BILLING_SCHEMA_VERSION,
   BILLING_UNIT_MAX,
+  QUOTE_V1,
+  STATUS_V1,
   USAGE_V1,
   capabilityIsAvailable,
   isBillingAccessState,
+  isBillingEvaluationStatus,
   type BillingCapabilities,
   type BillingGrantBalance,
+  type BillingQuote,
+  type BillingRunStatus,
   type BillingUsage
 } from "./protocol.js";
 
@@ -27,6 +35,8 @@ const utcTimestamp = z
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/);
 const uuid = z.string().regex(UUID);
 const unitCount = z.number().int().min(0).max(BILLING_UNIT_MAX);
+const executionUnits = z.number().int().min(0).max(60);
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
 const capability = z
   .string()
   .min(1)
@@ -75,6 +85,57 @@ const capabilitiesConsumerSchema = z
     asOf: utcTimestamp,
     capabilities: z.array(capability).min(1),
     workspaceId: uuid.optional()
+  })
+  .passthrough();
+
+const quoteConsumerSchema = z
+  .object({
+    schemaVersion: z.literal(BILLING_SCHEMA_VERSION),
+    quoteId: uuid,
+    workspaceId: uuid,
+    assessmentPlanHash: sha256Hex,
+    pricingVersion: z.string().min(1).max(80),
+    executionUnits,
+    expiresAt: utcTimestamp,
+    availableUnitsAtQuote: unitCount,
+    estimateOnly: z.literal(true),
+    scenarioCount: z.number().int().min(0).max(20).optional(),
+    repetitions: z.number().int().min(1).max(3).optional(),
+    remainingUnitsEstimate: unitCount.optional()
+  })
+  .passthrough();
+
+const runStatusConsumerSchema = z
+  .object({
+    schemaVersion: z.literal(BILLING_SCHEMA_VERSION),
+    runId: uuid,
+    workspaceId: uuid,
+    originalRunId: uuid,
+    executionStatus: z.string().min(1).max(64),
+    evaluationStatus: z.string().min(1).max(64),
+    credit: z
+      .object({
+        reservedUnits: unitCount,
+        consumedUnits: unitCount,
+        releasedUnits: unitCount,
+        compensatedUnits: unitCount
+      })
+      .passthrough(),
+    progress: z
+      .object({
+        completedAttempts: z.number().int().min(0),
+        plannedAttempts: z.number().int().min(0),
+        completedJudgeJobs: z.number().int().min(0),
+        plannedJudgeJobs: z.number().int().min(0)
+      })
+      .passthrough(),
+    savedEvidence: z.boolean(),
+    retryEligible: z.boolean(),
+    retryReason: z.string().max(300).nullable(),
+    nextActions: z.array(z.string().min(1).max(64)).max(8),
+    dashboardUrl: z.string().min(1).max(2_048),
+    asOf: utcTimestamp,
+    outcome: z.string().max(64).nullable().optional()
   })
   .passthrough();
 
@@ -137,6 +198,112 @@ export function parseBillingCapabilitiesResponse(value: unknown): BillingCapabil
     capabilities: parsed.data.capabilities,
     ...(parsed.data.workspaceId === undefined ? {} : { workspaceId: parsed.data.workspaceId })
   };
+}
+
+export function parseBillingCapabilitiesDocument(value: unknown): BillingCapabilities {
+  const parsed = capabilitiesConsumerSchema.safeParse(value);
+  if (!parsed.success) throw billingMalformedError("billing capabilities response");
+  return {
+    schemaVersion: parsed.data.schemaVersion,
+    asOf: parsed.data.asOf,
+    capabilities: parsed.data.capabilities,
+    ...(parsed.data.workspaceId === undefined ? {} : { workspaceId: parsed.data.workspaceId })
+  };
+}
+
+export function assertQuoteCapability(capabilities: readonly string[]): void {
+  if (!capabilityIsAvailable(capabilities, QUOTE_V1)) {
+    throw quoteUnsupportedError();
+  }
+}
+
+export function assertStatusCapability(capabilities: readonly string[]): void {
+  if (!capabilityIsAvailable(capabilities, STATUS_V1)) {
+    throw statusUnsupportedError();
+  }
+}
+
+export function parseBillingQuoteResponse(value: unknown): BillingQuote {
+  const parsed = quoteConsumerSchema.safeParse(value);
+  if (!parsed.success) throw billingMalformedError("billing quote response");
+  if (parsed.data.pricingVersion !== BILLING_PRICING_VERSION) {
+    throw billingUnsupportedStateError({ pricing_version: parsed.data.pricingVersion });
+  }
+  return {
+    schemaVersion: parsed.data.schemaVersion,
+    quoteId: parsed.data.quoteId,
+    workspaceId: parsed.data.workspaceId,
+    assessmentPlanHash: parsed.data.assessmentPlanHash,
+    pricingVersion: parsed.data.pricingVersion,
+    executionUnits: parsed.data.executionUnits,
+    expiresAt: parsed.data.expiresAt,
+    availableUnitsAtQuote: parsed.data.availableUnitsAtQuote,
+    estimateOnly: true,
+    ...(parsed.data.scenarioCount === undefined ? {} : { scenarioCount: parsed.data.scenarioCount }),
+    ...(parsed.data.repetitions === undefined ? {} : { repetitions: parsed.data.repetitions }),
+    ...(parsed.data.remainingUnitsEstimate === undefined
+      ? {}
+      : { remainingUnitsEstimate: parsed.data.remainingUnitsEstimate })
+  };
+}
+
+export function parseBillingRunStatusResponse(value: unknown): BillingRunStatus {
+  const parsed = runStatusConsumerSchema.safeParse(value);
+  if (!parsed.success) throw billingMalformedError("billing run status response");
+  if (!isBillingEvaluationStatus(parsed.data.evaluationStatus)) {
+    throw billingUnsupportedStateError({ evaluation_status: parsed.data.evaluationStatus });
+  }
+  return {
+    schemaVersion: parsed.data.schemaVersion,
+    runId: parsed.data.runId,
+    workspaceId: parsed.data.workspaceId,
+    originalRunId: parsed.data.originalRunId,
+    executionStatus: parsed.data.executionStatus,
+    evaluationStatus: parsed.data.evaluationStatus,
+    credit: {
+      reservedUnits: parsed.data.credit.reservedUnits,
+      consumedUnits: parsed.data.credit.consumedUnits,
+      releasedUnits: parsed.data.credit.releasedUnits,
+      compensatedUnits: parsed.data.credit.compensatedUnits
+    },
+    progress: {
+      completedAttempts: parsed.data.progress.completedAttempts,
+      plannedAttempts: parsed.data.progress.plannedAttempts,
+      completedJudgeJobs: parsed.data.progress.completedJudgeJobs,
+      plannedJudgeJobs: parsed.data.progress.plannedJudgeJobs
+    },
+    savedEvidence: parsed.data.savedEvidence,
+    retryEligible: parsed.data.retryEligible,
+    retryReason: parsed.data.retryReason,
+    nextActions: parsed.data.nextActions,
+    dashboardUrl: parsed.data.dashboardUrl,
+    asOf: parsed.data.asOf,
+    ...(parsed.data.outcome === undefined ? {} : { outcome: parsed.data.outcome })
+  };
+}
+
+export function assertQuoteWorkspace(
+  quote: BillingQuote,
+  authenticatedWorkspaceId: string
+): void {
+  if (quote.workspaceId !== authenticatedWorkspaceId) {
+    throw workspaceMismatchError({
+      authenticated_workspace: authenticatedWorkspaceId,
+      quote_workspace: quote.workspaceId
+    });
+  }
+}
+
+export function assertStatusWorkspace(
+  status: BillingRunStatus,
+  authenticatedWorkspaceId: string
+): void {
+  if (status.workspaceId !== authenticatedWorkspaceId) {
+    throw workspaceMismatchError({
+      authenticated_workspace: authenticatedWorkspaceId,
+      status_workspace: status.workspaceId
+    });
+  }
 }
 
 export function assertUsageWorkspace(

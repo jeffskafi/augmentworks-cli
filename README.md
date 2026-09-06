@@ -38,7 +38,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo` or `usage`. Clone this repository and build source `0.3.2` for the packaged demo and authenticated usage display. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo`, `usage`, `test --estimate`, `--max-credits`, or `run status` / `run wait`. Clone this repository and build source `0.3.2` for those commands. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (source 0.3.2, not in npm 0.3.1)
 
@@ -140,6 +140,32 @@ offline `doctor`, and `schema` remain account-free and make no billing calls.
 
 Until source 0.3.2 is published, do not write an unpublished npx pin for
 `usage`.
+
+## Hosted estimate and spending consent (source 0.3.2)
+
+`test --estimate` compiles the same assessment that admission uses and calls
+`POST /v1/billing/quote`. It does not create a run, reserve credits, call a
+model, or contact the target. The server `assessmentPlanHash` is not the local
+freeze hash. A quote is not a hold: another run may use credits before this
+one starts.
+
+Noninteractive hosted assessment tests require `--max-credits N`. `--yes`
+skips the prompt but is not an unlimited budget. Packet-only `--packet`
+hosted tests keep `aw-relay/0.1` and do not quote.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate --json
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits 30 --yes
+node dist/index.js run status <run-id>
+node dist/index.js run wait <run-id>
+```
+
+If grading is pending after target work finishes, evidence is saved. Wait on
+the original run; do not re-run the test command. Account-free `demo`,
+`test --local`, offline `doctor`, and `schema` still make no billing calls.
 
 ## Local assessment (published 0.3.1)
 
@@ -423,7 +449,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from an assessment file | Uses `aw-relay/0.2`; included in `@augmentworks/cli@0.3.1` |
+| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.2 uses `aw-relay/0.3` quotes; published 0.3.1 uses `aw-relay/0.2`. `--estimate` never reserves credits |
+| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait; retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; source 0.3.2, not published 0.3.1 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |

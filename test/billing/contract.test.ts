@@ -7,9 +7,11 @@ import { describe, expect, it } from "vitest";
 
 import { AW_BILLING_CONTRACT } from "../../src/billing/generated/contract.js";
 import { EXIT, exitCodeFor, AwError } from "../../src/errors.js";
-import { formatUsageHuman } from "../../src/billing/format.js";
+import { formatEstimateHuman, formatRunStatusHuman, formatUsageHuman } from "../../src/billing/format.js";
 import {
   parseBillingCapabilitiesResponse,
+  parseBillingQuoteResponse,
+  parseBillingRunStatusResponse,
   parseBillingUsageResponse
 } from "../../src/billing/validate.js";
 
@@ -34,12 +36,12 @@ describe("vendored aw-billing/1 contract", () => {
     expect(sha256(schema)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]);
     expect(sha256(fixtures)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]);
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]).toBe(
-      "2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d"
+      "4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901"
     );
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]).toBe(
-      "6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556"
+      "cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1"
     );
-    expect(AW_BILLING_CONTRACT.source.commit).toBe("e037958ba3c9f38a436b6065cddb5fb8ee3943fa");
+    expect(AW_BILLING_CONTRACT.source.commit).toBe("67749b22f04bbb8d94c0309acd36be3cb3144400");
   });
 
   it("hashes a CRLF working-tree copy to the same locked LF digest", async () => {
@@ -47,7 +49,7 @@ describe("vendored aw-billing/1 contract", () => {
     const lf = schema.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
     const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
     expect(crlf.includes(0x0d)).toBe(true);
-    expect(sha256(crlf)).toBe("2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d");
+    expect(sha256(crlf)).toBe("4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901");
     expect(sha256(crlf)).toBe(sha256(schema));
   });
 
@@ -130,8 +132,9 @@ describe("vendored aw-billing/1 contract", () => {
     const capabilities = parseBillingCapabilitiesResponse(
       document.fixtures["absent_capability"]?.response
     );
-    expect(capabilities.capabilities).toEqual(["usage_v1"]);
-    expect(capabilities.capabilities).not.toContain("quote_v1");
+    expect(capabilities.capabilities).toEqual(["usage_v1", "quote_v1", "status_v1"]);
+    expect(capabilities.capabilities).not.toContain("billing_portal_link_v1");
+    expect(capabilities.capabilities).not.toContain("subscriptions_v1");
   });
 
   it("fails closed on an unknown access state", () => {
@@ -185,5 +188,67 @@ describe("vendored aw-billing/1 contract", () => {
         })
       )
     ).toBe(13);
+    expect(
+      exitCodeFor(
+        new AwError({
+          code: "INSUFFICIENT_CREDITS",
+          category: "billing",
+          message: "insufficient"
+        })
+      )
+    ).toBe(13);
+    expect(
+      exitCodeFor(
+        new AwError({
+          code: "MEMBERSHIP_REVOKED",
+          category: "auth",
+          message: "revoked"
+        })
+      )
+    ).toBe(3);
+  });
+
+  it("parses Stage 2 quote fixtures without treating a quote as a reservation", async () => {
+    const document = (await readJson("contracts/aw-billing-v1.fixtures.json")) as {
+      fixtures: Record<string, { response: unknown }>;
+    };
+    const quote = parseBillingQuoteResponse(document.fixtures["quote_success_with_balance"]?.response);
+    expect(quote.executionUnits).toBe(30);
+    expect(quote.estimateOnly).toBe(true);
+    expect(quote.availableUnitsAtQuote).toBe(190);
+    expect(quote.scenarioCount).toBe(10);
+    expect(quote.repetitions).toBe(3);
+    const human = formatEstimateHuman({
+      quote,
+      workspaceLabel: "Fixture workspace",
+      localPlanHash: "c".repeat(64)
+    });
+    expect(human).toContain("10 scenarios × 3 repetitions = 30 credits");
+    expect(human).toContain("not a reservation");
+    expect(human).toContain("not interchangeable");
+    const insufficient = parseBillingQuoteResponse(
+      document.fixtures["quote_success_insufficient_balance"]?.response
+    );
+    expect(insufficient.executionUnits).toBe(30);
+    expect(insufficient.availableUnitsAtQuote).toBe(5);
+    expect(insufficient.estimateOnly).toBe(true);
+  });
+
+  it("parses pending-grading status without implying a new run", async () => {
+    const document = (await readJson("contracts/aw-billing-v1.fixtures.json")) as {
+      fixtures: Record<string, { response: unknown }>;
+    };
+    const status = parseBillingRunStatusResponse(
+      document.fixtures["status_pending_grading"]?.response
+    );
+    expect(status.originalRunId).toBe(status.runId);
+    expect(status.evaluationStatus).toBe("pending");
+    expect(status.savedEvidence).toBe(true);
+    expect(status.credit.consumedUnits).toBe(10);
+    expect(status.retryEligible).toBe(false);
+    const human = formatRunStatusHuman(status);
+    expect(human).toContain("Your test evidence is saved.");
+    expect(human).toContain("run wait");
+    expect(human).not.toContain("Re-run the same test command");
   });
 });

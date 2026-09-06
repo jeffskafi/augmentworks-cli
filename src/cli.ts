@@ -8,6 +8,7 @@ import { createLoginCommand } from "./commands/login.js";
 import { createLogoutCommand } from "./commands/logout.js";
 import { createSchemaCommand } from "./commands/schema.js";
 import { createTestCommand } from "./commands/test.js";
+import { createRunCommand } from "./commands/run.js";
 import { createUsageCommand } from "./commands/usage.js";
 import { createWhoamiCommand } from "./commands/whoami.js";
 import { AwError, exitCodeFor, sanitizeTerminal } from "./errors.js";
@@ -59,6 +60,7 @@ export function createCli(io: CliIo = {}): Command {
   program.addCommand(createDoctorCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createDemoCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createTestCommand({ stdout, stderr, setExitCode: requestExitCode }));
+  program.addCommand(createRunCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createRecoverCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createSchemaCommand({ stdout }));
 

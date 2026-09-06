@@ -5,19 +5,21 @@ export const AW_BILLING_CONTRACT = {
   "algorithm": "sha256",
   "source": {
     "repository": "https://github.com/jeffskafi/augmentworks.git",
-    "commit": "e037958ba3c9f38a436b6065cddb5fb8ee3943fa",
+    "commit": "67749b22f04bbb8d94c0309acd36be3cb3144400",
     "handoff": "docs/billing-cursor-handoff.md",
     "schema": "docs/contracts/aw-billing-v1.schema.json",
     "fixtures": "docs/contracts/aw-billing-v1.fixtures.json"
   },
   "files": {
-    "contracts/aw-billing-v1.schema.json": "2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d",
-    "contracts/aw-billing-v1.fixtures.json": "6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556"
+    "contracts/aw-billing-v1.schema.json": "4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901",
+    "contracts/aw-billing-v1.fixtures.json": "cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1"
   },
   "contract": {
     "primaryPaths": {
       "capabilities": "/v1/billing/capabilities",
-      "usage": "/v1/billing/usage"
+      "usage": "/v1/billing/usage",
+      "quote": "/v1/billing/quote",
+      "status": "/v1/billing/status"
     },
     "aliases": {
       "capabilities": [
@@ -25,18 +27,47 @@ export const AW_BILLING_CONTRACT = {
       ],
       "usage": [
         "/api/v1/billing/usage"
+      ],
+      "quote": [
+        "/api/v1/billing/quote"
+      ],
+      "status": [
+        "/api/v1/billing/status"
       ]
     },
     "readScope": "connector:identity",
+    "quoteScope": "connector:run",
+    "statusScope": "connector:run",
     "advertisedCapabilities": [
-      "usage_v1"
+      "usage_v1",
+      "quote_v1",
+      "status_v1"
     ],
     "reservedCapabilities": [
-      "quote_v1",
-      "status_v1",
       "billing_portal_link_v1",
       "subscriptions_v1"
-    ]
+    ],
+    "quotedCreateProtocol": "aw-relay/0.3",
+    "pricingVersion": "aw-pricing/execution-unit/1",
+    "createRequestQuoteFields": {
+      "quoteId": "quote_id",
+      "maxCredits": "max_credits"
+    },
+    "canonicalStatusUrls": {
+      "execution": "GET /v1/relay/runs/{runId}",
+      "billingStatus": "GET /v1/billing/status?runId={runId}",
+      "evaluationRetry": "POST /v1/relay/runs/{runId}:retry-evaluation"
+    },
+    "stableErrorCodes": {
+      "BILLING_UNAVAILABLE": "service_unavailable",
+      "INSUFFICIENT_CREDITS": "insufficient_credits",
+      "QUOTE_EXPIRED": "quote_expired",
+      "QUOTE_MISMATCH": "quote_mismatch",
+      "BUDGET_EXCEEDED": "budget_exceeded",
+      "UPDATE_REQUIRED": "update_required",
+      "WORKSPACE_CLOSING": "workspace_closing",
+      "MEMBERSHIP_REVOKED": "membership_revoked"
+    }
   }
 } as const;
 

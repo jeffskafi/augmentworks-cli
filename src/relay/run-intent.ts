@@ -17,7 +17,8 @@ import { canonicalize, sha256 } from "../util/canonical.js";
 import { getStateDirectory } from "./state-dir.js";
 import { acquireSecureLock, ensureSecureDirectory, type SecureLockHandle } from "./secure-lock.js";
 
-export const RUN_INTENT_VERSION = "aw-run-intent/0.2" as const;
+export const RUN_INTENT_VERSION = "aw-run-intent/0.3" as const;
+const COMPATIBLE_INTENT_VERSION = "aw-run-intent/0.2" as const;
 const LEGACY_RUN_INTENT_VERSION = "aw-run-intent/0.1" as const;
 const MAX_INTENT_BYTES = 256 * 1024;
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
@@ -65,7 +66,7 @@ const intentFields = {
 } as const;
 const intentSchema = z
   .object({
-    intent_version: z.literal(RUN_INTENT_VERSION),
+    intent_version: z.enum([RUN_INTENT_VERSION, COMPATIBLE_INTENT_VERSION]),
     tenant: tenantSchema,
     ...intentFields
   })
@@ -198,13 +199,19 @@ export class RunIntentStore {
           "The active assessment belongs to a different AugmentWorks API origin."
         );
       }
-      if (persisted?.intent_version === RUN_INTENT_VERSION) {
+      if (
+        persisted?.intent_version === RUN_INTENT_VERSION ||
+        persisted?.intent_version === COMPATIBLE_INTENT_VERSION
+      ) {
         assertTenantMatches(persisted.tenant, this.#tenant);
         this.#intent = persisted;
         this.#legacyIntent = undefined;
-      } else {
+      } else if (persisted?.intent_version === LEGACY_RUN_INTENT_VERSION) {
         this.#intent = undefined;
         this.#legacyIntent = persisted;
+      } else {
+        this.#intent = undefined;
+        this.#legacyIntent = undefined;
       }
       return this;
     } catch (error) {
@@ -260,14 +267,7 @@ export class RunIntentStore {
       );
     }
     if (this.#intent !== undefined) {
-      const candidate = CreateRunRequestSchema.safeParse({
-        ...request,
-        create_request_id: this.#intent.request.create_request_id
-      });
-      if (
-        !candidate.success ||
-        canonicalize(candidate.data) !== canonicalize(this.#intent.request)
-      ) {
+      if (!intentRequestMatches(this.#intent, request)) {
         throw intentError(
           "ACTIVE_RUN_EXISTS",
           "A different assessment is already active for this AugmentWorks API origin. Resume it before starting another."
@@ -461,7 +461,20 @@ export function intentRequestMatches(
     ...candidate,
     create_request_id: intent.request.create_request_id
   });
-  return parsed.success && canonicalize(parsed.data) === canonicalize(intent.request);
+  if (!parsed.success) return false;
+  return (
+    canonicalize(admissionFingerprint(parsed.data)) ===
+    canonicalize(admissionFingerprint(intent.request))
+  );
+}
+
+export function admissionFingerprint(request: CreateRunRequest): unknown {
+  if (request.protocol_version !== "aw-relay/0.3") {
+    const { create_request_id: _id, ...rest } = request;
+    return rest;
+  }
+  const { create_request_id: _id, quote_id: _quote, ...rest } = request;
+  return rest;
 }
 
 function normalizedApiBase(value: URL): string {

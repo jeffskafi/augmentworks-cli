@@ -20,6 +20,11 @@ All notable changes to this project are documented here. The format follows
   snapshots. Vendors `aw-billing/1` from main commit
   `e037958ba3c9f38a436b6065cddb5fb8ee3943fa`. Exit `13` is the billing
   category. Not in published `0.3.1`. Does not publish npm or enable live sales.
+- Source `0.3.2` Stage 2B hosted `test --estimate`, `--max-credits`, quoted
+  `aw-relay/0.3` create, and `run status` / `run wait` /
+  `run retry-evaluation`. Vendors the Stage 2A contract from main
+  `67749b22f04bbb8d94c0309acd36be3cb3144400`. Quotes do not reserve credits.
+  Not npm-published. Live sales remain disabled.
 
 ### Fixed
 

@@ -11,6 +11,7 @@ import {
   CreateRunResponseSchema,
   PollResponseSchema,
   RELAY_PROTOCOL_VERSION,
+  RetryEvaluationResponseSchema,
   RunStatusResponseSchema,
   SessionPollResponseSchema,
   parseRelayCommand,
@@ -23,6 +24,7 @@ import {
   type RelayCommand,
   type RelayResult,
   type RelayProtocolVersion,
+  type RetryEvaluationResponse,
   type RunStatusResponse,
   type SessionPollResponse
 } from "./protocol.js";
@@ -35,13 +37,15 @@ import {
   type ReconcileRunIntentRequest,
   type ReconcileRunIntentResponse
 } from "./recovery-protocol.js";
-import { billingHttpError, profileRecoveryUrl } from "../billing/errors.js";
+import { billingHttpError, mapBillingAdmissionError, profileRecoveryUrl } from "../billing/errors.js";
 import {
   parseBillingCapabilitiesResponse,
+  parseBillingQuoteResponse,
+  parseBillingRunStatusResponse,
   parseBillingUsageResponse
 } from "../billing/validate.js";
 import { BILLING_PRIMARY_PATHS } from "../billing/protocol.js";
-import type { BillingCapabilities, BillingUsage } from "../billing/protocol.js";
+import type { BillingCapabilities, BillingQuote, BillingRunStatus, BillingUsage } from "../billing/protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -339,24 +343,67 @@ export class CloudClient {
     return parseResponse(RunStatusResponseSchema, value, "run status response");
   }
 
-  async getBillingCapabilities(signal?: AbortSignal): Promise<BillingCapabilities> {
-    const value = await this.#requestBilling(BILLING_PRIMARY_PATHS.capabilities, signal);
-    return parseBillingCapabilitiesResponse(value);
-  }
-
   async getBillingUsage(signal?: AbortSignal): Promise<BillingUsage> {
-    const value = await this.#requestBilling(BILLING_PRIMARY_PATHS.usage, signal);
+    const value = await this.#requestBilling("GET", BILLING_PRIMARY_PATHS.usage, undefined, signal);
     return parseBillingUsageResponse(value);
   }
 
-  async #requestBilling(path: string, signal?: AbortSignal): Promise<unknown> {
+  async createBillingQuote(
+    request: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<BillingQuote> {
+    const value = await this.#requestBilling(
+      "POST",
+      BILLING_PRIMARY_PATHS.quote,
+      request,
+      signal
+    );
+    return parseBillingQuoteResponse(value);
+  }
+
+  async getBillingRunStatus(runId: string, signal?: AbortSignal): Promise<BillingRunStatus> {
+    const value = await this.#requestBilling(
+      "GET",
+      `${BILLING_PRIMARY_PATHS.status}?runId=${encodeURIComponent(runId)}`,
+      undefined,
+      signal
+    );
+    return parseBillingRunStatusResponse(value);
+  }
+
+  async retryEvaluation(runId: string, signal?: AbortSignal): Promise<RetryEvaluationResponse> {
+    const value = await this.#request(
+      "POST",
+      `/v1/relay/runs/${segment(runId)}:retry-evaluation`,
+      undefined,
+      signal
+    );
+    return parseResponse(RetryEvaluationResponseSchema, value, "retry-evaluation response");
+  }
+
+  async getBillingCapabilities(signal?: AbortSignal): Promise<BillingCapabilities> {
+    const value = await this.#requestBilling(
+      "GET",
+      BILLING_PRIMARY_PATHS.capabilities,
+      undefined,
+      signal
+    );
+    return parseBillingCapabilitiesResponse(value);
+  }
+
+  async #requestBilling(
+    method: "GET" | "POST",
+    path: string,
+    body: unknown,
+    signal?: AbortSignal
+  ): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const value = await this.#request(
-          "GET",
+          method,
           path,
-          undefined,
+          body,
           signal,
           this.requestTimeoutMs,
           false,
@@ -530,7 +577,13 @@ export class CloudClient {
           profileRecoveryUrl(this.apiUrl)
         );
       }
-      throw cloudHttpError(response.status, value, method, path);
+      throw cloudHttpError(
+        response.status,
+        value,
+        method,
+        path,
+        profileRecoveryUrl(this.apiUrl)
+      );
     }
     if (value === undefined) {
       throw new AwError({
@@ -642,8 +695,9 @@ export function normalizeApiUrl(value: string | URL): URL {
 
 function apiEndpoint(base: URL, path: string): URL {
   const url = new URL(base);
-  url.pathname = `${base.pathname.replace(/\/$/, "")}${path}`;
-  url.search = "";
+  const parsed = new URL(path, "https://cli.invalid");
+  url.pathname = `${base.pathname.replace(/\/$/, "")}${parsed.pathname}`;
+  url.search = parsed.search;
   url.hash = "";
   return url;
 }
@@ -710,8 +764,20 @@ function cloudHttpError(
   status: number,
   value: unknown,
   method?: "GET" | "POST",
-  path?: string
+  path?: string,
+  recoveryUrl?: string
 ): AwError {
+  const mapped =
+    method !== undefined && path !== undefined
+      ? mapBillingAdmissionError(
+          status,
+          value,
+          method,
+          path,
+          recoveryUrl ?? profileRecoveryUrl(new URL("https://augmentworks.ai/"))
+        )
+      : undefined;
+  if (mapped !== undefined) return mapped;
   const serverError = safeServerError(value);
   const category = status === 401 || status === 403 ? "auth" : status === 409 || status === 410 ? "protocol" : "relay";
   const code =
