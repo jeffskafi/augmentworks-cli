@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows
   file. `init --agent` behavior is unchanged.
 - Copyable GitHub Actions example and synthetic sample reports under
   `docs/examples/`.
+- Authenticated `augmentworks usage` / `usage --json` for Stage 1B billing
+  snapshots. Vendors `aw-billing/1` from main commit
+  `e037958ba3c9f38a436b6065cddb5fb8ee3943fa`. Exit `13` is the billing
+  category. Not in published `0.3.1`. Does not publish npm or enable live sales.
 
 ### Fixed
 

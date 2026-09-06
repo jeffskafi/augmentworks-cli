@@ -122,6 +122,8 @@ export const LOCAL_COMMANDS = {
 
 export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
 export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
+export const SOURCE_USAGE_COMMAND = formatSourceCli(["usage"]);
+export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
   doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [

@@ -38,7 +38,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo`. Clone this repository and build source `0.3.2` for the packaged demo. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo` or `usage`. Clone this repository and build source `0.3.2` for the packaged demo and authenticated usage display. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (source 0.3.2, not in npm 0.3.1)
 
@@ -116,6 +116,30 @@ For an SSH or otherwise headless environment, use device authorization:
 ```bash
 npx --yes @augmentworks/cli@0.3.1 login --device
 ```
+
+## Workspace usage (source 0.3.2)
+
+`usage` reads the authenticated workspace ledger. It does not need target YAML,
+a target API key, or a target server. It does not grant credits, reserve units,
+create a run, or open checkout. Billing management stays in a signed-in browser
+session with billing permission; this command only displays a server snapshot.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js usage
+node dist/index.js usage --json
+```
+
+Human output identifies the workspace, shows available credits prominently,
+then reserved and consumed credits with their ledger meanings. Values are a
+server snapshot at `asOf`, not a guaranteed future balance. The CLI never
+recomputes available credits by subtracting fields. Login refresh, logout, and
+browser reauthentication do not imply a new trial. Local `demo`, `test --local`,
+offline `doctor`, and `schema` remain account-free and make no billing calls.
+
+Until source 0.3.2 is published, do not write an unpublished npx pin for
+`usage`.
 
 ## Local assessment (published 0.3.1)
 
@@ -395,6 +419,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
+| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, or checkout. Source 0.3.2, not published 0.3.1 |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
@@ -418,6 +443,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `10` | Assertions failed or the assessment was inconclusive |
 | `11` | Hosted hybrid grading is pending or incomplete after target work finished |
 | `12` | Required hosted evaluation did not complete because of an operational judging error |
+| `13` | Hosted billing/usage rejection; unreachable from `--local` |
 | `130` | Interrupted after cleanup was drained; a second interrupt exits immediately |
 
 ## Evidence levels

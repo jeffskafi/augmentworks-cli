@@ -29,8 +29,9 @@ Verified published package only:
 - `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 - `npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet`
 
-Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only:
-`node dist/index.js demo` after building this repository.
+Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only after
+building this repository: `node dist/index.js demo` and read-only
+`node dist/index.js usage` (no grant, reservation, checkout, or target call).
 
 ## Secrets and evidence
 

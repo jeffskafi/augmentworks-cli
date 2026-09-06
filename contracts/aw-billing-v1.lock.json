@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "aw-billing/1",
+  "algorithm": "sha256",
+  "source": {
+    "repository": "https://github.com/jeffskafi/augmentworks.git",
+    "commit": "e037958ba3c9f38a436b6065cddb5fb8ee3943fa",
+    "handoff": "docs/billing-cursor-handoff.md",
+    "schema": "docs/contracts/aw-billing-v1.schema.json",
+    "fixtures": "docs/contracts/aw-billing-v1.fixtures.json"
+  },
+  "files": {
+    "contracts/aw-billing-v1.schema.json": "2ea0236b9fa1bac4a7e50dbd5d016c9b9b32a4b7b31298cfc53104308bdace8d",
+    "contracts/aw-billing-v1.fixtures.json": "6ef4e83f2dfa5f5ffc22dd97ec35c106ef7d012d7433e107cf551841b0eb7556"
+  },
+  "contract": {
+    "primaryPaths": {
+      "capabilities": "/v1/billing/capabilities",
+      "usage": "/v1/billing/usage"
+    },
+    "aliases": {
+      "capabilities": ["/api/v1/billing/capabilities"],
+      "usage": ["/api/v1/billing/usage"]
+    },
+    "readScope": "connector:identity",
+    "advertisedCapabilities": ["usage_v1"],
+    "reservedCapabilities": [
+      "quote_v1",
+      "status_v1",
+      "billing_portal_link_v1",
+      "subscriptions_v1"
+    ]
+  }
+}
