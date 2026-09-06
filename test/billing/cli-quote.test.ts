@@ -122,7 +122,7 @@ function completedCreateResponse(request: Record<string, unknown>, protocol = "a
     config_sha256: request["config_sha256"],
     fencing_epoch: 1,
     status: "completed",
-    dashboard_url: "http://127.0.0.1:8787/portal/runs/run-quoted",
+    dashboard_url: "https://augmentworks.ai/portal/runs/run-quoted",
     run_expires_at: "2099-09-06T00:00:00.000Z",
     credit_state: "reserved"
   };
@@ -286,7 +286,7 @@ describe("hosted estimate and quoted admission", () => {
     const cwd = await projectDir();
     const stateDirectory = await projectDir();
     const counts = { quote: 0, create: 0, target: 0 };
-    let createAttempts = 0;
+    let dropCreates = true;
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = new URL(String(input));
       const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
@@ -299,16 +299,18 @@ describe("hosted estimate and quoted admission", () => {
       }
       if (url.pathname === "/v1/relay/runs") {
         counts.create += 1;
-        createAttempts += 1;
         const request = body as Record<string, unknown>;
         expect(request["protocol_version"]).toBe("aw-relay/0.3");
         expect(request["quote_id"]).toBe("55555555-5555-4555-8555-555555555555");
         expect(request["max_credits"]).toBe(30);
-        const response = {
+        if (dropCreates) {
+          throw Object.assign(new Error("dropped"), { cause: "network" });
+        }
+        return Response.json({
           protocol_version: "aw-relay/0.3",
           create_request_id: request["create_request_id"],
           create_request_sha256: sha256(canonicalize(request)),
-          create_disposition: createAttempts === 1 ? "created" : "replayed",
+          create_disposition: "replayed",
           run_id: "run-quoted",
           session_id: "session-1",
           packet: {
@@ -319,14 +321,10 @@ describe("hosted estimate and quoted admission", () => {
           config_sha256: request["config_sha256"],
           fencing_epoch: 1,
           status: "completed",
-          dashboard_url: "http://127.0.0.1:8787/portal/runs/run-quoted",
+          dashboard_url: "https://augmentworks.ai/portal/runs/run-quoted",
           run_expires_at: "2099-09-06T00:00:00.000Z",
           credit_state: "reserved"
-        };
-        if (createAttempts === 1) {
-          throw Object.assign(new Error("dropped"), { cause: "network" });
-        }
-        return Response.json(response);
+        });
       }
       if (url.pathname === "/v1/relay/run-intents:reconcile") {
         const request = body as Record<string, unknown>;
@@ -382,6 +380,7 @@ describe("hosted estimate and quoted admission", () => {
     );
     await expect(first).rejects.toMatchObject({ code: "RELAY_UNREACHABLE" });
     expect(counts.quote).toBe(1);
+    dropCreates = false;
     const second = await runTest(
       {
         cwd,
@@ -457,17 +456,20 @@ describe("hosted estimate and quoted admission", () => {
     let target = 0;
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = new URL(String(input));
-      const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
-      if (url.pathname === "/v1/billing/capabilities") {
+      let body: Record<string, unknown> = {};
+      if (typeof init?.body === "string" && init.body.length > 0) {
+        body = JSON.parse(init.body) as Record<string, unknown>;
+      }
+      if (url.pathname.endsWith("/v1/billing/capabilities")) {
         return Response.json(fixtures.fixtures["eligible_trial"]?.response);
       }
-      if (url.pathname === "/v1/billing/quote") {
+      if (url.pathname.endsWith("/v1/billing/quote")) {
         return Response.json(fixtures.fixtures["quote_success_insufficient_balance"]?.response);
       }
-      if (url.pathname === "/v1/relay/runs") {
+      if (url.pathname.endsWith("/v1/relay/runs")) {
         return Response.json(fixtures.fixtures["error_insufficient_credits"]?.response, { status: 409 });
       }
-      if (url.pathname === "/v1/relay/run-intents:reconcile") {
+      if (url.pathname.endsWith("/v1/relay/run-intents:reconcile")) {
         return Response.json({
           protocol_version: "aw-run-intent-reconcile/0.1",
           outcome: "rejected_uncreated",

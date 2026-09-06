@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI 1B baseline HEAD | `b26927f679e634692b89c6c080a694b30d94b6bd` (`cursor/billing-stage-1b-91a7`) |
 | Working branch | `cursor/billing-stage-2b-91a7` |
-| Implementation | recorded in `docs/billing/phase-2-completion.md` after the landing commit |
+| Implementation | `901f82ea11a69a136364ea9c604629886c1cf878` plus the verification-record commit on this branch |
 | Vendored main commit | `67749b22f04bbb8d94c0309acd36be3cb3144400` (`cursor/billing-stage-2a-91a7`) |
 | Stage | **2B code complete.** Deterministic verification is recorded in the phase-2 completion file. Not npm-published. Not production-verified against a live 2A host. Not live-sales ready. |
 

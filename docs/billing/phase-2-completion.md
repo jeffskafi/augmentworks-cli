@@ -13,7 +13,7 @@ Stage 2A host, and **not** release-ready for live sales.
 | --- | --- |
 | CLI 1B baseline | `b26927f679e634692b89c6c080a694b30d94b6bd` (`cursor/billing-stage-1b-91a7`) |
 | Working branch | `cursor/billing-stage-2b-91a7` |
-| Implementation | recorded after the landing commit on this branch |
+| Implementation | `901f82ea11a69a136364ea9c604629886c1cf878` (feature) and the follow-up verification-record commit |
 | Vendored main commit | `67749b22f04bbb8d94c0309acd36be3cb3144400` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
 
@@ -22,7 +22,7 @@ Stage 2A host, and **not** release-ready for live sales.
 | Gate | Status |
 | --- | --- |
 | Code completion (this repository) | **Complete.** Vendored Stage 2A schema/fixtures/lock, `test --estimate`, `--max-credits`, quoted `aw-relay/0.3` create, `run status` / `wait` / `retry-evaluation` |
-| Deterministic verification | Recorded below after the repository checks run |
+| Deterministic verification | **Passed** in this checkout. Commands and outcomes below |
 | Live Stage 2A host / Stripe / OpenAI | **Not run.** Missing external credentials are blockers, not passes |
 | Release readiness | **Not ready.** No npm publish, no live sales, no real charges |
 
@@ -81,10 +81,19 @@ Sourced from main `67749b22f04bbb8d94c0309acd36be3cb3144400`.
 
 Working directory: `/Users/jeffskafi/Desktop/augmentworks-cli-billing-2b`.
 
-Typecheck passed before the landing commit (`npx tsc --noEmit`). Full
-`npm test` / `npm run check` / `npm run smoke:pack` results are recorded in a
-follow-up update to this file after those commands run. Do not treat this
-paragraph as evidence that the suite passed.
+| Command | Outcome |
+| --- | --- |
+| `npm run check:billing-contract` | Pass. `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400`; schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`; fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1` |
+| `npm run typecheck` | Pass (`tsc --noEmit`) |
+| `npm test` | Pass. Vitest 4.1.11: **47 files, 379 tests** |
+| `npm run build` | Pass. tsup ESM `dist/index.js` 1.63 MB |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2` (development) |
+| `npm run check` | Pass (typecheck + test + build + discovery + billing contract) |
+| `npm run smoke:pack` | Pass. Packed tarball **20 files, 354301 compressed bytes**; init/offline doctor, bundled local packet, packaged demo from installed tarball |
+
+Billing-focused tests in `test/billing/` cover Stage 1 usage fixtures plus Stage 2 quote/status: estimate has zero create/target calls; rejected ceilings do not start the target; dropped create resumes the same `quote_id`; proven-uncreated `QUOTE_EXPIRED` retires then requotes; a later larger quote cannot pass the previous numerical ceiling; missing `quote_v1` is `UPDATE_REQUIRED` with no 0.2 fallback; packet-only stays 0.1 and does not quote; `run status` / `wait` / `retry-evaluation` make zero target or reservation calls; `--yes` is not an unlimited budget.
+
+Do not treat this file as evidence that a live Stage 2A host, Stripe, or OpenAI calibration ran.
 
 ## Required configuration
 
