@@ -13,7 +13,7 @@ Stage 2A host, and **not** release-ready for live sales.
 | --- | --- |
 | CLI 1B baseline | `b26927f679e634692b89c6c080a694b30d94b6bd` (`cursor/billing-stage-1b-91a7`) |
 | Working branch | `cursor/billing-stage-2b-91a7` |
-| Implementation | `901f82ea11a69a136364ea9c604629886c1cf878` (feature) and the follow-up verification-record commit |
+| Implementation | `901f82ea11a69a136364ea9c604629886c1cf878` (feature), `77b17f0514bfe9a06dc9eefefa01c2c5c6f30e9c` (verification record) |
 | Vendored main commit | `67749b22f04bbb8d94c0309acd36be3cb3144400` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
 
