@@ -1,12 +1,12 @@
 {
   "schema_version": "aw-cli-release/0.1",
   "npm_package": "@augmentworks/cli",
-  "source_package_version": "0.3.1",
+  "source_package_version": "0.3.2",
   "published_package_version": "0.3.1",
   "published_package_verified": true,
   "recommended_cli_version": "0.3.1",
   "hosted_command_pin": "0.3.1",
-  "local_distribution": "npm",
+  "local_distribution": "git",
   "local_source_repository": "https://github.com/jeffskafi/augmentworks-cli.git",
   "local_source_ref": "main",
   "local_example_path": "examples/refund-agent",
@@ -15,5 +15,5 @@
   "protocol_version": "aw-relay/0.1",
   "target_protocol_version": "aw-target/0.1",
   "config_version": 1,
-  "notes": "Published @augmentworks/cli@0.3.1 includes hosted --assessment / --profile, aw-relay/0.2, recover, test --local, and aw-judge-disclosure/2. Hosted npx commands pin this verified package. Clone this repository for example servers; the npm tarball omits examples/."
+  "notes": "Source 0.3.2 adds the packaged `demo` command. Verified npm remains @augmentworks/cli@0.3.1, which includes hosted --assessment / --profile, recover, and test --local but does not include demo. Hosted npx commands pin 0.3.1. Do not document npx @0.3.2 until that tarball is independently verified."
 }

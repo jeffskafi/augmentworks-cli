@@ -1,6 +1,6 @@
 {
   "name": "@augmentworks/cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Deterministic hosted and customer-executed local testing for AI agents",
   "type": "module",
   "bin": {
@@ -10,6 +10,8 @@
     "dist",
     "packets",
     "schemas",
+    "assets",
+    "contracts",
     "README.md",
     "LICENSE",
     "SECURITY.md",
@@ -23,7 +25,11 @@
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test && npm run build",
+    "check": "npm run typecheck && npm test && npm run build && npm run check:discovery",
+    "generate:discovery": "tsx scripts/generate-discovery-manifest.mjs",
+    "generate:agent-resources": "tsx scripts/generate-agent-resources.mjs",
+    "generate:demo-examples": "tsx scripts/generate-demo-examples.mjs",
+    "check:discovery": "tsx scripts/check-discovery-manifest.mjs",
     "test:integration:recovery": "vitest run test/recovery/recovery.test.ts test/integration/create-resume.test.ts test/integration/cli-entry.test.ts",
     "test:e2e:cli-auth": "vitest run test/auth/loopback-callback.test.ts",
     "audit:ci": "npm audit --audit-level=high",
@@ -39,7 +45,8 @@
     "chatbot-testing",
     "local-ai-testing",
     "offline-evaluation",
-    "cli"
+    "cli",
+    "regression-testing"
   ],
   "author": "AugmentWorks",
   "license": "Apache-2.0",
@@ -50,7 +57,7 @@
   "bugs": {
     "url": "https://github.com/jeffskafi/augmentworks-cli/issues"
   },
-  "homepage": "https://github.com/jeffskafi/augmentworks-cli#readme",
+  "homepage": "https://augmentworks.ai",
   "publishConfig": {
     "access": "public",
     "provenance": true

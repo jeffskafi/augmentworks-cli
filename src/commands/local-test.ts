@@ -33,6 +33,7 @@ export interface LocalTestOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly signal?: AbortSignal;
   readonly handleSignals?: boolean;
+  readonly runDeadlineMs?: number;
 }
 
 export interface LocalTestResult {
@@ -103,6 +104,7 @@ export async function runLocalTest(
     configSha256: report.resolvedConfig.configDigest,
     secrets: report.resolvedConfig.secrets,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.runDeadlineMs === undefined ? {} : { runDeadlineMs: options.runDeadlineMs }),
     ...(progress === undefined ? {} : { onProgress: progress })
   };
   const runner = dependencies.runner?.(runnerOptions) ?? new LocalRunner(runnerOptions);

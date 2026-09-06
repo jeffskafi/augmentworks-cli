@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "@augmentworks/cli",
+    "version": "0.3.2",
+    "releaseStatus": "development"
+  },
+  "runtime": {
+    "node": ">=20"
+  },
+  "capabilities": {
+    "localDemo": true,
+    "localTest": true,
+    "hostedAssessment": true,
+    "agentGuide": true
+  },
+  "commands": {
+    "localDemo": [
+      "node",
+      "dist/index.js",
+      "demo"
+    ],
+    "localTest": [
+      "node",
+      "dist/index.js",
+      "test",
+      "--local",
+      "-c",
+      "augmentworks.yaml",
+      "--packet",
+      "support-refunds-starter@0.1.0"
+    ],
+    "doctor": [
+      "node",
+      "dist/index.js",
+      "doctor",
+      "-c",
+      "augmentworks.yaml"
+    ],
+    "hostedAssessment": [
+      "node",
+      "dist/index.js",
+      "test",
+      "-c",
+      "augmentworks.yaml",
+      "--assessment",
+      "./augmentworks.assessment.yaml",
+      "--profile",
+      "quick"
+    ]
+  },
+  "site": "https://augmentworks.ai",
+  "docs": {
+    "quickstart": "https://augmentworks.ai/docs/quickstart",
+    "localQuickstart": "https://augmentworks.ai/docs/local-quickstart",
+    "agentSetup": "https://augmentworks.ai/docs/agent-setup"
+  },
+  "reportFormats": [
+    "json",
+    "junit",
+    "html"
+  ],
+  "provenance": {
+    "sourceCommit": null,
+    "verifiedAt": null
+  }
+}

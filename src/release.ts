@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Published @augmentworks/cli@0.3.1 includes hosted --assessment / --profile, aw-relay/0.2, recover, test --local, and aw-judge-disclosure/2. Hosted npx commands pin this verified package. Clone this repository for example servers; the npm tarball omits examples/."
+    "Source 0.3.2 adds the packaged `demo` command. Verified npm remains @augmentworks/cli@0.3.1, which includes hosted --assessment / --profile, recover, and test --local but does not include demo. Hosted npx commands pin 0.3.1. Do not document npx @0.3.2 until that tarball is independently verified."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -116,6 +116,22 @@ export const LOCAL_COMMANDS = {
     "-c augmentworks.yaml",
     `--packet ${LOCAL_PACKET_REFERENCE}`,
     "--open"
+  ]),
+  demo: formatDocumentedCli("demo", [])
+} as const;
+
+export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
+export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
+
+export const PUBLISHED_LOCAL_COMMANDS = {
+  doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [
+    "-c augmentworks.yaml"
+  ]),
+  test: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "test", [
+    "--local",
+    "-c augmentworks.yaml",
+    `--packet ${LOCAL_PACKET_REFERENCE}`,
+    "--open"
   ])
 } as const;
 
@@ -145,7 +161,7 @@ export const HOSTED_TEST_KEEP_TERMINAL =
 export const INIT_NEXT_STEPS =
   LOCAL_DISTRIBUTION === "npm"
     ? `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open.`
-    : `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open. Local --local requires source ${SOURCE_PACKAGE_VERSION} until that version is published.`;
+    : `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open. Packaged demo and unpublished local commands use source ${SOURCE_PACKAGE_VERSION} until that version is published.`;
 
 export const LOGIN_NEXT_STEPS = `Next: run doctor, then keep this terminal open for hosted test --assessment ./augmentworks.assessment.yaml --profile quick --open. There is no separate connect command.`;
 

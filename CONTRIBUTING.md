@@ -19,6 +19,22 @@ npm run smoke:pack
 Do not commit `.env`, credentials, real customer inputs, production data, local
 command journals, or generated credential-store files.
 
+## Practical contribution routes
+
+- **New synthetic fixture / local packet:** add data-only `aw-packet/0.1` JSON
+  under `packets/` or a test fixture. No JavaScript, URLs, or secrets. Update
+  integrity hashes and `schema --kind local-packet` checks.
+- **Connector example:** extend `examples/` (not shipped in npm) or the packaged
+  `assets/demo/` tree if the runtime demo needs a minimal asset. Prefer the
+  generic HTTP YAML connector; do not add framework adapters the CLI does not
+  provide.
+- **Documentation correction:** keep version pins accurate. Distinguish source
+  `0.3.2` from verified npm `0.3.1`. Historical changelog entries are not
+  current executable quickstarts.
+- **Reported setup failure:** file an issue with CLI version, Node.js version,
+  OS, redacted config, and the safe error code. Never attach `.env`,
+  credentials, or customer reports.
+
 ## Pull requests
 
 - Keep behavior deterministic; do not add an LLM to config validation or test
@@ -35,6 +51,8 @@ command journals, or generated credential-store files.
   release line.
 - Keep user-facing errors safe and actionable; never echo raw response bodies or
   authorization headers.
+- If you change discovery copy, run `npm run generate:discovery` and
+  `npm run generate:agent-resources` so wrappers cannot drift.
 
 A pull request should explain its user-visible outcome, security implications,
 test evidence, and any deployment dependency. Mark cloud functionality as
@@ -47,7 +65,8 @@ against loopback mock servers and cannot depend on production AugmentWorks,
 third-party model providers, or customer services.
 
 The packed-tarball smoke test is required because source-level success does not
-prove that `npx` receives the executable, schema, notices, and documentation.
+prove that `npx` receives the executable, schema, notices, documentation, and
+demo assets.
 
 ## Releases
 

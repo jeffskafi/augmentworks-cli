@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -9,8 +9,6 @@ import { fileURLToPath } from "node:url";
 import { parsePackReport } from "./npm-pack-report.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
-const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
 const commandTimeoutMs = 120_000;
 
 class SmokeFailure extends Error {
@@ -24,13 +22,45 @@ function assert(condition, message) {
   if (!condition) throw new SmokeFailure(message);
 }
 
+function resolveNpmJsCli(binName) {
+  const fileName = `${binName}-cli.js`;
+  const fromLifecycle =
+    typeof process.env.npm_execpath === "string" && process.env.npm_execpath.length > 0
+      ? process.env.npm_execpath
+      : undefined;
+  const candidates = [];
+  if (fromLifecycle !== undefined) {
+    if (binName === "npm") candidates.push(fromLifecycle);
+    candidates.push(join(dirname(fromLifecycle), fileName));
+  }
+  const prefix = dirname(process.execPath);
+  candidates.push(
+    join(prefix, "node_modules", "npm", "bin", fileName),
+    join(prefix, "..", "lib", "node_modules", "npm", "bin", fileName)
+  );
+  return candidates.find((path) => existsSync(path));
+}
+
+function runJsCli(binName, args, options = {}) {
+  const cli = resolveNpmJsCli(binName);
+  if (cli !== undefined) {
+    return run(process.execPath, [cli, ...args], options);
+  }
+  // Node 22+ on Windows rejects spawn of .cmd shims without a shell (EINVAL).
+  return run(process.platform === "win32" ? `${binName}.cmd` : binName, args, {
+    ...options,
+    shell: process.platform === "win32"
+  });
+}
+
 function run(executable, args, options = {}) {
   const result = spawnSync(executable, args, {
     cwd: options.cwd ?? projectRoot,
     env: { ...process.env, ...options.env, NO_COLOR: "1" },
     encoding: "utf8",
     timeout: commandTimeoutMs,
-    windowsHide: true
+    windowsHide: true,
+    ...(options.shell === true ? { shell: true } : {})
   });
 
   if (result.error !== undefined) {
@@ -95,12 +125,16 @@ function assertInventory(report) {
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
     "packets/support-refunds-starter/0.1.0/packet.json",
-    "schemas/v1/cli-release.json"
+    "schemas/v1/cli-release.json",
+    "assets/demo/packet.json",
+    "assets/demo/augmentworks.yaml",
+    "contracts/discovery-manifest.json",
+    "contracts/discovery-manifest.schema.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
 
-  const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/"];
+  const forbiddenPrefixes = ["src/", "test/", "tests/", "scripts/", "examples/", ".github/", "docs/", "agent-resources/"];
   for (const path of files) {
     assert(
       !forbiddenPrefixes.some((prefix) => path.startsWith(prefix)),
@@ -195,10 +229,10 @@ async function main() {
     ]);
 
     process.stdout.write("[pack smoke] building package\n");
-    run(npmExecutable, ["run", "build"]);
+    runJsCli("npm", ["run", "build"]);
 
     process.stdout.write("[pack smoke] creating and inspecting tarball\n");
-    const packed = run(npmExecutable, [
+    const packed = runJsCli("npm", [
       "pack",
       "--json",
       "--ignore-scripts",
@@ -216,11 +250,11 @@ async function main() {
     assert(report.version === rootManifest.version, "tarball version differs from package.json");
 
     process.stdout.write("[pack smoke] executing tarball through npx\n");
-    const directVersion = run(
-      npxExecutable,
+    const directVersion = runJsCli(
+      "npx",
       ["--yes", "--package", tarballPath, "augmentworks", "--version"],
       {
-      cwd: consumerDirectory
+        cwd: consumerDirectory
       }
     );
     assert(
@@ -233,8 +267,8 @@ async function main() {
       JSON.stringify({ name: "augmentworks-cli-pack-smoke", private: true, version: "0.0.0" }, null, 2) + "\n",
       "utf8"
     );
-    run(
-      npmExecutable,
+    runJsCli(
+      "npm",
       ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false", tarballPath],
       { cwd: consumerDirectory }
     );
@@ -254,14 +288,14 @@ async function main() {
       ".bin",
       process.platform === "win32" ? "augmentworks.cmd" : "augmentworks"
     );
-    await access(installedBin, fsConstants.X_OK);
+    await access(installedBin, process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK);
     if (process.platform !== "win32") {
       const executable = await stat(join(installedRoot, "dist", "index.js"));
       assert((executable.mode & 0o111) !== 0, "published CLI entrypoint is not executable");
     }
 
     const execCli = (args, options = {}) =>
-      run(npmExecutable, ["exec", "--", "augmentworks", ...args], {
+      runJsCli("npm", ["exec", "--", "augmentworks", ...args], {
         cwd: options.cwd ?? consumerDirectory,
         env: options.env
       });
@@ -378,6 +412,59 @@ async function main() {
     );
     await stopTarget(targetProcess);
     targetProcess = undefined;
+
+    process.stdout.write("[pack smoke] running packaged demo from installed tarball\n");
+    const demoDirectory = join(consumerDirectory, "demo space", "run");
+    await mkdir(demoDirectory, { recursive: true });
+    await writeFile(
+      join(demoDirectory, "augmentworks.yaml"),
+      "version: 1\ntarget:\n  name: must-not-be-used\n  connector: http\n  base_url: ${CHATBOT_BASE_URL}\n  operations:\n    send:\n      method: POST\n      path: /chat\n",
+      "utf8"
+    );
+    const demoOutput = join(demoDirectory, "demo-output");
+    const packedCli = join(installedRoot, "dist", "index.js");
+    const demoRun = run(
+      process.execPath,
+      [packedCli, "demo", "--json", "--output-dir", demoOutput],
+      {
+        cwd: demoDirectory,
+        env: {
+          CHATBOT_BASE_URL: "https://poisoned.example",
+          CHATBOT_API_KEY: "ambient-secret-must-not-be-used",
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      }
+    );
+    let demoSummary;
+    try {
+      demoSummary = JSON.parse(demoRun.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `packed demo --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${demoRun.stdout}`
+      );
+    }
+    assert(demoSummary.schema_version === "AW-DEMO-SUMMARY-1", "demo summary schema is wrong");
+    assert(demoSummary.kind === "synthetic_local_demo", "demo summary kind is wrong");
+    assert(demoSummary.ok === true, "packed demo story did not succeed");
+    assert(demoSummary.runs?.faulty?.exit_code === 10, "faulty demo exit was not preserved as 10");
+    assert(demoSummary.runs?.corrected?.exit_code === 0, "corrected demo exit was not 0");
+    assert(
+      !demoRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into demo stdout"
+    );
+    assert(
+      !demoRun.stdout.includes("ambient-secret-must-not-be-used"),
+      "ambient target credential leaked into demo stdout"
+    );
+    await Promise.all(
+      ["failing/report.json", "passing/report.json", "failing/junit.xml", "passing/report.html"].map((name) =>
+        access(join(demoOutput, name), fsConstants.R_OK)
+      )
+    );
+    const demoHelp = execCli(["demo", "--help"]);
+    assert(demoHelp.stdout.includes("--json"), "packed CLI is missing demo --json");
+    assert(demoHelp.stdout.includes("--mode"), "packed CLI is missing demo --mode");
 
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`

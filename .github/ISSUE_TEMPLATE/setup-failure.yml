@@ -1,0 +1,49 @@
+name: Setup or local run failure
+description: Report a redacted CLI setup, demo, or local assessment failure
+title: "[setup] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach `.env`, tokens, Authorization headers, raw target
+        responses, customer reports, or production data. Redact hostnames if
+        needed. This form never asks for credentials.
+  - type: input
+    id: cli_version
+    attributes:
+      label: CLI version
+      placeholder: "0.3.1 (npm) or 0.3.2 (source)"
+    validations:
+      required: true
+  - type: input
+    id: node_version
+    attributes:
+      label: Node.js version
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command (no secrets)
+      placeholder: "node dist/index.js demo --json"
+    validations:
+      required: true
+  - type: input
+    id: exit_code
+    attributes:
+      label: Exit code
+      placeholder: "2, 5, 6, 10, ..."
+  - type: textarea
+    id: repro
+    attributes:
+      label: Redacted reproduction
+      description: Config shape, packet id/version, and safe error code/message only.
+    validations:
+      required: true

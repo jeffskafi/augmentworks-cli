@@ -2,35 +2,88 @@
 
 [![CI](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml)
 
-`@augmentworks/cli` is a deterministic, customer-operated connector for
-stateful AI agent release testing. It maps fixed assessment operations to an
-application on localhost, a private network, or another customer-configured
-endpoint using versioned YAML. The same connector supports two explicit modes:
+AugmentWorks is regression testing for AI agents: it checks conversational
+responses, reported tool calls, and configured synthetic application state.
+It is for engineers and coding assistants who need a deterministic first
+assessment without treating a chatbot saying “done” as proof that state
+changed.
 
-- `test --local` loads and scores a data-only packet entirely in the customer
-  environment. It requires no AugmentWorks account and contacts no
-  AugmentWorks service.
-- `test` starts a hosted AugmentWorks assessment, exchanges bounded evidence
-  through the outbound HTTPS relay, and shows the result in the dashboard.
-
+The CLI maps fixed assessment operations to an application on localhost, a
+private network, or another customer-configured endpoint using versioned YAML.
 The generic HTTP connector does not require a Python adapter or AugmentWorks
 target SDK, and no coding assistant is used in either runtime path.
+
+| Path | What it is | Needs | Status |
+| --- | --- | --- | --- |
+| Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ and this source build (or a later verified npm release that contains `demo`) | **Unreleased in npm.** Source `0.3.2` implements it. Published `@augmentworks/cli@0.3.1` does **not**. |
+| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | Published in `@augmentworks/cli@0.3.1` |
+| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | Published in `@augmentworks/cli@0.3.1` |
+
+Product site: [https://augmentworks.ai](https://augmentworks.ai).
+Report schemas: `schema --kind local-packet` and `schema --kind local-result`.
+Docs: [quickstart](https://augmentworks.ai/docs/quickstart),
+[local](https://augmentworks.ai/docs/local-quickstart),
+[agent setup](https://augmentworks.ai/docs/agent-setup).
+
+Do not invent popularity, certifications, endorsements, or AI search ranking.
+Local reports are unsigned, customer-executed evidence, not a certification,
+audit, or hosted evidence record.
 
 ## Versions
 
 | Identity | Current value |
 | --- | --- |
-| Source package (`package.json`) | `0.3.1` |
+| Source package (`package.json`) | `0.3.2` |
 | Verified published npm package | `@augmentworks/cli@0.3.1` |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/`; clone this repository for example servers.
+Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo`. Clone this repository and build source `0.3.2` for the packaged demo. Do not run `npx @augmentworks/cli@latest`.
+
+## Packaged demo (source 0.3.2, not in npm 0.3.1)
+
+Prerequisites: Node.js 20 or newer. No API key, login, second terminal, Docker,
+database, or model.
+
+From a clone of this repository after `npm ci && npm run build`:
+
+```bash
+node dist/index.js demo
+```
+
+Machine-readable summary (not an `AW-LOCAL-RESULT-1` report):
+
+```bash
+node dist/index.js demo --json
+```
+
+The command binds an isolated target to `127.0.0.1` on an OS-assigned port,
+generates a per-run authentication value, and ignores caller `CHATBOT_*` /
+`AUGMENTWORKS_*` environment variables, `.env`, and the working project's
+YAML. It runs the real local scorer twice on the same data-only packet:
+
+1. **Faulty implementation** — refunds $80 even though `policy.maximum_refund`
+   is $50. Observation `order.status` becomes `refunded`. Expected assertion
+   `policy-limit-order-remains-paid` fails. Underlying exit code `10`.
+2. **Corrected implementation** — enforces the maximum. The order stays `paid`
+   and `order.refunded_amount` stays `0`. Underlying exit code `0`.
+
+A conversational “The synthetic order refund completed.” response is not
+proof of correct state; the observer values are. The demo exits `0` only when
+that fail-then-pass story and cleanup both succeed. Reports are written under
+a fresh `.augmentworks/demo/<id>/failing` and `passing` directory. `--open`
+opens HTML only if you pass it; default is no browser. After a hard kill,
+cleanup may not run; the in-memory demo target vanishes with the process, but
+a real application still needs a server-side fixture TTL.
+
+Until source 0.3.2 is published and that npm tarball is independently
+verified, do not write an unpublished npx pin for `demo`.
 
 ## Hosted quickstart
 
 Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
-authorized, isolated synthetic test target.
+authorized, isolated synthetic test target. Hosted access is not a public
+self-serve signup; do not assume a trial entitlement.
 
 ```bash
 npx --yes @augmentworks/cli@0.3.1 login
@@ -64,11 +117,13 @@ For an SSH or otherwise headless environment, use device authorization:
 npx --yes @augmentworks/cli@0.3.1 login --device
 ```
 
-## Local quickstart
+## Local assessment (published 0.3.1)
 
-No AugmentWorks account, login, credit, relay, or dashboard is required. Clone
-this repository for the example server; `examples/` is not in the npm tarball.
-The local CLI itself is the published package.
+No AugmentWorks account, login, credit, relay, or dashboard is required. Point
+the published CLI at **your** authorized isolated synthetic target, or clone
+this repository for the refund-agent example server. `examples/` is not in the
+npm tarball. The local CLI itself is the published `0.3.1` package. This path
+is not the packaged `demo` command.
 
 ```bash
 git clone https://github.com/jeffskafi/augmentworks-cli.git
@@ -97,7 +152,9 @@ npx --yes @augmentworks/cli@0.3.1 test \
 `doctor` still does not contact the target. `test --local` then calls only the
 target selected by the local configuration and writes private JSON, JUnit, and
 static HTML reports beneath `.augmentworks/runs/<run_id>/`. `--open` opens that
-static HTML file. Local reports do not upload to AugmentWorks.
+static HTML file. Local reports do not upload to AugmentWorks. Local
+`test --local` requires no AugmentWorks account and contacts no AugmentWorks
+service.
 
 “Local” describes the AugmentWorks boundary, not an air gap. The CLI makes no
 AugmentWorks control-plane request, but the configured target may itself be a
@@ -339,10 +396,11 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
-| `doctor [-c path] [--offline] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
+| `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--open]` | Run a hosted assessment from an assessment file | Uses `aw-relay/0.2`; included in `@augmentworks/cli@0.3.1` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
+| `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; source 0.3.2, not published 0.3.1 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
 
@@ -350,8 +408,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Assessment passed |
-| `1` | Internal or report-generation failure |
+| `0` | Assessment passed. For `demo` (default `--mode full`), the fail-then-pass story and cleanup succeeded. |
+| `1` | Internal or report-generation failure, or a demo whose faulty run unexpectedly passed |
 | `2` | Configuration, packet, capability, or output preflight failure |
 | `3` | Hosted authentication failure; unreachable from `--local` |
 | `4` | Hosted relay/protocol failure; unreachable from `--local` |
@@ -409,6 +467,22 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 [relay protocol](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/protocol.md), and
 [security policy](SECURITY.md).
 
+## Next step: your own synthetic target
+
+After the packaged demo, configure the generic HTTP connector against an
+authorized, isolated synthetic target in a test or staging environment:
+
+1. `npx --yes @augmentworks/cli@0.3.1 init --agent`
+2. Map `prepare` / `send` / `observe` / `cleanup` in `augmentworks.yaml`.
+3. Put secret *names* in YAML and values only in local `.env`.
+4. `npx --yes @augmentworks/cli@0.3.1 doctor -c augmentworks.yaml`
+5. `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+
+Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
+not provide. Hosted access remains an invited workspace at
+[https://augmentworks.ai](https://augmentworks.ai); this package does not
+define pricing or public signup.
+
 ## Current limitations
 
 - The generic HTTP connector is the only v0.2 connector.
@@ -425,6 +499,8 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 - Published `@augmentworks/cli@0.3.1` includes `--assessment`. Copy or write
   `augmentworks.assessment.yaml` before that hosted path; `init` does not
   create the assessment file.
+- Packaged `demo` is implemented in source `0.3.2` and is not in the verified
+  `0.3.1` npm tarball.
 
 ## Development
 

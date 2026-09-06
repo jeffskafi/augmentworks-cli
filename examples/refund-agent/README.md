@@ -12,7 +12,8 @@ private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
 for the example server. Published `@augmentworks/cli@0.3.1` supports `--local`
-and hosted `--assessment` via npx.
+and hosted `--assessment` via npx. Source `0.3.2` adds packaged `node dist/index.js demo`,
+which does not use this directory.
 
 ## Obtain the example
 

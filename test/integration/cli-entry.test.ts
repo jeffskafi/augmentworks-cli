@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "test", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "init", "doctor", "demo", "test", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);

@@ -1,0 +1,46 @@
+# CLI development demonstration check (distinct from a customer release gate)
+
+# Asserts that the packaged faulty implementation fails with exit 10, then that
+# `demo` (full story) exits 0. A customer's product gate should run
+# `test --local` and fail the job on assertion failures, not this demo
+# orchestrator.
+
+name: AugmentWorks packaged demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packaged-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - name: Faulty demo case must fail assertions
+        run: |
+          set +e
+          node dist/index.js demo --mode faulty --json --output-dir .augmentworks/aw-demo-faulty
+          code=$?
+          set -e
+          if [ "$code" -ne 10 ]; then
+            echo "expected exit 10, got $code"
+            exit 1
+          fi
+      - name: Full demo story
+        run: node dist/index.js demo --json --output-dir .augmentworks/aw-demo-full
+      - name: Upload demo reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: augmentworks-demo-reports
+          path: .augmentworks/aw-demo-*
+          if-no-files-found: warn
+          retention-days: 7
