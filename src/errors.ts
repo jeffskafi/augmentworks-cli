@@ -6,7 +6,8 @@ export type ErrorCategory =
   | "target"
   | "evidence"
   | "cleanup"
-  | "local";
+  | "local"
+  | "billing";
 
 export type OperationKind = "prepare" | "send" | "observe" | "cleanup";
 
@@ -62,6 +63,7 @@ export const EXIT = {
   ASSESSMENT_FAILED: 10,
   EVALUATION_INCOMPLETE: 11,
   EVALUATION_ERROR: 12,
+  BILLING: 13,
   INTERRUPTED: 130
 } as const;
 
@@ -82,6 +84,8 @@ export function exitCodeFor(error: unknown): number {
       return EXIT.TARGET;
     case "cleanup":
       return EXIT.CLEANUP;
+    case "billing":
+      return EXIT.BILLING;
     case "local":
       return error.code === "INTERRUPTED" ? EXIT.INTERRUPTED : EXIT.INTERNAL;
   }

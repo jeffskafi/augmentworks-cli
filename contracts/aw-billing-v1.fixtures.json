@@ -1,0 +1,372 @@
+{
+  "schemaVersion": "aw-billing/1",
+  "contract": {
+    "schemaFile": "docs/contracts/aw-billing-v1.schema.json",
+    "primaryPaths": {
+      "capabilities": "GET /v1/billing/capabilities",
+      "usage": "GET /v1/billing/usage"
+    },
+    "aliases": {
+      "capabilities": ["GET /api/v1/billing/capabilities"],
+      "usage": ["GET /api/v1/billing/usage"]
+    },
+    "readScope": "connector:identity",
+    "advertisedCapabilities": ["usage_v1"],
+    "reservedCapabilities": [
+      "quote_v1",
+      "status_v1",
+      "billing_portal_link_v1",
+      "subscriptions_v1"
+    ]
+  },
+  "fixtures": {
+    "eligible_trial": {
+      "description": "Newly eligible self-service trial with 200 unused units and no subscription.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:00:00.000Z",
+        "ledgerRevision": 1,
+        "accessState": "active",
+        "availableUnits": 200,
+        "reservedUnits": 0,
+        "consumedUnits": 0,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 200,
+            "reservedUnits": 0,
+            "consumedUnits": 0,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"],
+        "grossConsumedUnits": 0,
+        "compensatedUnits": 0
+      }
+    },
+    "partially_consumed_trial": {
+      "description": "Grant 200, reserve 10, consume 10, terminalize remaining reservation. Available 190, reserved 0, consumed 10.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:05:00.000Z",
+        "ledgerRevision": 4,
+        "accessState": "active",
+        "availableUnits": 190,
+        "reservedUnits": 0,
+        "consumedUnits": 10,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 190,
+            "reservedUnits": 0,
+            "consumedUnits": 10,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"],
+        "grossConsumedUnits": 10,
+        "compensatedUnits": 0
+      }
+    },
+    "active_reservation": {
+      "description": "Grant 200, reserve 10, consume 3 while the run is still open. Outstanding reserved 7, available 190.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:06:00.000Z",
+        "ledgerRevision": 5,
+        "accessState": "active",
+        "availableUnits": 190,
+        "reservedUnits": 7,
+        "consumedUnits": 3,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 190,
+            "reservedUnits": 7,
+            "consumedUnits": 3,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"],
+        "grossConsumedUnits": 3,
+        "compensatedUnits": 0
+      }
+    },
+    "exhausted_allowance": {
+      "description": "Active workspace with zero available units. Access remains active; new chargeable runs must be rejected.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:10:00.000Z",
+        "ledgerRevision": 12,
+        "accessState": "active",
+        "availableUnits": 0,
+        "reservedUnits": 0,
+        "consumedUnits": 200,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 0,
+            "reservedUnits": 0,
+            "consumedUnits": 200,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"],
+        "grossConsumedUnits": 200,
+        "compensatedUnits": 0
+      }
+    },
+    "closed_workspace_readable": {
+      "description": "Closed workspace remains readable for usage according to retention policy. New runs are rejected.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:20:00.000Z",
+        "ledgerRevision": 8,
+        "accessState": "closed",
+        "availableUnits": 197,
+        "reservedUnits": 0,
+        "consumedUnits": 3,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 197,
+            "reservedUnits": 0,
+            "consumedUnits": 3,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"],
+        "grossConsumedUnits": 3,
+        "compensatedUnits": 0
+      }
+    },
+    "suspended_workspace_readable": {
+      "description": "Suspended workspace usage remains readable. New chargeable admissions are rejected.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:21:00.000Z",
+        "ledgerRevision": 2,
+        "accessState": "suspended",
+        "availableUnits": 200,
+        "reservedUnits": 0,
+        "consumedUnits": 0,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 200,
+            "reservedUnits": 0,
+            "consumedUnits": 0,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"]
+      }
+    },
+    "no_subscription": {
+      "description": "Stage 1 subscription is null. Purchases are not advertised.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:00:00.000Z",
+        "ledgerRevision": 1,
+        "accessState": "active",
+        "availableUnits": 200,
+        "reservedUnits": 0,
+        "consumedUnits": 0,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 200,
+            "reservedUnits": 0,
+            "consumedUnits": 0,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": null,
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1"]
+      }
+    },
+    "unknown_capability_ignored": {
+      "description": "Consumer fixture: ignore unknown capability strings and tolerate a later non-null subscription object without treating it as an active sale.",
+      "consumer": true,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "2026-09-06T17:00:00.000Z",
+        "ledgerRevision": 1,
+        "accessState": "active",
+        "availableUnits": 200,
+        "reservedUnits": 0,
+        "consumedUnits": 0,
+        "grantBalances": [
+          {
+            "lotId": "33333333-3333-4333-8333-333333333333",
+            "origin": "trial",
+            "grantedUnits": 200,
+            "availableUnits": 200,
+            "reservedUnits": 0,
+            "consumedUnits": 0,
+            "expiresAt": null,
+            "grantedAt": "2026-09-06T16:00:00.000Z",
+            "policyVersion": "aw-billing/1"
+          }
+        ],
+        "subscription": {
+          "status": "future_stage",
+          "unsupportedDetail": "ignore"
+        },
+        "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+        "capabilities": ["usage_v1", "future_unreleased_v9"],
+        "additiveOptionalField": "tolerate"
+      }
+    },
+    "absent_capability": {
+      "description": "Capabilities document advertises only usage_v1. Reserved names are absent.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "asOf": "2026-09-06T17:00:00.000Z",
+        "capabilities": ["usage_v1"],
+        "workspaceId": "11111111-1111-4111-8111-111111111111"
+      }
+    },
+    "malformed_data": {
+      "description": "Invalid producer payload: negative units and a missing required field. Strict validation must reject it.",
+      "invalid": true,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "workspaceId": "not-a-uuid",
+        "billingAccountId": "22222222-2222-4222-8222-222222222222",
+        "asOf": "not-a-timestamp",
+        "ledgerRevision": -1,
+        "accessState": "active",
+        "availableUnits": -4,
+        "reservedUnits": 0,
+        "consumedUnits": 0,
+        "grantBalances": [],
+        "subscription": null,
+        "capabilities": ["usage_v1"]
+      }
+    },
+    "error_unauthenticated": {
+      "status": 401,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "unauthenticated",
+          "message": "A valid CLI connector credential is required.",
+          "retryable": false
+        }
+      }
+    },
+    "error_unauthorized": {
+      "status": 403,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "unauthorized",
+          "message": "This credential cannot read that billing account.",
+          "retryable": false
+        }
+      }
+    },
+    "error_insufficient_scope": {
+      "status": 403,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "insufficient_scope",
+          "message": "The connector token does not have billing read scope.",
+          "retryable": false
+        }
+      }
+    },
+    "error_workspace_mismatch": {
+      "status": 403,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "workspace_mismatch",
+          "message": "A supplied workspace identifier cannot switch tenants.",
+          "retryable": false
+        }
+      }
+    },
+    "error_service_unavailable": {
+      "status": 503,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "service_unavailable",
+          "message": "Billing usage is temporarily unavailable. Retry the read.",
+          "retryable": true
+        }
+      }
+    },
+    "error_unsupported_state": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "unsupported_state",
+          "message": "This billing or access state cannot be interpreted. Update the client.",
+          "retryable": false
+        }
+      }
+    }
+  }
+}

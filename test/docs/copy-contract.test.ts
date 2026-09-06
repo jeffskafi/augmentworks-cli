@@ -14,6 +14,8 @@ import {
   SOURCE_ASSESSMENT_COMMANDS,
   SOURCE_PACKAGE_VERSION,
   SOURCE_REPOSITORY,
+  SOURCE_USAGE_COMMAND,
+  SOURCE_USAGE_JSON_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -85,6 +87,8 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.doctor);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testQuick);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
+    expect(readme).toContain(SOURCE_USAGE_COMMAND);
+    expect(readme).toContain(SOURCE_USAGE_JSON_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
@@ -94,7 +98,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "demo", "test", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "demo", "test", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

@@ -31,10 +31,19 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "init", "doctor", "demo", "test", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "demo", "test", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
+  });
+
+  it("documents usage as a read-only billing snapshot", async () => {
+    const result = await runSourceCli(["usage", "--help"], { cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Show authenticated workspace execution-credit usage");
+    expect(result.stdout).toContain("--json");
+    expect(result.stdout).not.toContain("--packet");
   });
 
   it("documents recover as inspect-only with mutually exclusive actions", async () => {

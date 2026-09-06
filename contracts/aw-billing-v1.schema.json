@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://augmentworks.ai/contracts/aw-billing-v1.schema.json",
+  "title": "AugmentWorks billing read contract",
+  "description": "Canonical aw-billing/1 wire contract owned by jeffskafi/augmentworks. Stage 1 advertises usage_v1 only. Request validation is strict. Response consumers must tolerate documented additive optional fields and ignore unknown capability strings. Stage 1 consumers must tolerate a later non-null subscription object by ignoring unsupported optional details.",
+  "type": "object",
+  "$defs": {
+    "schemaVersion": {
+      "const": "aw-billing/1"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp in UTC with a Z suffix."
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "unitCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "ledgerRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Monotonic per billing account. Duplicate idempotent replays must not change it."
+    },
+    "accessState": {
+      "type": "string",
+      "enum": ["active", "past_due", "suspended", "closing", "closed"],
+      "description": "Workspace access/lifecycle projection. This is not the unit balance. An active workspace may have zero available units. Unknown values must not be guessed active or safe."
+    },
+    "grantOrigin": {
+      "type": "string",
+      "enum": [
+        "trial",
+        "legacy_imported",
+        "purchased",
+        "subscription",
+        "adjustment",
+        "migration"
+      ],
+      "description": "Internal lot origin. Stage 1 issues only trial and migration lots. purchased and subscription exist for later stages and must not be inferred as live purchase availability."
+    },
+    "advertisedCapability": {
+      "type": "string",
+      "const": "usage_v1"
+    },
+    "reservedCapability": {
+      "type": "string",
+      "enum": [
+        "quote_v1",
+        "status_v1",
+        "billing_portal_link_v1",
+        "subscriptions_v1"
+      ],
+      "description": "Reserved names. They must not appear in advertised capabilities until implemented."
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]*_v[0-9]+$",
+      "description": "Consumers ignore unknown capability strings. Servers must not advertise unimplemented capabilities."
+    },
+    "grantBalance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "lotId",
+        "origin",
+        "grantedUnits",
+        "availableUnits",
+        "reservedUnits",
+        "consumedUnits",
+        "expiresAt",
+        "grantedAt"
+      ],
+      "properties": {
+        "lotId": { "$ref": "#/$defs/uuid" },
+        "origin": { "$ref": "#/$defs/grantOrigin" },
+        "grantedUnits": { "$ref": "#/$defs/unitCount" },
+        "availableUnits": { "$ref": "#/$defs/unitCount" },
+        "reservedUnits": { "$ref": "#/$defs/unitCount" },
+        "consumedUnits": { "$ref": "#/$defs/unitCount" },
+        "expiresAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "grantedAt": { "$ref": "#/$defs/utcTimestamp" },
+        "policyVersion": { "type": "string", "maxLength": 64 },
+        "forfeitedUnits": { "$ref": "#/$defs/unitCount" }
+      }
+    },
+    "subscription": {
+      "description": "Stage 1 producers emit null. Stage 1 consumers must accept a later non-null object and ignore unsupported optional details. Do not permanently validate this field as literal null.",
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string" },
+            "planCode": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "usageTotalsInvariant": {
+      "description": "availableUnits = usable granted units − net consumed units − outstanding reserved units. grantBalances allocation totals must match the account totals from the same snapshot."
+    },
+    "usageResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "billingAccountId",
+        "asOf",
+        "ledgerRevision",
+        "accessState",
+        "availableUnits",
+        "reservedUnits",
+        "consumedUnits",
+        "grantBalances",
+        "subscription",
+        "billingPageUrl",
+        "capabilities"
+      ],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "billingAccountId": { "$ref": "#/$defs/uuid" },
+        "asOf": { "$ref": "#/$defs/utcTimestamp" },
+        "ledgerRevision": { "$ref": "#/$defs/ledgerRevision" },
+        "accessState": { "$ref": "#/$defs/accessState" },
+        "availableUnits": { "$ref": "#/$defs/unitCount" },
+        "reservedUnits": { "$ref": "#/$defs/unitCount" },
+        "consumedUnits": {
+          "allOf": [{ "$ref": "#/$defs/unitCount" }],
+          "description": "Net consumed units after approved compensation. Gross consumption evidence remains in the ledger."
+        },
+        "grantBalances": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/grantBalance" }
+        },
+        "subscription": { "$ref": "#/$defs/subscription" },
+        "billingPageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Absolute URL on the configured trusted application origin. Must not include a token or credential."
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/capability" },
+          "description": "Advertised capabilities. Stage 1 producers include usage_v1 only."
+        },
+        "grossConsumedUnits": { "$ref": "#/$defs/unitCount" },
+        "compensatedUnits": { "$ref": "#/$defs/unitCount" },
+        "cutoverVersion": { "type": ["string", "null"] }
+      }
+    },
+    "capabilitiesResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "asOf", "capabilities"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "asOf": { "$ref": "#/$defs/utcTimestamp" },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "$ref": "#/$defs/advertisedCapability" }
+        },
+        "workspaceId": { "$ref": "#/$defs/uuid" }
+      }
+    },
+    "errorCode": {
+      "type": "string",
+      "enum": [
+        "unauthenticated",
+        "unauthorized",
+        "insufficient_scope",
+        "invalid_request",
+        "workspace_mismatch",
+        "billing_unprovisioned",
+        "unsupported_state",
+        "conflict",
+        "service_unavailable"
+      ]
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "error"],
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/schemaVersion" },
+        "error": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": { "$ref": "#/$defs/errorCode" },
+            "message": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/usageResponse" },
+    { "$ref": "#/$defs/capabilitiesResponse" },
+    { "$ref": "#/$defs/errorResponse" }
+  ]
+}

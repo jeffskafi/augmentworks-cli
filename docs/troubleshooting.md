@@ -206,6 +206,23 @@ operation or incomplete cleanup. If local recovery state was lost or corrupted,
 stop and reconcile the run and synthetic fixture through the dashboard or
 support before attempting another assessment.
 
+### `usage` cannot read billing
+
+`usage` is implemented in source `0.3.2` and is not in published `0.3.1`.
+Build this repository and run `node dist/index.js usage` or
+`node dist/index.js usage --json`. The command uses the existing connector
+credential (`connector:identity`) and does not need target YAML.
+
+A server without `usage_v1` exits `13` with `USAGE_UNSUPPORTED`. That is not a
+zero balance and does not grant or reserve credits. Revoked membership or a
+missing `connector:identity` scope exit `3`. A missing application or billing
+profile points at the first-party `/portal` recovery page; the CLI does not
+create a replacement account. `--json` writes one structured error object on
+stdout; human hints stay on stderr.
+
+Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
+from `--local`.
+
 ### A hosted run cannot start
 
 Check authentication, egress to the AugmentWorks API, packet availability, and

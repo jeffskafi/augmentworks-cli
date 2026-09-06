@@ -60,6 +60,12 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `POST /v1/relay/commands/{command_id}:fail` | Commit a safe failure or indeterminate outcome |
 | `GET /v1/relay/runs/{run_id}` | Read terminal status/outcome |
 | `POST /v1/relay/runs/{run_id}:cancel` | Request cancellation and fence new work |
+| `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |
+| `GET /v1/billing/usage` | Read the workspace execution-credit snapshot |
+
+`usage` is a GET of those billing paths only. It never calls create, reserve,
+grant, quote, or the target. Server aliases under `/api/v1/billing/*` exist;
+this CLI uses the primary `/v1/billing/*` paths.
 
 The corresponding authentication endpoints are documented in
 [authentication.md](authentication.md).

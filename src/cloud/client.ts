@@ -35,6 +35,13 @@ import {
   type ReconcileRunIntentRequest,
   type ReconcileRunIntentResponse
 } from "./recovery-protocol.js";
+import { billingHttpError, profileRecoveryUrl } from "../billing/errors.js";
+import {
+  parseBillingCapabilitiesResponse,
+  parseBillingUsageResponse
+} from "../billing/validate.js";
+import { BILLING_PRIMARY_PATHS } from "../billing/protocol.js";
+import type { BillingCapabilities, BillingUsage } from "../billing/protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -332,6 +339,55 @@ export class CloudClient {
     return parseResponse(RunStatusResponseSchema, value, "run status response");
   }
 
+  async getBillingCapabilities(signal?: AbortSignal): Promise<BillingCapabilities> {
+    const value = await this.#requestBilling(BILLING_PRIMARY_PATHS.capabilities, signal);
+    return parseBillingCapabilitiesResponse(value);
+  }
+
+  async getBillingUsage(signal?: AbortSignal): Promise<BillingUsage> {
+    const value = await this.#requestBilling(BILLING_PRIMARY_PATHS.usage, signal);
+    return parseBillingUsageResponse(value);
+  }
+
+  async #requestBilling(path: string, signal?: AbortSignal): Promise<unknown> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const value = await this.#request(
+          "GET",
+          path,
+          undefined,
+          signal,
+          this.requestTimeoutMs,
+          false,
+          {},
+          true,
+          "billing"
+        );
+        if (value === undefined) {
+          throw new AwError({
+            code: "INVALID_CLOUD_RESPONSE",
+            category: "protocol",
+            message: "AugmentWorks returned an empty billing response."
+          });
+        }
+        return value;
+      } catch (error) {
+        lastError = error;
+        if (
+          !(error instanceof AwError) ||
+          !error.retryable ||
+          attempt === 1 ||
+          signal?.aborted === true
+        ) {
+          throw error;
+        }
+        await retryDelay(Math.min(100 * 2 ** attempt, 500), signal);
+      }
+    }
+    throw lastError;
+  }
+
   async #request(
     method: "GET" | "POST",
     path: string,
@@ -340,8 +396,10 @@ export class CloudClient {
     timeoutMs = this.requestTimeoutMs,
     allowNoContent = false,
     additionalHeaders: Readonly<Record<string, string>> = {},
-    allowAuthRefresh = true
+    allowAuthRefresh = true,
+    errorFamily: "relay" | "billing" = "relay"
   ): Promise<unknown | undefined> {
+    throwIfAborted(externalSignal);
     const accessToken = await this.#currentAccessToken(
       externalSignal === undefined ? {} : { signal: externalSignal }
     );
@@ -349,6 +407,10 @@ export class CloudClient {
     const controller = new AbortController();
     const onAbort = () => controller.abort(externalSignal?.reason);
     externalSignal?.addEventListener("abort", onAbort, { once: true });
+    if (externalSignal !== undefined && isAbortRequested(externalSignal)) {
+      externalSignal.removeEventListener("abort", onAbort);
+      throw requestCancelledError();
+    }
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
@@ -453,11 +515,23 @@ export class CloudClient {
           timeoutMs,
           allowNoContent,
           additionalHeaders,
-          false
+          false,
+          errorFamily
         );
       }
     }
-    if (!response.ok) throw cloudHttpError(response.status, value, method, path);
+    if (!response.ok) {
+      if (errorFamily === "billing") {
+        throw billingHttpError(
+          response.status,
+          value,
+          method,
+          path,
+          profileRecoveryUrl(this.apiUrl)
+        );
+      }
+      throw cloudHttpError(response.status, value, method, path);
+    }
     if (value === undefined) {
       throw new AwError({
         code: "INVALID_CLOUD_RESPONSE",
@@ -485,6 +559,24 @@ function requireAccessToken(value: string): string {
     });
   }
   return value;
+}
+
+function isAbortRequested(signal?: AbortSignal): boolean {
+  return signal !== undefined && signal.aborted;
+}
+
+function requestCancelledError(cause?: unknown): AwError {
+  return new AwError({
+    code: "RELAY_REQUEST_CANCELLED",
+    category: "relay",
+    message: "The AugmentWorks request was cancelled.",
+    retryable: true,
+    ...(cause === undefined ? {} : { cause })
+  });
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (isAbortRequested(signal)) throw requestCancelledError();
 }
 
 async function retryDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {

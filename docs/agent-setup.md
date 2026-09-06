@@ -15,7 +15,7 @@ during unrelated coding.
 | Item | Value |
 | --- | --- |
 | Verified npm package | `@augmentworks/cli@0.3.1` |
-| Source package | `0.3.2` (unreleased demo lives here) |
+| Source package | `0.3.2` (unreleased `demo` and `usage` live here) |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |
@@ -118,10 +118,12 @@ insert credentials.
 Local JSON uses `AW-LOCAL-RESULT-1`. Automation should:
 
 - Treat exit `0` as a pass, `10` as failed or inconclusive assertions, `2` as
-  configuration/packet/output preflight, `5` as target/evidence execution
+  configuration/packet/output preflight, `3` as hosted authentication failure,
+  `4` as hosted relay/protocol failure, `5` as target/evidence execution
   error, `6` as cleanup failure (takes precedence), `11` as pending hosted
-  judging (never a pass), `12` as hosted judging error, and `130` as interrupt
-  after cleanup drain.
+  judging (never a pass), `12` as hosted judging error, `13` as hosted
+  billing/usage rejection, and `130` as interrupt after cleanup drain.
+  Codes `3`, `4`, and `13` are unreachable from `--local`.
 - Parse `attempts[].assertions` where `passed` is false to locate failures.
 - Read `attempts[].observations` as values returned by the configured observer,
   not independent proof of production behavior.

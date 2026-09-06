@@ -45,6 +45,11 @@ origins containing credentials, paths, queries, or fragments are refused.
 | `POST /api/v1/cli/auth/token` | Exchange authorization-code, device-code, or refresh-token grants |
 | `POST /api/v1/cli/auth/revoke` | Revoke the active connector credential |
 | `GET /api/v1/cli/auth/me` | Resolve workspace and connector identity |
+| `GET /v1/billing/capabilities` | Discover implemented billing read capabilities (`usage_v1` in Stage 1) |
+| `GET /v1/billing/usage` | Read the workspace billing snapshot |
+
+Aliases `GET /api/v1/billing/capabilities` and `GET /api/v1/billing/usage`
+exist on the server. The CLI uses the primary `/v1/billing/*` paths.
 
 Browser authorization uses `client_id=augmentworks-cli`,
 `response_type=code`, exact loopback `redirect_uri`, `state`, `scope`,
@@ -92,6 +97,16 @@ npx --yes @augmentworks/cli@0.3.1 whoami
 npx --yes @augmentworks/cli@0.3.1 logout
 ```
 
+Source `0.3.2` also provides `usage`, which reads execution-credit balances
+with the same connector credential and `connector:identity` scope. It does
+not need target YAML. It is read-only: it does not grant credits, reserve
+units, or manage billing.
+
+```bash
+node dist/index.js usage
+node dist/index.js usage --json
+```
+
 `logout` requests server-side revocation and removes local credential material.
 A workspace owner can also revoke a lost machine or connector from the
 AugmentWorks portal.
@@ -108,7 +123,7 @@ run creation.
 ## Future automation credentials
 
 `AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and integration harnesses. `login`, `whoami`, and hosted
+future project tokens and integration harnesses. `login`, `whoami`, `usage`, and hosted
 `test` give it precedence and do not load or write the interactive credential
 store. `logout` still attempts to revoke the environment token and any stored
 connector credential, removes local stored credential material when accessible,

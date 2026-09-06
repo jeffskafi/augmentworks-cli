@@ -129,7 +129,10 @@ function assertInventory(report) {
     "assets/demo/packet.json",
     "assets/demo/augmentworks.yaml",
     "contracts/discovery-manifest.json",
-    "contracts/discovery-manifest.schema.json"
+    "contracts/discovery-manifest.schema.json",
+    "contracts/aw-billing-v1.schema.json",
+    "contracts/aw-billing-v1.fixtures.json",
+    "contracts/aw-billing-v1.lock.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
