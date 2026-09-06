@@ -17,6 +17,11 @@ All notable changes to this project are documented here. The format follows
 - Copyable GitHub Actions example and synthetic sample reports under
   `docs/examples/`.
 
+### Fixed
+
+- Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
+  does not fail with `spawnSync npm.cmd EINVAL`.
+
 ### Changed
 
 - Source package version is `0.3.2`. Verified npm remains `0.3.1`. Hosted npx

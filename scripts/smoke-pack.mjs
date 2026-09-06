@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -9,8 +9,6 @@ import { fileURLToPath } from "node:url";
 import { parsePackReport } from "./npm-pack-report.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
-const npxExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
 const commandTimeoutMs = 120_000;
 
 class SmokeFailure extends Error {
@@ -24,13 +22,45 @@ function assert(condition, message) {
   if (!condition) throw new SmokeFailure(message);
 }
 
+function resolveNpmJsCli(binName) {
+  const fileName = `${binName}-cli.js`;
+  const fromLifecycle =
+    typeof process.env.npm_execpath === "string" && process.env.npm_execpath.length > 0
+      ? process.env.npm_execpath
+      : undefined;
+  const candidates = [];
+  if (fromLifecycle !== undefined) {
+    if (binName === "npm") candidates.push(fromLifecycle);
+    candidates.push(join(dirname(fromLifecycle), fileName));
+  }
+  const prefix = dirname(process.execPath);
+  candidates.push(
+    join(prefix, "node_modules", "npm", "bin", fileName),
+    join(prefix, "..", "lib", "node_modules", "npm", "bin", fileName)
+  );
+  return candidates.find((path) => existsSync(path));
+}
+
+function runJsCli(binName, args, options = {}) {
+  const cli = resolveNpmJsCli(binName);
+  if (cli !== undefined) {
+    return run(process.execPath, [cli, ...args], options);
+  }
+  // Node 22+ on Windows rejects spawn of .cmd shims without a shell (EINVAL).
+  return run(process.platform === "win32" ? `${binName}.cmd` : binName, args, {
+    ...options,
+    shell: process.platform === "win32"
+  });
+}
+
 function run(executable, args, options = {}) {
   const result = spawnSync(executable, args, {
     cwd: options.cwd ?? projectRoot,
     env: { ...process.env, ...options.env, NO_COLOR: "1" },
     encoding: "utf8",
     timeout: commandTimeoutMs,
-    windowsHide: true
+    windowsHide: true,
+    ...(options.shell === true ? { shell: true } : {})
   });
 
   if (result.error !== undefined) {
@@ -199,10 +229,10 @@ async function main() {
     ]);
 
     process.stdout.write("[pack smoke] building package\n");
-    run(npmExecutable, ["run", "build"]);
+    runJsCli("npm", ["run", "build"]);
 
     process.stdout.write("[pack smoke] creating and inspecting tarball\n");
-    const packed = run(npmExecutable, [
+    const packed = runJsCli("npm", [
       "pack",
       "--json",
       "--ignore-scripts",
@@ -220,11 +250,11 @@ async function main() {
     assert(report.version === rootManifest.version, "tarball version differs from package.json");
 
     process.stdout.write("[pack smoke] executing tarball through npx\n");
-    const directVersion = run(
-      npxExecutable,
+    const directVersion = runJsCli(
+      "npx",
       ["--yes", "--package", tarballPath, "augmentworks", "--version"],
       {
-      cwd: consumerDirectory
+        cwd: consumerDirectory
       }
     );
     assert(
@@ -237,8 +267,8 @@ async function main() {
       JSON.stringify({ name: "augmentworks-cli-pack-smoke", private: true, version: "0.0.0" }, null, 2) + "\n",
       "utf8"
     );
-    run(
-      npmExecutable,
+    runJsCli(
+      "npm",
       ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false", tarballPath],
       { cwd: consumerDirectory }
     );
@@ -265,7 +295,7 @@ async function main() {
     }
 
     const execCli = (args, options = {}) =>
-      run(npmExecutable, ["exec", "--", "augmentworks", ...args], {
+      runJsCli("npm", ["exec", "--", "augmentworks", ...args], {
         cwd: options.cwd ?? consumerDirectory,
         env: options.env
       });
