@@ -13,8 +13,9 @@ subscriptions.
 
 | Item | Value |
 | --- | --- |
-| CLI 2B baseline | `a442527` (`cursor/billing-stage-2b-91a7`; feature `901f82ea`, verification `77b17f05`) |
+| CLI 2B baseline | `a442527e3e95826c4a474cbe5b8769f66e4e1237` (`cursor/billing-stage-2b-91a7`; feature `901f82ea`, verification `77b17f05`) |
 | Working branch | `cursor/billing-stage-3b-91a7` |
+| Implementation | `4b0f06a49c158feaef152473cd78013a5d5064ef` |
 | Vendored main commit | `931838f29ee04fc018ef6359c22abd8d3e8da4c8` (`cursor/billing-stage-3a-91a7`) |
 | Main 3A feature commit (hashes frozen) | `926ae72f1e8bba959cd2d5e54c3996236960b8c6` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
