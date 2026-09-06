@@ -4,20 +4,58 @@
     "schemaFile": "docs/contracts/aw-billing-v1.schema.json",
     "primaryPaths": {
       "capabilities": "GET /v1/billing/capabilities",
-      "usage": "GET /v1/billing/usage"
+      "usage": "GET /v1/billing/usage",
+      "quote": "POST /v1/billing/quote",
+      "status": "GET /v1/billing/status"
     },
     "aliases": {
-      "capabilities": ["GET /api/v1/billing/capabilities"],
-      "usage": ["GET /api/v1/billing/usage"]
+      "capabilities": [
+        "GET /api/v1/billing/capabilities"
+      ],
+      "usage": [
+        "GET /api/v1/billing/usage"
+      ],
+      "quote": [
+        "POST /api/v1/billing/quote"
+      ],
+      "status": [
+        "GET /api/v1/billing/status"
+      ]
     },
     "readScope": "connector:identity",
-    "advertisedCapabilities": ["usage_v1"],
-    "reservedCapabilities": [
+    "advertisedCapabilities": [
+      "usage_v1",
       "quote_v1",
-      "status_v1",
+      "status_v1"
+    ],
+    "reservedCapabilities": [
       "billing_portal_link_v1",
       "subscriptions_v1"
-    ]
+    ],
+    "quoteScope": "connector:run",
+    "statusScope": "connector:run",
+    "quoteLifetimeSecondsDefault": 600,
+    "pricingVersion": "aw-pricing/execution-unit/1",
+    "quotedCreateProtocol": "aw-relay/0.3",
+    "createRequestQuoteFields": {
+      "quoteId": "quote_id",
+      "maxCredits": "max_credits"
+    },
+    "canonicalStatusUrls": {
+      "execution": "GET /v1/relay/runs/{runId}",
+      "billingStatus": "GET /v1/billing/status?runId={runId}",
+      "evaluationRetry": "POST /v1/relay/runs/{runId}:retry-evaluation"
+    },
+    "stableErrorCodes": {
+      "BILLING_UNAVAILABLE": "service_unavailable",
+      "INSUFFICIENT_CREDITS": "insufficient_credits",
+      "QUOTE_EXPIRED": "quote_expired",
+      "QUOTE_MISMATCH": "quote_mismatch",
+      "BUDGET_EXCEEDED": "budget_exceeded",
+      "UPDATE_REQUIRED": "update_required",
+      "WORKSPACE_CLOSING": "workspace_closing",
+      "MEMBERSHIP_REVOKED": "membership_revoked"
+    }
   },
   "fixtures": {
     "eligible_trial": {
@@ -47,7 +85,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "grossConsumedUnits": 0,
         "compensatedUnits": 0
       }
@@ -79,7 +121,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "grossConsumedUnits": 10,
         "compensatedUnits": 0
       }
@@ -111,7 +157,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "grossConsumedUnits": 3,
         "compensatedUnits": 0
       }
@@ -143,7 +193,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "grossConsumedUnits": 200,
         "compensatedUnits": 0
       }
@@ -175,7 +229,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "grossConsumedUnits": 3,
         "compensatedUnits": 0
       }
@@ -207,7 +265,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"]
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ]
       }
     },
     "no_subscription": {
@@ -237,7 +299,11 @@
         ],
         "subscription": null,
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1"]
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ]
       }
     },
     "unknown_capability_ignored": {
@@ -271,16 +337,23 @@
           "unsupportedDetail": "ignore"
         },
         "billingPageUrl": "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
-        "capabilities": ["usage_v1", "future_unreleased_v9"],
+        "capabilities": [
+          "usage_v1",
+          "future_unreleased_v9"
+        ],
         "additiveOptionalField": "tolerate"
       }
     },
     "absent_capability": {
-      "description": "Capabilities document advertises only usage_v1. Reserved names are absent.",
+      "description": "Capabilities document advertises usage_v1, quote_v1, and status_v1. Reserved purchase names are absent.",
       "response": {
         "schemaVersion": "aw-billing/1",
         "asOf": "2026-09-06T17:00:00.000Z",
-        "capabilities": ["usage_v1"],
+        "capabilities": [
+          "usage_v1",
+          "quote_v1",
+          "status_v1"
+        ],
         "workspaceId": "11111111-1111-4111-8111-111111111111"
       }
     },
@@ -299,7 +372,9 @@
         "consumedUnits": 0,
         "grantBalances": [],
         "subscription": null,
-        "capabilities": ["usage_v1"]
+        "capabilities": [
+          "usage_v1"
+        ]
       }
     },
     "error_unauthenticated": {
@@ -364,6 +439,180 @@
         "error": {
           "code": "unsupported_state",
           "message": "This billing or access state cannot be interpreted. Update the client.",
+          "retryable": false
+        }
+      }
+    },
+    "quote_success_insufficient_balance": {
+      "description": "Quote returns even when available units are below executionUnits. estimateOnly true. No reservation.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "quoteId": "44444444-4444-4444-8444-444444444444",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "assessmentPlanHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "pricingVersion": "aw-pricing/execution-unit/1",
+        "executionUnits": 30,
+        "expiresAt": "2026-09-06T17:10:00.000Z",
+        "availableUnitsAtQuote": 5,
+        "estimateOnly": true,
+        "scenarioCount": 10,
+        "repetitions": 3,
+        "remainingUnitsEstimate": 0
+      }
+    },
+    "quote_success_with_balance": {
+      "description": "Quoted 10 scenarios x 3 repetitions = 30 credits. Snapshot remaining is an estimate.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "quoteId": "55555555-5555-4555-8555-555555555555",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "assessmentPlanHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "pricingVersion": "aw-pricing/execution-unit/1",
+        "executionUnits": 30,
+        "expiresAt": "2026-09-06T17:10:00.000Z",
+        "availableUnitsAtQuote": 190,
+        "estimateOnly": true,
+        "scenarioCount": 10,
+        "repetitions": 3,
+        "remainingUnitsEstimate": 160
+      }
+    },
+    "status_pending_grading": {
+      "description": "Target finished; evidence saved; grading pending. Status read is not a retry.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "runId": "66666666-6666-4666-8666-666666666666",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "originalRunId": "66666666-6666-4666-8666-666666666666",
+        "executionStatus": "completed",
+        "evaluationStatus": "pending",
+        "credit": {
+          "reservedUnits": 0,
+          "consumedUnits": 10,
+          "releasedUnits": 0,
+          "compensatedUnits": 0
+        },
+        "progress": {
+          "completedAttempts": 10,
+          "plannedAttempts": 10,
+          "completedJudgeJobs": 1,
+          "plannedJudgeJobs": 4
+        },
+        "savedEvidence": true,
+        "retryEligible": false,
+        "retryReason": null,
+        "nextActions": [
+          "wait",
+          "inspect",
+          "open_dashboard"
+        ],
+        "dashboardUrl": "https://augmentworks.ai/portal/runs/66666666-6666-4666-8666-666666666666",
+        "asOf": "2026-09-06T17:20:00.000Z"
+      }
+    },
+    "error_insufficient_credits": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "insufficient_credits",
+          "message": "This workspace does not have enough execution units for the quoted assessment.",
+          "retryable": false,
+          "billingCode": "INSUFFICIENT_CREDITS"
+        }
+      }
+    },
+    "error_quote_expired": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "quote_expired",
+          "message": "This quote has expired. Request a new estimate before starting the assessment.",
+          "retryable": false,
+          "billingCode": "QUOTE_EXPIRED"
+        }
+      }
+    },
+    "error_quote_mismatch": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "quote_mismatch",
+          "message": "This quote does not match the compiled assessment, or it was already used.",
+          "retryable": false,
+          "billingCode": "QUOTE_MISMATCH"
+        }
+      }
+    },
+    "error_budget_exceeded": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "budget_exceeded",
+          "message": "Private grading cost limits block this dispatch. The customer unit was not charged for this retry.",
+          "retryable": false,
+          "billingCode": "BUDGET_EXCEEDED"
+        }
+      }
+    },
+    "error_update_required": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "update_required",
+          "message": "This CLI cannot start billed hosted work. Upgrade to a quoted create request (aw-relay/0.3).",
+          "retryable": false,
+          "billingCode": "UPDATE_REQUIRED"
+        }
+      }
+    },
+    "error_workspace_closing": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "workspace_closing",
+          "message": "This workspace is closing. New assessments are not admitted.",
+          "retryable": false,
+          "billingCode": "WORKSPACE_CLOSING"
+        }
+      }
+    },
+    "error_membership_revoked": {
+      "status": 403,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "membership_revoked",
+          "message": "This connector membership is no longer authorized.",
+          "retryable": false,
+          "billingCode": "MEMBERSHIP_REVOKED"
+        }
+      }
+    },
+    "error_billing_unavailable": {
+      "status": 503,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "service_unavailable",
+          "message": "Billing is temporarily unavailable. Retry the request.",
+          "retryable": true,
+          "billingCode": "BILLING_UNAVAILABLE"
+        }
+      }
+    },
+    "error_invalid_assessment": {
+      "status": 400,
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "error": {
+          "code": "invalid_request",
+          "message": "The assessment envelope is invalid and cannot be quoted.",
           "retryable": false
         }
       }

@@ -220,6 +220,16 @@ profile points at the first-party `/portal` recovery page; the CLI does not
 create a replacement account. `--json` writes one structured error object on
 stdout; human hints stay on stderr.
 
+Hosted assessment quotes and admission (source `0.3.2`) use typed billing
+codes rather than HTTP status guessing. `INSUFFICIENT_CREDITS`,
+`QUOTE_EXPIRED`, `QUOTE_MISMATCH`, `BUDGET_EXCEEDED`, `UPDATE_REQUIRED`,
+`WORKSPACE_CLOSING`, and `BILLING_UNAVAILABLE` exit `13`.
+`MEMBERSHIP_REVOKED` exits `3`. `--estimate` never reserves credits.
+Noninteractive hosted `--assessment` requires `--max-credits N`; `--yes` is
+not an unlimited budget. After target work finishes, pending grading is
+observed with `run wait <run-id>` / `run status <run-id>` on the original
+run. Do not re-run the test command to resume grading.
+
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.
 

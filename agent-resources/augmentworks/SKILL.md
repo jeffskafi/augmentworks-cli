@@ -30,8 +30,12 @@ Verified published package only:
 - `npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet`
 
 Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only after
-building this repository: `node dist/index.js demo` and read-only
-`node dist/index.js usage` (no grant, reservation, checkout, or target call).
+building this repository: `node dist/index.js demo`, read-only
+`node dist/index.js usage` (no grant, reservation, checkout, or target call),
+`node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
+(quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
+Hosted assessment execution from this source requires `--max-credits N`; `--yes`
+is not an unlimited budget.
 
 ## Secrets and evidence
 
