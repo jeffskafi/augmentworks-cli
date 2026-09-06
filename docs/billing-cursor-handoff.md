@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI baseline HEAD | `d36ec8590b005445dba940d2df3abcb53971cea5` (`origin/main`, source 0.3.2; published npm 0.3.1) |
 | Working branch | `cursor/billing-stage-1b-91a7` |
-| Implementation commit | Recorded in the identity table of `docs/billing/phase-1-completion.md` / git after this branch is committed |
+| Implementation commit | `3d2bdfa32a727ac35c1b0ea49a9dfd376151b895` |
 | Vendored main commit | `e037958ba3c9f38a436b6065cddb5fb8ee3943fa` |
 | Stage | **1B code complete and deterministically verified.** Not npm-published. Not production-verified against a live 1A host. Not live-sales ready. |
 

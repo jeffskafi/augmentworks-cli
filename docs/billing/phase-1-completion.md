@@ -12,7 +12,7 @@ Stage 1A host, and **not** release-ready for live sales.
 | --- | --- |
 | CLI baseline | `origin/main` `d36ec8590b005445dba940d2df3abcb53971cea5` (source 0.3.2; published npm remains 0.3.1) |
 | Working branch | `cursor/billing-stage-1b-91a7` |
-| Implementation | Commits on that branch; SHA recorded in `docs/billing-cursor-handoff.md` after git commit |
+| Implementation | `3d2bdfa32a727ac35c1b0ea49a9dfd376151b895` |
 | Vendored main commit | `e037958ba3c9f38a436b6065cddb5fb8ee3943fa` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
 
