@@ -230,6 +230,13 @@ not an unlimited budget. After target work finishes, pending grading is
 observed with `run wait <run-id>` / `run status <run-id>` on the original
 run. Do not re-run the test command to resume grading.
 
+`billing` (source `0.3.2`) prints or opens the first-party
+`/portal/billing?workspace=` page. It does not create a Stripe Customer,
+Checkout Session, or refund. `--json` and `--print` do not open a browser.
+Insufficient credits keep the uncreated intent and point at that page; after
+fulfillment, run `usage` then start a new test with `--max-credits`. Processing
+(`pendingCommerce`) is not spendable credit.
+
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.
 

@@ -5,14 +5,14 @@ export const AW_BILLING_CONTRACT = {
   "algorithm": "sha256",
   "source": {
     "repository": "https://github.com/jeffskafi/augmentworks.git",
-    "commit": "67749b22f04bbb8d94c0309acd36be3cb3144400",
+    "commit": "931838f29ee04fc018ef6359c22abd8d3e8da4c8",
     "handoff": "docs/billing-cursor-handoff.md",
     "schema": "docs/contracts/aw-billing-v1.schema.json",
     "fixtures": "docs/contracts/aw-billing-v1.fixtures.json"
   },
   "files": {
-    "contracts/aw-billing-v1.schema.json": "4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901",
-    "contracts/aw-billing-v1.fixtures.json": "cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1"
+    "contracts/aw-billing-v1.schema.json": "e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a",
+    "contracts/aw-billing-v1.fixtures.json": "3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a"
   },
   "contract": {
     "primaryPaths": {
@@ -41,10 +41,10 @@ export const AW_BILLING_CONTRACT = {
     "advertisedCapabilities": [
       "usage_v1",
       "quote_v1",
-      "status_v1"
+      "status_v1",
+      "billing_portal_link_v1"
     ],
     "reservedCapabilities": [
-      "billing_portal_link_v1",
       "subscriptions_v1"
     ],
     "quotedCreateProtocol": "aw-relay/0.3",

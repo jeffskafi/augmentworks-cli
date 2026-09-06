@@ -32,6 +32,7 @@ Verified published package only:
 Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only after
 building this repository: `node dist/index.js demo`, read-only
 `node dist/index.js usage` (no grant, reservation, checkout, or target call),
+`node dist/index.js billing --print` (first-party billing URL only),
 `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
 (quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`

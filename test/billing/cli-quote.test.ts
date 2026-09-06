@@ -480,8 +480,8 @@ describe("hosted estimate and quoted admission", () => {
       }
       throw new Error(`unexpected ${url.pathname}`);
     });
-    await expect(
-      runTest(
+    try {
+      await runTest(
         {
           cwd,
           assessment: "augmentworks.assessment.yaml",
@@ -505,8 +505,18 @@ describe("hosted estimate and quoted admission", () => {
             throw new Error("target must not be constructed");
           }
         }
-      )
-    ).rejects.toMatchObject({ code: "INSUFFICIENT_CREDITS", category: "billing" });
+      );
+      throw new Error("expected INSUFFICIENT_CREDITS");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "INSUFFICIENT_CREDITS", category: "billing" });
+      const awError = error as AwError;
+      expect(awError.message).toContain("Required 30 credits, available 5.");
+      expect(awError.message).toContain("/portal/billing?workspace=");
+      expect(awError.message).toContain("does not wait for a purchase");
+      expect(awError.details?.["required_units"]).toBe(30);
+      expect(awError.details?.["available_units"]).toBe(5);
+      expect(String(awError.details?.["billing_page_url"] ?? "")).not.toContain("token");
+    }
     expect(target).toBe(0);
   });
 

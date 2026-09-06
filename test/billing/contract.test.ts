@@ -36,12 +36,12 @@ describe("vendored aw-billing/1 contract", () => {
     expect(sha256(schema)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]);
     expect(sha256(fixtures)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]);
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]).toBe(
-      "4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901"
+      "e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a"
     );
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]).toBe(
-      "cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1"
+      "3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a"
     );
-    expect(AW_BILLING_CONTRACT.source.commit).toBe("67749b22f04bbb8d94c0309acd36be3cb3144400");
+    expect(AW_BILLING_CONTRACT.source.commit).toBe("931838f29ee04fc018ef6359c22abd8d3e8da4c8");
   });
 
   it("hashes a CRLF working-tree copy to the same locked LF digest", async () => {
@@ -49,7 +49,7 @@ describe("vendored aw-billing/1 contract", () => {
     const lf = schema.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
     const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
     expect(crlf.includes(0x0d)).toBe(true);
-    expect(sha256(crlf)).toBe("4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901");
+    expect(sha256(crlf)).toBe("e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a");
     expect(sha256(crlf)).toBe(sha256(schema));
   });
 
@@ -132,8 +132,13 @@ describe("vendored aw-billing/1 contract", () => {
     const capabilities = parseBillingCapabilitiesResponse(
       document.fixtures["absent_capability"]?.response
     );
-    expect(capabilities.capabilities).toEqual(["usage_v1", "quote_v1", "status_v1"]);
-    expect(capabilities.capabilities).not.toContain("billing_portal_link_v1");
+    expect(capabilities.capabilities).toEqual([
+      "usage_v1",
+      "quote_v1",
+      "status_v1",
+      "billing_portal_link_v1"
+    ]);
+    expect(capabilities.capabilities).toContain("billing_portal_link_v1");
     expect(capabilities.capabilities).not.toContain("subscriptions_v1");
   });
 
@@ -250,5 +255,27 @@ describe("vendored aw-billing/1 contract", () => {
     expect(human).toContain("Your test evidence is saved.");
     expect(human).toContain("run wait");
     expect(human).not.toContain("Re-run the same test command");
+  });
+
+  it("treats pendingCommerce as processing metadata, not spendable credit", async () => {
+    const document = (await readJson("contracts/aw-billing-v1.fixtures.json")) as {
+      fixtures: Record<string, { response: unknown }>;
+    };
+    const usage = parseBillingUsageResponse(document.fixtures["pending_pack_purchase"]?.response);
+    expect(usage.availableUnits).toBe(200);
+    expect(usage.pendingCommerce).toEqual({
+      orderId: "44444444-4444-4444-8444-444444444444",
+      state: "paid_unfulfilled",
+      skuCode: "test_pack_300_v1"
+    });
+    const human = formatUsageHuman({
+      usage,
+      workspaceLabel: "Fixture workspace",
+      apiOrigin: new URL("https://augmentworks.ai/")
+    });
+    expect(human).toContain("Available credits: 200");
+    expect(human).toContain("paid_unfulfilled");
+    expect(human).toContain("not spendable");
+    expect(human).not.toContain("500");
   });
 });

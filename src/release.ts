@@ -124,6 +124,9 @@ export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
 export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
 export const SOURCE_USAGE_COMMAND = formatSourceCli(["usage"]);
 export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);
+export const SOURCE_BILLING_COMMAND = formatSourceCli(["billing"]);
+export const SOURCE_BILLING_JSON_COMMAND = formatSourceCli(["billing", "--json"]);
+export const SOURCE_BILLING_PRINT_COMMAND = formatSourceCli(["billing", "--print"]);
 export const SOURCE_ESTIMATE_COMMAND = formatSourceCli([
   "test",
   "--assessment",
