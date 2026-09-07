@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI 3B baseline HEAD | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`) |
 | Working branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` |
+| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` (packed journey); `7e213781a387292f634ea3df05800ef632e1f184` (rebuild stale packed dist) |
 | Vendored main commit | `49806f0f52377bbca0fbe02f160668723c589fa7` (`origin/main` Stage 4A merge) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
@@ -204,8 +204,8 @@ identity. Do not delete journals or blindly rerun while admission is unknown.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 362910 bytes |
-| SHA-256 | `ee2a0eed812e77969288771ae24a63beedd8d9772c8d3e03a6ae8607304a8303` |
+| Compressed size | 371282 bytes |
+| SHA-256 | `af2421fdf958810a93b1219609fdb0cd7163db5f8e3311680edef091185d987f` |
 
 Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
 starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
@@ -217,7 +217,7 @@ See `docs/billing/phase-4-completion.md` and
 
 Summary:
 
-- `npm run check` — pass (typecheck, vitest **49 files / 420 tests**, build,
+- `npm run check` — pass (typecheck, vitest **53 files / 468 tests**, build,
   discovery, billing-contract)
 - `npm run smoke:pack` — pass, including packed billing HTTP fixture through
   the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)

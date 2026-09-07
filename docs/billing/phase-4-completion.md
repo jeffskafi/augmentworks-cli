@@ -15,7 +15,7 @@ subscriptions.
 | --- | --- |
 | CLI 3B baseline | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`) |
 | Working branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` |
+| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` (packed journey); `7e213781a387292f634ea3df05800ef632e1f184` (rebuild stale packed dist) |
 | Vendored main commit | `49806f0f52377bbca0fbe02f160668723c589fa7` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
 | Working directory used for verification | `/Users/jeffskafi/Desktop/augmentworks-cli-billing-4b` |
@@ -71,7 +71,8 @@ Docs / release pin:
   `docs/billing/phase-4-release-evidence.md`
 
 Tests: `test/config/commands.test.ts`, `test/billing/contract.test.ts`,
-copy/discovery tests.
+`test/billing/cli-run-wait.test.ts`, `test/util/cli-process.ts` (rebuild
+stale `dist/` before packed tests), copy/discovery tests.
 
 No database migrations. This repository does not own SQL.
 
@@ -121,10 +122,10 @@ Advertised capabilities treated as available when present: `usage_v1`,
 | --- | --- |
 | `npm run check:billing-contract` | Pass. schema `e66d87fb…cc7b`; fixtures `42da3502…ec3c`; source `49806f0` |
 | `npm run check` | Pass. typecheck, vitest, build, discovery, billing-contract |
-| `npx vitest run` | Pass. Vitest 4.1.11: **49 files, 420 tests** |
-| `npm run build` | Pass. tsup ESM `dist/index.js` 1.65 MB |
+| `npx vitest run` | Pass. Vitest 4.1.11: **53 files, 468 tests** |
+| `npm run build` | Pass. tsup ESM `dist/index.js` 1.68 MB |
 | `AUGMENTWORKS_PACKED_BIN=$PWD/dist/index.js node scripts/packed-billing-fixture.mjs` | Pass. `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
-| `npm run smoke:pack` | Pass. **31 files, 362910 compressed bytes**, packed billing fixture included |
+| `npm run smoke:pack` | Pass. **31 files, 371282 compressed bytes**, packed billing fixture included |
 | `npm run test:packed-billing-live` | **BLOCKED** exit 2 |
 
 Do not treat the HTTP fixture as evidence that Stripe, PostgreSQL, or RLS was
