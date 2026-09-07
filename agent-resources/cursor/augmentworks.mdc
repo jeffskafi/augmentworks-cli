@@ -14,10 +14,13 @@ AugmentWorks during unrelated coding.
 
 1. Inspect existing tests, applicable repository instructions, actual target
    capabilities, and the desired test scope.
-2. Prefer a packaged synthetic demo (`node dist/index.js demo` on source 0.3.2)
-   or non-networked `doctor` for a first look. Preview mappings with
-   `node dist/index.js preview-mapping` before an assessment. Published npm is
-   `@augmentworks/cli@0.3.1` and does not include `demo` or `preview-mapping`.
+2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.2 demo`,
+   or `node dist/index.js demo` on source 0.3.3) or non-networked `doctor`
+   for a first look. Preview mappings with
+   `node dist/index.js preview-mapping` before an assessment. Published npm
+   `@augmentworks/cli@0.3.2` includes `demo` and hosted `--assessment`. It
+   does not include `usage`, `billing`, `preview-mapping`, `test --estimate`,
+   `--max-credits`, `run status`/`run wait`, or init starter generation.
 3. Never substitute a hosted command when local testing was requested.
 4. Preserve already granted user authorization for the same scoped task.
 
@@ -25,22 +28,24 @@ AugmentWorks during unrelated coding.
 
 Verified published package only:
 
-- `npx --yes @augmentworks/cli@0.3.1 init --agent`
-- `npx --yes @augmentworks/cli@0.3.1 doctor -c augmentworks.yaml`
-- `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
-- `npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet`
+- `npx --yes @augmentworks/cli@0.3.2 init --agent`
+- `npx --yes @augmentworks/cli@0.3.2 doctor -c augmentworks.yaml`
+- `npx --yes @augmentworks/cli@0.3.2 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+- `npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet`
 
-Source 0.3.2 after building this repository:
+Source 0.3.3 after building this repository:
 
 - `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
 
-Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only after
-building this repository: `node dist/index.js demo`, read-only
-`node dist/index.js usage` (no grant, reservation, checkout, or target call),
-`node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
+Do not use `@latest` or unpublished `0.3.3` npx pins. Development-only after
+building this repository: `node dist/index.js demo`, `node dist/index.js init`
+(writes `augmentworks.yaml`, `augmentworks.assessment.yaml`, and references),
+read-only `node dist/index.js usage` (no grant, reservation, checkout, or
+target call), `node dist/index.js billing --print` (first-party billing URL
+only), `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
 (quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`
-is not an unlimited budget.
+is not an unlimited budget. npm `--yes` only skips the npm prompt.
 
 ## Secrets and evidence
 

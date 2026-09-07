@@ -23,7 +23,7 @@ import {
   parseMaxCreditsFlag,
   resolveSpendingCeiling
 } from "../billing/consent.js";
-import { quoteUnsupportedError } from "../billing/errors.js";
+import { annotateInsufficientCredits, quoteUnsupportedError } from "../billing/errors.js";
 import { estimateSuccessJson, formatEstimateHuman, formatQuoteBreakdown } from "../billing/format.js";
 import type { BillingQuote } from "../billing/protocol.js";
 import {
@@ -32,7 +32,7 @@ import {
   primaryAssessmentPacket,
   quotedCreateIntent
 } from "../billing/quote-request.js";
-import { assertQuoteCapability, assertQuoteWorkspace } from "../billing/validate.js";
+import { assertQuoteCapability, assertQuoteWorkspace, firstPartyBillingPageUrl } from "../billing/validate.js";
 import {
   prepareCreateAttempt,
   releaseTerminalIfSafe,
@@ -189,7 +189,7 @@ export async function runTest(
       stateDirectory,
       ...(options.signal === undefined ? {} : { signal: options.signal })
     };
-    const request = await resolveHostedCreateRequest({
+    const resolved = await resolveHostedCreateRequest({
       assessment,
       packet,
       configSha256: report.resolvedConfig.configDigest,
@@ -204,16 +204,26 @@ export async function runTest(
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(dependencies.confirm === undefined ? {} : { confirm: dependencies.confirm })
     });
-    const prepared = await prepareCreateAttempt(recovery, request);
+    const request = resolved.request;
+    let prepared;
     let binding: CreateRunResponse;
-    if (prepared.kind === "resume_bound") {
-      binding = prepared.binding;
-    } else {
-      const loaded =
-        prepared.kind === "replay_pending"
-          ? { intent: prepared.intent, resumed: true }
-          : await intentStore.loadOrCreate(request);
-      binding = await createOrRecover(recovery, loaded.intent, options.signal);
+    try {
+      prepared = await prepareCreateAttempt(recovery, request);
+      if (prepared.kind === "resume_bound") {
+        binding = prepared.binding;
+      } else {
+        const loaded =
+          prepared.kind === "replay_pending"
+            ? { intent: prepared.intent, resumed: true }
+            : await intentStore.loadOrCreate(request);
+        binding = await createOrRecover(recovery, loaded.intent, options.signal);
+      }
+    } catch (error) {
+      throw annotateHostedAdmissionError(error, {
+        apiOrigin: session.apiOrigin,
+        workspaceId: session.identity.workspaceId,
+        ...(resolved.quote === undefined ? {} : { quote: resolved.quote })
+      });
     }
     assertRunBinding(binding, intentStore.intent?.request ?? { ...request, create_request_id: binding.create_request_id });
     if (intentStore.intent?.phase !== "bound") {
@@ -363,13 +373,15 @@ async function resolveHostedCreateRequest(options: {
   readonly workspaceLabel: string;
   readonly interactive: boolean;
   readonly confirm?: (prompt: string) => Promise<boolean>;
-}): Promise<CreateRunIntentRequest> {
+}): Promise<{ request: CreateRunIntentRequest; quote?: BillingQuote }> {
   if (options.assessment === undefined) {
     return {
-      protocol_version: RELAY_PROTOCOL_VERSION,
-      packet: options.packet,
-      config_sha256: options.configSha256,
-      target: options.target
+      request: {
+        protocol_version: RELAY_PROTOCOL_VERSION,
+        packet: options.packet,
+        config_sha256: options.configSha256,
+        target: options.target
+      }
     };
   }
   const assessmentFields = assessmentCreateFields(options.assessment);
@@ -385,7 +397,7 @@ async function resolveHostedCreateRequest(options: {
       ...(replayCeiling === undefined ? {} : { maxCredits: replayCeiling })
     });
     if (options.existing !== undefined && intentRequestMatches(options.existing, candidate)) {
-      return candidate;
+      return { request: candidate };
     }
   }
   if (options.maxCredits === undefined && (options.yes || !options.interactive)) {
@@ -443,14 +455,17 @@ async function resolveHostedCreateRequest(options: {
       });
     }
   }
-  return quotedCreateIntent({
-    packet: options.packet,
-    configSha256: options.configSha256,
-    target: options.target,
-    assessment: assessmentFields,
-    quoteId: quote.quoteId,
-    maxCredits: ceiling
-  });
+  return {
+    request: quotedCreateIntent({
+      packet: options.packet,
+      configSha256: options.configSha256,
+      target: options.target,
+      assessment: assessmentFields,
+      quoteId: quote.quoteId,
+      maxCredits: ceiling
+    }),
+    quote
+  };
 }
 
 async function requestHostedQuote(options: {
@@ -519,6 +534,29 @@ function defaultInteractive(): boolean {
   return process.stdin.isTTY === true && process.stderr.isTTY === true;
 }
 
+function annotateHostedAdmissionError(
+  error: unknown,
+  options: {
+    readonly quote?: BillingQuote;
+    readonly apiOrigin: URL;
+    readonly workspaceId: string;
+  }
+): unknown {
+  if (!(error instanceof AwError) || error.code !== "INSUFFICIENT_CREDITS") return error;
+  let billingPageUrl: string | undefined;
+  try {
+    billingPageUrl = firstPartyBillingPageUrl(options.apiOrigin, options.workspaceId).toString();
+  } catch {
+    billingPageUrl = undefined;
+  }
+  return annotateInsufficientCredits(error, {
+    ...(options.quote === undefined
+      ? {}
+      : { requiredUnits: options.quote.executionUnits, availableUnits: options.quote.availableUnitsAtQuote }),
+    ...(billingPageUrl === undefined ? {} : { billingPageUrl })
+  });
+}
+
 export function createTestCommand(dependencies: TestDependencies = {}): Command {
   return new Command("test")
     .description("Run a deterministic hosted or customer-executed local assessment")
@@ -529,7 +567,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     )
     .option(
       "--assessment <path>",
-      "hosted assessment file (quoted aw-relay/0.3 on source 0.3.2; published 0.3.1 uses aw-relay/0.2)"
+      "hosted assessment file (quoted aw-relay/0.3 on source 0.3.3; published 0.3.2 uses aw-relay/0.2)"
     )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
@@ -651,29 +689,49 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           }
           return;
         }
-        const result = await runTest(
-          {
-            config: values.config,
-            ...(values.packet === undefined ? {} : { packet: values.packet }),
-            ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
-            ...(values.profile === undefined ? {} : { profile: values.profile }),
-            ...(values.open === undefined ? {} : { open: values.open }),
-            ...(values.json === undefined ? {} : { json: values.json }),
-            ...(values.maxCredits === undefined ? {} : { maxCredits: values.maxCredits }),
-            ...(values.yes === undefined ? {} : { yes: values.yes }),
-            ...(values.allowFileCredentials === undefined
-              ? {}
-              : { allowFileCredentials: values.allowFileCredentials })
-          },
-          dependencies
-        );
-        if (values.json === true) {
-          stdout.write(`${JSON.stringify(hostedJsonResult(result))}\n`);
-        } else {
-          writeHostedResult(stdout, result);
+        try {
+          const result = await runTest(
+            {
+              config: values.config,
+              ...(values.packet === undefined ? {} : { packet: values.packet }),
+              ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
+              ...(values.profile === undefined ? {} : { profile: values.profile }),
+              ...(values.open === undefined ? {} : { open: values.open }),
+              ...(values.json === undefined ? {} : { json: values.json }),
+              ...(values.maxCredits === undefined ? {} : { maxCredits: values.maxCredits }),
+              ...(values.yes === undefined ? {} : { yes: values.yes }),
+              ...(values.allowFileCredentials === undefined
+                ? {}
+                : { allowFileCredentials: values.allowFileCredentials })
+            },
+            dependencies
+          );
+          if (values.json === true) {
+            stdout.write(`${JSON.stringify(hostedJsonResult(result))}\n`);
+          } else {
+            writeHostedResult(stdout, result);
+          }
+          const exitCode = hostedExitCode(result.run);
+          if (exitCode !== EXIT.OK) setExitCode(exitCode);
+        } catch (error) {
+          if (values.json !== true) throw error;
+          const awError =
+            error instanceof AwError
+              ? error
+              : new AwError({
+                  code: "INTERNAL",
+                  category: "local",
+                  message: "The hosted test command could not be completed."
+                });
+          stdout.write(
+            `${JSON.stringify({
+              ok: false,
+              ...awError.toSafeJSON(),
+              exit_code: exitCodeFor(awError)
+            })}\n`
+          );
+          setExitCode(exitCodeFor(awError));
         }
-        const exitCode = hostedExitCode(result.run);
-        if (exitCode !== EXIT.OK) setExitCode(exitCode);
       }
     );
 }

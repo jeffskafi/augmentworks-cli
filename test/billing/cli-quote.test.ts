@@ -10,6 +10,7 @@ import { CloudClient } from "../../src/cloud/client.js";
 import { parseMaxCreditsFlag } from "../../src/billing/consent.js";
 import { billingHttpError } from "../../src/billing/errors.js";
 import { runEstimate, runTest } from "../../src/commands/test.js";
+import { runUsage } from "../../src/commands/usage.js";
 import { createRunCommand } from "../../src/commands/run.js";
 import { resolveConfig } from "../../src/config/resolve.js";
 import type { AugmentWorksConfig } from "../../src/config/types.js";
@@ -480,8 +481,8 @@ describe("hosted estimate and quoted admission", () => {
       }
       throw new Error(`unexpected ${url.pathname}`);
     });
-    await expect(
-      runTest(
+    try {
+      await runTest(
         {
           cwd,
           assessment: "augmentworks.assessment.yaml",
@@ -505,9 +506,179 @@ describe("hosted estimate and quoted admission", () => {
             throw new Error("target must not be constructed");
           }
         }
-      )
-    ).rejects.toMatchObject({ code: "INSUFFICIENT_CREDITS", category: "billing" });
+      );
+      throw new Error("expected INSUFFICIENT_CREDITS");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "INSUFFICIENT_CREDITS", category: "billing" });
+      const awError = error as AwError;
+      expect(awError.message).toContain("Required 30 credits, available 5.");
+      expect(awError.message).toContain("/portal/billing?workspace=");
+      expect(awError.message).toContain("does not wait for a purchase");
+      expect(awError.details?.["required_units"]).toBe(30);
+      expect(awError.details?.["available_units"]).toBe(5);
+      expect(String(awError.details?.["billing_page_url"] ?? "")).not.toContain("token");
+    }
     expect(target).toBe(0);
+  });
+
+  it("requires an explicit new test after insufficient credits and a fulfilled purchase snapshot", async () => {
+    const cwd = await projectDir();
+    const stateDirectory = await projectDir();
+    let phase: "blocked" | "purchased" = "blocked";
+    let target = 0;
+    const fulfilledUsage = {
+      ...((fixtures.fixtures["eligible_trial"]?.response ?? {}) as Record<string, unknown>),
+      availableUnits: 500,
+      reservedUnits: 0,
+      consumedUnits: 0,
+      ledgerRevision: 4,
+      grantBalances: [
+        {
+          lotId: "33333333-3333-4333-8333-333333333333",
+          origin: "trial",
+          grantedUnits: 200,
+          availableUnits: 200,
+          reservedUnits: 0,
+          consumedUnits: 0,
+          expiresAt: null,
+          grantedAt: "2026-09-06T16:00:00.000Z",
+          policyVersion: "aw-billing/1"
+        },
+        {
+          lotId: "55555555-5555-4555-8555-555555555555",
+          origin: "purchased",
+          grantedUnits: 300,
+          availableUnits: 300,
+          reservedUnits: 0,
+          consumedUnits: 0,
+          expiresAt: null,
+          grantedAt: "2026-09-06T18:05:00.000Z",
+          policyVersion: "aw-billing/pack-300-v1"
+        }
+      ]
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      let body: Record<string, unknown> = {};
+      if (typeof init?.body === "string" && init.body.length > 0) {
+        body = JSON.parse(init.body) as Record<string, unknown>;
+      }
+      if (url.pathname.endsWith("/v1/billing/capabilities")) {
+        return Response.json(fixtures.fixtures["eligible_trial"]?.response);
+      }
+      if (url.pathname.endsWith("/v1/billing/usage")) {
+        expect(phase).toBe("purchased");
+        return Response.json(fulfilledUsage);
+      }
+      if (url.pathname.endsWith("/v1/billing/quote")) {
+        if (phase === "blocked") {
+          return Response.json(fixtures.fixtures["quote_success_insufficient_balance"]?.response);
+        }
+        return Response.json({
+          ...((fixtures.fixtures["quote_success_with_balance"]?.response ?? {}) as object),
+          availableUnitsAtQuote: 500,
+          remainingUnitsEstimate: 470
+        });
+      }
+      if (url.pathname.endsWith("/v1/relay/runs")) {
+        if (phase === "blocked") {
+          return Response.json(fixtures.fixtures["error_insufficient_credits"]?.response, { status: 409 });
+        }
+        expect(body["max_credits"]).toBe(500);
+        expect(body["protocol_version"]).toBe("aw-relay/0.3");
+        return Response.json(completedCreateResponse(body));
+      }
+      if (url.pathname.endsWith("/v1/relay/run-intents:reconcile")) {
+        return Response.json({
+          protocol_version: "aw-run-intent-reconcile/0.1",
+          outcome: "rejected_uncreated",
+          create_request_id: body["create_request_id"],
+          create_request_sha256: body["create_request_sha256"],
+          rejection: { code: "INSUFFICIENT_CREDITS", message: "Not enough credits." }
+        });
+      }
+      if (url.pathname.endsWith("/v1/relay/runs/run-quoted")) {
+        return Response.json({
+          protocol_version: "aw-relay/0.1",
+          run_id: "run-quoted",
+          status: "completed",
+          credit_state: "reserved",
+          outcome: "passed"
+        });
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const deps = {
+      doctor: doctorFor(),
+      isInteractive: () => false as const,
+      accessToken: async () => "token",
+      identity: async () => identity(),
+      cloud: hostedCloud(fetchMock),
+      connector: () => {
+        target += 1;
+        throw new Error("target must not be constructed");
+      }
+    };
+    try {
+      await runTest(
+        {
+          cwd,
+          assessment: "augmentworks.assessment.yaml",
+          maxCredits: "30",
+          yes: true,
+          stateDirectory
+        },
+        deps
+      );
+      throw new Error("expected INSUFFICIENT_CREDITS");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "INSUFFICIENT_CREDITS", category: "billing" });
+      const awError = error as AwError;
+      expect(awError.message).toContain("Required 30 credits, available 5.");
+      expect(awError.message).toContain("/portal/billing?workspace=");
+      expect(awError.message).toContain("does not wait for a purchase");
+      expect(awError.details?.["required_units"]).toBe(30);
+      expect(awError.details?.["available_units"]).toBe(5);
+      expect(String(awError.details?.["billing_page_url"] ?? "")).not.toContain("token");
+    }
+    expect(target).toBe(0);
+    expect(
+      fetchMock.mock.calls.filter(
+        (call) => String(call[0]).includes("/v1/relay/runs") && !String(call[0]).includes("reconcile")
+      ).length
+    ).toBe(1);
+
+    phase = "purchased";
+    const usage = await runUsage(
+      { env: { AUGMENTWORKS_API_URL: "http://127.0.0.1:8787" } },
+      {
+        accessToken: async () => "token",
+        identity: async () => identity(),
+        cloud: hostedCloud(fetchMock)
+      }
+    );
+    expect(usage.usage.availableUnits).toBe(500);
+    expect(usage.usage.pendingCommerce).toBeUndefined();
+    expect(usage.usage.grantBalances.some((lot) => lot.origin === "purchased" && lot.availableUnits === 300)).toBe(
+      true
+    );
+    expect(target).toBe(0);
+
+    const admitted = await runTest(
+      {
+        cwd,
+        assessment: "augmentworks.assessment.yaml",
+        maxCredits: "500",
+        yes: true,
+        stateDirectory
+      },
+      deps
+    );
+    expect(admitted.binding.run_id).toBe("run-quoted");
+    expect(target).toBe(0);
+    expect(
+      fetchMock.mock.calls.some((call) => /checkout|stripe|customer|refund|subscribe/i.test(String(call[0])))
+    ).toBe(false);
   });
 
   it("requires --max-credits for noninteractive --yes and makes zero target calls", async () => {

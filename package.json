@@ -1,6 +1,6 @@
 {
   "name": "@augmentworks/cli",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Deterministic hosted and customer-executed local testing for AI agents",
   "type": "module",
   "bin": {
@@ -36,6 +36,8 @@
     "test:e2e:cli-auth": "vitest run test/auth/loopback-callback.test.ts",
     "audit:ci": "npm audit --audit-level=high",
     "smoke:pack": "node scripts/smoke-pack.mjs",
+    "test:packed-billing-fixture": "node scripts/packed-billing-fixture.mjs",
+    "test:packed-billing-live": "node scripts/packed-billing-live.mjs",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check && npm run audit:ci && npm run smoke:pack"

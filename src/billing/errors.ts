@@ -58,6 +58,16 @@ export function statusUnsupportedError(details?: BillingHttpDetails): AwError {
   });
 }
 
+export function billingPortalUnsupportedError(details?: BillingHttpDetails): AwError {
+  return billingError({
+    code: "UPDATE_REQUIRED",
+    category: "billing",
+    message:
+      "This AugmentWorks server does not advertise billing_portal_link_v1. Update the CLI and server together. The CLI did not open a payment page, create a Checkout Session, or change credits.",
+    ...(details === undefined ? {} : { details })
+  });
+}
+
 export function billingMalformedError(label: string, details?: BillingHttpDetails): AwError {
   return billingError({
     code: "INVALID_CLOUD_RESPONSE",
@@ -234,7 +244,7 @@ export function stableBillingError(
         category: "billing",
         message:
           message ||
-          "This workspace does not have enough execution credits for the quoted assessment. No target work started. Buy or wait in the browser billing page, then run the test again with an explicit --max-credits ceiling.",
+          "This workspace does not have enough execution credits for the quoted assessment. No target work started. Open the first-party billing page, then run usage and start a new test with an explicit --max-credits ceiling. The CLI does not wait for a purchase or restart a billable run.",
         ...(details === undefined ? {} : { details })
       });
     case "QUOTE_EXPIRED":
@@ -309,7 +319,13 @@ export function mapBillingAdmissionError(
   );
   if (stable !== undefined) {
     const message = envelope?.message ?? (typeof record?.["message"] === "string" ? record["message"] : "");
-    return stableBillingError(stable, sanitizeTerminal(message).replace(/[\r\n]+/g, " ").trim(), envelope?.retryable === true || status >= 500, details);
+    const units = optionalCreditQuantities(record);
+    return stableBillingError(
+      stable,
+      sanitizeTerminal(message).replace(/[\r\n]+/g, " ").trim(),
+      envelope?.retryable === true || status >= 500,
+      { ...details, ...units }
+    );
   }
   if (envelope !== undefined && isBillingErrorCode(envelope.code)) {
     return mapKnownBillingCode(
@@ -391,4 +407,70 @@ export function billingHttpError(
 
 export function profileRecoveryUrl(apiOrigin: URL): string {
   return new URL("/portal", apiOrigin).toString();
+}
+
+function optionalUnitCount(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 1_000_000) {
+    return undefined;
+  }
+  return value;
+}
+
+function optionalCreditQuantities(
+  record: Record<string, unknown> | undefined
+): BillingHttpDetails {
+  if (record === undefined) return {};
+  const required =
+    optionalUnitCount(record["requiredUnits"]) ?? optionalUnitCount(record["required_units"]);
+  const available =
+    optionalUnitCount(record["availableUnits"]) ?? optionalUnitCount(record["available_units"]);
+  return {
+    ...(required === undefined ? {} : { required_units: required }),
+    ...(available === undefined ? {} : { available_units: available })
+  };
+}
+
+export function annotateInsufficientCredits(
+  error: AwError,
+  options: {
+    readonly requiredUnits?: number;
+    readonly availableUnits?: number;
+    readonly billingPageUrl?: string;
+  }
+): AwError {
+  if (error.code !== "INSUFFICIENT_CREDITS") return error;
+  const required =
+    options.requiredUnits ??
+    (typeof error.details?.["required_units"] === "number" ? error.details["required_units"] : undefined);
+  const available =
+    options.availableUnits ??
+    (typeof error.details?.["available_units"] === "number" ? error.details["available_units"] : undefined);
+  const billingPageUrl = options.billingPageUrl;
+  const parts = [error.message.replace(/[\r\n]+/g, " ").trim()];
+  if (required !== undefined && available !== undefined) {
+    parts.push(`Required ${String(required)} credits, available ${String(available)}.`);
+  } else if (required !== undefined) {
+    parts.push(`Required credits: ${String(required)}.`);
+  } else if (available !== undefined) {
+    parts.push(`Available credits: ${String(available)}.`);
+  }
+  if (billingPageUrl !== undefined) {
+    parts.push(
+      `Review billing at ${billingPageUrl}. Opening that URL does not authorize payment. After fulfillment, run usage, then start a new test explicitly with --max-credits. This command does not wait for a purchase.`
+    );
+  }
+  const details: Record<string, string | number | boolean> = { ...(error.details ?? {}) };
+  if (required !== undefined) details["required_units"] = required;
+  if (available !== undefined) details["available_units"] = available;
+  if (billingPageUrl !== undefined) details["billing_page_url"] = billingPageUrl;
+  return new AwError({
+    code: error.code,
+    category: error.category,
+    message: parts.join(" "),
+    retryable: error.retryable,
+    ...(error.operation === undefined ? {} : { operation: error.operation }),
+    ...(error.commandId === undefined ? {} : { commandId: error.commandId }),
+    details,
+    cause: error
+  });
 }

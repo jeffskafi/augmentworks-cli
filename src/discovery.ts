@@ -307,7 +307,7 @@ function discoveryCommands(options: {
 
 export const LAST_VERIFIED_PUBLISHED_DISCOVERY = publishedDiscoveryManifest({
   version: PUBLISHED_PACKAGE_VERSION,
-  localDemo: false,
-  sourceCommit: "e0ceed4d2696be9ebc5806bb92aadcf458fc20ad",
-  verifiedAt: "2026-09-05T23:27:01.502Z"
+  localDemo: true,
+  sourceCommit: "d36ec8590b005445dba940d2df3abcb53971cea5",
+  verifiedAt: "2026-09-06T14:33:30.670Z"
 });

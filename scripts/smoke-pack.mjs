@@ -128,6 +128,17 @@ function assertInventory(report) {
     "schemas/v1/cli-release.json",
     "assets/demo/packet.json",
     "assets/demo/augmentworks.yaml",
+    "assets/starters/response-quality/augmentworks.yaml",
+    "assets/starters/response-quality/augmentworks.assessment.yaml",
+    "assets/starters/response-quality/.env.example",
+    "assets/starters/response-quality/references/faq.md",
+    "assets/starters/response-quality/references/restocking.md",
+    "assets/starters/response-quality/references/warranty.md",
+    "assets/starters/response-quality/references/old-returns.md",
+    "assets/starters/workflow/augmentworks.yaml",
+    "assets/starters/workflow/augmentworks.assessment.yaml",
+    "assets/starters/workflow/.env.example",
+    "assets/starters/workflow/references/refund-policy.md",
     "contracts/discovery-manifest.json",
     "contracts/discovery-manifest.schema.json",
     "contracts/aw-billing-v1.schema.json",
@@ -329,12 +340,20 @@ async function main() {
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
     }
 
-    execCli(["init"], { cwd: assessmentDirectory });
+    execCli(["init", "--starter", "workflow"], { cwd: assessmentDirectory });
     await Promise.all([
       access(join(assessmentDirectory, "augmentworks.yaml"), fsConstants.R_OK),
+      access(join(assessmentDirectory, "augmentworks.assessment.yaml"), fsConstants.R_OK),
+      access(join(assessmentDirectory, "references", "refund-policy.md"), fsConstants.R_OK),
       access(join(assessmentDirectory, ".env.example"), fsConstants.R_OK),
       access(join(assessmentDirectory, ".env"), fsConstants.R_OK)
     ]);
+    assert(
+      (await readFile(join(assessmentDirectory, "augmentworks.assessment.yaml"), "utf8")).includes(
+        "support-refunds"
+      ),
+      "workflow starter must generate the support-refunds assessment"
+    );
     const generatedEnvironment = await readFile(join(assessmentDirectory, ".env"), "utf8");
     assert(
       /^CHATBOT_API_KEY=\s*$/m.test(generatedEnvironment),
@@ -520,6 +539,34 @@ async function main() {
     const demoHelp = execCli(["demo", "--help"]);
     assert(demoHelp.stdout.includes("--json"), "packed CLI is missing demo --json");
     assert(demoHelp.stdout.includes("--mode"), "packed CLI is missing demo --mode");
+
+    process.stdout.write("[pack smoke] packed billing HTTP fixture through installed binary\n");
+    const fixture = spawnSync(process.execPath, [join(projectRoot, "scripts", "packed-billing-fixture.mjs")], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        AUGMENTWORKS_PACKED_BIN: packedCli,
+        NO_COLOR: "1"
+      },
+      encoding: "utf8",
+      timeout: 180_000,
+      windowsHide: true
+    });
+    if (fixture.error !== undefined) {
+      throw new SmokeFailure(`packed billing fixture failed to start: ${fixture.error.message}`);
+    }
+    if (fixture.status !== 0) {
+      throw new SmokeFailure(
+        [
+          "packed billing HTTP fixture failed",
+          fixture.stdout.trim(),
+          fixture.stderr.trim()
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(fixture.stdout);
 
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`

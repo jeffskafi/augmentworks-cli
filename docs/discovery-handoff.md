@@ -9,12 +9,12 @@ constants.
 
 | Field | Value |
 | --- | --- |
-| Package | `@augmentworks/cli@0.3.2` |
+| Package | `@augmentworks/cli@0.3.3` |
 | `releaseStatus` | `development` |
 | `capabilities.localDemo` | `true` |
 | Demo invocation | `node dist/index.js demo` |
 | Provenance | `sourceCommit: null` (gap until a release commit is recorded), `verifiedAt: null` |
-| Last verified npm | `@augmentworks/cli@0.3.1` (`localDemo: false`) |
+| Last verified npm | `@augmentworks/cli@0.3.2` (`localDemo: true`, gitHead `d36ec8590b005445dba940d2df3abcb53971cea5`) |
 
 The immutable locally packed tarball may carry this development-status
 manifest. That is QA, not npm publication. After publication, generate a
@@ -48,11 +48,10 @@ cleanup succeeds.
 Website maintainers must independently review and adopt a **pinned** published
 manifest. Never fetch `latest` into the live website at runtime.
 
-Until 0.3.2 is published and verified, keep the website snapshot on 0.3.1 with
-`localDemo: false` / `commands.localDemo: null`. After that verification, the
-published command vector is `npx`, `--yes`, the exact `@augmentworks/cli`
-version that was inspected, and `demo`. Do not write an unpublished pin into
-executable docs.
+Until a later tarball is published and verified, keep the website snapshot on
+0.3.2 with `localDemo: true` / `commands.localDemo` pinning
+`npx --yes @augmentworks/cli@0.3.2 demo`. Do not write an unpublished `0.3.3`
+pin into executable docs.
 
 Command arrays are data for reviewed rendering and tests. The website must not
 execute imported command arrays.

@@ -1,4 +1,6 @@
-import { resolve } from "node:path";
+import { constants as fsConstants } from "node:fs";
+import { access } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import { Command } from "commander";
 
@@ -7,6 +9,7 @@ import {
   loadAssessmentFile,
   type LoadedAssessment
 } from "../assessment/index.js";
+import { assessmentWireBoundDiagnostics } from "../assessment/wire-bounds.js";
 import { EXIT, AwError } from "../errors.js";
 import { inspectConfig } from "../config/load.js";
 import type { ConfigInspection, Diagnostic } from "../config/types.js";
@@ -34,6 +37,15 @@ export interface DoctorCommandDependencies {
   readonly setExitCode?: (code: number) => void;
 }
 
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path, fsConstants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorReport> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const configPath = resolve(cwd, options.config ?? "augmentworks.yaml");
@@ -44,14 +56,24 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   });
   const diagnostics: Diagnostic[] = [...inspection.diagnostics];
   let assessment: LoadedAssessment | undefined;
-  if (options.assessment !== undefined) {
+  const defaultAssessmentPath = resolve(dirname(configPath), "augmentworks.assessment.yaml");
+  const assessmentPath =
+    options.assessment !== undefined
+      ? options.assessment
+      : (await exists(defaultAssessmentPath))
+        ? defaultAssessmentPath
+        : undefined;
+  if (assessmentPath !== undefined) {
     try {
       assessment = await loadAssessmentFile({
-        path: options.assessment,
+        path: assessmentPath,
         cwd,
         ...(options.profile === undefined ? {} : { profile: options.profile })
       });
       diagnostics.push(...assessmentDiagnostics(assessment));
+      diagnostics.push(
+        ...(await assessmentWireBoundDiagnostics(assessment, inspection.resolvedConfig))
+      );
     } catch (error) {
       if (error instanceof AwError) {
         diagnostics.push({
@@ -67,6 +89,13 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
         });
       }
     }
+  } else {
+    diagnostics.push({
+      level: "warning",
+      code: "ASSESSMENT_FILE_ABSENT",
+      message:
+        "No augmentworks.assessment.yaml beside the config. Hosted test --assessment needs that file; run init to generate the packaged starter."
+    });
   }
   diagnostics.push({
     level: "ok",
@@ -132,7 +161,7 @@ function formatJson(report: DoctorReport): string {
 
 export function createDoctorCommand(dependencies: DoctorCommandDependencies = {}): Command {
   return new Command("doctor")
-    .description("Validate configuration and local prerequisites without running target hooks")
+    .description("Validate configuration, assessment files, and local wire bounds without running target hooks")
     .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
     .option("--assessment <path>", "validate an assessment file without running tests")
     .option("--profile <profile>", "quick, full, combined, or custom")

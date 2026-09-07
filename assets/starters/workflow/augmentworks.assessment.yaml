@@ -1,0 +1,23 @@
+# Synthetic packaged workflow starter for support-refunds. Not a real policy.
+schema_version: aw-assessment-file/1
+profile: quick
+evaluation_mode: hybrid
+packets:
+  - key: support-refunds
+    version: 0.2.0
+target_already_configured: true
+references:
+  local:
+    - path: references/refund-policy.md
+      id: refund-policy-current
+      kind: approved_policy
+refund_policy:
+  amount_cap_minor_units: 10000
+  currency: USD
+  eligibility_rule: Synthetic catalog orders marked refundable within the inclusive cap.
+  refusal_enforcement_mode: refuse_before_tool
+  require_confirmation: false
+  unit_adapter_version: usd-cents/1
+  prose: >
+    Synthetic refund policy for the packaged workflow starter. Not a real
+    customer policy and not a payment instruction.

@@ -1,6 +1,6 @@
-# Billing Stage 2A → CLI Stage 2B handoff
+# Billing Stage 4A → CLI Stage 4B handoff
 
-Owned by `jeffskafi/augmentworks`. Do not implement Stage 2B in this
+Owned by `jeffskafi/augmentworks`. Do not implement Stage 4B in this
 repository. The CLI counterpart must vendor this contract as published here.
 
 ## Identity
@@ -8,32 +8,33 @@ repository. The CLI counterpart must vendor this contract as published here.
 | Item | Value |
 | --- | --- |
 | Docs/contracts research baseline | `bc1bac16ee88aeece7cd7c58793abc0d611aa4bc` (`origin/main`) |
-| Stage 1A implementation HEAD | `e037958ba3c9f38a436b6065cddb5fb8ee3943fa` (`cursor/billing-stage-1a-91a7`) |
-| CLI Stage 1B implementation | `3d2bdfa32a727ac35c1b0ea49a9dfd376151b895` (`cursor/billing-stage-1b-91a7`) |
-| Working branch | `cursor/billing-stage-2a-91a7` |
-| Feature commit | `3e81b35f3d96cbfdcc763f26bbcf27de309b07de` |
-| Verification record | `f560aa3f1978411638f001f55a22bc920afba89d` |
-| Vendor pin | Tip of `cursor/billing-stage-2a-91a7` (hashes frozen since `3e81b35`) |
-| Pull request | https://github.com/jeffskafi/augmentworks/pull/28 (base `cursor/billing-stage-1a-91a7`) |
-| Stage | **2A code complete.** Deterministic unit/integration/Postgres/RLS checks in this checkout **passed**. Live OpenAI calibration **UNVERIFIED**. Not live-sales ready. |
+| Stage 3A vendor pin | `931838f29ee04fc018ef6359c22abd8d3e8da4c8` (`cursor/billing-stage-3a-91a7`; feature hashes frozen since `926ae72`) |
+| CLI Stage 3B counterpart | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`; implementation `7fef4e9`) |
+| Working branch | `cursor/billing-stage-4a-91a7` |
+| Stage | **4A code complete and locally verified.** Live purchases **not enabled**. Real Stripe **BLOCKED** without credentials. Subscriptions **not sold**. |
+| First implementation commit | `7faa85f5d69cd405aaed090fcb7fb25d73848fdd` |
 
-## What Stage 2B may do
+Exact current commit is the git SHA that contains this file.
 
-Quotes, spending ceilings, quoted create (`aw-relay/0.3`), run-specific
-status/wait, and explicit evaluation-only retry.
+## What Stage 4B may do
 
-Do not add Checkout, subscriptions, Stripe credentials, Clerk, pack purchase,
-or a competing route layout. Use the aliases below. Transport today is
-`src/cloud/client.ts`.
+Build a release-ready CLI whose **actual npm tarball** completes the documented
+first-customer prepaid journey, including recovery. Import this schema,
+fixtures, and handoff. Keep `docs/billing/main-source-handoff.md` separate
+from the CLI-owned handoff.
 
-Do **not** send `quote_id` / `max_credits` through an unchanged `aw-relay/0.1`
-or `aw-relay/0.2` strict object. Those versions remain strict. Older clients
-attempting new paid work after cutover receive `UPDATE_REQUIRED` without
-reservation or execution. Authorized read/status access is preserved.
+Use `docs/billing/phase-4a-cli-4b-scenario.md` for expected balances, safe
+URLs, error fixtures, and the website pin vs unpublished 3B distinction.
+Main 4A fixture YAML under `docs/billing/phase-4a-fixture-setup/` is **not**
+proof that `augmentworks init` generates those files.
 
-CLI Stage 1B already assigned **`EXIT.BILLING = 13`**. Keep 13. Do not collide
-with evaluation-incomplete **11**, evaluation-error **12**, or interrupted
-**130**.
+Do **not** create Stripe customers, Checkout Sessions, purchases, refunds, or
+subscriptions from the CLI. Do **not** invent a CLI order-status endpoint.
+Do **not** advertise `$149` / `subscriptions_v1` as purchasable. Do **not**
+publish the npm package or enable live billing unless separately authorized.
+
+Keep **`EXIT.BILLING = 13`**. Keep evaluation-incomplete **11**,
+evaluation-error **12**, and interrupted **130**.
 
 ## Wire contract
 
@@ -42,9 +43,9 @@ with evaluation-incomplete **11**, evaluation-error **12**, or interrupted
 SHA-256:
 
 - `docs/contracts/aw-billing-v1.schema.json` =
-  `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`
+  `e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b`
 - `docs/contracts/aw-billing-v1.fixtures.json` =
-  `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1`
+  `42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c`
 
 Canonical files:
 
@@ -52,10 +53,12 @@ Canonical files:
 - `docs/contracts/aw-billing-v1.fixtures.json`
 - `docs/contracts/aw-billing-v1.checksums.json`
 
-Stage 1 usage fields are unchanged. Additive quote/status objects and error
-codes are in the same schema. Consumers still tolerate a later non-null
-`subscription` object. Unknown capability strings are ignored. Unknown
-financial/access states fail closed.
+Stage 1–3 fields remain. Additive optional quote fields:
+`retentionPolicyVersion`, `retainUntil`. Purchased-credit validity (no expiry)
+is distinct from run-detail retention. Consumers tolerate additive optional
+fields, `pendingCommerce`, `frozenUnits`, and a later non-null `subscription`
+object without treating it as a live sale. Unknown capability strings are
+ignored. Unknown financial/access states fail closed.
 
 ### Routes and aliases
 
@@ -72,167 +75,102 @@ financial/access states fail closed.
 | Canonical execution status | `GET /v1/relay/runs/{runId}` | `connector:run` |
 | Evaluation-only retry | `POST /v1/relay/runs/{runId}:retry-evaluation` | `connector:run` |
 | Ambiguous create lookup | `POST /v1/relay/run-intents/reconcile` | `connector:run` |
+| Quoted create | `POST /v1/relay/runs` (`aw-relay/0.3`) | `connector:run` |
 
 Workspace is always resolved from the validated connector. Query
 `workspaceId` / `billingAccountId` must not switch tenants
 (`workspace_mismatch`). Responses: `Cache-Control: private, no-store`.
 
+There is **no** CLI order-status API. Order state is on
+`/portal/billing/orders/<orderId>` after browser auth.
+
 ### Capabilities
 
-Advertised now: `["usage_v1", "quote_v1", "status_v1"]`.
+Advertised now: `["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"]`.
 
-Reserved, **do not advertise**: `billing_portal_link_v1`, `subscriptions_v1`.
+Reserved, **do not advertise**: `subscriptions_v1`.
 
-### Quote
+### Billing page URL (`billing_portal_link_v1`)
+
+```text
+https://augmentworks.ai/portal/billing?workspace=<workspace-uuid>
+```
+
+Local/dev may use the configured `NEXT_PUBLIC_SITE_URL` origin with the same
+path and query. The URL contains **no** access token, refresh token, device
+code, Stripe customer ID, or Checkout Session ID. Opening it does not
+authorize payment. Ineligible cohort members must not see a live purchase
+promise.
+
+A pending pack purchase is **not** spendable credit. Fixture
+`pending_pack_purchase` has availableUnits 200 with
+`pendingCommerce.state = paid_unfulfilled`.
+
+### Quote (unchanged required fields; retention optional)
 
 Quote creation **must not** reserve or consume credits, create a run, hydrate
-jobs, call a model, or contact the target. It persists bounded expiring quote
-metadata. Return quotes even when `availableUnitsAtQuote < executionUnits`.
+jobs, call a model, or contact the target. Return quotes even when
+`availableUnitsAtQuote < executionUnits`.
 
 TTL: `BILLING_QUOTE_TTL_SECONDS`, default **600**, min 60, max 1800.
 
 Pricing version: `aw-pricing/execution-unit/1`. One customer unit is one
-scenario repetition against one target. Provider-dollar estimates are private
-and must not be shown as the customer bill.
+scenario repetition against one target.
 
-`assessmentPlanHash` is the **server** compiled plan hash. It is not the CLI
-local freeze hash (`assessment.plan_hash` / `clientFreezeSha256`). Quote and
-later create must compile the same bindings; plan identity is derived from
-packet + config + target + assessment, not from `create_request_id`.
-
-Client-supplied `executionUnits` or `assessmentPlanHash` are not proof.
-Bindings hashes are computed in SQL with `canonicalize_runner_jsonb`.
-
-Successful response (required fields):
+Optional additive:
 
 ```json
 {
-  "schemaVersion": "aw-billing/1",
-  "quoteId": "<uuid>",
-  "workspaceId": "<workspace-uuid>",
-  "assessmentPlanHash": "<64-hex>",
-  "pricingVersion": "aw-pricing/execution-unit/1",
-  "executionUnits": 30,
-  "expiresAt": "<UTC-ISO-8601-Z>",
-  "availableUnitsAtQuote": 120,
-  "estimateOnly": true
+  "retentionPolicyVersion": "aw-retention/pack-90d-v1",
+  "retainUntil": "2026-12-05T17:00:00.000Z"
 }
 ```
 
-Optional additive: `scenarioCount`, `repetitions`, `remainingUnitsEstimate`.
-`remainingUnitsEstimate` is `max(0, available − executionUnits)` and is **not**
-a reservation.
+Pack-funded new run details default to **90 days** unless a longer existing
+promise applies. Trial uses the disclosed workspace `share_link_days`
+(self-service trial is **7**). Subscription 365-day policy exists in schema
+only; Pro is not sold. `NULL retain_until` is grandfathered and is not given
+the new pack default. Mixed lots take the longest committed window; tie-break
+legacy > pack > pro > trial.
 
-Request reuses the canonical assessment envelope (snake_case packet/target
-fields plus `schemaVersion: "aw-billing/1"`). Example:
-
-```http
-POST /v1/billing/quote
-Authorization: Bearer aw_connector_...
-Content-Type: application/json
-
-{
-  "schemaVersion": "aw-billing/1",
-  "packet": { "key": "support-refunds", "version": "0.2.0" },
-  "config_sha256": "<64-hex>",
-  "target": {
-    "name": "synthetic",
-    "boundary_sha256": "<64-hex>",
-    "capabilities": {
-      "prepare": true,
-      "observation": true,
-      "cleanup": true,
-      "tool_events": true,
-      "observation_keys": []
-    }
-  },
-  "assessment": { "...canonical envelope..." }
-}
-```
+Fixture: `quote_pack_retention`.
 
 ### Quoted create (`aw-relay/0.3`)
-
-Relay JSON is **snake_case**. Billing JSON is camelCase.
 
 | Billing | Wire create field |
 | --- | --- |
 | `quoteId` | `quote_id` (required UUID) |
 | `maxCredits` | `max_credits` (optional nonnegative safe integer) |
 
-`max_credits` caps **customer execution units**, not provider dollars. A quote
-whose `executionUnits` exceed the ceiling is `BUDGET_EXCEEDED` before
-reservation. **Zero** rejects every positive-unit run and does not grant a
-free hosted run. A first-party client must **not** treat a missing ceiling as
-unlimited consent. Noninteractive hosted execution should send an explicit
-ceiling.
+`max_credits` caps **customer execution units**. Zero rejects every
+positive-unit run. A first-party client must **not** treat a missing ceiling
+as unlimited consent. Identical replay of `create_request_id` returns the
+original run without another reservation, **even after the original quote
+expires**, and **even while new chargeable admission is paused**.
 
-Create is still `POST /v1/relay/runs` with `Idempotency-Key` equal to
-`create_request_id`. The server re-validates the quote, compiled plan, and
-spendable units in one database transaction, then reserves, consumes the
-quote, and inserts the run. Failure leaves no hold, consumed quote, or orphan
-run.
+After an ambiguous create, `POST /v1/relay/run-intents/reconcile` with the
+same id. Do not get a fresh quote while the original intent is still
+ambiguous.
 
-Identical replay of `create_request_id` returns the original run without
-another reservation, **even after the original quote expires**. Reusing the id
-with a different body is `RELAY_CONFLICT`. A second distinct request cannot
-reuse a consumed quote (`QUOTE_MISMATCH`).
+When new chargeable admission is paused, an unbound create is
+`BILLING_UNAVAILABLE` (HTTP 503, `error.code` / `billingCode`
+`BILLING_UNAVAILABLE` on the relay). Status, cleanup, and saved results
+remain.
 
-A quoted `availableUnitsAtQuote` is a snapshot, never a capacity guarantee.
+Old clients without `aw-relay/0.3` receive `UPDATE_REQUIRED` for new billed
+work.
 
-After an ambiguous create (timeout with no response), call
-`POST /v1/relay/run-intents/reconcile` with the same `create_request_id` and
-canonical SHA-256. Do not get a fresh quote and create a new request while the
-original intent is still ambiguous.
+### Status and evaluation retry
 
-### Status
-
-`GET /v1/billing/status?runId=<uuid>` is the billing/evaluation projection
-for CLI `run status` / `run wait`. It never starts execution, consumes units,
-calls a provider, or retries grading.
-
-Canonical execution JSON for existing 1B parsers remains
-`GET /v1/relay/runs/{runId}` and stays compatible with the CLI's **strict**
-run-status schema. Do not add extra keys there.
-
-Billing status includes `executionStatus`, `evaluationStatus`, credit
-reserved/consumed/released/compensated, progress counts, `savedEvidence`,
-`retryEligible` / `retryReason`, `originalRunId`, `nextActions`, and a
-token-free `dashboardUrl`.
-
-`nextActions`: `wait`, `inspect`, `retry_evaluation`, `open_dashboard`, `none`.
-
-When grading is pending after target completion, tell the user evidence is
-saved and to wait/status the **original run**. Do not instruct them to re-run
-the test command.
-
-### Evaluation retry
-
-`POST /v1/relay/runs/{runId}:retry-evaluation` is the explicit opt-in.
-It reuses saved target evidence, does not replay the target, and debits **0**
-customer units. Recovery revisions are bounded (at most two beyond the
-original; three evaluation groups total). SQL rejects retries once that cap
-or a terminal complete evaluation is reached.
-
-Response:
-
-```json
-{
-  "protocol_version": "aw-relay/0.1",
-  "run_id": "<uuid>",
-  "evaluation_id": "<uuid>",
-  "reused_target_evidence": true,
-  "customer_units_debited": 0
-}
-```
+Unchanged from Stage 2A/3A. Status never starts execution, consumes units,
+calls a provider, or retries grading. Evaluation retry reuses saved evidence
+and debits **0** customer units.
 
 ### Stable error mapping
 
-Wire `error.code` is snake_case. `error.billingCode` repeats the stable name.
-Main and CLI must consume this mapping; do not rename independently.
-
 | Stable | Wire `error.code` | Typical HTTP |
 | --- | --- | --- |
-| `BILLING_UNAVAILABLE` | `service_unavailable` | 503 |
+| `BILLING_UNAVAILABLE` | `service_unavailable` (billing JSON) / `BILLING_UNAVAILABLE` (relay) | 503 |
 | `INSUFFICIENT_CREDITS` | `insufficient_credits` | 409 |
 | `QUOTE_EXPIRED` | `quote_expired` | 409 |
 | `QUOTE_MISMATCH` | `quote_mismatch` | 409 |
@@ -241,50 +179,38 @@ Main and CLI must consume this mapping; do not rename independently.
 | `WORKSPACE_CLOSING` | `workspace_closing` | 409 |
 | `MEMBERSHIP_REVOKED` | `membership_revoked` | 403 |
 
-Relay create also emits these as `RelayHttpError.code` equal to the stable
-name (for example `UPDATE_REQUIRED`) plus `billingCode`. Admission conflicts
-that are not billing-specific remain `RELAY_CONFLICT` / `RELAY_BINDING` and
-are not billing codes.
+### Catalog (server-owned)
 
-`BUDGET_EXCEEDED` covers both a customer `max_credits` ceiling and a private
-grading cost budget. Private budgets never debit an extra customer unit.
+- Internal trial: `trial_200_v1` — 200 units once
+- Sellable pack: `test_pack_300_v1` — 300 units, USD 4,900 cents, no expiry
+- Reserved unsellable: `pro_monthly_1000_v1`
 
-### Usage payload
-
-Unchanged from Stage 1, with advertised capabilities now including
-`quote_v1` and `status_v1`. Optional additive totals:
-`grossConsumedUnits`, `compensatedUnits`, `releasedUnits`.
-
-Invariant: `available = usable granted − net consumed − outstanding reserved`.
-
-### Fixtures
-
-See `docs/contracts/aw-billing-v1.fixtures.json`. Stage 1 cases remain.
-Stage 2 adds quote success (including insufficient balance), pending-grading
-status, and structured quote/admission errors.
+CLI must not hard-code prices. If only billing-page + usage are exposed,
+omit CLI price marketing. Website pin: published CLI **0.3.2**.
 
 ## Migrations
 
-Forward only. Stage 1 order, then:
+Forward only. After Stage 3A:
 
-4. `20260907140001_billing_quotes_and_quoted_admission.sql`
-5. `20260907140002_provider_cost_ledger_and_dispatch.sql`
-6. `20260907140003_hydration_finalization_compensation.sql`
+9. `20260909120001_billing_paid_cohort_readiness.sql`
 
-Cutover marker is still `aw-billing/1-cutover`. After cutover, self-service
-chargeable creates require `aw-relay/0.3`. Pre-cutover and managed paths are
-documented in `docs/billing/admission-inventory.md`.
+Cutover marker is still `aw-billing/1-cutover`.
 
-## Copyable CLI 2B examples
+## Copyable CLI examples (3B / 4B)
 
-Estimate (no reservation):
+Billing page (no secrets):
+
+```text
+https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111
+```
+
+Estimate:
 
 ```text
 POST /v1/billing/quote
 ```
 
-Quoted create (illustrative; exact envelope comes from the compiled
-assessment, not this prompt):
+Quoted create:
 
 ```json
 {
@@ -299,84 +225,46 @@ assessment, not this prompt):
 }
 ```
 
-Status:
+Status / wait / retry / reconcile remain as Stage 2B/3B.
 
-```text
-GET /v1/billing/status?runId=<run-uuid>
-GET /v1/relay/runs/<run-uuid>
-```
+Published website hosted command pin remains the **0.3.2** `test` invocation
+until a newer package is actually in the registry. Describe 3B/4B commands
+as unpublished counterparts.
 
-Reconcile:
+## Independent switches (server)
 
-```text
-POST /v1/relay/run-intents/reconcile
-```
+See `docs/billing/launch-runbook.md`. Pausing Checkout does not stop
+fulfillment. Pausing admission does not stop cleanup or bound create replay.
+Pausing judge dispatch does not stop target cleanup.
 
-Retry grading only:
+## 4B artifacts
 
-```text
-POST /v1/relay/runs/<run-uuid>:retry-evaluation
-```
-
-Published website hosted command pin remains the 0.3.2 `test` invocation
-without `--max-credits` until 2B ships. Portal copy already explains estimate
-+ ceiling + `UPDATE_REQUIRED`.
-
-## Provider cost (private)
-
-Admitted model: `gpt-5.6-terra`. Rate card
-`openai-gpt-5.6-terra/standard/2026-09-06`. USD nanos. Reasoning tokens that
-are already inside `output_tokens` are not added again. Timeouts/lost
-responses are **unknown** expense, not zero. Dispatch defaults: 8 global / 2
-per workspace slots; 3 attempts per job; at most 2 recovery revisions;
-conservative reserve includes 2_000 prompt-overhead tokens.
-
-Aborting HTTP does **not** prove OpenAI stopped billing. Budget exhaustion
-fails the job with `budget_exceeded` and does not auto-compensate; operators
-use `billing_compensate_consumption`.
-
-## Commands and verification
-
-Recorded 2026-09-06 from `/Users/jeffskafi/Desktop/augmentworks-billing-2a`.
-Exact outcomes are in `docs/billing/phase-2-completion.md`.
-
-```bash
-pnpm billing:contract-hashes
-pnpm lint
-pnpm typecheck
-SKIP_ENV_VALIDATION=true pnpm test
-SKIP_ENV_VALIDATION=true pnpm test:integration
-SKIP_ENV_VALIDATION=true NEXT_PUBLIC_SITE_URL=https://augmentworks.ai pnpm build
-pnpm exec supabase start
-pnpm exec supabase migration up
-pnpm test:billing-db
-```
-
-Passed in this checkout: typecheck, lint (0 errors), 573 unit tests, 92
-integration tests, production build, and `pnpm test:billing-db` against local
-Postgres/PostgREST after applying the three Stage 2A migrations.
-
-`pnpm test:billing-db` exit **2** means Postgres/Supabase/psql is missing —
-blocked external prerequisite, not a passing test. Do not treat this file as
-evidence that live OpenAI calibration ran.
+- Clean-dir scenario: `docs/billing/phase-4a-cli-4b-scenario.md`
+- Fixture setup (not 4B proof): `docs/billing/phase-4a-fixture-setup/`
+- Readiness: `pnpm check:billing-readiness` / `--json`
+- Launch: `docs/billing/launch-runbook.md`
+- Completion: `docs/billing/phase-4-completion.md`
 
 ## Unresolved limitations
 
-- Live OpenAI calibration and measured grading cost: **UNVERIFIED** without
-  credentials and a bounded budget. Human review of calibration labels is
-  required; generated labels stay `provisional`.
-- Quote compile still requires judge configuration at **create** time
-  (`requireJudgeConfiguration: true`); quote itself compiles with
-  `requireJudgeConfiguration: false`.
-- JS `canonicalize` and SQL `canonicalize_runner_jsonb` are not interchangeable
-  as proof. The server stores and binds the SQL digest.
-- Purchases, packs ($49 / 300), subscriptions ($149 / 1,000), Stripe, and
-  Clerk are not implemented and must not be advertised.
-- Published CLI 0.3.2 cannot send `aw-relay/0.3`. After cutover, that package
-  receives `UPDATE_REQUIRED` for new billed work.
+- Live OpenAI calibration and measured grading cost: **UNVERIFIED**
+- Real Stripe test-mode Checkout/webhook/3DS: **BLOCKED** until
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and
+  `STRIPE_PRICE_TEST_PACK_300_V1` are supplied
+- Automatic tax: flag exists; off until accepted policy
+- Subscriptions reserved and not sold
+- Published CLI 0.3.2 cannot send `aw-relay/0.3` or open `billing`
+- Retention email adapter is implemented; sending is **not configured**
+- Production worker heartbeats: `not_run` until a deployed schedule records rows
+- Browser UX walkthrough: **not run** in this session (no browser tools)
+- Joint DB-backed 4A journeys: `not_run` when the process env points at a
+  production `*.supabase.co` URL; local `pnpm test:billing-db` is the
+  disposable Postgres evidence instead
 
 ## Live activation
 
-Not enabled. No production deploy, no live sales, no real charges, no paid
-inference activation from this prompt. Dispatch remains gated by
-`AW_JUDGE_DISPATCH_ENABLED` and hosted judge configuration.
+Not enabled. No production deploy, no live sales, no real charges/refunds,
+no customer messages, no npm publish. Kill switch
+`AW_BILLING_PURCHASES_ENABLED` defaults off. Live sales additionally require
+`AW_BILLING_LIVE_PURCHASES_ENABLED=true` after merchant/tax/cost review.
+Production pack rollout defaults to **allowlist** when unset.

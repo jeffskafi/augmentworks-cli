@@ -13,7 +13,7 @@ resolves only the target credentials named by the selected configuration.
 ## Interactive login
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 login
+npx --yes @augmentworks/cli@0.3.2 login
 ```
 
 The default flow uses browser Authorization Code with PKCE and a temporary
@@ -25,7 +25,7 @@ single-use and short-lived, and the callback listener closes after completion.
 For SSH and other headless environments:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 login --device
+npx --yes @augmentworks/cli@0.3.2 login --device
 ```
 
 The CLI displays a short user code and verification URL. Entering the code in a
@@ -45,7 +45,7 @@ origins containing credentials, paths, queries, or fragments are refused.
 | `POST /api/v1/cli/auth/token` | Exchange authorization-code, device-code, or refresh-token grants |
 | `POST /api/v1/cli/auth/revoke` | Revoke the active connector credential |
 | `GET /api/v1/cli/auth/me` | Resolve workspace and connector identity |
-| `GET /v1/billing/capabilities` | Discover implemented billing capabilities (`usage_v1`, `quote_v1`, `status_v1` when the server advertises them) |
+| `GET /v1/billing/capabilities` | Discover implemented billing capabilities (`usage_v1`, `quote_v1`, `status_v1`, `billing_portal_link_v1` when the server advertises them) |
 | `GET /v1/billing/usage` | Read the workspace billing snapshot |
 | `POST /v1/billing/quote` | Compile a hosted estimate; does not reserve credits or start a run (`connector:run`) |
 | `GET /v1/billing/status?runId=` | Read original-run execution/grading status (`connector:run`) |
@@ -96,19 +96,25 @@ before removal; unknown identity remains fail-closed.
 Use:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 whoami
-npx --yes @augmentworks/cli@0.3.1 logout
+npx --yes @augmentworks/cli@0.3.2 whoami
+npx --yes @augmentworks/cli@0.3.2 logout
 ```
 
-Source `0.3.2` also provides `usage`, which reads execution-credit balances
-with the same connector credential and `connector:identity` scope. It does
-not need target YAML. It is read-only: it does not grant credits, reserve
-units, or manage billing.
+Source `0.3.3` also provides `usage` and `billing`, which use the same connector
+credential and `connector:identity` scope. They do not need target YAML. They
+are read-only: they do not grant credits, reserve units, create Checkout
+Sessions, or manage payment methods.
 
 ```bash
 node dist/index.js usage
 node dist/index.js usage --json
+node dist/index.js billing --print
+node dist/index.js billing --json
 ```
+
+`billing` opens or prints the first-party `/portal/billing?workspace=` page
+from `billingPageUrl`. It does not create Checkout Sessions or Stripe
+customers. A connector token is not billing-management permission.
 
 `logout` requests server-side revocation and removes local credential material.
 A workspace owner can also revoke a lost machine or connector from the
@@ -126,7 +132,7 @@ run creation.
 ## Future automation credentials
 
 `AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and integration harnesses. `login`, `whoami`, `usage`, and hosted
+future project tokens and integration harnesses. `login`, `whoami`, `usage`, `billing`, and hosted
 `test` give it precedence and do not load or write the interactive credential
 store. `logout` still attempts to revoke the environment token and any stored
 connector credential, removes local stored credential material when accessible,

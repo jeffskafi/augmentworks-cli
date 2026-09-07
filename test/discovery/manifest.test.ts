@@ -31,15 +31,23 @@ describe("discovery manifest", () => {
     }
   });
 
-  it("keeps the last verified published 0.3.1 snapshot without demo", () => {
+  it("keeps the last verified published 0.3.2 snapshot with demo", () => {
     const parsed = parseDiscoveryManifest(LAST_VERIFIED_PUBLISHED_DISCOVERY);
     expect(parsed.ok).toBe(true);
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.1");
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.2");
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.releaseStatus).toBe("published");
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(false);
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.commands.localDemo).toBeNull();
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(true);
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.commands.localDemo).toEqual([
+      "npx",
+      "--yes",
+      "@augmentworks/cli@0.3.2",
+      "demo"
+    ]);
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.provenance.verifiedAt).toBe(
-      "2026-09-05T23:27:01.502Z"
+      "2026-09-06T14:33:30.670Z"
+    );
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.provenance.sourceCommit).toBe(
+      "d36ec8590b005445dba940d2df3abcb53971cea5"
     );
   });
 
@@ -89,10 +97,10 @@ describe("discovery manifest", () => {
 
   it("does not treat a source-only version bump as npm publication", () => {
     const source = sourceDiscoveryManifest();
-    expect(source.package.version).not.toBe("0.3.1");
+    expect(source.package.version).not.toBe("0.3.2");
     expect(source.package.releaseStatus).toBe("development");
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.1");
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(false);
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.2");
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(true);
     expect(source.capabilities.localDemo).toBe(true);
   });
 });

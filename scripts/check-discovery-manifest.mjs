@@ -26,8 +26,11 @@ const published = parseDiscoveryManifest(LAST_VERIFIED_PUBLISHED_DISCOVERY);
 if (!published.ok) {
   throw new Error(`Last verified published snapshot is invalid:\n${published.errors.join("\n")}`);
 }
-if (LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo) {
-  throw new Error("The last verified published 0.3.1 snapshot must not advertise localDemo.");
+if (!LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo) {
+  throw new Error("The last verified published 0.3.2 snapshot must advertise localDemo.");
+}
+if (LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version !== "0.3.2") {
+  throw new Error("The last verified published snapshot must remain 0.3.2 until a later tarball is inspected.");
 }
 process.stdout.write(
   `CLI discovery contract ok: ${committed.package.name}@${committed.package.version} (${committed.package.releaseStatus})\n`

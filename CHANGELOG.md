@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Source `0.3.3` Stage 4B packaged empty-directory starters
+  (`response-quality` default and `workflow`), offline doctor wire-bound
+  checks, packed-tarball billing HTTP fixture, and prepaid-journey recovery
+  docs. Vendors `aw-billing/1` from main `49806f0f52377bbca0fbe02f160668723c589fa7`.
+  Not npm-published. Live sales remain disabled.
 - Packaged `augmentworks demo` command: isolated loopback refund target, real
   local runner/scorer, fail-then-pass policy story, `AW-DEMO-SUMMARY-1` JSON.
 - `contracts/discovery-manifest.json` generated from the existing release
@@ -17,24 +22,28 @@ All notable changes to this project are documented here. The format follows
 - Copyable GitHub Actions example and synthetic sample reports under
   `docs/examples/`.
 - Authenticated `augmentworks usage` / `usage --json` for Stage 1B billing
-  snapshots. Vendors `aw-billing/1` from main commit
-  `e037958ba3c9f38a436b6065cddb5fb8ee3943fa`. Exit `13` is the billing
-  category. Not in published `0.3.1`. Does not publish npm or enable live sales.
-- Source `0.3.2` Stage 2B hosted `test --estimate`, `--max-credits`, quoted
+  snapshots. Exit `13` is the billing category. Does not publish npm or enable
+  live sales.
+- Source Stage 2B hosted `test --estimate`, `--max-credits`, quoted
   `aw-relay/0.3` create, and `run status` / `run wait` /
-  `run retry-evaluation`. Vendors the Stage 2A contract from main
-  `67749b22f04bbb8d94c0309acd36be3cb3144400`. Quotes do not reserve credits.
-  Not npm-published. Live sales remain disabled.
+  `run retry-evaluation`. Quotes do not reserve credits.
+- Source Stage 3B `augmentworks billing` / `billing --json` /
+  `billing --print` for first-party billing-page navigation. The CLI does not
+  create Checkout Sessions or Stripe customers.
 - Offline `preview-mapping` inspects response mappings and the exact
   canonical sanitized evidence payload from a local synthetic JSON fixture.
   It uses the production extraction, allowlist, redaction, and
   `canonicalize` pipeline. No target, cloud, or model call. Not in published
-  `0.3.1`.
+  `0.3.2`.
 
 ### Fixed
 
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
+- Packed billing HTTP fixture uses async `spawn` so the in-process loopback
+  server can accept CLI requests (`spawnSync` deadlocked the event loop).
+- Hosted `test --json` writes one structured error object on stdout for
+  billing/admission rejection, matching estimate/usage/billing.
 - `run wait` / `run status` no longer treat a successful status query of
   unfinished work as a passing assessment. Wait continues while target
   execution is nonterminal even when evaluation is `absent`. Exit `0` requires
@@ -45,9 +54,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Source package version is `0.3.2`. Verified npm remains `0.3.1`. Hosted npx
-  examples still pin `@augmentworks/cli@0.3.1`. Do not document unpublished
-  npx pins.
+- Source package version is `0.3.3`. Verified npm remains `0.3.2`
+  (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`). Hosted npx examples
+  pin `@augmentworks/cli@0.3.2`. Do not document unpublished npx pins.
+  `npm --yes` is not a spending ceiling; hosted consent is `--max-credits N`.
 
 ## [0.3.1] - 2026-09-05
 
