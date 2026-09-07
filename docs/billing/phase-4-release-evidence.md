@@ -27,9 +27,9 @@ Produced by `npm pack --ignore-scripts` in this checkout after `npm run build`.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 362669 bytes |
-| Unpacked size | 1922063 bytes |
-| SHA-256 | `d6d37d9b5932f6197044b7719bf08be812fc23bff1fc62508d6c5264d76e8586` |
+| Compressed size | 362910 bytes |
+| Unpacked size | 1923540 bytes |
+| SHA-256 | `ee2a0eed812e77969288771ae24a63beedd8d9772c8d3e03a6ae8607304a8303` |
 
 Inventory (all `package/` paths):
 
@@ -54,7 +54,7 @@ Working directory: `/Users/jeffskafi/Desktop/augmentworks-cli-billing-4b`.
 ```text
 npm run check
 # typecheck pass
-# vitest 49 files / 419 tests pass
+# vitest 49 files / 420 tests pass
 # build dist/index.js 1.65 MB
 # discovery ok: @augmentworks/cli@0.3.3 (development)
 # billing-contract ok: aw-billing/1 from 49806f0
@@ -62,10 +62,10 @@ npm run check
 #   fixtures=42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c
 
 AUGMENTWORKS_PACKED_BIN=$PWD/dist/index.js node scripts/packed-billing-fixture.mjs
-# passed creates=1 quotes=4 targets=0
+# passed creates=1 quotes=4 targets=1 polls=3 refreshes=1
 
 npm run smoke:pack
-# passed (31 files, 362669 compressed bytes)
+# passed (31 files, 362910 compressed bytes)
 # includes packed billing HTTP fixture through the installed binary
 
 npm run test:packed-billing-live
@@ -77,22 +77,36 @@ npm run test:packed-billing-live
 
 Empty directory → packed `init` (response-quality) → offline doctor →
 `usage --json` availableUnits 190 → `--estimate` (one quote, zero create) →
-`--max-credits 0 --yes` `BUDGET_EXCEEDED` (zero target) → `--max-credits 30`
-admit one create, valid FAIL exit 10 → `run status` / `run wait` on the
-original run → exhausted usage 0 → insufficient credits points at
-`/portal/billing?workspace=` → `billing --print` first-party URL. Token never
+`--max-credits 0 --yes` `BUDGET_EXCEEDED` (zero target) → dropped create
+replayed into one admission → process restart while poll is held → token
+refresh on first poll → one synthetic `POST /chat` → grading pending (exit 11)
+→ `run wait` timeout stays on the original run → grading complete valid FAIL
+(exit 10) → last-units `INSUFFICIENT_CREDITS` → exhausted usage 0 → billing
+page URL only → pendingCommerce then +300 fulfillment → usage 503
+`BILLING_UNAVAILABLE` → missing `quote_v1` `UPDATE_REQUIRED`. Token never
 appeared in stdout/stderr.
 
-## Other journey coverage (existing deterministic tests)
+## Other journey coverage
 
-These remain source/integration tests, not the live database gate:
+Packed HTTP fixture (still not the live database gate):
 
-- Dropped create / same identity resume: `test/integration/create-resume.test.ts`
+- Dropped create / same identity resume and process restart after admission
+- Token refresh on first poll (`AUGMENTWORKS_REFRESH_TOKEN`)
+- One synthetic `/chat` target after admission
+- Pending grading + `run wait` timeout then complete
+- Last-units `INSUFFICIENT_CREDITS` and exhausted billing URL
+- Usage 503 `BILLING_UNAVAILABLE`
+- Pending pack fulfillment (`pendingCommerce` then +300)
+- Missing `quote_v1` `UPDATE_REQUIRED`
+
+Source/integration tests that remain:
+
 - Quote/ceiling/consent: `test/billing/cli-quote.test.ts`
 - Billing URL allowlist and no payment writes: `test/billing/cli-billing.test.ts`
 - Usage snapshot 190 and JSON purity: `test/billing/cli-usage.test.ts`
 - Recovery / intent retirement: `test/recovery/recovery.test.ts`
 - Init overwrite and doctor wire bounds: `test/config/commands.test.ts`
+- Environment token refresh: `test/auth/auth.test.ts`
 
 ## Unresolved blockers
 

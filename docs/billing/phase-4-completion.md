@@ -24,9 +24,9 @@ subscriptions.
 
 | Gate | Status |
 | --- | --- |
-| Code completion (this repository) | **Complete.** Packaged starters, `init` overwrite rules, doctor wire bounds, packed HTTP fixture, live gate that fails closed without credentials |
+| Code completion (this repository) | **Complete.** Packaged starters, `init` overwrite rules, doctor wire bounds, packed HTTP fixture with target execution/refresh/recovery, live gate that fails closed without credentials and runs the packed binary against a loopback API when credentials are supplied |
 | Deterministic verification | **Passed** in this checkout. Commands and outcomes below |
-| Packed binary over HTTP fixtures | **Passed.** Not PostgreSQL/RLS proof |
+| Packed binary over HTTP fixtures | **Passed.** One synthetic `/chat` target, token refresh, dropped-create replay, process restart, pending grading wait. Not PostgreSQL/RLS proof |
 | Live Stage 4A host / disposable DB | **Not run / BLOCKED.** Missing `AW_BILLING_LIVE_API_URL` and `AW_BILLING_LIVE_TOKEN` |
 | Stripe test-mode pack purchase | **Not run.** Owned by main; credentials missing there |
 | Release readiness | **Not ready.** No npm publish, no live sales, no real charges |
@@ -102,8 +102,10 @@ Advertised capabilities treated as available when present: `usage_v1`,
   `dist/index.js`. It excludes secrets and development fixtures.
 - Packed HTTP fixture: estimate causes zero creates and zero target calls;
   `--max-credits 0` is `BUDGET_EXCEEDED` with zero target calls; successful
-  admission creates one run; exhausted usage opens only the first-party
-  billing page; `run status` / `run wait` after a completed create make zero
+  admission creates one run, executes one synthetic `/chat` target after a
+  dropped create and process restart, leaves grading pending, then `run wait`
+  completes a valid FAIL; exhausted usage opens only the first-party billing
+  page; `run status` / `run wait` after target execution make zero additional
   target calls.
 - `billing` / `usage` / estimate remain read-only for payment. No CLI request
   creates a Stripe Customer, Checkout Session, purchase, refund, or
@@ -119,10 +121,10 @@ Advertised capabilities treated as available when present: `usage_v1`,
 | --- | --- |
 | `npm run check:billing-contract` | Pass. schema `e66d87fb…cc7b`; fixtures `42da3502…ec3c`; source `49806f0` |
 | `npm run check` | Pass. typecheck, vitest, build, discovery, billing-contract |
-| `npx vitest run` | Pass. Vitest 4.1.11: **49 files, 419 tests** |
+| `npx vitest run` | Pass. Vitest 4.1.11: **49 files, 420 tests** |
 | `npm run build` | Pass. tsup ESM `dist/index.js` 1.65 MB |
-| `AUGMENTWORKS_PACKED_BIN=$PWD/dist/index.js node scripts/packed-billing-fixture.mjs` | Pass. `creates=1 quotes=4 targets=0` |
-| `npm run smoke:pack` | Pass. **31 files, 362669 compressed bytes**, packed billing fixture included |
+| `AUGMENTWORKS_PACKED_BIN=$PWD/dist/index.js node scripts/packed-billing-fixture.mjs` | Pass. `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
+| `npm run smoke:pack` | Pass. **31 files, 362910 compressed bytes**, packed billing fixture included |
 | `npm run test:packed-billing-live` | **BLOCKED** exit 2 |
 
 Do not treat the HTTP fixture as evidence that Stripe, PostgreSQL, or RLS was

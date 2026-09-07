@@ -10,9 +10,14 @@ All notable changes to this project are documented here. The format follows
 
 - Source `0.3.3` Stage 4B packaged empty-directory starters
   (`response-quality` default and `workflow`), offline doctor wire-bound
-  checks, packed-tarball billing HTTP fixture, and prepaid-journey recovery
-  docs. Vendors `aw-billing/1` from main `49806f0f52377bbca0fbe02f160668723c589fa7`.
-  Not npm-published. Live sales remain disabled.
+  checks, packed-tarball billing HTTP fixture (target execution, token
+  refresh, dropped-create replay, pending grading wait), and prepaid-journey
+  recovery docs. Vendors `aw-billing/1` from main
+  `49806f0f52377bbca0fbe02f160668723c589fa7`. Not npm-published. Live sales
+  remain disabled.
+- CI/environment token refresh via `AUGMENTWORKS_REFRESH_TOKEN` without
+  writing the OS credential store. Token-only `AUGMENTWORKS_TOKEN` remains
+  static.
 - Packaged `augmentworks demo` command: isolated loopback refund target, real
   local runner/scorer, fail-then-pass policy story, `AW-DEMO-SUMMARY-1` JSON.
 - `contracts/discovery-manifest.json` generated from the existing release

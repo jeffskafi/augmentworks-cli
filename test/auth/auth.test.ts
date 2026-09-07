@@ -194,6 +194,42 @@ describe("credential storage and resolution", () => {
     expect(store.saves).toBe(0);
   });
 
+  it("rotates an environment token when AUGMENTWORKS_REFRESH_TOKEN is set, without touching the store", async () => {
+    const rotated = "aw_connector_env_rotated_access_token";
+    const store = new MemoryStore({
+      accessToken: "stored_access_token",
+      refreshToken: "stored_refresh_token",
+      tokenType: "Bearer"
+    });
+    let refreshCalls = 0;
+    const client = authClient(async (url) => {
+      expect(url.pathname).toBe(AUTH_ENDPOINTS.token);
+      refreshCalls += 1;
+      return jsonResponse({
+        access_token: rotated,
+        token_type: "Bearer",
+        expires_in: 3_600,
+        scope: "connector:identity connector:run"
+      });
+    });
+    const manager = await createAccessTokenManager({
+      apiOrigin: API_ORIGIN,
+      env: { AUGMENTWORKS_TOKEN: TOKEN, AUGMENTWORKS_REFRESH_TOKEN: REFRESH },
+      store,
+      client
+    });
+
+    await expect(manager.getAccessToken()).resolves.toBe(TOKEN);
+    await expect(
+      manager.getAccessToken({ forceRefresh: true, rejectedAccessToken: TOKEN })
+    ).resolves.toBe(rotated);
+    await expect(manager.getAccessToken()).resolves.toBe(rotated);
+    expect(manager.source).toBe("environment");
+    expect(refreshCalls).toBe(1);
+    expect(store.loads).toBe(0);
+    expect(store.saves).toBe(0);
+  });
+
   it("writes a regular mode-0600 fallback file and rejects symlinks", async () => {
     if (process.platform === "win32") return;
     const directory = await temporaryDirectory();

@@ -30,6 +30,7 @@ import type {
 } from "./types.js";
 
 export const TOKEN_ENV = "AUGMENTWORKS_TOKEN";
+export const REFRESH_TOKEN_ENV = "AUGMENTWORKS_REFRESH_TOKEN";
 const ACCOUNT_PREFIX = "augmentworks-cli";
 const MACOS_KEYCHAIN_SERVICE = "ai.augmentworks.cli";
 const MACOS_SECURITY_PATH = "/usr/bin/security";
@@ -764,8 +765,15 @@ export async function createCredentialStore(options: CredentialStoreOptions): Pr
 export function credentialFromEnvironment(env: NodeJS.ProcessEnv = process.env): ResolvedCredential | null {
   const token = env[TOKEN_ENV];
   if (token === undefined || token === "") return null;
+  const refreshToken = env[REFRESH_TOKEN_ENV];
   return {
-    credential: { accessToken: validateToken(token), tokenType: "Bearer" },
+    credential: {
+      accessToken: validateToken(token),
+      tokenType: "Bearer",
+      ...(refreshToken === undefined || refreshToken === ""
+        ? {}
+        : { refreshToken: validateToken(refreshToken, "refresh token") })
+    },
     source: "environment"
   };
 }
@@ -812,15 +820,54 @@ export interface ResolveAccessTokenOptions
   extends AccessTokenManagerOptions,
     AccessTokenRequest {}
 
+function createEnvironmentAccessTokenManager(
+  resolved: ResolvedCredential,
+  options: AccessTokenManagerOptions
+): AccessTokenManager {
+  if (resolved.credential.refreshToken === undefined) {
+    return {
+      source: "environment",
+      getAccessToken: async () => resolved.credential.accessToken
+    };
+  }
+
+  let cached = resolved.credential;
+  const client = options.client ?? new CloudAuthClient({ apiOrigin: options.apiOrigin });
+  const now = options.now ?? Date.now;
+  let inFlight: Promise<string> | undefined;
+
+  return {
+    source: "environment",
+    getAccessToken: async (request: AccessTokenRequest = {}) => {
+      if (!credentialNeedsRefresh(cached, request, now)) return cached.accessToken;
+      if (inFlight !== undefined) return await inFlight;
+      inFlight = (async () => {
+        try {
+          if (!credentialNeedsRefresh(cached, request, now)) return cached.accessToken;
+          const refreshToken = cached.refreshToken;
+          if (refreshToken === undefined) return cached.accessToken;
+          const refreshed = await client.refresh(refreshToken, request.signal);
+          cached = {
+            ...cached,
+            ...refreshed,
+            refreshToken: refreshed.refreshToken ?? refreshToken
+          };
+          return cached.accessToken;
+        } finally {
+          inFlight = undefined;
+        }
+      })();
+      return await inFlight;
+    }
+  };
+}
+
 export async function createAccessTokenManager(
   options: AccessTokenManagerOptions
 ): Promise<AccessTokenManager> {
   const environmentCredential = credentialFromEnvironment(options.env);
   if (environmentCredential !== null) {
-    return {
-      source: "environment",
-      getAccessToken: async () => environmentCredential.credential.accessToken
-    };
+    return createEnvironmentAccessTokenManager(environmentCredential, options);
   }
   const store =
     options.store ??
