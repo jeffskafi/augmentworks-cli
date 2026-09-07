@@ -62,7 +62,9 @@ export async function runBilling(
 
 export function createBillingCommand(dependencies: BillingDependencies = {}): Command {
   return new Command("billing")
-    .description("Open or print the first-party workspace billing page")
+    .description(
+      "Open or print the first-party workspace billing page. Does not create subscriptions, cancellations, or collect payment methods"
+    )
     .option("--json", "write one machine-readable billing navigation object to stdout without opening a browser")
     .option("--print", "print the first-party billing URL without opening a browser")
     .option("--open", "open the first-party billing page in a browser")

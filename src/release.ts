@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Source 0.3.3 adds packaged empty-directory starters (augmentworks.yaml, augmentworks.assessment.yaml, and references), packed billing HTTP fixture coverage, and Stage 4B prepaid-journey recovery docs. Verified npm remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5), which includes demo and hosted --assessment but does not include usage, billing, test --estimate, --max-credits, run status/wait, or init starter generation. Hosted npx commands pin 0.3.2. Do not document npx @0.3.3 until that tarball is independently verified on the registry."
+    "Source 0.3.3 adds Stage 5B subscription usage display (monthly vs purchased vs trial lots, cancel-at-period-end, processing/failed renewal, pack-only fallback), packaged empty-directory starters, packed billing HTTP fixture coverage, and prepaid-journey recovery docs. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Verified npm remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Hosted npx commands pin 0.3.2. Do not document npx @0.3.3 until that tarball is independently verified on the registry. Live subscription sales stay gated on the server."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {

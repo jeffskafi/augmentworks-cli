@@ -216,8 +216,8 @@ function createFixtureServer(fixtures) {
 
   function capabilitiesList() {
     return omitQuoteCapability
-      ? ["usage_v1", "status_v1", "billing_portal_link_v1"]
-      : ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"];
+      ? ["usage_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"]
+      : ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"];
   }
 
   function usagePayload() {
@@ -854,6 +854,10 @@ async function main() {
     assert(usageBefore.availableUnits === 190, `usage availableUnits ${String(usageBefore.availableUnits)} !== 190`);
     assert(usageBefore.reservedUnits === 0, "usage reservedUnits should be 0 in the 190 fixture");
     assert(usageBefore.consumedUnits === 10, "usage consumedUnits should be 10 in the 190 fixture");
+    assert(usageBefore.subscription === null, "190 fixture must remain a null subscription projection");
+    assert(usageBefore.subscriptionAdvertised === true, "packed 5A capabilities advertise subscriptions_v1");
+    assert(usageBefore.creditCategories?.trialPromotionalAvailable === 190, "packed usage must summarize trial lots");
+    assert(usageBefore.creditCategories?.recurringAvailable === 0, "packed 190 fixture must not invent a monthly balance");
     const quotesBeforeEstimate = fixture.counts.quote;
     const createsBeforeEstimate = fixture.counts.create;
 

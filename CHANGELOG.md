@@ -8,13 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Source `0.3.3` Stage 5B subscription usage display: recurring vs
+  purchased vs trial lots, cancel-at-period-end, processing and failed
+  renewal, expired monthly grants, and pack-only servers without
+  `subscriptions_v1`. Vendors `aw-billing/1` from main
+  `650472d91442a6866a7b6ef18e6dacc23a2a9260`. The CLI remains a read-only
+  billing client. Live $149 sales stay gated. Not npm-published.
 - Source `0.3.3` Stage 4B packaged empty-directory starters
   (`response-quality` default and `workflow`), offline doctor wire-bound
   checks, packed-tarball billing HTTP fixture (target execution, token
   refresh, dropped-create replay, pending grading wait), and prepaid-journey
-  recovery docs. Vendors `aw-billing/1` from main
-  `49806f0f52377bbca0fbe02f160668723c589fa7`. Not npm-published. Live sales
-  remain disabled.
+  recovery docs. Initially vendored 4A `49806f0`; Stage 5B re-imported 5A
+  `650472d`. Not npm-published. Live sales remain disabled.
 - CI/environment token refresh via `AUGMENTWORKS_REFRESH_TOKEN` without
   writing the OS credential store. Token-only `AUGMENTWORKS_TOKEN` remains
   static.

@@ -157,11 +157,18 @@ node dist/index.js usage --json
 ```
 
 Human output identifies the workspace, shows available credits prominently,
-then reserved and consumed credits with their ledger meanings. Values are a
-server snapshot at `asOf`, not a guaranteed future balance. The CLI never
-recomputes available credits by subtracting fields. Login refresh, logout, and
-browser reauthentication do not imply a new trial. Local `demo`, `test --local`,
-offline `doctor`, and `schema` remain account-free and make no billing calls.
+then reserved and consumed credits with their ledger meanings. When the server
+advertises `subscriptions_v1`, it also separates recurring, purchased, and
+trial/promotional lots from the server grant balances and shows the current
+service period, cancellation-at-period-end, monthly grant expiry, and next
+payment action. Values are a server snapshot at `asOf`, not a guaranteed
+future balance. Monthly grants expire at the server period end with no
+initial rollover; purchased pack credits stay distinct. The CLI never
+recomputes available credits by subtracting fields, never infers access from
+a Stripe id or the local clock, and never treats a nullable expiry as
+tomorrow. Login refresh, logout, and browser reauthentication do not imply a
+new trial. Local `demo`, `test --local`, offline `doctor`, and `schema`
+remain account-free and make no billing calls.
 
 Until source 0.3.3 is published, do not write an unpublished npx pin for
 `usage`.
@@ -193,9 +200,13 @@ Until source 0.3.3 is published, do not write an unpublished npx pin for
 
 `billing` retrieves the authenticated first-party billing page advertised by
 `billing_portal_link_v1` and prints or opens that URL. It does not create a
-Stripe Customer, Checkout Session, purchase, refund, or subscription. The
-workspace id in the URL is a navigation hint. Payment changes require a
-signed-in browser session with owner/billing permission.
+Stripe Customer, Checkout Session, purchase, refund, or subscription, and it
+does not cancel, reactivate, or change payment methods. Recurring-plan
+management stays on that first-party page after browser sign-in. Capability
+`subscriptions_v1` only controls whether usage/billing may show the server
+subscription projection; it does not enable live $149 sales. The workspace id
+in the URL is a navigation hint. Payment changes require a signed-in browser
+session with owner/billing permission.
 
 After `npm ci && npm run build`:
 
@@ -212,8 +223,8 @@ server supplied them, keeps the uncreated intent, and points at this page. Do
 not wait in the terminal for a purchase. After fulfillment, run `usage`, then
 start a new test explicitly with `--max-credits`. `pendingCommerce` on a usage
 snapshot is processing metadata, not spendable credit. Pack prices belong to
-the website catalog; this CLI does not market the $49 pack or the future $149
-plan.
+the website catalog; this CLI does not market the $49 pack or the $149
+monthly plan. If `subscriptions_v1` is absent, recurring CTAs are omitted.
 
 ## Hosted estimate and spending consent (source 0.3.3)
 
@@ -263,9 +274,46 @@ the original run; do not re-run the test command. `run wait` also continues
 while target execution is still `queued`, `connected`, `running`, or
 `cancel_requested`, including when grading is `absent`. Exit `0` means the
 assessment passed. A successful status query of unfinished work is not a
-pass (`ok: true` with `assessment: "incomplete"` and exit `11`). Account-free
+pass (`ok: true` with `assessment: "incomplete"` and exit `11`). Billing
+rejection is exit `13` and is not a chatbot assertion failure. Account-free
 `demo`, `test --local`, offline `doctor`, and `schema` still make no billing
 calls.
+
+Copy-pastable noninteractive CI (source 0.3.3 after `npm ci && npm run build`;
+no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
+on that exact run if grading is pending, and recover an interrupted create
+before considering a new admission:
+
+```bash
+set +e
+json=$(node dist/index.js test \
+  --assessment ./augmentworks.assessment.yaml \
+  --max-credits 30 \
+  --yes \
+  --json)
+code=$?
+set -e
+run_id=$(printf '%s\n' "$json" | node -e "
+  let s = '';
+  process.stdin.on('data', (d) => { s += d; });
+  process.stdin.on('end', () => {
+    const parsed = JSON.parse(s);
+    process.stdout.write(String(parsed.run_id ?? parsed.runId ?? ''));
+  });
+")
+if [ -z "$run_id" ]; then
+  echo "No run id. Inspect recover before starting another hosted test." >&2
+  exit "$code"
+fi
+if [ "$code" -eq 11 ]; then
+  node dist/index.js run wait "$run_id" --json --timeout-ms 60000
+  code=$?
+fi
+exit "$code"
+```
+
+Do not document an unpublished source `0.3.3` npm pin until that tarball is
+published and independently verified. Website examples stay on **0.3.2**.
 
 ## Local assessment (published 0.3.2)
 
@@ -547,8 +595,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
-| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, or checkout. Source 0.3.3, not published 0.3.2 |
-| `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, or reservation. Source 0.3.3 |
+| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel. Source 0.3.3, not published 0.3.2 |
+| `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, subscription mutation, or reservation. Source 0.3.3 |
 | `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Source 0.3.3 writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.3. Reads only the selected config and fixture. No target, cloud, or model call |

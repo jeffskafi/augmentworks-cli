@@ -3,14 +3,14 @@
   "algorithm": "sha256",
   "source": {
     "repository": "https://github.com/jeffskafi/augmentworks.git",
-    "commit": "49806f0f52377bbca0fbe02f160668723c589fa7",
+    "commit": "650472d91442a6866a7b6ef18e6dacc23a2a9260",
     "handoff": "docs/billing-cursor-handoff.md",
     "schema": "docs/contracts/aw-billing-v1.schema.json",
     "fixtures": "docs/contracts/aw-billing-v1.fixtures.json"
   },
   "files": {
-    "contracts/aw-billing-v1.schema.json": "e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b",
-    "contracts/aw-billing-v1.fixtures.json": "42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c"
+    "contracts/aw-billing-v1.schema.json": "3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645",
+    "contracts/aw-billing-v1.fixtures.json": "a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84"
   },
   "contract": {
     "primaryPaths": {
@@ -40,11 +40,10 @@
       "usage_v1",
       "quote_v1",
       "status_v1",
-      "billing_portal_link_v1"
-    ],
-    "reservedCapabilities": [
+      "billing_portal_link_v1",
       "subscriptions_v1"
     ],
+    "reservedCapabilities": [],
     "quotedCreateProtocol": "aw-relay/0.3",
     "pricingVersion": "aw-pricing/execution-unit/1",
     "createRequestQuoteFields": {

@@ -35,12 +35,14 @@ Source 0.3.3 after building this repository:
 Do not use `@latest` or unpublished `0.3.3` npx pins. Development-only after
 building this repository: `node dist/index.js demo`, `node dist/index.js init`
 (writes `augmentworks.yaml`, `augmentworks.assessment.yaml`, and references),
-read-only `node dist/index.js usage` (no grant, reservation, checkout, or
-target call), `node dist/index.js billing --print` (first-party billing URL
-only), `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
+read-only `node dist/index.js usage` (no grant, reservation, checkout,
+subscribe, cancel, or target call), `node dist/index.js billing --print`
+(first-party billing URL only), `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
 (quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`
-is not an unlimited budget. npm `--yes` only skips the npm prompt.
+is not an unlimited budget. npm `--yes` only skips the npm prompt. Monthly
+subscription status does not bypass that ceiling. If `subscriptions_v1` is
+absent, omit recurring purchase calls to action.
 
 ## Secrets and evidence
 

@@ -1,9 +1,9 @@
-# Billing Stage 4B → main Stage 5A handoff
+# Billing Stage 5B → main follow-on handoff
 
 Owned by `jeffskafi/augmentworks-cli`. Main owns the wire contract. This
 repository vendors that contract; it does not change it.
 
-Imported main 4A handoff is saved separately at
+Imported main 5A handoff is saved separately at
 `docs/billing/main-source-handoff.md`. Do not treat that file as the CLI-owned
 handoff.
 
@@ -11,47 +11,50 @@ handoff.
 
 | Item | Value |
 | --- | --- |
-| CLI 3B baseline HEAD | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`) |
-| Working branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` (packed journey); `7e213781a387292f634ea3df05800ef632e1f184` (rebuild stale packed dist) |
-| Vendored main commit | `49806f0f52377bbca0fbe02f160668723c589fa7` (`origin/main` Stage 4A merge) |
+| CLI 4B baseline HEAD | `7d8cb08170b162d8c2dc66343df9499986742779` (`cursor/billing-stage-4b-91a7`) |
+| Working branch | `cursor/billing-stage-5b-91a7` |
+| Vendored main commit | `650472d91442a6866a7b6ef18e6dacc23a2a9260` (`cursor/billing-stage-5a-91a7`) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
-| Stage | **4B code complete.** Packed-binary HTTP fixture passed. Live disposable main API/database **BLOCKED**. Not npm-published. Not live-sales ready. |
+| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording); `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4` (verification evidence) |
 
-## What Stage 4B implemented
+Verification evidence commit is `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4`. Feature code is `4c46c41e944d18e1ae98d50e3724221b903675ca`.
 
-A release-candidate CLI whose **actual npm tarball** completes the documented
-prepaid onboarding path, including recovery commands, without a second billing
-implementation.
+## What Stage 5B implemented
 
-- Packaged starters under `assets/starters/`: default `response-quality` and
-  `workflow`. `init` / `init --starter workflow` write complete
-  `augmentworks.yaml`, `augmentworks.assessment.yaml`, references, and
-  `.env.example`. Empty `CHATBOT_API_KEY`. Refuse overwrite without `--force`.
-  `--force` never replaces an existing `.env`.
-- Offline `doctor` validates the sibling assessment, wire bounds, profile,
-  required files, and packet/capability match. It does not call billing.
-- Packed smoke installs the tarball into a clean consumer directory and runs
-  that installed binary. Secrets and development fixtures stay out of the
-  pack.
-- `scripts/packed-billing-fixture.mjs` drives the packed binary over loopback
-  HTTP for auth refresh, capabilities, usage, quote, dropped-create replay,
-  process restart after admission, one synthetic `/chat` target, pending
-  grading `run wait`, last-units `INSUFFICIENT_CREDITS`, usage 503,
-  pending-commerce fulfillment, and `UPDATE_REQUIRED` when `quote_v1` is
-  absent. This is **not** PostgreSQL/RLS proof.
-- `scripts/packed-billing-live.mjs` is the disposable main API/database gate.
-  Missing credentials exit `2` (`not_run` / **BLOCKED**). Production API hosts
-  are refused. When a loopback API URL and connector token are supplied, the
-  packed binary runs usage, estimate, and `--max-credits 0`. Quoted create is
-  opt-in (`AW_BILLING_LIVE_ALLOW_CREATE=1`). Ledger/RLS inspection stays
-  `not_run` without a disposable migrated database observer.
-- Hosted `test --json` writes one structured error object on stdout for
-  billing/admission rejection.
+CLI support for monthly subscriptions **plus** purchased packs, including
+noninteractive CI and cancellation/renewal display. The CLI remains a
+**read-only billing client** and a consent-bounded testing client.
 
-No Checkout, subscriptions, Stripe credentials, Clerk, CLI wallet, or
-order-status API. The CLI still only opens the first-party billing page.
+- Re-imported main 5A `aw-billing/1` schema/fixtures/lock. Advertised
+  capabilities now include `subscriptions_v1`. Reserved list is empty.
+- `usage` / `usage --json` separate recurring, purchased, and
+  trial/promotional lot balances from **server grant lots**. They show the
+  server service period, cancel-at-period-end, monthly grant expiry, and next
+  payment action when `subscriptions_v1` is advertised and the projection is
+  interpretable.
+- Pack-only servers (`subscription_unavailable`, no `subscriptions_v1`) omit
+  recurring CTAs and do not invent monthly balances or $149.
+- Processing renewal is displayed as reconciling, not as a granted allocation.
+  Failed renewal keeps independently purchased credits when the server says
+  `accessState` is `active`. Canceled workspaces keep pack credits and are not
+  told to subscribe to recover historical results.
+- Unknown future subscription status/nextPaymentAction strings preserve the
+  usage read (server `availableUnits` and lots) and print an update message.
+  They are not guessed active or safe.
+- Quote/create still come from the server. `--max-credits` remains required
+  for noninteractive hosted tests. Monthly status does not bypass that
+  ceiling. `--yes` is not an unlimited budget.
+- `billing` still opens only
+  `https://augmentworks.ai/portal/billing?workspace=<uuid>`. No Stripe
+  Customer Portal bearer URL, Checkout Session, subscribe, cancel, reactivate,
+  refund, or payment-method mutation.
+- Reservations may finish after monthly expiry. Released units return to their
+  original lot; expired lots are not reported as newly available.
+- Copy-pastable CI captures a run id, waits on that exact run if grading is
+  pending, and recovers an interrupted create before a new admission.
+
+No package publication. No live subscription activation.
 
 ## Vendored contract
 
@@ -60,9 +63,9 @@ order-status API. The CLI still only opens the first-party billing page.
 SHA-256:
 
 - `contracts/aw-billing-v1.schema.json` =
-  `e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b`
+  `3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645`
 - `contracts/aw-billing-v1.fixtures.json` =
-  `42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c`
+  `a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84`
 
 Lock: `contracts/aw-billing-v1.lock.json`
 Generated bindings: `src/billing/generated/contract.ts`
@@ -74,13 +77,9 @@ npm run check:billing-contract
 
 The check fails when generated bindings or file hashes diverge.
 
-Additive 4A quote fields consumed when present: `retentionPolicyVersion`,
-`retainUntil`. Stage 1 consumers still tolerate a later non-null
-`subscription` object. Unknown financial/access states fail closed.
-
 ### Routes used by this CLI
 
-Primary only:
+Unchanged from 4B:
 
 - `GET /v1/billing/capabilities`
 - `GET /v1/billing/usage`
@@ -91,112 +90,78 @@ Primary only:
 - `POST /v1/relay/run-intents:reconcile`
 - `POST /v1/relay/runs/{runId}:retry-evaluation`
 
-Server aliases `/api/v1/billing/*` exist and are not called by this CLI.
-
-There is **no** CLI order-status route. Purchase history stays on the website.
-`billing` links to the page; `usage` shows credit fulfillment including
-optional `pendingCommerce`.
+There is **no** CLI order-status route and **no** CLI Customer Portal session
+API. `billing` links to the first-party page; `usage` shows credit
+fulfillment including optional `pendingCommerce` and the nullable
+`subscription` projection.
 
 ### Authentication
 
 Existing opaque CLI bearer. Usage/capabilities/billing navigation:
 `connector:identity`. Quote, status, create, reconcile, and evaluation retry:
 `connector:run`. Refresh-once after HTTP 401. Workspace comes from the
-validated connector. A cached `billingAccountId` or email never selects the
-wallet.
+validated connector.
 
 Read permission does not imply billing-management permission.
 
 ### Capabilities treated as available
 
 Implemented when advertised: `usage_v1`, `quote_v1`, `status_v1`,
-`billing_portal_link_v1`. Reserved name `subscriptions_v1` is ignored if
-present and is not advertised by this CLI.
+`billing_portal_link_v1`, `subscriptions_v1`.
+
+`subscriptions_v1` means the CLI may render the server subscription
+projection. It does **not** mean live $149 sales are on. A server without
+that capability is pack-only.
 
 A server without `quote_v1` fails new billed `--assessment` work as
-`UPDATE_REQUIRED` (exit 13) with zero reservation. Missing
-`billing_portal_link_v1` fails `billing` as `UPDATE_REQUIRED`. Missing
-`usage_v1` remains `USAGE_UNSUPPORTED`.
+`UPDATE_REQUIRED` (exit 13) with zero reservation.
+
+### Subscription display rules
+
+Do **not** calculate renewal dates or grant quantities locally. Do **not**
+infer access from a Stripe subscription ID or wall-clock vs `expiresAt`.
+`accessState` remains the workspace lifecycle projection.
+
+Known `status` values: `active`, `canceling`, `past_due`, `unpaid`,
+`incomplete`, `incomplete_expired`, `canceled`, `processing`, `unsupported`,
+`unknown`. Known `nextPaymentAction` values: `none`, `authenticate`,
+`update_payment_method`, `processing`.
+
+Unknown enum strings: preserve usage read; print an update-required message;
+do not guess active/safe. Quote and admission remain server decisions and
+still require `--max-credits`.
 
 ### Billing URL allowlist
 
-Reject: userinfo, non-https in production, protocol-relative URLs, lookalike
-hosts, off-origin redirects, unexpected ports, injected fragments, and
-sensitive/unapproved query parameters. Path must be `/portal/billing`. Query
-may contain only `workspace=<authenticated uuid>`. Loopback HTTP(S) is allowed
-only when it matches the configured test/development API origin.
-
-Example:
-
-```text
-https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111
-```
+Unchanged. Path `/portal/billing`, query only `workspace=<uuid>`. Reject
+Customer Portal session URLs, checkout secrets, and tokens.
 
 ### Errors (CLI mapping)
 
-Unchanged from 2B/3B. Parse typed `error.code` and `error.billingCode`.
-
-| Stable / wire | CLI code | Exit | Category |
-| --- | --- | --- | --- |
-| `INSUFFICIENT_CREDITS` / `insufficient_credits` | `INSUFFICIENT_CREDITS` | 13 | billing |
-| `QUOTE_EXPIRED` / `quote_expired` | `QUOTE_EXPIRED` | 13 | billing |
-| `QUOTE_MISMATCH` / `quote_mismatch` | `QUOTE_MISMATCH` | 13 | billing |
-| `BUDGET_EXCEEDED` / `budget_exceeded` | `BUDGET_EXCEEDED` | 13 | billing |
-| `UPDATE_REQUIRED` / `update_required` | `UPDATE_REQUIRED` | 13 | billing |
-| `WORKSPACE_CLOSING` / `workspace_closing` | `WORKSPACE_CLOSING` | 13 | billing |
-| `BILLING_UNAVAILABLE` / `service_unavailable` | `BILLING_UNAVAILABLE` | 13 | billing |
-| `MEMBERSHIP_REVOKED` / `membership_revoked` | `MEMBERSHIP_REVOKED` | 3 | auth |
-
-Assessment failures remain exit 10. Incomplete grading remains 11. Grading
-errors remain 12. Interrupt remains 130. `EXIT.BILLING` stays 13. Config
-errors including `INIT_FILE_EXISTS` remain 2.
-
-## Intent versions
-
-Writes `aw-run-intent/0.3`. Reads `aw-run-intent/0.2` as compatible current.
-`aw-run-intent/0.1` remains the legacy migrate path.
+Unchanged from 4B. `EXIT.BILLING` stays **13**. Assessment failures remain
+10. Incomplete grading remains 11. Grading errors remain 12. Interrupt remains
+130.
 
 ## Local-mode independence
 
 `demo`, `test --local`, offline `doctor`, `init`, and `schema` make no billing
-calls. `--estimate`, `--max-credits`, `--yes`, and `billing` are hosted-only.
-`npx --yes` is the npm installer flag and is not a spending ceiling.
+calls.
 
 ## Copyable commands (source 0.3.3)
 
 After `npm ci && npm run build`:
 
 ```bash
-node dist/index.js init
-node dist/index.js init --starter workflow
-node dist/index.js doctor --offline --json
 node dist/index.js usage
 node dist/index.js usage --json
 node dist/index.js billing --print
-node dist/index.js billing --json
 node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate --json
-node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits 30 --yes
-node dist/index.js run status <run-id>
-node dist/index.js run wait <run-id>
-```
-
-Do **not** document `npx @augmentworks/cli@0.3.3` until that tarball is
-published and independently verified. Website examples stay on **0.3.2**.
-
-CI example (no browser, explicit ceiling, preserve the original run):
-
-```bash
-node dist/index.js test \
-  --assessment ./augmentworks.assessment.yaml \
-  --max-credits 30 \
-  --yes \
-  --json
-# If grading is pending, wait on the same run_id. Do not start another test.
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits 30 --yes --json
 node dist/index.js run wait <run-id> --json --timeout-ms 60000
 ```
 
-If create is interrupted or the response is dropped, recover the same create
-identity. Do not delete journals or blindly rerun while admission is unknown.
+CI: see README and `docs/examples/github-actions-hosted-source.yml`. Do **not**
+document an unpublished source `0.3.3` npm pin until independently verified.
 
 ## Packed tarball (this checkout)
 
@@ -204,47 +169,33 @@ identity. Do not delete journals or blindly rerun while admission is unknown.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 371282 bytes |
-| SHA-256 | `af2421fdf958810a93b1219609fdb0cd7163db5f8e3311680edef091185d987f` |
+| Compressed size | 377224 bytes |
+| SHA-256 | `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a` |
 
 Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
 starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
 
-## Verification actually run
+## Verification
 
-See `docs/billing/phase-4-completion.md` and
-`docs/billing/phase-4-release-evidence.md`.
+See `docs/billing/phase-5-completion.md`.
 
 Summary:
 
-- `npm run check` — pass (typecheck, vitest **53 files / 468 tests**, build,
+- `npm run check` — pass (typecheck, vitest **54 files / 491 tests**, build,
   discovery, billing-contract)
 - `npm run smoke:pack` — pass, including packed billing HTTP fixture through
   the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)
 - `npm run test:packed-billing-live` — **BLOCKED** exit 2 (no disposable
   main API/token)
 
-The HTTP fixture is not evidence of atomic credit accounting or tenant RLS.
-Stripe test-mode remains main's external gate.
-
-## Stage 5A prerequisites (main repository)
-
-1. Keep `aw-billing/1` usage/quote/status/billing-portal fields stable.
-   Subscription support is additive (`subscriptions_v1` plus a non-null
-   `subscription` projection). Do not break Stage 1–4 consumers.
-2. Do not require this CLI to create, cancel, or modify subscriptions.
-   The CLI continues to open the first-party billing page only.
-3. Read this handoff plus `docs/billing/phase-4-completion.md` before 5A.
-4. Website install commands must stay pinned to a **published** CLI version.
-   Source `0.3.3` is not an npx pin until independently verified on the
-   registry.
-5. Deploy server support for this package before enabling new paid admission,
-   then point the website at the published package. Do not roll the server
-   back to a revision that cannot understand live paid reservations or minted
-   grants; use feature flags to pause new Checkout/admission.
+The HTTP fixture is not evidence of atomic monthly allocation or tenant RLS.
+Stripe Test Clocks belong to main. This CLI uses fixtures plus packed HTTP.
 
 ## Live activation
 
 **Not enabled.** This prompt must not publish `@augmentworks/cli`, change
 production feature flags, send customer messages, or create real charges.
-Kill switches and live-sales flags stay on the main server.
+Measured all-in grading costs, repeat customer use, verified subscription
+pricing/terms, and successful test-mode lifecycle checks remain main's
+operational gate. `subscriptions_v1` on this CLI is display support, not live
+Pro sales.
