@@ -8,7 +8,11 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CloudClient } from "../../src/cloud/client.js";
-import { runBilling } from "../../src/commands/billing.js";
+import {
+  createBillingCommand,
+  runBilling,
+  shouldOpenBillingBrowser
+} from "../../src/commands/billing.js";
 import { EXIT, AwError } from "../../src/errors.js";
 import { runSourceCli } from "../util/cli-process.js";
 import { listenLoopback, type ListeningServer } from "../util/http-server.js";
@@ -72,6 +76,32 @@ function identity(overrides: Record<string, unknown> = {}): Record<string, unkno
   };
 }
 
+function hostedIdentity(overrides: Record<string, unknown> = {}) {
+  return {
+    subject: "user_test",
+    email: "developer@example.com",
+    workspaceId: WORKSPACE,
+    workspaceName: "Test Workspace",
+    connectorId: "connector_test",
+    connectorName: "Refunds Staging",
+    scopes: ["connector:identity", "connector:run"],
+    ...overrides
+  };
+}
+
+function fixtureFetch(response: unknown = fixtures.fixtures["eligible_trial"]?.response) {
+  return async (input: RequestInfo | URL): Promise<Response> => {
+    const url = new URL(String(input));
+    if (url.pathname === "/v1/billing/capabilities") {
+      return Response.json(fixtures.fixtures["absent_capability"]?.response);
+    }
+    if (url.pathname === "/v1/billing/usage") {
+      return Response.json(response);
+    }
+    throw new Error(`unexpected ${url.pathname}`);
+  };
+}
+
 async function startMock(handler: Handler): Promise<{ server: ListeningServer; paths: string[] }> {
   const paths: string[] = [];
   const httpServer = createServer((request, response) => {
@@ -108,9 +138,17 @@ const MUTATION_RE = /checkout|stripe|refund|subscribe|customer|reserve|grant|run
 describe("augmentworks billing CLI", () => {
   it("prints the same first-party billing URL for owner-like and member-like identities", async () => {
     const cwd = await emptyCwd();
+    const expectedUrl = `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`;
+    let role: "owner" | "member" = "owner";
     const { server, paths } = await startMock((request, response, url) => {
       if (url.pathname === "/api/v1/cli/auth/me") {
-        send(response, 200, identity({ email: "member@example.com", subject: "user_member" }));
+        send(
+          response,
+          200,
+          role === "owner"
+            ? identity({ email: "owner@example.com", subject: "user_owner" })
+            : identity({ email: "member@example.com", subject: "user_member" })
+        );
         return true;
       }
       if (url.pathname === "/v1/billing/capabilities") {
@@ -124,19 +162,57 @@ describe("augmentworks billing CLI", () => {
       return false;
     });
 
-    const result = await runSourceCli(["billing", "--print"], {
+    const owner = await runSourceCli(["billing", "--print"], {
+      cwd,
+      env: usageEnv(server.baseUrl)
+    });
+    role = "member";
+    const member = await runSourceCli(["billing", "--print"], {
+      cwd,
+      env: usageEnv(server.baseUrl)
+    });
+    expect(owner.exitCode).toBe(0);
+    expect(member.exitCode).toBe(0);
+    expect(owner.stdout.trim()).toBe(expectedUrl);
+    expect(member.stdout.trim()).toBe(expectedUrl);
+    expect(owner.stderr).toContain("does not authorize payment");
+    expect(member.stderr).toContain("does not authorize payment");
+    expect(`${owner.stdout}${owner.stderr}${member.stdout}${member.stderr}`).not.toContain(TOKEN);
+    expect(paths.some((path) => MUTATION_RE.test(path) && path.startsWith("POST "))).toBe(false);
+    expect(paths).not.toContain("POST /v1/relay/runs");
+  });
+
+  it("prints human billing output without opening a browser when CI=1 and flags are omitted", async () => {
+    const cwd = await emptyCwd();
+    const { server, paths } = await startMock((request, response, url) => {
+      if (url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
+      if (url.pathname === "/v1/billing/usage") {
+        send(response, 200, fixtures.fixtures["eligible_trial"]?.response);
+        return true;
+      }
+      return false;
+    });
+
+    const result = await runSourceCli(["billing"], {
       cwd,
       env: usageEnv(server.baseUrl)
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toBe(
+    expect(result.stdout).toContain("Available credits: 200");
+    expect(result.stdout).toContain(
       `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`
     );
-    expect(result.stderr).toContain("does not authorize payment");
+    expect(result.stdout).toContain("Printed the billing URL without opening a browser.");
     expect(result.stdout).not.toContain(TOKEN);
     expect(result.stderr).not.toContain(TOKEN);
-    expect(paths.some((path) => MUTATION_RE.test(path) && path.startsWith("POST "))).toBe(false);
-    expect(paths).not.toContain("POST /v1/relay/runs");
+    expect(paths.filter((path) => path.startsWith("POST "))).toEqual([]);
   });
 
   it("writes one JSON object and never opens a browser", async () => {
@@ -238,6 +314,39 @@ describe("augmentworks billing CLI", () => {
     expect(JSON.parse(result.stdout)).toMatchObject({ code: "WORKSPACE_MISMATCH" });
   });
 
+  it("rejects when the authenticated workspace changes after usage is retrieved", async () => {
+    const cwd = await emptyCwd();
+    let meCount = 0;
+    const { server, paths } = await startMock((request, response, url) => {
+      if (url.pathname === "/api/v1/cli/auth/me") {
+        meCount += 1;
+        send(
+          response,
+          200,
+          meCount === 1 ? identity() : identity({ workspace_id: OTHER_WORKSPACE })
+        );
+        return true;
+      }
+      if (url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
+      if (url.pathname === "/v1/billing/usage") {
+        send(response, 200, fixtures.fixtures["eligible_trial"]?.response);
+        return true;
+      }
+      return false;
+    });
+    const result = await runSourceCli(["billing", "--json"], {
+      cwd,
+      env: usageEnv(server.baseUrl)
+    });
+    expect(result.exitCode).toBe(EXIT.AUTH);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: "WORKSPACE_MISMATCH" });
+    expect(meCount).toBeGreaterThanOrEqual(2);
+    expect(paths.filter((path) => path.startsWith("POST "))).toEqual([]);
+  });
+
   it("rejects malicious billing URLs without opening them", async () => {
     const cwd = await emptyCwd();
     const poisoned = {
@@ -270,46 +379,88 @@ describe("augmentworks billing CLI", () => {
 
   it("prints the safe URL when the GUI opener fails and does not mutate billing", async () => {
     const opened: URL[] = [];
-    const { server, paths } = await startMock((request, response, url) => {
-      if (url.pathname === "/api/v1/cli/auth/me") {
-        send(response, 200, identity());
-        return true;
-      }
-      if (url.pathname === "/v1/billing/capabilities") {
-        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
-        return true;
-      }
-      if (url.pathname === "/v1/billing/usage") {
-        send(response, 200, fixtures.fixtures["eligible_trial"]?.response);
-        return true;
-      }
-      return false;
-    });
+    const fetchMock = fixtureFetch();
     const stderr: string[] = [];
     const stdout: string[] = [];
-    const result = await runBilling(
-      { open: true, env: usageEnv(server.baseUrl) },
-      {
-        stderr: (message) => stderr.push(message),
+    const command = createBillingCommand({
+      stdout: (message) => stdout.push(message),
+      stderr: (message) => stderr.push(message),
+      apiOrigin: () => new URL("http://127.0.0.1:8787"),
+      accessToken: async () => TOKEN,
+      identity: async () => hostedIdentity(),
+      cloud: (options) =>
+        new CloudClient({
+          apiUrl: options.apiOrigin,
+          accessToken: options.accessToken,
+          accessTokenProvider: options.accessTokenProvider,
+          fetch: fetchMock
+        }),
+      openBrowser: async (url) => {
+        opened.push(url);
+        throw new AwError({
+          code: "BROWSER_OPEN_FAILED",
+          category: "auth",
+          message: "Could not open the browser. Open the displayed URL manually."
+        });
+      }
+    });
+    command.exitOverride();
+    await command.parseAsync(["--open"], { from: "user" });
+    const expectedUrl = `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`;
+    expect(opened).toHaveLength(1);
+    expect(opened[0]?.toString()).toBe(expectedUrl);
+    expect([...opened[0]!.searchParams.keys()]).toEqual(["workspace"]);
+    expect(opened[0]?.toString()).not.toMatch(/token|secret|checkout|customer/i);
+    expect(stdout.join("\n")).toContain(expectedUrl);
+    expect(stdout.join("\n")).toContain("Available credits: 200");
+    expect(stderr.join("\n")).toContain("could not be opened");
+    expect(`${stdout.join("\n")}\n${stderr.join("\n")}`).not.toContain(TOKEN);
+  });
+
+  it("does not open a browser from createBillingCommand when stderr is not a TTY", async () => {
+    const opened: URL[] = [];
+    const stdout: string[] = [];
+    const previousCi = process.env["CI"];
+    delete process.env["CI"];
+    try {
+      const command = createBillingCommand({
         stdout: (message) => stdout.push(message),
+        stderr: () => undefined,
+        isTty: () => false,
+        apiOrigin: () => new URL("http://127.0.0.1:8787"),
+        accessToken: async () => TOKEN,
+        identity: async () => hostedIdentity(),
+        cloud: (options) =>
+          new CloudClient({
+            apiUrl: options.apiOrigin,
+            accessToken: options.accessToken,
+            accessTokenProvider: options.accessTokenProvider,
+            fetch: fixtureFetch()
+          }),
         openBrowser: async (url) => {
           opened.push(url);
-          throw new AwError({
-            code: "BROWSER_OPEN_FAILED",
-            category: "auth",
-            message: "Could not open the browser. Open the displayed URL manually."
-          });
         }
-      }
-    );
-    expect(result.openedBrowser).toBe(false);
-    expect(opened).toHaveLength(1);
-    expect(opened[0]?.toString()).toBe(
+      });
+      command.exitOverride();
+      await command.parseAsync([], { from: "user" });
+    } finally {
+      if (previousCi === undefined) delete process.env["CI"];
+      else process.env["CI"] = previousCi;
+    }
+    expect(opened).toEqual([]);
+    expect(stdout.join("\n")).toContain("Available credits: 200");
+    expect(stdout.join("\n")).toContain(
       `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`
     );
-    expect(stderr.join("\n")).toContain("could not be opened");
-    expect(stderr.join("\n")).not.toContain(TOKEN);
-    expect(paths.filter((path) => path.startsWith("POST "))).toEqual([]);
+    expect(stdout.join("\n")).not.toContain(TOKEN);
+  });
+
+  it("never opens a browser for --json or --print even when a TTY is present", () => {
+    expect(shouldOpenBillingBrowser({ json: true }, { isTty: () => true })).toBe(false);
+    expect(shouldOpenBillingBrowser({ print: true }, { isTty: () => true })).toBe(false);
+    expect(shouldOpenBillingBrowser({ open: true, env: { CI: "1" } })).toBe(true);
+    expect(shouldOpenBillingBrowser({}, { isTty: () => false })).toBe(false);
+    expect(shouldOpenBillingBrowser({ env: { CI: "1" } }, { isTty: () => true })).toBe(false);
   });
 
   it("treats a missing billing_portal_link_v1 as disabled purchasing, not a catalog price", async () => {

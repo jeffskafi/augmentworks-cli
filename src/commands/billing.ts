@@ -2,13 +2,22 @@ import { Command } from "commander";
 
 import { getApiOrigin } from "../auth/api-origin.js";
 import type { AuthIdentity } from "../auth/types.js";
-import { billingPortalUnsupportedError, profileRecoveryError, profileRecoveryUrl } from "../billing/errors.js";
+import {
+  billingPortalUnsupportedError,
+  profileRecoveryError,
+  profileRecoveryUrl,
+  workspaceMismatchError
+} from "../billing/errors.js";
 import { billingSuccessJson, formatBillingHuman } from "../billing/format.js";
 import type { BillingUsage } from "../billing/protocol.js";
 import { BILLING_PORTAL_LINK_V1, capabilityIsAvailable } from "../billing/protocol.js";
 import { assertSafeBillingPageUrl } from "../billing/validate.js";
 import { AwError, exitCodeFor, sanitizeTerminal } from "../errors.js";
 import { openBrowserUrl, type BrowserOpener } from "../system/browser.js";
+import {
+  authenticateHostedSession,
+  type HostedAuthDependencies
+} from "./hosted-auth.js";
 import {
   runUsage,
   type UsageDependencies,
@@ -38,16 +47,17 @@ export async function runBilling(
   dependencies: BillingDependencies = {}
 ): Promise<BillingResult> {
   const result = await runUsage(options, dependencies);
+  const identity = await confirmBillingIdentity(result.identity, result.usage.workspaceId, options, dependencies);
   if (!capabilityIsAvailable(result.usage.capabilities, BILLING_PORTAL_LINK_V1)) {
     throw billingPortalUnsupportedError();
   }
   const billingPageUrl = assertSafeBillingPageUrl(
     result.usage.billingPageUrl,
     result.apiOrigin,
-    result.identity.workspaceId
+    identity.workspaceId
   );
   const openedBrowser = await maybeOpenBillingPage(billingPageUrl, options, dependencies, result.apiOrigin);
-  return { ...result, billingPageUrl, openedBrowser };
+  return { ...result, identity, billingPageUrl, openedBrowser };
 }
 
 export function createBillingCommand(dependencies: BillingDependencies = {}): Command {
@@ -135,6 +145,35 @@ export function shouldOpenBillingBrowser(
   if ((options.env ?? process.env)["CI"] === "1") return false;
   const tty = dependencies.isTty ?? (() => process.stderr.isTTY === true);
   return tty();
+}
+
+async function confirmBillingIdentity(
+  expected: AuthIdentity,
+  usageWorkspaceId: string,
+  options: BillingOptions,
+  dependencies: BillingDependencies
+): Promise<AuthIdentity> {
+  const confirmed = await authenticateHostedSession(options, hostedAuthDependencies(dependencies));
+  if (
+    confirmed.identity.workspaceId !== expected.workspaceId ||
+    confirmed.identity.connectorId !== expected.connectorId ||
+    usageWorkspaceId !== confirmed.identity.workspaceId
+  ) {
+    throw workspaceMismatchError({
+      authenticated_workspace: expected.workspaceId,
+      confirmed_workspace: confirmed.identity.workspaceId
+    });
+  }
+  return confirmed.identity;
+}
+
+function hostedAuthDependencies(dependencies: BillingDependencies): HostedAuthDependencies {
+  return {
+    ...(dependencies.apiOrigin === undefined ? {} : { apiOrigin: dependencies.apiOrigin }),
+    ...(dependencies.accessToken === undefined ? {} : { accessToken: dependencies.accessToken }),
+    ...(dependencies.identity === undefined ? {} : { identity: dependencies.identity }),
+    ...(dependencies.cloud === undefined ? {} : { cloud: dependencies.cloud })
+  };
 }
 
 function remapBillingRecovery(error: unknown, apiOrigin: URL): unknown {
