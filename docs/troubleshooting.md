@@ -67,6 +67,19 @@ allowlisted fields, redactions, and truncation. It does not print unselected
 source objects. The preview is fixture-only and does not guarantee that future
 responses are secret-free.
 
+### The target is reachable in doctor but assessments fail
+
+`doctor` does not call the target. Source 0.3.3 `probe` prints a bounded plan;
+`probe --yes` then checks authentication, selectors, optional session
+identifiers, and cleanup against a synthetic payload. Doctor and init never
+start a probe. A probe failure is an integration diagnostic, not a claim that
+the chatbot missed a fact.
+
+```bash
+node dist/index.js probe -c augmentworks.yaml
+node dist/index.js probe -c augmentworks.yaml --yes
+```
+
 ### A local packet is not found or is refused
 
 `test --local` accepts exactly one of:

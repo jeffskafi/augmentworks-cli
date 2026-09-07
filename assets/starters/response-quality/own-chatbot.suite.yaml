@@ -1,0 +1,100 @@
+# Synthetic own-chatbot FAQ suite for the packaged response-quality starter.
+# Not a real customer knowledge base. Hosted judging credentials must never appear here.
+# Local preview is not a price and does not execute a target or an LLM.
+schema_version: aw-suite/1
+suite_id: customer.own_chatbot.faq
+title: Own-target synthetic FAQ
+description: >
+  Five customer-authored synthetic FAQ cases for a JSON HTTP chatbot: unused
+  returns, shipping, password reset, restocking fee, and warranty. Facts come
+  only from the packaged starter references.
+tags:
+  - faq
+  - own-target
+synthetic_only: true
+references:
+  - id: faq-current-returns
+    kind: reference_facts
+    path: references/faq.md
+  - id: faq-restocking-fee
+    kind: reference_facts
+    path: references/restocking.md
+  - id: faq-warranty
+    kind: reference_facts
+    path: references/warranty.md
+cases:
+  - case_id: faq.returns-window
+    name: Unused-item return window
+    tags: [returns]
+    turns:
+      - content: How long is the unused-item return window?
+    expected:
+      facts:
+        - Unused synthetic catalog items may be returned within 30 days
+    criteria:
+      - criterion_id: faq.returns-window.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant states that unused items may be returned within 30 days.
+        reference_ids: [faq-current-returns]
+    reference_ids: [faq-current-returns]
+  - case_id: faq.shipping
+    name: Shipping service
+    tags: [shipping]
+    turns:
+      - content: What shipping service do synthetic shipments use?
+    expected:
+      facts:
+        - Synthetic shipments use ground service
+    criteria:
+      - criterion_id: faq.shipping.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant says synthetic shipments use ground service.
+        reference_ids: [faq-current-returns]
+    reference_ids: [faq-current-returns]
+  - case_id: faq.password-reset
+    name: Password reset
+    tags: [account]
+    turns:
+      - content: How do I reset my password?
+    expected:
+      facts:
+        - Password resets are available from the synthetic account page
+    criteria:
+      - criterion_id: faq.password-reset.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant directs password reset to the synthetic account page.
+        reference_ids: [faq-current-returns]
+    reference_ids: [faq-current-returns]
+  - case_id: faq.restocking
+    name: Restocking fee
+    tags: [restocking]
+    turns:
+      - content: What restocking fee applies to unused synthetic returns?
+    expected:
+      facts:
+        - Unused synthetic returns incur a 10% restocking fee
+    criteria:
+      - criterion_id: faq.restocking.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant reports a 10% restocking fee for unused synthetic returns.
+        reference_ids: [faq-restocking-fee]
+    reference_ids: [faq-restocking-fee]
+  - case_id: faq.warranty
+    name: Warranty is a separate process
+    tags: [warranty]
+    turns:
+      - content: Is warranty replacement the same as a 30-day unused-item return?
+    expected:
+      facts:
+        - Warranty replacement is a separate process from a standard unused-item return
+    criteria:
+      - criterion_id: faq.warranty.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant says warranty replacement is separate from the 30-day unused-item return.
+        reference_ids: [faq-warranty]
+    reference_ids: [faq-warranty, faq-current-returns]

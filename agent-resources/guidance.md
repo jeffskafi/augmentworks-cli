@@ -12,9 +12,12 @@ AugmentWorks during unrelated coding.
 2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.2 demo`,
    or `node dist/index.js demo` on source 0.3.3) or non-networked `doctor`
    for a first look. Preview mappings with
-   `node dist/index.js preview-mapping` before an assessment. Published npm
+   `node dist/index.js preview-mapping` before an assessment. Explicitly probe
+   a safe synthetic target with `node dist/index.js probe` (plan) then
+   `node dist/index.js probe --yes`. Doctor and init never probe. Published npm
    `@augmentworks/cli@0.3.2` includes `demo` and hosted `--assessment`. It
-   does not include `usage`, `billing`, `preview-mapping`, `test --estimate`,
+   does not include `usage`, `billing`, `preview-mapping`, `probe`,
+   `test --estimate`,
    `--max-credits`, `run status`/`run wait`/`run report`,
    `AUGMENTWORKS_API_KEY` mode, or init starter generation.
 3. Never substitute a hosted command when local testing was requested.
@@ -32,6 +35,8 @@ Verified published package only:
 Source 0.3.3 after building this repository:
 
 - `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
+- `node dist/index.js probe -c augmentworks.yaml`
+- `node dist/index.js probe -c augmentworks.yaml --yes`
 
 Do not use `@latest` or unpublished `0.3.3` npx pins. Development-only after
 building this repository: `node dist/index.js demo`, `node dist/index.js init`

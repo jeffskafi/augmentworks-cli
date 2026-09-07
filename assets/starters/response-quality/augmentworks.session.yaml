@@ -1,14 +1,17 @@
 # yaml-language-server: $schema=[REDACTED]/schemas/v1/augmentworks.schema.json
-# Response-only JSON chat. Do not add unused prepare/observe/cleanup hooks.
+# Explicit session mapping for the same response-only fixture. Still no state hooks.
 version: 1
 
 target:
-  name: synthetic-response-agent
+  name: synthetic-session-agent
   connector: http
   base_url: ${CHATBOT_BASE_URL}
 
   auth:
     bearer_env: CHATBOT_API_KEY
+
+  conversation:
+    strategy: explicit_session_v1
 
   limits:
     request_bytes: 65536
@@ -19,9 +22,10 @@ target:
     send:
       method: POST
       path: /chat
-      idempotent: false
+      idempotent: true
       request:
         message: $input.message.content
+        conversation_id: $input.conversation_id
         turn_id: $input.turn_id
       response:
         content: $.answer

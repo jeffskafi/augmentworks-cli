@@ -100,12 +100,13 @@ node dist/index.js init --starter workflow
 ```
 
 `init` writes `augmentworks.yaml` (or the path given to `-c` / `--config`),
-`augmentworks.assessment.yaml`, and the
-referenced starter files for the selected starter (`response-quality` default,
-or `workflow` for support-refunds hooks). It never overwrites an edited
-assessment or reference file unless you pass `--force`. `--force` still never
-replaces an existing `.env`. `npm --yes` only skips the npm installer prompt;
-it is not CLI spending consent.
+`augmentworks.assessment.yaml`, packaged fixture servers, mapping fixtures,
+and the referenced starter files for the selected own-target pattern
+(`response-quality` / `response-only` JSON chat by default, or `workflow` /
+`stateful` for support-refunds hooks). Response-only setup does not add unused
+state hooks. It never overwrites an edited assessment or reference file unless
+you pass `--force`. `--force` still never replaces an existing `.env`.
+`npm --yes` only skips the npm installer prompt; it is not CLI spending consent.
 
 ```bash
 npx --yes @augmentworks/cli@0.3.2 login
@@ -196,6 +197,29 @@ target output.
 
 Until source 0.3.3 is published, do not write an unpublished npx pin for
 `preview-mapping`.
+
+## Connection probe (source 0.3.3)
+
+Offline doctor and mapping preview do not prove network auth, selector
+behavior, session continuity, or cleanup. `probe` is an explicit bounded
+synthetic connection check. Without `--yes` it only prints the planned
+operations, call count, time/byte limits, and possible synthetic side
+effects. `--yes` then executes that plan against the configured target.
+Doctor and init never start a probe. The probe does not contact AugmentWorks
+or consume credits. Failures are integration diagnostics (connection,
+timeout, authentication, selector, session, cleanup), not chatbot quality
+verdicts.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js probe -c augmentworks.yaml
+node dist/index.js probe -c augmentworks.yaml --json
+node dist/index.js probe -c augmentworks.yaml --yes
+```
+
+Until source 0.3.3 is published, do not write an unpublished npx pin for
+`probe`.
 
 ## Browser billing (source 0.3.3)
 
@@ -620,6 +644,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Source 0.3.3 writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.3. Reads only the selected config and fixture. No target, cloud, or model call |
+| `probe [-c path] [--yes] [--json]` | Explicit bounded synthetic connection probe | Source 0.3.3. Prints the planned calls first. `--yes` executes them against the configured target only. Never runs during doctor or init. No hosted API, no credits |
 | `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Source 0.3.3. Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.3 uses `aw-relay/0.3` quotes; published 0.3.2 uses `aw-relay/0.2`. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
@@ -700,11 +725,12 @@ After the packaged demo, configure the generic HTTP connector against an
 authorized, isolated synthetic target in a test or staging environment:
 
 1. `npx --yes @augmentworks/cli@0.3.2 init --agent`
-2. Map `prepare` / `send` / `observe` / `cleanup` in `augmentworks.yaml`.
+2. Source `0.3.3`: `node dist/index.js init` or `node dist/index.js init --starter workflow`. Map only the hooks required by that pattern.
 3. Put secret *names* in YAML and values only in local `.env`.
 4. `npx --yes @augmentworks/cli@0.3.2 doctor -c augmentworks.yaml`
 5. `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json` (source 0.3.3)
-6. `npx --yes @augmentworks/cli@0.3.2 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+6. `node dist/index.js probe -c augmentworks.yaml` then `node dist/index.js probe -c augmentworks.yaml --yes` (source 0.3.3)
+7. `npx --yes @augmentworks/cli@0.3.2 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 
 Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
 not provide. Hosted access remains an invited workspace at
@@ -727,7 +753,7 @@ define pricing or public signup.
 - Published `@augmentworks/cli@0.3.2` includes `--assessment` and `demo`. Copy
   or write `augmentworks.assessment.yaml` before that hosted path; published
   `init` does not create the assessment file. Source `0.3.3` `init` does.
-- Packaged `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`,
+- Packaged `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`, `--max-credits`,
   `run status`/`run wait`/`run report`, and `AUGMENTWORKS_API_KEY` mode are
   implemented in source `0.3.3` and are not in the verified `0.3.2` npm tarball.
 

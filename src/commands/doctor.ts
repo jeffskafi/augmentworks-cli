@@ -105,6 +105,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   });
   diagnostics.push({
     level: "ok",
+    code: "CONNECTION_PROBE_AVAILABLE",
+    message:
+      "Doctor does not call the target. Use probe to print a bounded plan, then probe --yes to check auth, selectors, session identifiers, and cleanup. Init and doctor never start a probe."
+  });
+  diagnostics.push({
+    level: "ok",
     code: "OFFLINE_CHECK_COMPLETE",
     message: "No target hooks or cloud operations were invoked."
   });

@@ -25,6 +25,9 @@ import {
   SOURCE_INIT_WORKFLOW_COMMAND,
   SOURCE_PREVIEW_MAPPING_COMMAND,
   SOURCE_PREVIEW_MAPPING_JSON_COMMAND,
+  SOURCE_PROBE_COMMAND,
+  SOURCE_PROBE_JSON_COMMAND,
+  SOURCE_PROBE_YES_COMMAND,
   SOURCE_RUN_STATUS_COMMAND,
   SOURCE_RUN_WAIT_COMMAND,
   SOURCE_RUN_REPORT_COMMAND,
@@ -46,6 +49,8 @@ const documentedSurfaces = [
   "docs/stabilization-implementation.md",
   "docs/stabilization-rollout.md",
   "examples/refund-agent/README.md",
+  "examples/response-agent/README.md",
+  "examples/basic-chat/README.md",
   "agent-resources/guidance.md"
 ] as const;
 
@@ -118,6 +123,9 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.demo);
     expect(readme).toContain(SOURCE_PREVIEW_MAPPING_COMMAND);
     expect(readme).toContain(SOURCE_PREVIEW_MAPPING_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_PROBE_COMMAND);
+    expect(readme).toContain(SOURCE_PROBE_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_PROBE_YES_COMMAND);
     expect(readme).toContain(SOURCE_RUN_STATUS_COMMAND);
     expect(readme).toContain(SOURCE_RUN_WAIT_COMMAND);
     expect(readme).toContain(SOURCE_RUN_REPORT_COMMAND);
@@ -130,7 +138,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "suite", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });
