@@ -51,31 +51,14 @@ export async function ensurePackedCliBuilt(): Promise<string> {
 }
 
 async function buildPackedCli(): Promise<void> {
-  const result = await new Promise<CliProcessResult>((fulfill, reject) => {
-    const child = spawn("npm", ["run", "build"], {
-      cwd: projectRoot,
-      env: { ...process.env, CI: "1", NO_COLOR: "1" },
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-    const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 1_000).unref();
-    }, 120_000);
-    timeout.unref?.();
-    child.once("error", reject);
-    child.once("close", (exitCode, signal) => {
-      clearTimeout(timeout);
-      fulfill({ exitCode, signal, stdout, stderr });
-    });
+  // npm ci `prepare` and `npm run check` already produce dist/. Spawning `npm`
+  // here fails on Windows (Node 22+ spawn npm.cmd ENOENT/EINVAL). Build only
+  // when the artifact is missing, and invoke tsup through node.
+  if (existsSync(packedEntrypoint)) return;
+  const tsupCli = createRequire(import.meta.url).resolve("tsup/dist/cli-default.js");
+  const result = await runNodeCli([tsupCli], {
+    cwd: projectRoot,
+    timeoutMs: 120_000
   });
   if (result.exitCode !== 0) {
     throw new Error(
