@@ -69,7 +69,9 @@ export async function runUsage(
 
 export function createUsageCommand(dependencies: UsageDependencies = {}): Command {
   return new Command("usage")
-    .description("Show authenticated workspace execution-credit usage")
+    .description(
+      "Show authenticated workspace execution-credit usage, including trial, purchased, and monthly lots when the server advertises them"
+    )
     .option("--json", "write one machine-readable usage object to stdout")
     .action(async (values: UsageOptions) => {
       const stdout = dependencies.stdout ?? console.log;

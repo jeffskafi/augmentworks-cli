@@ -681,10 +681,14 @@ describe("hosted estimate and quoted admission", () => {
     ).toBe(false);
   });
 
-  it("requires --max-credits for noninteractive --yes and makes zero target calls", async () => {
+  it("requires --max-credits even when the usage snapshot has an active monthly grant", async () => {
     const cwd = await projectDir();
-    const fetchMock = vi.fn<typeof fetch>(async () => {
-      throw new Error("billing must not be called without a ceiling");
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/billing/capabilities") {
+        return Response.json(fixtures.fixtures["subscription_active"]?.response);
+      }
+      throw new Error(`unexpected ${url.pathname}`);
     });
     await expect(
       runTest(

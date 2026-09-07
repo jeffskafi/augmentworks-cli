@@ -249,10 +249,13 @@ quote, reservation, or run. Retry guidance names the original run ID.
 
 `billing` (source `0.3.3`) prints or opens the first-party
 `/portal/billing?workspace=` page. It does not create a Stripe Customer,
-Checkout Session, or refund. `--json` and `--print` do not open a browser.
+Checkout Session, refund, or subscription, and it does not cancel or
+reactivate a plan. `--json` and `--print` do not open a browser.
 Insufficient credits keep the uncreated intent and point at that page; after
 fulfillment, run `usage` then start a new test with `--max-credits`. Processing
-(`pendingCommerce`) is not spendable credit.
+(`pendingCommerce`) is not spendable credit. A past-due monthly renewal does
+not erase independently purchased credits. Historical results follow retention,
+not credit expiry; do not subscribe from the CLI to recover them.
 
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.

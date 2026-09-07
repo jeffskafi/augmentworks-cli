@@ -18,3 +18,10 @@ directories retain raw provenance from the generation command.
 ## Screenshot / recording outline
 
 See `../walkthrough-draft.md`. Do not fabricate a recording.
+
+## Hosted CI (source 0.3.3)
+
+`github-actions-hosted-source.yml` is a copy-pastable quoted hosted workflow
+for this source build. It is not a published `0.3.2` pin and must not be
+advertised as `npx @augmentworks/cli@0.3.3` until that tarball is verified
+on the registry.

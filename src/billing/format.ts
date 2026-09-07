@@ -8,6 +8,12 @@ import {
   type BillingRunStatus,
   type BillingUsage
 } from "./protocol.js";
+import {
+  earliestExpiringLot,
+  interpretUsageSubscription,
+  summarizeGrantCategories,
+  type BillingSubscription
+} from "./subscription.js";
 import { assertSafeBillingPageUrl } from "./validate.js";
 
 const ORIGIN_LABEL: Record<ReturnType<typeof grantOriginKind>, string> = {
@@ -38,6 +44,7 @@ export function formatUsageHuman(input: {
     "Consumed credits are the net units charged at the first durable target-command lease, after any approved compensation."
   );
   lines.push("");
+  appendGrantCategories(lines, usage);
   lines.push("Grant lots:");
   if (usage.grantBalances.length === 0) {
     lines.push("  (none)");
@@ -46,18 +53,39 @@ export function formatUsageHuman(input: {
       lines.push(`  ${formatGrantLot(lot)}`);
     }
   }
+  const earliest = earliestExpiringLot(usage.grantBalances);
+  if (earliest?.expiresAt !== undefined && earliest.expiresAt !== null) {
+    lines.push(
+      `Earliest lot expiry in this snapshot: ${sanitizeTerminal(earliest.expiresAt)} (${ORIGIN_LABEL[grantOriginKind(earliest.origin)]}). The server allocates expiring lots first; this CLI does not recompute spendable credits from that timestamp.`
+    );
+  }
   lines.push("");
   lines.push(
-    `These values are a server snapshot at ${sanitizeTerminal(usage.asOf)} (ledger revision ${String(usage.ledgerRevision)}), not a guaranteed future balance.`
+    `These values are a server snapshot at ${sanitizeTerminal(usage.asOf)} (ledger revision ${String(usage.ledgerRevision)}), not a guaranteed future balance. Snapshots can change at a monthly period boundary.`
   );
-  lines.push(`Workspace access: ${sanitizeTerminal(usage.accessState)}.`);
-  if (usage.accessState !== "active") {
-    lines.push("New hosted tests are rejected in this access state. This snapshot remains readable.");
+  if (usage.releasedUnits !== undefined) {
+    lines.push(
+      `Released credits in this snapshot: ${String(usage.releasedUnits)}. Released units return to their original lot. If that lot has expired, they are not spendable again.`
+    );
   }
+  lines.push(`Workspace access: ${sanitizeTerminal(usage.accessState)}.`);
+  if (usage.accessState === "closed" || usage.accessState === "closing" || usage.accessState === "suspended") {
+    lines.push("New hosted tests are rejected in this access state. This snapshot remains readable.");
+  } else if (usage.accessState === "past_due") {
+    lines.push(
+      "Workspace access is past_due. Quote and admission still come from the server; this CLI does not guess that new tests are blocked or allowed."
+    );
+  }
+  appendSubscription(lines, usage);
   appendPendingCommerce(lines, usage.pendingCommerce);
   lines.push(
-    "This command is read-only. It does not grant credits, reserve units, open checkout, or manage billing. Billing changes require a signed-in browser session with billing permission."
+    "This command is read-only. It does not grant credits, reserve units, subscribe, cancel, reactivate, refund, open checkout, or manage payment methods. Billing changes require a signed-in browser session with billing permission."
   );
+  if (usage.reservedUnits > 0) {
+    lines.push(
+      "An already accepted reservation can finish after a monthly grant expires. This CLI does not cancel target work because a grant timestamp has passed."
+    );
+  }
   try {
     const billingUrl = assertSafeBillingPageUrl(usage.billingPageUrl, apiOrigin, usage.workspaceId);
     lines.push(`Billing page: ${sanitizeTerminal(billingUrl.toString())}`);
@@ -85,10 +113,108 @@ function formatGrantLot(lot: BillingGrantBalance): string {
   const kind = ORIGIN_LABEL[grantOriginKind(lot.origin)];
   const expiry =
     lot.expiresAt === null ? "no expiry" : `expires ${sanitizeTerminal(lot.expiresAt)}`;
-  return `${kind}: ${String(lot.availableUnits)} available of ${String(lot.grantedUnits)} granted (${expiry})`;
+  const extra: string[] = [];
+  if (lot.forfeitedUnits !== undefined && lot.forfeitedUnits > 0) {
+    extra.push(`${String(lot.forfeitedUnits)} forfeited (not spendable)`);
+  }
+  if (lot.frozenUnits !== undefined && lot.frozenUnits > 0) {
+    extra.push(`${String(lot.frozenUnits)} frozen`);
+  }
+  const suffix = extra.length === 0 ? "" : `; ${extra.join("; ")}`;
+  return `${kind}: ${String(lot.availableUnits)} available of ${String(lot.grantedUnits)} granted (${expiry})${suffix}`;
+}
+
+function appendGrantCategories(lines: string[], usage: BillingUsage): void {
+  const categories = summarizeGrantCategories(usage.grantBalances);
+  lines.push("Credit categories from grant lots (informational; available credits above are the server total):");
+  lines.push(`  Recurring: ${String(categories.recurringAvailable)} available`);
+  lines.push(`  Purchased: ${String(categories.purchasedAvailable)} available`);
+  lines.push(`  Trial/promotional: ${String(categories.trialPromotionalAvailable)} available`);
+  if (categories.unrecognizedAvailable > 0) {
+    lines.push(`  Unrecognized origin: ${String(categories.unrecognizedAvailable)} available`);
+  }
+  lines.push("");
+}
+
+function appendSubscription(lines: string[], usage: BillingUsage): void {
+  const interpretation = interpretUsageSubscription(usage);
+  if (!interpretation.advertised) {
+    lines.push(
+      "This server does not advertise subscriptions_v1. Recurring-plan details are omitted. Purchased and trial credits follow the snapshot above."
+    );
+    return;
+  }
+  if (!interpretation.interpretable) {
+    lines.push(
+      "A subscription projection is present but this CLI cannot interpret its status or payment action. Update the CLI. Available credits above are the server snapshot. This CLI did not guess that a plan is active or safe, and it will not subscribe, cancel, or change payment methods."
+    );
+    return;
+  }
+  if (interpretation.projection === null) {
+    lines.push("Subscription: none. Purchased packs remain usable without a monthly plan.");
+    return;
+  }
+  appendKnownSubscription(lines, interpretation.projection);
+}
+
+function appendKnownSubscription(lines: string[], subscription: BillingSubscription): void {
+  lines.push(`Subscription plan: ${sanitizeTerminal(subscription.planCode)}`);
+  lines.push(`Subscription status: ${sanitizeTerminal(subscription.status)}`);
+  if (subscription.currentPeriodStart !== undefined && subscription.currentPeriodStart !== null) {
+    lines.push(`Current service period start: ${sanitizeTerminal(subscription.currentPeriodStart)} (server timestamp)`);
+  }
+  if (subscription.currentPeriodEnd !== undefined && subscription.currentPeriodEnd !== null) {
+    lines.push(`Current service period end: ${sanitizeTerminal(subscription.currentPeriodEnd)} (server timestamp)`);
+  }
+  if (subscription.cancelAtPeriodEnd) {
+    lines.push(
+      "Cancellation is scheduled at the server period end. Current monthly allowance remains usable until then. This CLI does not cancel or reactivate a subscription."
+    );
+  }
+  lines.push(`Next payment action: ${sanitizeTerminal(subscription.nextPaymentAction)}`);
+  if (subscription.status === "processing" || subscription.nextPaymentAction === "processing") {
+    lines.push(
+      "A paid renewal is still reconciling. This snapshot does not promise that a new monthly allocation exists. Check usage later; do not treat processing as granted credits."
+    );
+  }
+  if (subscription.status === "past_due" || subscription.status === "unpaid") {
+    lines.push(
+      "Renewal did not fund a new monthly period. This CLI did not mint an allowance. Independently purchased credits remain usable when the server snapshot allows it. Complete payment recovery on the signed-in billing page."
+    );
+  }
+  if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+    lines.push(
+      "There is no current monthly allowance. Purchased pack credits remain distinct. Historical results stay readable under the server retention policy. A zero monthly allocation is not a reason to buy a plan to restore reports."
+    );
+  }
+  if (subscription.status === "incomplete" || subscription.nextPaymentAction === "authenticate") {
+    lines.push(
+      "Payment authentication is required on the signed-in billing page. This CLI does not collect cards or open a Stripe Customer Portal session."
+    );
+  }
+  if (subscription.nextPaymentAction === "update_payment_method") {
+    lines.push("Update the payment method on the signed-in first-party billing page.");
+  }
+  const monthly = subscription.monthlyGrant;
+  if (monthly === undefined || monthly === null) {
+    lines.push("Monthly grant: none in this snapshot. Do not invent a recurring balance.");
+  } else {
+    const expiry =
+      monthly.expiresAt === null ? "no expiry" : `expires ${sanitizeTerminal(monthly.expiresAt)}`;
+    lines.push(
+      `Monthly grant: ${String(monthly.availableUnits)} available of ${String(monthly.grantedUnits)} granted (${expiry}). Monthly units do not roll over.`
+    );
+    if (monthly.availableUnits === 0 && monthly.grantedUnits > 0) {
+      lines.push(
+        "Expired or unused monthly units in this snapshot are not spendable and are not newly available credits."
+      );
+    }
+  }
 }
 
 export function usageSuccessJson(usage: BillingUsage): string {
+  const interpretation = interpretUsageSubscription(usage);
+  const creditCategories = summarizeGrantCategories(usage.grantBalances);
   return `${JSON.stringify({
     ok: true,
     schemaVersion: usage.schemaVersion,
@@ -102,6 +228,9 @@ export function usageSuccessJson(usage: BillingUsage): string {
     consumedUnits: usage.consumedUnits,
     grantBalances: usage.grantBalances,
     subscription: usage.subscription,
+    subscriptionAdvertised: interpretation.advertised,
+    subscriptionInterpretable: interpretation.interpretable,
+    creditCategories,
     billingPageUrl: usage.billingPageUrl,
     capabilities: usage.capabilities,
     ...(usage.grossConsumedUnits === undefined ? {} : { grossConsumedUnits: usage.grossConsumedUnits }),
@@ -123,17 +252,18 @@ export function formatBillingHuman(input: {
   lines.push(`Available credits: ${String(input.usage.availableUnits)}`);
   lines.push(`Billing page: ${sanitizeTerminal(input.billingPageUrl.toString())}`);
   lines.push(
-    "This is a first-party AugmentWorks page. Opening it does not authorize payment. Sign in in the browser; only a workspace owner or billing manager can change payment methods or buy a pack."
+    "This is a first-party AugmentWorks page. Opening it does not authorize payment. Sign in in the browser; only a workspace owner or billing manager can change payment methods, buy a pack, or manage a subscription."
   );
   lines.push(
     "A connector token is not billing-management permission. The workspace id in the URL is a navigation hint, not authorization."
   );
   lines.push(
-    "A standard credit is one scenario attempt against one target. Pack prices and catalog terms are shown on the website, not by this CLI."
+    "A standard credit is one scenario attempt against one target. Catalog prices and terms are shown on the website, not by this CLI."
   );
   lines.push(
-    "Purchasing is optional. Account-free local testing and demo do not need a pack and make no billing calls."
+    "Purchasing is optional. Account-free local testing and demo do not need a pack or subscription and make no billing calls."
   );
+  appendSubscription(lines, input.usage);
   appendPendingCommerce(lines, input.usage.pendingCommerce);
   if (input.openedBrowser) {
     lines.push("Opened the billing page in a browser.");
@@ -152,6 +282,7 @@ export function billingSuccessJson(input: {
   readonly openedBrowser: boolean;
 }): string {
   const { usage } = input;
+  const interpretation = interpretUsageSubscription(usage);
   return `${JSON.stringify({
     ok: true,
     schemaVersion: usage.schemaVersion,
@@ -165,6 +296,10 @@ export function billingSuccessJson(input: {
     asOf: usage.asOf,
     ledgerRevision: usage.ledgerRevision,
     capabilities: usage.capabilities,
+    subscription: usage.subscription,
+    subscriptionAdvertised: interpretation.advertised,
+    subscriptionInterpretable: interpretation.interpretable,
+    creditCategories: summarizeGrantCategories(usage.grantBalances),
     openedBrowser: input.openedBrowser,
     ...(usage.pendingCommerce === undefined ? {} : { pendingCommerce: usage.pendingCommerce })
   })}\n`;

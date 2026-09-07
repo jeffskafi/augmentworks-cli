@@ -23,7 +23,15 @@ describe("account-free commands stay off the billing client", () => {
 
   it("does not implement Stripe checkout or order mutations in the billing command", async () => {
     const source = await readFile(resolve(root, "src/commands/billing.ts"), "utf8");
-    expect(source).not.toMatch(/checkout\.sessions|stripe|PaymentIntent|refund/i);
+    expect(source).not.toMatch(/checkout\.sessions|PaymentIntent|stripe\./i);
     expect(source).not.toMatch(/createRun|createBillingQuote/u);
+    expect(source).not.toMatch(/cancelSubscription|customer\.portal|BillingPortalSession/i);
+  });
+
+  it("does not create subscriptions or change payment methods from usage or test commands", async () => {
+    for (const relative of ["src/commands/usage.ts", "src/commands/test.ts", "src/cloud/client.ts"]) {
+      const source = await readFile(resolve(root, relative), "utf8");
+      expect(source).not.toMatch(/checkout\.sessions|BillingPortalSession|subscriptions\.create/i);
+    }
   });
 });

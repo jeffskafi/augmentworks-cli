@@ -1,0 +1,73 @@
+# Customer GitHub Actions example for source 0.3.3 hosted CI
+
+# This is not a published npm 0.3.2 workflow. Quoted `--max-credits` and
+# `run wait` exist only in source 0.3.3. Do not pin
+# `npx @augmentworks/cli@0.3.3` until that tarball is on the registry.
+# No browser. npm `--yes` is not a spending ceiling. Billing rejection is
+# exit 13; chatbot assertion failure is exit 10; incomplete grading is 11.
+# Recover an interrupted create before starting another admission.
+
+name: AugmentWorks hosted assessment (source)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-assessment:
+    name: Quoted hosted assessment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+
+      - name: Build source CLI
+        run: |
+          npm ci
+          npm run build
+
+      - name: Estimate then run with an explicit ceiling
+        env:
+          AUGMENTWORKS_API_URL: ${{ secrets.AUGMENTWORKS_API_URL }}
+          AUGMENTWORKS_TOKEN: ${{ secrets.AUGMENTWORKS_TOKEN }}
+          CHATBOT_BASE_URL: http://127.0.0.1:8000
+          CHATBOT_API_KEY: ci-synthetic-placeholder
+        run: |
+          node dist/index.js test \
+            --assessment ./augmentworks.assessment.yaml \
+            --estimate \
+            --json
+          set +e
+          json=$(node dist/index.js test \
+            --assessment ./augmentworks.assessment.yaml \
+            --max-credits 30 \
+            --yes \
+            --json)
+          code=$?
+          set -e
+          printf '%s\n' "$json"
+          run_id=$(printf '%s\n' "$json" | node -e "
+            let s = '';
+            process.stdin.on('data', (d) => { s += d; });
+            process.stdin.on('end', () => {
+              const parsed = JSON.parse(s);
+              process.stdout.write(String(parsed.run_id ?? parsed.runId ?? ''));
+            });
+          ")
+          if [ -z "$run_id" ]; then
+            echo "No run id. Run recover before another admission." >&2
+            exit "$code"
+          fi
+          if [ "$code" -eq 11 ]; then
+            node dist/index.js run wait "$run_id" --json --timeout-ms 60000
+            code=$?
+          fi
+          exit "$code"

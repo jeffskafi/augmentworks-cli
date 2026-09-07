@@ -10,6 +10,10 @@ import { classifyBillingRunStatus } from "../../src/billing/classify.js";
 import { EXIT, exitCodeFor, AwError } from "../../src/errors.js";
 import { formatEstimateHuman, formatRunStatusHuman, formatUsageHuman } from "../../src/billing/format.js";
 import {
+  interpretUsageSubscription,
+  summarizeGrantCategories
+} from "../../src/billing/subscription.js";
+import {
   parseBillingCapabilitiesResponse,
   parseBillingQuoteResponse,
   parseBillingRunStatusResponse,
@@ -37,12 +41,12 @@ describe("vendored aw-billing/1 contract", () => {
     expect(sha256(schema)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]);
     expect(sha256(fixtures)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]);
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]).toBe(
-      "e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b"
+      "3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645"
     );
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]).toBe(
-      "42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c"
+      "a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84"
     );
-    expect(AW_BILLING_CONTRACT.source.commit).toBe("49806f0f52377bbca0fbe02f160668723c589fa7");
+    expect(AW_BILLING_CONTRACT.source.commit).toBe("650472d91442a6866a7b6ef18e6dacc23a2a9260");
   });
 
   it("hashes a CRLF working-tree copy to the same locked LF digest", async () => {
@@ -50,7 +54,7 @@ describe("vendored aw-billing/1 contract", () => {
     const lf = schema.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
     const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
     expect(crlf.includes(0x0d)).toBe(true);
-    expect(sha256(crlf)).toBe("e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b");
+    expect(sha256(crlf)).toBe("3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645");
     expect(sha256(crlf)).toBe(sha256(schema));
   });
 
@@ -137,10 +141,12 @@ describe("vendored aw-billing/1 contract", () => {
       "usage_v1",
       "quote_v1",
       "status_v1",
-      "billing_portal_link_v1"
+      "billing_portal_link_v1",
+      "subscriptions_v1"
     ]);
     expect(capabilities.capabilities).toContain("billing_portal_link_v1");
-    expect(capabilities.capabilities).not.toContain("subscriptions_v1");
+    expect(capabilities.capabilities).toContain("subscriptions_v1");
+    expect(AW_BILLING_CONTRACT.contract.reservedCapabilities).toEqual([]);
   });
 
   it("fails closed on an unknown access state", () => {
@@ -301,5 +307,333 @@ describe("vendored aw-billing/1 contract", () => {
     });
     expect(human).toContain("aw-retention/pack-90d-v1");
     expect(human).toContain("report lifetime, not credit expiry");
+  });
+});
+
+describe("Stage 5 subscription usage fixtures", () => {
+  const apiOrigin = new URL("https://augmentworks.ai/");
+
+  async function fixtureUsage(name: string) {
+    const document = (await readJson("contracts/aw-billing-v1.fixtures.json")) as {
+      fixtures: Record<string, { response: unknown }>;
+    };
+    return parseBillingUsageResponse(document.fixtures[name]?.response);
+  }
+
+  function human(usage: ReturnType<typeof parseBillingUsageResponse>): string {
+    return formatUsageHuman({ usage, workspaceLabel: "Fixture workspace", apiOrigin });
+  }
+
+  it("renders an active monthly grant without inventing $149 or recomputing availableUnits", async () => {
+    const usage = await fixtureUsage("subscription_active");
+    expect(usage.availableUnits).toBe(1200);
+    expect(summarizeGrantCategories(usage.grantBalances)).toEqual(
+      expect.objectContaining({
+        recurringAvailable: 1000,
+        trialPromotionalAvailable: 200,
+        purchasedAvailable: 0
+      })
+    );
+    const interpretation = interpretUsageSubscription(usage);
+    expect(interpretation.advertised).toBe(true);
+    expect(interpretation.interpretable).toBe(true);
+    expect(interpretation.projection?.status).toBe("active");
+    const text = human(usage);
+    expect(text).toContain("Available credits: 1200");
+    expect(text).toContain("Recurring: 1000 available");
+    expect(text).toContain("Trial/promotional: 200 available");
+    expect(text).toContain("pro_monthly_1000_v1");
+    expect(text).toContain("Subscription status: active");
+    expect(text).toContain("2026-10-06T17:00:00.000Z");
+    expect(text).toContain("do not roll over");
+    expect(text).not.toContain("149");
+    expect(text).not.toMatch(/\$49|\$149/u);
+  });
+
+  it("shows cancel-at-period-end while the current monthly allowance remains usable", async () => {
+    const usage = await fixtureUsage("subscription_canceling");
+    expect(usage.availableUnits).toBe(850);
+    const text = human(usage);
+    expect(text).toContain("cancel");
+    expect(text).toContain("Current monthly allowance remains usable");
+    expect(text).toContain("Recurring: 850 available");
+    expect(text).not.toMatch(/subscribe to recover your results/i);
+    expect(text).not.toContain("149");
+  });
+
+  it("keeps purchased credits usable after a failed renewal without locking the snapshot", async () => {
+    const usage = await fixtureUsage("subscription_past_due_with_purchased");
+    expect(usage.accessState).toBe("active");
+    expect(usage.availableUnits).toBe(300);
+    const text = human(usage);
+    expect(text).toContain("Purchased: 300 available");
+    expect(text).toContain("Recurring: 0 available");
+    expect(text).toContain("past_due");
+    expect(text).toContain("Independently purchased credits remain usable");
+    expect(text).toContain("Workspace access: active");
+    expect(text).not.toContain("New hosted tests are rejected");
+    expect(text).not.toMatch(/subscribe to recover your results/i);
+  });
+
+  it("does not tell a canceled workspace to subscribe to recover historical results", async () => {
+    const usage = await fixtureUsage("subscription_canceled_retained_results");
+    const text = human(usage);
+    expect(text).toContain("Purchased: 300 available");
+    expect(text).toContain("Historical results stay readable");
+    expect(text).not.toMatch(/subscribe to recover your results/i);
+    expect(text).not.toContain("149");
+  });
+
+  it("treats a successful renewal as one new period without rollover copy", async () => {
+    const usage = await fixtureUsage("subscription_new_period");
+    expect(usage.availableUnits).toBe(1000);
+    expect(usage.grantBalances).toHaveLength(1);
+    const text = human(usage);
+    expect(text).toContain("Recurring: 1000 available");
+    expect(text).toContain("do not roll over");
+    expect(text).toContain("2026-11-06T17:00:00.000Z");
+  });
+
+  it("does not promise an allocation while a paid renewal is processing", async () => {
+    const usage = await fixtureUsage("subscription_late_payment_processing");
+    expect(usage.availableUnits).toBe(0);
+    const interpretation = interpretUsageSubscription(usage);
+    expect(interpretation.projection?.monthlyGrant).toBeNull();
+    const text = human(usage);
+    expect(text).toContain("still reconciling");
+    expect(text).toContain("does not promise that a new monthly allocation exists");
+    expect(text).toContain("Monthly grant: none");
+    expect(text).not.toContain("Available credits: 1000");
+  });
+
+  it("does not treat an expired monthly grant as newly available credits", async () => {
+    const usage = await fixtureUsage("subscription_expired_monthly_grant");
+    expect(usage.availableUnits).toBe(0);
+    const text = human(usage);
+    expect(text).toContain("1000 forfeited (not spendable)");
+    expect(text).toContain("not spendable and are not newly available");
+    expect(text).not.toContain("Available credits: 1000");
+  });
+
+  it("omits recurring CTAs on a pack-only server without subscriptions_v1", async () => {
+    const usage = await fixtureUsage("subscription_unavailable");
+    expect(interpretUsageSubscription(usage).advertised).toBe(false);
+    const text = human(usage);
+    expect(text).toContain("does not advertise subscriptions_v1");
+    expect(text).toContain("Trial/promotional: 200 available");
+    expect(text).not.toContain("Subscription plan:");
+    expect(text).not.toContain("149");
+    expect(text).not.toContain("pro_monthly_1000_v1");
+  });
+
+  it("displays mixed monthly and purchased lots using server timestamps for earliest expiry", () => {
+    const usage = parseBillingUsageResponse({
+      schemaVersion: "aw-billing/1",
+      workspaceId: "11111111-1111-4111-8111-111111111111",
+      billingAccountId: "22222222-2222-4222-8222-222222222222",
+      asOf: "2026-09-06T17:00:00.000Z",
+      ledgerRevision: 6,
+      accessState: "active",
+      availableUnits: 1150,
+      reservedUnits: 0,
+      consumedUnits: 50,
+      grantBalances: [
+        {
+          lotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+          origin: "purchased",
+          grantedUnits: 300,
+          availableUnits: 300,
+          reservedUnits: 0,
+          consumedUnits: 0,
+          expiresAt: null,
+          grantedAt: "2026-08-01T16:00:00.000Z"
+        },
+        {
+          lotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+          origin: "subscription",
+          grantedUnits: 1000,
+          availableUnits: 850,
+          reservedUnits: 0,
+          consumedUnits: 150,
+          expiresAt: "2026-10-01T17:00:00.000Z",
+          grantedAt: "2026-09-01T16:00:00.000Z"
+        }
+      ],
+      subscription: {
+        planCode: "pro_monthly_1000_v1",
+        status: "active",
+        currentPeriodStart: "2026-09-06T17:00:00.000Z",
+        currentPeriodEnd: "2026-10-01T17:00:00.000Z",
+        cancelAtPeriodEnd: false,
+        nextPaymentAction: "none",
+        monthlyGrant: {
+          grantedUnits: 1000,
+          availableUnits: 850,
+          reservedUnits: 0,
+          consumedUnits: 150,
+          expiresAt: "2026-10-01T17:00:00.000Z"
+        }
+      },
+      billingPageUrl:
+        "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+      capabilities: [
+        "usage_v1",
+        "quote_v1",
+        "status_v1",
+        "billing_portal_link_v1",
+        "subscriptions_v1"
+      ]
+    });
+    expect(usage.availableUnits).toBe(1150);
+    expect(summarizeGrantCategories(usage.grantBalances).purchasedAvailable).toBe(300);
+    expect(summarizeGrantCategories(usage.grantBalances).recurringAvailable).toBe(850);
+    const text = human(usage);
+    expect(text).toContain("Earliest lot expiry in this snapshot: 2026-10-01T17:00:00.000Z");
+    expect(text).toContain("Purchased: 300 available");
+    expect(text).toContain("Recurring: 850 available");
+    expect(text).not.toContain("1151");
+  });
+
+  it("does not locally cancel a reservation that spans monthly expiry", () => {
+    const usage = parseBillingUsageResponse({
+      schemaVersion: "aw-billing/1",
+      workspaceId: "11111111-1111-4111-8111-111111111111",
+      billingAccountId: "22222222-2222-4222-8222-222222222222",
+      asOf: "2026-10-07T00:00:00.000Z",
+      ledgerRevision: 7,
+      accessState: "active",
+      availableUnits: 0,
+      reservedUnits: 10,
+      consumedUnits: 0,
+      releasedUnits: 0,
+      grantBalances: [
+        {
+          lotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+          origin: "subscription",
+          grantedUnits: 1000,
+          availableUnits: 0,
+          reservedUnits: 10,
+          consumedUnits: 0,
+          expiresAt: "2026-10-06T17:00:00.000Z",
+          grantedAt: "2026-09-06T16:00:00.000Z"
+        }
+      ],
+      subscription: {
+        planCode: "pro_monthly_1000_v1",
+        status: "active",
+        currentPeriodStart: "2026-09-06T17:00:00.000Z",
+        currentPeriodEnd: "2026-10-06T17:00:00.000Z",
+        cancelAtPeriodEnd: false,
+        nextPaymentAction: "none",
+        monthlyGrant: {
+          grantedUnits: 1000,
+          availableUnits: 0,
+          reservedUnits: 10,
+          consumedUnits: 0,
+          expiresAt: "2026-10-06T17:00:00.000Z"
+        }
+      },
+      billingPageUrl:
+        "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+      capabilities: ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"]
+    });
+    const text = human(usage);
+    expect(text).toContain("Reserved credits: 10");
+    expect(text).toContain("does not cancel target work");
+    expect(text).not.toContain("cancelled locally");
+    expect(text).not.toContain("cancel this run");
+  });
+
+  it("does not report a release onto an expired lot as newly available credits", () => {
+    const usage = parseBillingUsageResponse({
+      schemaVersion: "aw-billing/1",
+      workspaceId: "11111111-1111-4111-8111-111111111111",
+      billingAccountId: "22222222-2222-4222-8222-222222222222",
+      asOf: "2026-10-07T00:00:00.000Z",
+      ledgerRevision: 8,
+      accessState: "active",
+      availableUnits: 0,
+      reservedUnits: 0,
+      consumedUnits: 0,
+      releasedUnits: 10,
+      grantBalances: [
+        {
+          lotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa5",
+          origin: "subscription",
+          grantedUnits: 1000,
+          availableUnits: 0,
+          reservedUnits: 0,
+          consumedUnits: 0,
+          expiresAt: "2026-10-06T17:00:00.000Z",
+          grantedAt: "2026-09-06T16:00:00.000Z",
+          forfeitedUnits: 1000
+        }
+      ],
+      subscription: {
+        planCode: "pro_monthly_1000_v1",
+        status: "canceled",
+        currentPeriodStart: "2026-09-06T17:00:00.000Z",
+        currentPeriodEnd: "2026-10-06T17:00:00.000Z",
+        cancelAtPeriodEnd: false,
+        nextPaymentAction: "none",
+        monthlyGrant: null
+      },
+      billingPageUrl:
+        "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+      capabilities: ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"]
+    });
+    const text = human(usage);
+    expect(text).toContain("Released credits in this snapshot: 10");
+    expect(text).toContain("If that lot has expired, they are not spendable again");
+    expect(text).toContain("Available credits: 0");
+    expect(text).not.toContain("Available credits: 10");
+    expect(text).not.toContain("newly available credits: 10");
+  });
+
+  it("preserves usage reads for an uninterpreted future subscription enum and asks for a CLI update", () => {
+    const usage = parseBillingUsageResponse({
+      schemaVersion: "aw-billing/1",
+      workspaceId: "11111111-1111-4111-8111-111111111111",
+      billingAccountId: "22222222-2222-4222-8222-222222222222",
+      asOf: "2026-09-06T17:00:00.000Z",
+      ledgerRevision: 1,
+      accessState: "active",
+      availableUnits: 300,
+      reservedUnits: 0,
+      consumedUnits: 0,
+      grantBalances: [
+        {
+          lotId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+          origin: "purchased",
+          grantedUnits: 300,
+          availableUnits: 300,
+          reservedUnits: 0,
+          consumedUnits: 0,
+          expiresAt: null,
+          grantedAt: "2026-08-01T16:00:00.000Z"
+        }
+      ],
+      subscription: {
+        planCode: "pro_monthly_1000_v1",
+        status: "quantum_renewing",
+        cancelAtPeriodEnd: false,
+        nextPaymentAction: "teleport"
+      },
+      billingPageUrl:
+        "https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111",
+      capabilities: ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"]
+    });
+    expect(usage.availableUnits).toBe(300);
+    expect(interpretUsageSubscription(usage)).toMatchObject({
+      advertised: true,
+      interpretable: false,
+      reason: "uninterpreted_enum"
+    });
+    const text = human(usage);
+    expect(text).toContain("Available credits: 300");
+    expect(text).toContain("Update the CLI");
+    expect(text).not.toContain("Subscription status: active");
+    expect(text).not.toContain("quantum_renewing");
+    expect(text).not.toContain("teleport");
   });
 });

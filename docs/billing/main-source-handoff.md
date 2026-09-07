@@ -1,6 +1,6 @@
-# Billing Stage 4A → CLI Stage 4B handoff
+# Billing Stage 5A → CLI Stage 5B handoff
 
-Owned by `jeffskafi/augmentworks`. Do not implement Stage 4B in this
+Owned by `jeffskafi/augmentworks`. Do not implement Stage 5B in this
 repository. The CLI counterpart must vendor this contract as published here.
 
 ## Identity
@@ -8,29 +8,28 @@ repository. The CLI counterpart must vendor this contract as published here.
 | Item | Value |
 | --- | --- |
 | Docs/contracts research baseline | `bc1bac16ee88aeece7cd7c58793abc0d611aa4bc` (`origin/main`) |
-| Stage 3A vendor pin | `931838f29ee04fc018ef6359c22abd8d3e8da4c8` (`cursor/billing-stage-3a-91a7`; feature hashes frozen since `926ae72`) |
-| CLI Stage 3B counterpart | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`; implementation `7fef4e9`) |
-| Working branch | `cursor/billing-stage-4a-91a7` |
-| Stage | **4A code complete and locally verified.** Live purchases **not enabled**. Real Stripe **BLOCKED** without credentials. Subscriptions **not sold**. |
-| First implementation commit | `7faa85f5d69cd405aaed090fcb7fb25d73848fdd` |
+| Stage 4A base | `51fed762f96b63e24975376ead483caf5a009cc3` (`cursor/billing-stage-4a-91a7`) |
+| Working branch | `cursor/billing-stage-5a-91a7` |
+| Stage | **5A code complete.** Live pack and Pro sales **not enabled**. Local SQL/RLS **passed**. Real Stripe **BLOCKED** without credentials. `subscriptions_v1` is **advertised** and implemented; live $149 sales stay gated. |
+| Counterpart repo | Not modified. CLI Stage 5B has not started |
 
 Exact current commit is the git SHA that contains this file.
 
-## What Stage 4B may do
+## What Stage 5B may do
 
-Build a release-ready CLI whose **actual npm tarball** completes the documented
-first-customer prepaid journey, including recovery. Import this schema,
+Complete CLI support for subscriptions plus purchased packs, including
+noninteractive CI and cancellation/renewal display. Re-import this schema,
 fixtures, and handoff. Keep `docs/billing/main-source-handoff.md` separate
 from the CLI-owned handoff.
 
-Use `docs/billing/phase-4a-cli-4b-scenario.md` for expected balances, safe
-URLs, error fixtures, and the website pin vs unpublished 3B distinction.
-Main 4A fixture YAML under `docs/billing/phase-4a-fixture-setup/` is **not**
-proof that `augmentworks init` generates those files.
+The CLI remains a **read-only billing client** and a consent-bounded testing
+client. It must **not** subscribe, cancel, reactivate, refund, or modify
+payment methods. All financial changes happen on the authenticated first-party
+billing page (`billingPageUrl`) and its Stripe Customer Portal flow after
+browser authorization.
 
-Do **not** create Stripe customers, Checkout Sessions, purchases, refunds, or
-subscriptions from the CLI. Do **not** invent a CLI order-status endpoint.
-Do **not** advertise `$149` / `subscriptions_v1` as purchasable. Do **not**
+Do **not** expose Stripe Customer Portal bearer URLs, Checkout Session
+secrets, or customer IDs in CLI JSON, logs, or printed URLs. Do **not**
 publish the npm package or enable live billing unless separately authorized.
 
 Keep **`EXIT.BILLING = 13`**. Keep evaluation-incomplete **11**,
@@ -43,9 +42,9 @@ evaluation-error **12**, and interrupted **130**.
 SHA-256:
 
 - `docs/contracts/aw-billing-v1.schema.json` =
-  `e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b`
+  `3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645`
 - `docs/contracts/aw-billing-v1.fixtures.json` =
-  `42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c`
+  `a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84`
 
 Canonical files:
 
@@ -53,14 +52,16 @@ Canonical files:
 - `docs/contracts/aw-billing-v1.fixtures.json`
 - `docs/contracts/aw-billing-v1.checksums.json`
 
-Stage 1–3 fields remain. Additive optional quote fields:
-`retentionPolicyVersion`, `retainUntil`. Purchased-credit validity (no expiry)
-is distinct from run-detail retention. Consumers tolerate additive optional
-fields, `pendingCommerce`, `frozenUnits`, and a later non-null `subscription`
-object without treating it as a live sale. Unknown capability strings are
-ignored. Unknown financial/access states fail closed.
+Stage 1–4 fields remain stable. Additive Stage 5A: advertised
+`subscriptions_v1` and a non-null `subscription` projection when a local
+subscription row exists. Consumers tolerate additive optional fields, ignore
+unknown capability strings, and must not guess unknown financial/access
+states as active or safe. Do not permanently validate `subscription` as
+literal null.
 
 ### Routes and aliases
+
+Unchanged from Stage 4A.
 
 | Role | Path | Scope |
 | --- | --- | --- |
@@ -81,14 +82,24 @@ Workspace is always resolved from the validated connector. Query
 `workspaceId` / `billingAccountId` must not switch tenants
 (`workspace_mismatch`). Responses: `Cache-Control: private, no-store`.
 
-There is **no** CLI order-status API. Order state is on
-`/portal/billing/orders/<orderId>` after browser auth.
+There is **no** CLI order-status API and **no** CLI Customer Portal session
+API. Order and payment-method management stay on
+`/portal/billing` after browser auth.
 
 ### Capabilities
 
-Advertised now: `["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"]`.
+Advertised now:
 
-Reserved, **do not advertise**: `subscriptions_v1`.
+```json
+["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1", "subscriptions_v1"]
+```
+
+No capability names remain reserved. Consumers still ignore unknown strings.
+Live Pro sales are an **operational gate**, not a missing capability.
+
+A server without `subscriptions_v1` (Stage 4 and earlier) must be treated as
+pack-only. Fixture `subscription_unavailable` is the consumer case: omit
+recurring CTAs and do not invent monthly balances.
 
 ### Billing page URL (`billing_portal_link_v1`)
 
@@ -98,75 +109,89 @@ https://augmentworks.ai/portal/billing?workspace=<workspace-uuid>
 
 Local/dev may use the configured `NEXT_PUBLIC_SITE_URL` origin with the same
 path and query. The URL contains **no** access token, refresh token, device
-code, Stripe customer ID, or Checkout Session ID. Opening it does not
-authorize payment. Ineligible cohort members must not see a live purchase
-promise.
+code, Stripe customer ID, Checkout Session ID, or Customer Portal session
+URL. Opening it does not authorize payment. Ineligible cohort members must
+not see a live Subscribe promise.
 
-A pending pack purchase is **not** spendable credit. Fixture
-`pending_pack_purchase` has availableUnits 200 with
-`pendingCommerce.state = paid_unfulfilled`.
+Return URLs after subscription Checkout:
 
-### Quote (unchanged required fields; retention optional)
-
-Quote creation **must not** reserve or consume credits, create a run, hydrate
-jobs, call a model, or contact the target. Return quotes even when
-`availableUnitsAtQuote < executionUnits`.
-
-TTL: `BILLING_QUOTE_TTL_SECONDS`, default **600**, min 60, max 1800.
-
-Pricing version: `aw-pricing/execution-unit/1`. One customer unit is one
-scenario repetition against one target.
-
-Optional additive:
-
-```json
-{
-  "retentionPolicyVersion": "aw-retention/pack-90d-v1",
-  "retainUntil": "2026-12-05T17:00:00.000Z"
-}
+```text
+/portal/billing?workspace=<uuid>&subscription=processing
+/portal/billing?workspace=<uuid>&subscription=cancelled
 ```
 
-Pack-funded new run details default to **90 days** unless a longer existing
-promise applies. Trial uses the disclosed workspace `share_link_days`
-(self-service trial is **7**). Subscription 365-day policy exists in schema
-only; Pro is not sold. `NULL retain_until` is grandfathered and is not given
-the new pack default. Mixed lots take the longest committed window; tie-break
-legacy > pack > pro > trial.
+`processing` is not proof that a period grant exists. Read usage again.
 
-Fixture: `quote_pack_retention`.
+### Usage `subscription` projection
 
-### Quoted create (`aw-relay/0.3`)
+Null means no local subscription row. When present, required fields are:
 
-| Billing | Wire create field |
+| Field | Meaning |
 | --- | --- |
-| `quoteId` | `quote_id` (required UUID) |
-| `maxCredits` | `max_credits` (optional nonnegative safe integer) |
+| `planCode` | Server catalog SKU, currently `pro_monthly_1000_v1` |
+| `status` | Provider-neutral: `active`, `canceling`, `past_due`, `unpaid`, `incomplete`, `incomplete_expired`, `canceled`, `processing`, `unsupported`, `unknown` |
+| `currentPeriodStart` / `currentPeriodEnd` | Provider UTC service-period bounds when known |
+| `cancelAtPeriodEnd` | Scheduled cancellation; current monthly lot remains usable until period end |
+| `nextPaymentAction` | `none`, `authenticate`, `update_payment_method`, `processing` |
+| `monthlyGrant` | Current funded monthly lot summary, or null. Pack lots are never included |
 
-`max_credits` caps **customer execution units**. Zero rejects every
-positive-unit run. A first-party client must **not** treat a missing ceiling
-as unlimited consent. Identical replay of `create_request_id` returns the
-original run without another reservation, **even after the original quote
-expires**, and **even while new chargeable admission is paused**.
+Do **not** calculate renewal dates or grant quantities in the CLI. Do **not**
+infer access from a Stripe subscription ID or wall-clock vs `expiresAt`.
+`accessState` remains the workspace lifecycle projection and is independent
+of monthly lot balance. `past_due` subscription status does **not** globally
+lock the dashboard; independently purchased pack credits remain usable when
+the account is otherwise active.
 
-After an ambiguous create, `POST /v1/relay/run-intents/reconcile` with the
-same id. Do not get a fresh quote while the original intent is still
-ambiguous.
+Unknown `status` / `nextPaymentAction` strings must not be guessed active or
+safe: preserve supported read behavior and return a structured
+unsupported/update response for operations whose semantics cannot be
+interpreted.
 
-When new chargeable admission is paused, an unbound create is
-`BILLING_UNAVAILABLE` (HTTP 503, `error.code` / `billingCode`
-`BILLING_UNAVAILABLE` on the relay). Status, cleanup, and saved results
-remain.
+### Subscription fixtures
 
-Old clients without `aw-relay/0.3` receive `UPDATE_REQUIRED` for new billed
-work.
+| Fixture | Point |
+| --- | --- |
+| `subscription_active` | 1,000 monthly + 200 trial = 1,200 available |
+| `subscription_canceling` | Cancel-at-period-end; current monthly lot still usable |
+| `subscription_past_due_with_purchased` | Failed renewal; pack 300 remains; `accessState` stays `active`; `monthlyGrant` null |
+| `subscription_canceled_retained_results` | Canceled; pack remains; historical results follow retention, not credit expiry |
+| `subscription_new_period` | One new 1,000-unit period; prior monthly lot not rolled over |
+| `subscription_late_payment_processing` | Paid renewal still reconciling; do not promise an allocation exists |
+| `subscription_expired_monthly_grant` | Monthly lot expired, no rollover, not spendable |
+| `subscription_unavailable` | Consumer: server without `subscriptions_v1` |
 
-### Status and evaluation retry
+### Quote and admission (unchanged required fields)
 
-Unchanged from Stage 2A/3A. Status never starts execution, consumes units,
-calls a provider, or retries grading. Evaluation retry reuses saved evidence
-and debits **0** customer units.
+Quote creation **must not** reserve or consume credits. Quotes record the
+resulting run-retention policy. Mixed lots take the longest committed
+window. Subscription lots select **365-day** Pro run-detail retention
+(`aw-retention/pro-365d-v1`). Purchased pack credits still have **no
+expiry**; pack-funded new run details default to 90 days unless a longer
+promise applies. Cancellation does not retroactively shorten retention
+already attached to a run.
+
+Quoted create remains `aw-relay/0.3` with `quote_id` and optional
+`max_credits`. Reservation of monthly units is bounded (72 hours or lot
+`expires_at`, whichever is sooner). Released units return to their original
+lot; if that lot has expired they are not spendable.
+
+### Catalog (server-owned)
+
+- Internal trial: `trial_200_v1` — 200 units once
+- Sellable pack: `test_pack_300_v1` — 300 units, USD 4,900 cents, no expiry
+- Sellable monthly (test-mode gated): `pro_monthly_1000_v1` — 1,000 units per
+  funded Stripe service period, USD 14,900 cents, expires at provider period
+  end, no initial rollover
+
+CLI must not hard-code prices or allowances. Website pin: published CLI
+**0.3.2**.
+
+Packs remain available without a subscription and keep their own validity
+when a subscription ends.
 
 ### Stable error mapping
+
+Unchanged from Stage 4A.
 
 | Stable | Wire `error.code` | Typical HTTP |
 | --- | --- | --- |
@@ -179,92 +204,80 @@ and debits **0** customer units.
 | `WORKSPACE_CLOSING` | `workspace_closing` | 409 |
 | `MEMBERSHIP_REVOKED` | `membership_revoked` | 403 |
 
-### Catalog (server-owned)
-
-- Internal trial: `trial_200_v1` — 200 units once
-- Sellable pack: `test_pack_300_v1` — 300 units, USD 4,900 cents, no expiry
-- Reserved unsellable: `pro_monthly_1000_v1`
-
-CLI must not hard-code prices. If only billing-page + usage are exposed,
-omit CLI price marketing. Website pin: published CLI **0.3.2**.
-
 ## Migrations
 
-Forward only. After Stage 3A:
+Forward only. After Stage 4A:
 
-9. `20260909120001_billing_paid_cohort_readiness.sql`
+10. `20260910120001_billing_monthly_subscriptions.sql`
+11. `20260910120002_billing_closure_hook_account.sql`
 
 Cutover marker is still `aw-billing/1-cutover`.
 
-## Copyable CLI examples (3B / 4B)
+Grants go through `billing_grant_lot` with origin `subscription`,
+idempotency `grant:subscription:period:{account}:{sub}:{start_epoch}:{end_epoch}`.
+Uniqueness is billing account + provider subscription + allowance type +
+economic period. Policy version is payload, not a uniqueness dimension.
+`customer.subscription.created` / `updated` never mint units. `invoice.paid`
+does, once, when the invoice funds the expected Pro service.
 
-Billing page (no secrets):
+## Independent switches (server)
+
+See `docs/billing/launch-runbook.md`.
+
+| Flag | Role |
+| --- | --- |
+| `AW_BILLING_SUBSCRIPTION_CATALOG_ENABLED` | Offer visibility |
+| `AW_BILLING_SUBSCRIPTIONS_ENABLED` | New subscription Checkout (kill switch) |
+| `AW_BILLING_SUBSCRIPTION_ROLLOUT` | `off` \| `allowlist` \| `all` |
+| `AW_BILLING_LIVE_SUBSCRIPTIONS_ENABLED` | **Must remain false** until measured cost/retention evidence |
+
+Disabling new subscription sales **must** continue renewals, fulfillment,
+cancellation, recovery, and pack Checkout (unless those have their own
+switches) for existing subscribers.
+
+Pausing pack Checkout does not stop subscription event processing.
+
+## Copyable CLI examples
+
+Billing page (no secrets, no portal bearer URL):
 
 ```text
 https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111
 ```
 
-Estimate:
+Usage JSON includes `subscription` when present. Render monthly vs purchased
+vs trial from `grantBalances[].origin` and `subscription.monthlyGrant`. Never
+recompute `availableUnits`.
+
+Noninteractive hosted test remains:
 
 ```text
-POST /v1/billing/quote
+augmentworks test --max-credits N --json
 ```
 
-Quoted create:
-
-```json
-{
-  "protocol_version": "aw-relay/0.3",
-  "create_request_id": "crq_...",
-  "packet": { "key": "support-refunds", "version": "0.2.0" },
-  "config_sha256": "<64-hex>",
-  "target": { "name": "synthetic", "boundary_sha256": "<64-hex>", "capabilities": {} },
-  "assessment": {},
-  "quote_id": "<uuid>",
-  "max_credits": 30
-}
-```
-
-Status / wait / retry / reconcile remain as Stage 2B/3B.
-
-Published website hosted command pin remains the **0.3.2** `test` invocation
-until a newer package is actually in the registry. Describe 3B/4B commands
-as unpublished counterparts.
-
-## Independent switches (server)
-
-See `docs/billing/launch-runbook.md`. Pausing Checkout does not stop
-fulfillment. Pausing admission does not stop cleanup or bound create replay.
-Pausing judge dispatch does not stop target cleanup.
-
-## 4B artifacts
-
-- Clean-dir scenario: `docs/billing/phase-4a-cli-4b-scenario.md`
-- Fixture setup (not 4B proof): `docs/billing/phase-4a-fixture-setup/`
-- Readiness: `pnpm check:billing-readiness` / `--json`
-- Launch: `docs/billing/launch-runbook.md`
-- Completion: `docs/billing/phase-4-completion.md`
+`--yes` is not an unlimited spending budget.
 
 ## Unresolved limitations
 
 - Live OpenAI calibration and measured grading cost: **UNVERIFIED**
-- Real Stripe test-mode Checkout/webhook/3DS: **BLOCKED** until
-  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and
-  `STRIPE_PRICE_TEST_PACK_300_V1` are supplied
+- Real Stripe test-mode Checkout / Test Clocks / Customer Portal / 3DS:
+  **BLOCKED** until `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+  `STRIPE_PRICE_TEST_PACK_300_V1`, and `STRIPE_PRICE_PRO_MONTHLY_1000_V1`
+  are supplied
 - Automatic tax: flag exists; off until accepted policy
-- Subscriptions reserved and not sold
-- Published CLI 0.3.2 cannot send `aw-relay/0.3` or open `billing`
+- Live $149 sales: **activation pending**, not unfinished implementation
+- Published CLI 0.3.2 cannot send `aw-relay/0.3`, open `billing`, or render
+  `subscriptions_v1`
 - Retention email adapter is implemented; sending is **not configured**
 - Production worker heartbeats: `not_run` until a deployed schedule records rows
 - Browser UX walkthrough: **not run** in this session (no browser tools)
-- Joint DB-backed 4A journeys: `not_run` when the process env points at a
-  production `*.supabase.co` URL; local `pnpm test:billing-db` is the
-  disposable Postgres evidence instead
 
 ## Live activation
 
-Not enabled. No production deploy, no live sales, no real charges/refunds,
-no customer messages, no npm publish. Kill switch
-`AW_BILLING_PURCHASES_ENABLED` defaults off. Live sales additionally require
-`AW_BILLING_LIVE_PURCHASES_ENABLED=true` after merchant/tax/cost review.
-Production pack rollout defaults to **allowlist** when unset.
+Not enabled. No production deploy, no live pack or Pro sales, no real
+charges/refunds, no customer messages, no npm publish.
+
+`AW_BILLING_LIVE_PURCHASES_ENABLED` and
+`AW_BILLING_LIVE_SUBSCRIPTIONS_ENABLED` must remain unset/false until
+merchant/tax/cost review. Production subscription rollout defaults to
+**allowlist** when unset.
