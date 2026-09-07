@@ -16,9 +16,9 @@ handoff.
 | Vendored main commit | `650472d91442a6866a7b6ef18e6dacc23a2a9260` (`cursor/billing-stage-5a-91a7`) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
-| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording) |
+| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording); `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4` (verification evidence) |
 
-Exact CLI implementation commit is the git SHA that contains this file.
+Verification evidence commit is `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4`. Feature code is `4c46c41e944d18e1ae98d50e3724221b903675ca`.
 
 ## What Stage 5B implemented
 
