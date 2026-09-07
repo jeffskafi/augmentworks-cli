@@ -1,0 +1,17 @@
+schema_version: aw-suite/1
+suite_id: customer.unsupported.feature
+title: Unsupported feature
+description: This draft requests history_array_v1 conversation, which this CLI does not admit.
+synthetic_only: true
+cases:
+  - case_id: unsupported.feature
+    turns:
+      - content: Hello?
+    expected:
+      facts:
+        - A greeting
+    criteria:
+      - criterion_id: unsupported.feature.required
+        requirement: required
+        kind: llm_rubric
+        statement: Should not validate.

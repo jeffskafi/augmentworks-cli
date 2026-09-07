@@ -9,12 +9,13 @@ export interface SchemaCommandDependencies {
   readonly stdout?: Pick<NodeJS.WriteStream, "write">;
 }
 
-export type BundledSchemaKind = "config" | "local-packet" | "local-result";
+export type BundledSchemaKind = "config" | "local-packet" | "local-result" | "customer-suite";
 
 const SCHEMA_FILES: Readonly<Record<BundledSchemaKind, string>> = {
   config: "augmentworks.schema.json",
   "local-packet": "local-packet.schema.json",
-  "local-result": "local-result.schema.json"
+  "local-result": "local-result.schema.json",
+  "customer-suite": "customer-suite.schema.json"
 };
 
 async function schemaPath(kind: BundledSchemaKind): Promise<string> {
@@ -37,7 +38,16 @@ async function schemaPath(kind: BundledSchemaKind): Promise<string> {
 export async function readBundledSchema(
   kind: BundledSchemaKind = "config"
 ): Promise<Record<string, unknown>> {
-  return JSON.parse(await readFile(await schemaPath(kind), "utf8")) as Record<string, unknown>;
+  const schema = JSON.parse(await readFile(await schemaPath(kind), "utf8")) as Record<string, unknown>;
+  if (kind === "customer-suite") {
+    const config = JSON.parse(await readFile(await schemaPath("config"), "utf8")) as Record<string, unknown>;
+    const configId = typeof config["$id"] === "string" ? config["$id"] : "";
+    const prefix = configId.replace(/augmentworks\.schema\.json$/u, "");
+    if (prefix !== "" && prefix !== configId) {
+      schema["$id"] = `${prefix}customer-suite.schema.json`;
+    }
+  }
+  return schema;
 }
 
 export async function runSchema(
@@ -52,7 +62,7 @@ export function createSchemaCommand(dependencies: SchemaCommandDependencies = {}
     .description("Print a bundled AugmentWorks v1 JSON Schema")
     .option(
       "--kind <kind>",
-      "schema kind: config, local-packet, or local-result",
+      "schema kind: config, local-packet, local-result, or customer-suite",
       "config"
     )
     .option("--compact", "print compact JSON")
@@ -61,7 +71,7 @@ export function createSchemaCommand(dependencies: SchemaCommandDependencies = {}
         throw new AwError({
           code: "SCHEMA_KIND_INVALID",
           category: "config",
-          message: "Schema kind must be config, local-packet, or local-result."
+          message: "Schema kind must be config, local-packet, local-result, or customer-suite."
         });
       }
       (dependencies.stdout ?? process.stdout).write(

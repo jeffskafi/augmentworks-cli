@@ -12,6 +12,8 @@ import starterPacketJson from "../../packets/support-refunds-starter/0.1.0/packe
 import { AwError } from "../errors.js";
 import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { LIMITS } from "../util/limits.js";
+import { hostedSuiteUnsupportedLocalError } from "../suite/errors.js";
+import { looksLikeCustomerSuiteDocument, sourceLooksLikeCustomerSuite } from "../suite/schema.js";
 import { sha256Json } from "./canonical.js";
 import type {
   LocalJson,
@@ -246,6 +248,9 @@ export interface LoadLocalPacketOptions {
 }
 
 export function parseLocalPacket(value: unknown): PacketManifest {
+  if (looksLikeCustomerSuiteDocument(value)) {
+    throw hostedSuiteUnsupportedLocalError("this file");
+  }
   if (!isLocalJson(value)) {
     throw packetError(
       "LOCAL_PACKET_INVALID",
@@ -567,6 +572,9 @@ async function readPacketJson(path: string): Promise<unknown> {
       source = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, offset));
     } catch (cause) {
       throw packetError("LOCAL_PACKET_JSON_INVALID", "The local packet is not valid UTF-8 JSON.", cause);
+    }
+    if (sourceLooksLikeCustomerSuite(source)) {
+      throw hostedSuiteUnsupportedLocalError(path);
     }
     try {
       assertNoDuplicateJsonKeys(source);

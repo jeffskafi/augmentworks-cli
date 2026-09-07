@@ -1,0 +1,23 @@
+schema_version: aw-suite/1
+suite_id: customer.contradictory.window
+title: Contradictory return window
+synthetic_only: true
+references:
+  - id: returns-14-day
+    kind: approved_policy
+    content: |
+      Eligible synthetic orders may be returned within 14 days of delivery.
+cases:
+  - case_id: contradictory.window
+    turns:
+      - content: How many days do I have to return this order?
+    expected:
+      facts:
+        - The return window is 30 days
+    criteria:
+      - criterion_id: contradictory.window.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant should not have to reconcile 14-day vs 30-day.
+        reference_ids: [returns-14-day]
+    reference_ids: [returns-14-day]

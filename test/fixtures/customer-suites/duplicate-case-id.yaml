@@ -1,0 +1,27 @@
+schema_version: aw-suite/1
+suite_id: customer.duplicate.case
+title: Duplicate case ids
+synthetic_only: true
+cases:
+  - case_id: duplicate.same
+    turns:
+      - content: First
+    expected:
+      facts:
+        - First fact
+    criteria:
+      - criterion_id: duplicate.first
+        requirement: required
+        kind: llm_rubric
+        statement: First statement.
+  - case_id: duplicate.same
+    turns:
+      - content: Second
+    expected:
+      facts:
+        - Second fact
+    criteria:
+      - criterion_id: duplicate.second
+        requirement: required
+        kind: llm_rubric
+        statement: Second statement.

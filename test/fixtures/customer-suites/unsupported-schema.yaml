@@ -1,0 +1,16 @@
+schema_version: aw-suite/2
+suite_id: customer.unsupported.schema
+title: Unsupported schema
+synthetic_only: true
+cases:
+  - case_id: unsupported.schema
+    turns:
+      - content: Hello?
+    expected:
+      facts:
+        - A greeting
+    criteria:
+      - criterion_id: unsupported.schema.required
+        requirement: required
+        kind: llm_rubric
+        statement: Should not validate.

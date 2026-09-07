@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "aw-suite/1",
+  "packageVersion": "aw-feature/1",
+  "algorithm": "sha256",
+  "source": {
+    "repository": "https://github.com/jeffskafi/augmentworks.git",
+    "consumedCommit": "ad40b3549e882aad5a7f577aa93c289d2a8d2116",
+    "consumedHeadCited": "620dd54",
+    "linearIssue": "AUG-17",
+    "handoff": "docs/feature-readiness/e05-completion.md",
+    "migration": "20260907160001_customer_suite_revisions.sql",
+    "featurePackage": "aw-feature/1",
+    "schemaChecksum": "4f026740a349c736e98af95599736a92cb81246bea3a1673b26e7fa94cadc870",
+    "fixturesChecksum": "8f481f4c30fd4db165c738c3333c529a72904c8cf8b00780b40b64e391495f23",
+    "note": "jeffskafi/augmentworks is not readable from this environment (GitHub 404). Main schema files were not byte-vendored. Identity is Linear-published AUG-13/AUG-17 contract only; checksums are not invented beyond those published values."
+  },
+  "discoveredPaths": {
+    "createRevision": "POST /v1/suites",
+    "validate": "POST /v1/suites/validate",
+    "readRevision": "GET /v1/suites/{suiteId}/revisions/{revisionId}",
+    "latestRevision": "GET /v1/suites/{suiteId}/revisions/latest",
+    "preview": "POST /v1/suites/preview (not deployed; CLI preview is local-only)"
+  },
+  "cli": {
+    "authoringSchema": "aw-suite/1",
+    "authoringSchemaFile": "schemas/v1/customer-suite.schema.json",
+    "sentinelPacket": {
+      "key": "customer-owned-suite",
+      "version": "1.0.0"
+    }
+  }
+}

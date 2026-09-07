@@ -24,6 +24,14 @@ import {
   type LoadedAssessment
 } from "../assessment/index.js";
 import {
+  loadCustomerSuiteFile,
+  assertSuiteUnchanged,
+  type LoadedCustomerSuite
+} from "../suite/load.js";
+import { suiteCreateFields, suitePacketBinding, type SuiteRevisionPin } from "../suite/admit.js";
+import { suiteError } from "../suite/errors.js";
+import { suiteRequiresMultiTurn, suiteRequiresObservation } from "../suite/schema.js";
+import {
   assertCeilingCoversQuote,
   confirmSpending,
   parseMaxCreditsFlag,
@@ -72,6 +80,7 @@ export interface TestOptions {
   readonly config?: string;
   readonly packet?: string;
   readonly assessment?: string;
+  readonly suite?: string;
   readonly profile?: string;
   readonly open?: boolean;
   readonly json?: boolean;
@@ -139,20 +148,19 @@ export async function runTest(
     });
   }
 
-  const assessment =
-    options.assessment === undefined
-      ? undefined
-      : await loadAssessmentFile({
-          path: options.assessment,
-          cwd,
-          ...(options.profile === undefined ? {} : { profile: options.profile })
-        });
-  const packet =
-    assessment === undefined
-      ? parsePacketReference(requirePacket(options.packet))
-      : primaryAssessmentPacket(assessment);
+  const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
-  await assertHostedConversationAdmission(report.resolvedConfig, packet);
+  const interactive = (dependencies.isInteractive ?? defaultInteractive)();
+  if (selection.kind === "suite" && maxCredits === undefined && (options.yes === true || !interactive)) {
+    throw new AwError({
+      code: "MAX_CREDITS_REQUIRED",
+      category: "config",
+      message:
+        options.yes === true
+          ? "--yes is not an unlimited spending budget. Pass --max-credits N with a finite nonnegative integer before a hosted assessment."
+          : "Noninteractive hosted tests require --max-credits N. The CLI will not start billed work without an explicit ceiling."
+    });
+  }
   const session = await authenticateHostedSession(options, dependencies);
   const target = hostedTargetBinding(report.resolvedConfig);
   const stderr = dependencies.stderr ?? process.stderr;
@@ -184,8 +192,7 @@ export async function runTest(
       ...(options.signal === undefined ? {} : { signal: options.signal })
     };
     const resolved = await resolveHostedCreateRequest({
-      assessment,
-      packet,
+      selection,
       configSha256: report.resolvedConfig.configDigest,
       target,
       existing: intentStore.intent,
@@ -194,7 +201,8 @@ export async function runTest(
       session,
       stderr,
       workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
-      interactive: (dependencies.isInteractive ?? defaultInteractive)(),
+      interactive,
+      cwd,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(dependencies.confirm === undefined ? {} : { confirm: dependencies.confirm })
     });
@@ -298,11 +306,11 @@ export async function runEstimate(
   options: TestOptions,
   dependencies: TestDependencies = {}
 ): Promise<EstimateResult> {
-  if (options.assessment === undefined) {
+  if (options.assessment === undefined && options.suite === undefined) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment. Packet-only hosted tests do not use quotes."
+      message: "test --estimate requires --assessment or --suite. Packet-only hosted tests do not use quotes."
     });
   }
   const cwd = resolve(options.cwd ?? process.cwd());
@@ -318,34 +326,157 @@ export async function runEstimate(
       message: error?.message ?? "Doctor found configuration errors."
     });
   }
-  const assessment = await loadAssessmentFile({
-    path: options.assessment,
-    cwd,
-    ...(options.profile === undefined ? {} : { profile: options.profile })
-  });
-  const packet = primaryAssessmentPacket(assessment);
-  await assertHostedConversationAdmission(report.resolvedConfig, packet);
+  const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
   const session = await authenticateHostedSession(options, dependencies);
   const target = hostedTargetBinding(report.resolvedConfig);
+  const prepared = await prepareQuotedAssessment({
+    selection,
+    session,
+    cwd,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
   const quote = await requestHostedQuote({
     session,
-    assessment,
-    packet,
+    assessment: prepared.assessment,
+    packet: selection.packet,
     configSha256: report.resolvedConfig.configDigest,
     target,
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
   return {
     quote,
-    localPlanHash: assessment.freezeSha256,
+    localPlanHash: prepared.localPlanHash,
     workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
     advertisedCapabilities: target.capabilities
   };
 }
 
+type HostedSelection =
+  | {
+      readonly kind: "packet";
+      readonly packet: { key: string; version: string };
+      readonly assessment?: undefined;
+      readonly suite?: undefined;
+    }
+  | {
+      readonly kind: "assessment";
+      readonly packet: { key: string; version: string };
+      readonly assessment: LoadedAssessment;
+      readonly suite?: undefined;
+    }
+  | {
+      readonly kind: "suite";
+      readonly packet: { key: string; version: string };
+      readonly assessment?: undefined;
+      readonly suite: LoadedCustomerSuite;
+    };
+
+async function loadHostedSelection(
+  options: TestOptions,
+  cwd: string,
+  resolved: ResolvedConfig
+): Promise<HostedSelection> {
+  if (options.suite !== undefined) {
+    const suite = await loadCustomerSuiteFile(options.suite, cwd);
+    assertConversationSupportsPacket({
+      resolved,
+      packetRequiresMultiTurn: suiteRequiresMultiTurn(suite.document),
+      packetLabel: `suite ${suite.document.suiteId}`
+    });
+    if (suiteRequiresObservation(suite.document) && !resolved.capabilities.observation) {
+      throw suiteError(
+        "SUITE_OBSERVATION_INCOMPATIBLE",
+        `Suite ${suite.document.suiteId} requires deterministic observations, but this connector does not advertise observation. Configure target.operations.observe. No quote, reservation, or run was created.`
+      );
+    }
+    return { kind: "suite", packet: suitePacketBinding(), suite };
+  }
+  if (options.assessment !== undefined) {
+    const assessment = await loadAssessmentFile({
+      path: options.assessment,
+      cwd,
+      ...(options.profile === undefined ? {} : { profile: options.profile })
+    });
+    const packet = primaryAssessmentPacket(assessment);
+    await assertHostedConversationAdmission(resolved, packet);
+    return { kind: "assessment", packet, assessment };
+  }
+  const packet = parsePacketReference(requirePacket(options.packet));
+  await assertHostedConversationAdmission(resolved, packet);
+  return { kind: "packet", packet };
+}
+
+async function pinCustomerSuite(options: {
+  readonly suite: LoadedCustomerSuite;
+  readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
+  readonly cwd: string;
+  readonly signal?: AbortSignal;
+}): Promise<{
+  assessment: import("../cloud/protocol.js").CreateRunAssessment;
+  localPlanHash: string;
+  pin: SuiteRevisionPin;
+}> {
+  const created = await options.session.cloud.createSuiteRevision(
+    {
+      contentHash: options.suite.contentHash,
+      document: options.suite.canonicalDocument
+    },
+    options.signal
+  );
+  if (created.contentHash !== options.suite.contentHash) {
+    throw suiteError(
+      "SUITE_REVISION_HASH_MISMATCH",
+      "The server-accepted suite content hash does not match the locally validated file. Admission will not pin a different revision.",
+      { localHash: options.suite.contentHash, serverHash: created.contentHash }
+    );
+  }
+  const current = await loadCustomerSuiteFile(options.suite.sourcePath, options.cwd);
+  assertSuiteUnchanged(options.suite, current);
+  const pin: SuiteRevisionPin = {
+    suiteId: created.suiteId,
+    revisionId: created.revisionId,
+    contentHash: created.contentHash
+  };
+  return {
+    assessment: suiteCreateFields(options.suite, pin),
+    localPlanHash: options.suite.contentHash,
+    pin
+  };
+}
+
+async function prepareQuotedAssessment(options: {
+  readonly selection: HostedSelection;
+  readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
+  readonly cwd: string;
+  readonly signal?: AbortSignal;
+}): Promise<{
+  assessment: import("../cloud/protocol.js").CreateRunAssessment;
+  localPlanHash: string;
+}> {
+  if (options.selection.kind === "assessment") {
+    return {
+      assessment: assessmentCreateFields(options.selection.assessment),
+      localPlanHash: options.selection.assessment.freezeSha256
+    };
+  }
+  if (options.selection.kind !== "suite") {
+    throw new AwError({
+      code: "ESTIMATE_REQUIRES_ASSESSMENT",
+      category: "config",
+      message: "Quoted hosted tests require --assessment or --suite."
+    });
+  }
+  const pinned = await pinCustomerSuite({
+    suite: options.selection.suite,
+    session: options.session,
+    cwd: options.cwd,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+  return { assessment: pinned.assessment, localPlanHash: pinned.localPlanHash };
+}
+
 async function resolveHostedCreateRequest(options: {
-  readonly assessment: LoadedAssessment | undefined;
-  readonly packet: { key: string; version: string };
+  readonly selection: HostedSelection;
   readonly configSha256: string;
   readonly target: CreateRunRequest["target"];
   readonly existing: RunIntent | undefined;
@@ -356,24 +487,29 @@ async function resolveHostedCreateRequest(options: {
   readonly stderr: Pick<NodeJS.WriteStream, "write">;
   readonly workspaceLabel: string;
   readonly interactive: boolean;
+  readonly cwd: string;
   readonly confirm?: (prompt: string) => Promise<boolean>;
 }): Promise<{ request: CreateRunIntentRequest; quote?: BillingQuote }> {
-  if (options.assessment === undefined) {
+  if (options.selection.kind === "packet") {
     return {
       request: {
         protocol_version: RELAY_PROTOCOL_VERSION,
-        packet: options.packet,
+        packet: options.selection.packet,
         config_sha256: options.configSha256,
         target: options.target
       }
     };
   }
-  const assessmentFields = assessmentCreateFields(options.assessment);
+
+  const assessmentFields =
+    options.selection.kind === "assessment"
+      ? assessmentCreateFields(options.selection.assessment)
+      : undefined;
   const existing = options.existing?.request;
-  if (existing?.protocol_version === "aw-relay/0.3") {
+  if (assessmentFields !== undefined && existing?.protocol_version === "aw-relay/0.3") {
     const replayCeiling = options.maxCredits ?? existing.max_credits;
     const candidate = quotedCreateIntent({
-      packet: options.packet,
+      packet: options.selection.packet,
       configSha256: options.configSha256,
       target: options.target,
       assessment: assessmentFields,
@@ -393,14 +529,32 @@ async function resolveHostedCreateRequest(options: {
         : "Noninteractive hosted tests require --max-credits N. The CLI will not start billed work without an explicit ceiling."
     });
   }
+
+  const prepared =
+    options.selection.kind === "suite"
+      ? await pinCustomerSuite({
+          suite: options.selection.suite,
+          session: options.session,
+          cwd: options.cwd,
+          ...(options.signal === undefined ? {} : { signal: options.signal })
+        })
+      : {
+          assessment: assessmentFields!,
+          localPlanHash: options.selection.assessment.freezeSha256
+        };
+
   const quote = await requestHostedQuote({
     session: options.session,
-    assessment: options.assessment,
-    packet: options.packet,
+    assessment: prepared.assessment,
+    packet: options.selection.packet,
     configSha256: options.configSha256,
     target: options.target,
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
+  if (options.selection.kind === "suite") {
+    const current = await loadCustomerSuiteFile(options.selection.suite.sourcePath, options.cwd);
+    assertSuiteUnchanged(options.selection.suite, current);
+  }
   const ceiling = resolveSpendingCeiling({
     quote,
     maxCredits: options.maxCredits,
@@ -441,10 +595,10 @@ async function resolveHostedCreateRequest(options: {
   }
   return {
     request: quotedCreateIntent({
-      packet: options.packet,
+      packet: options.selection.packet,
       configSha256: options.configSha256,
       target: options.target,
-      assessment: assessmentFields,
+      assessment: prepared.assessment,
       quoteId: quote.quoteId,
       maxCredits: ceiling
     }),
@@ -454,7 +608,7 @@ async function resolveHostedCreateRequest(options: {
 
 async function requestHostedQuote(options: {
   readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
-  readonly assessment: LoadedAssessment;
+  readonly assessment: import("../cloud/protocol.js").CreateRunAssessment;
   readonly packet: { key: string; version: string };
   readonly configSha256: string;
   readonly target: CreateRunRequest["target"];
@@ -478,7 +632,7 @@ async function requestHostedQuote(options: {
       packet: options.packet,
       configSha256: options.configSha256,
       target: options.target,
-      assessment: assessmentCreateFields(options.assessment)
+      assessment: options.assessment
     }),
     options.signal
   );
@@ -573,6 +727,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "--assessment <path>",
       "hosted assessment file (quoted aw-relay/0.3 on source 0.3.3; published 0.3.2 uses aw-relay/0.2)"
     )
+    .option(
+      "--suite <path>",
+      "customer-owned hosted suite file (aw-suite/1). Admission uses the server-accepted revision, not a later file edit"
+    )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
     .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
@@ -590,6 +748,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         config: string;
         packet?: string;
         assessment?: string;
+        suite?: string;
         profile?: string;
         estimate?: boolean;
         maxCredits?: string;
@@ -649,6 +808,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               {
                 config: values.config,
                 ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
+                ...(values.suite === undefined ? {} : { suite: values.suite }),
                 ...(values.profile === undefined ? {} : { profile: values.profile }),
                 ...(values.allowFileCredentials === undefined
                   ? {}
@@ -701,6 +861,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               config: values.config,
               ...(values.packet === undefined ? {} : { packet: values.packet }),
               ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
+              ...(values.suite === undefined ? {} : { suite: values.suite }),
               ...(values.profile === undefined ? {} : { profile: values.profile }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json }),
@@ -795,6 +956,7 @@ export function hostedExitCode(run: RunStatusResponse): number {
 function assertTestSelection(values: {
   packet?: string;
   assessment?: string;
+  suite?: string;
   profile?: string;
   local?: boolean;
   estimate?: boolean;
@@ -815,11 +977,11 @@ function assertTestSelection(values: {
       message: "--max-credits applies only to hosted tests."
     });
   }
-  if (values.maxCredits !== undefined && values.assessment === undefined) {
+  if (values.maxCredits !== undefined && values.assessment === undefined && values.suite === undefined) {
     throw new AwError({
       code: "MAX_CREDITS_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "--max-credits applies to quoted hosted assessments. Packet-only tests do not send a spending ceiling."
+      message: "--max-credits applies to quoted hosted assessments and suites. Packet-only tests do not send a spending ceiling."
     });
   }
   if (values.yes === true && values.local === true) {
@@ -829,11 +991,11 @@ function assertTestSelection(values: {
       message: "--yes spending consent applies only to hosted tests."
     });
   }
-  if (values.estimate === true && values.assessment === undefined) {
+  if (values.estimate === true && values.assessment === undefined && values.suite === undefined) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment."
+      message: "test --estimate requires --assessment or --suite."
     });
   }
   if (values.assessment !== undefined && values.local === true) {
@@ -844,11 +1006,26 @@ function assertTestSelection(values: {
         "--assessment is a hosted compiler and cannot be used with --local. Hybrid packets are also rejected in local mode."
     });
   }
+  if (values.suite !== undefined && values.local === true) {
+    throw new AwError({
+      code: "HOSTED_SUITE_UNSUPPORTED_LOCAL",
+      category: "config",
+      message:
+        "--suite is a hosted customer-owned suite and cannot be used with --local. Validate offline with `augmentworks suite validate` / `suite preview`."
+    });
+  }
   if (values.assessment !== undefined && values.packet !== undefined) {
     throw new AwError({
       code: "ASSESSMENT_PACKET_CONFLICT",
       category: "config",
       message: "Use either --assessment or --packet, not both."
+    });
+  }
+  if (values.suite !== undefined && (values.assessment !== undefined || values.packet !== undefined)) {
+    throw new AwError({
+      code: "SUITE_SELECTION_CONFLICT",
+      category: "config",
+      message: "Use either --suite, --assessment, or --packet, not a combination."
     });
   }
   if (values.profile !== undefined && values.assessment === undefined) {
@@ -858,11 +1035,11 @@ function assertTestSelection(values: {
       message: "--profile requires --assessment."
     });
   }
-  if (values.assessment === undefined && values.packet === undefined) {
+  if (values.assessment === undefined && values.packet === undefined && values.suite === undefined) {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet or --assessment."
+      message: "Provide --packet, --assessment, or --suite."
     });
   }
 }
@@ -872,7 +1049,7 @@ function requirePacket(value: string | undefined): string {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet or --assessment."
+      message: "Provide --packet, --assessment, or --suite."
     });
   }
   return value;
