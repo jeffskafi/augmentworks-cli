@@ -387,4 +387,59 @@ describe("billing run status classification", () => {
     expect(classifyBillingRunStatus(parsed).assessment).toBe("unknown");
     expect(billingStatusExitCode(parsed)).toBe(EXIT.EVALUATION_INCOMPLETE);
   });
+
+  it("does not mark a readable report expired because retainUntil is in the past", () => {
+    const parsed = parseBillingRunStatusResponse({
+      ...status({
+        executionStatus: "completed",
+        evaluationStatus: "complete",
+        outcome: "passed",
+        completedAttempts: 10,
+        plannedAttempts: 10,
+        completedJudgeJobs: 10,
+        plannedJudgeJobs: 10
+      }),
+      retentionPolicyVersion: "aw-retention/pack-90d-v1",
+      retainUntil: "2020-01-01T00:00:00.000Z"
+    });
+    const classified = classifyBillingRunStatus(parsed);
+    expect(classified.assessment).toBe("passed");
+    expect(classified.exitCode).toBe(EXIT.OK);
+    const human = formatRunStatusHuman(parsed);
+    expect(human).toContain("2020-01-01T00:00:00.000Z");
+    expect(human).toContain("does not decide deletion from the local clock");
+    expect(human).not.toMatch(/locally expired|deleted by this CLI/i);
+  });
+
+  it("prints a server-supplied expired-result reason and timestamps without a local clock check", () => {
+    const parsed = parseBillingRunStatusResponse({
+      ...status({
+        executionStatus: "completed",
+        evaluationStatus: "unsupported",
+        outcome: null,
+        completedAttempts: 10,
+        plannedAttempts: 10
+      }),
+      retryEligible: false,
+      retryReason: "Result expired under retention at 2026-01-01T00:00:00.000Z",
+      nextActions: ["none"],
+      retentionPolicyVersion: "aw-retention/pack-90d-v1",
+      retainUntil: "2026-01-01T00:00:00.000Z"
+    });
+    expect(classifyBillingRunStatus(parsed).assessment).toBe("unsupported");
+    const human = formatRunStatusHuman(parsed);
+    expect(human).toContain("Result expired under retention at 2026-01-01T00:00:00.000Z");
+    expect(human).toContain("2026-01-01T00:00:00.000Z");
+    expect(human).toContain("does not decide deletion from the local clock");
+    const json = JSON.parse(runStatusSuccessJson(parsed)) as {
+      retainUntil: string;
+      retentionPolicyVersion: string;
+      retryReason: string;
+      assessment: string;
+    };
+    expect(json.retainUntil).toBe("2026-01-01T00:00:00.000Z");
+    expect(json.retentionPolicyVersion).toBe("aw-retention/pack-90d-v1");
+    expect(json.retryReason).toContain("expired");
+    expect(json.assessment).toBe("unsupported");
+  });
 });

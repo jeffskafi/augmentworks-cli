@@ -44,7 +44,11 @@ Imported main handoff: `docs/billing/main-source-handoff.md` (not the CLI-owned 
 - Packed HTTP fixture capabilities include `subscriptions_v1` and assert the
   190-available trial snapshot still has `subscription: null`.
 - README, troubleshooting, compatibility matrix, agent guidance, changelog,
-  and a source-only hosted CI example.
+  and a source-only hosted CI example that runs inspect-only `recover --json`
+  before another admission when create returns no run id.
+- `run status` prints server `retainUntil` / `retryReason` timestamps and does
+  not decide report deletion from the local clock. Billing copy tells members
+  to contact a workspace owner for payment changes.
 
 The CLI does not subscribe, cancel, reactivate, refund, or modify payment
 methods. Quote and admission remain server-authoritative. Monthly status does
@@ -57,15 +61,15 @@ Commands run on this checkout after the copy-contract fix:
 | Command | Outcome |
 | --- | --- |
 | `npm run typecheck` | pass |
-| `npm test` | pass, **54 files / 491 tests** |
+| `npm test` | pass, **54 files / 513 tests** |
 | `npm run build` | pass |
 | `npm run check:discovery` | pass, `@augmentworks/cli@0.3.3 (development)` |
 | `npm run check:billing-contract` | pass, main `650472d`, schema `3097c7aa…b645`, fixtures `a4b9234b…cb84` |
 | `npm run check` | pass (the above together) |
-| `npm run smoke:pack` | pass, 31 files, 377224 compressed bytes. Packed billing HTTP fixture `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
+| `npm run smoke:pack` | pass, 31 files, 377347 compressed bytes. Packed billing HTTP fixture `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
 | `npm run test:packed-billing-live` | **BLOCKED** exit 2 (`not_run`). Missing `AW_BILLING_LIVE_API_URL` / `AW_BILLING_LIVE_TOKEN` |
 
-Unpublished tarball SHA-256: `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a`
+Unpublished tarball SHA-256: `f3ede5377af4d9de7b8abbf8d65943850bea6ced1a3a23dd6069b2abcb8d7afe`
 
 The HTTP fixture is not evidence of atomic monthly allocation or tenant RLS.
 Stripe Test Clocks belong to main. This CLI uses fixtures plus packed HTTP.

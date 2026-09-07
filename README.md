@@ -303,6 +303,9 @@ run_id=$(printf '%s\n' "$json" | node -e "
 ")
 if [ -z "$run_id" ]; then
   echo "No run id. Inspect recover before starting another hosted test." >&2
+  set +e
+  node dist/index.js recover --json
+  set -e
   exit "$code"
 fi
 if [ "$code" -eq 11 ]; then

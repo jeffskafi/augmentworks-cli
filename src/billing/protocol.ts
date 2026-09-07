@@ -204,6 +204,8 @@ export type BillingRunStatus = {
   readonly dashboardUrl: string;
   readonly asOf: string;
   readonly outcome?: string | null;
+  readonly retentionPolicyVersion?: string;
+  readonly retainUntil?: string;
 };
 
 export type RetryEvaluationResult = {

@@ -42,7 +42,9 @@ subscribe, cancel, or target call), `node dist/index.js billing --print`
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`
 is not an unlimited budget. npm `--yes` only skips the npm prompt. Monthly
 subscription status does not bypass that ceiling. If `subscriptions_v1` is
-absent, omit recurring purchase calls to action.
+absent, omit recurring purchase calls to action. An interrupted or unknown
+create must run inspect-only `node dist/index.js recover --json` before another
+admission.
 
 ## Secrets and evidence
 

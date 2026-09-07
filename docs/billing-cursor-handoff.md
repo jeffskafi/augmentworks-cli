@@ -52,7 +52,10 @@ noninteractive CI and cancellation/renewal display. The CLI remains a
 - Reservations may finish after monthly expiry. Released units return to their
   original lot; expired lots are not reported as newly available.
 - Copy-pastable CI captures a run id, waits on that exact run if grading is
-  pending, and recovers an interrupted create before a new admission.
+  pending, and runs inspect-only `recover --json` before a new admission when
+  create returns no run id.
+- `run status` displays server `retainUntil` timestamps and retry reasons. It
+  does not decide report deletion from the local clock.
 
 No package publication. No live subscription activation.
 
@@ -169,8 +172,8 @@ document an unpublished source `0.3.3` npm pin until independently verified.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 377224 bytes |
-| SHA-256 | `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a` |
+| Compressed size | 377347 bytes |
+| SHA-256 | `f3ede5377af4d9de7b8abbf8d65943850bea6ced1a3a23dd6069b2abcb8d7afe` |
 
 Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
 starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
@@ -181,7 +184,7 @@ See `docs/billing/phase-5-completion.md`.
 
 Summary:
 
-- `npm run check` — pass (typecheck, vitest **54 files / 491 tests**, build,
+- `npm run check` — pass (typecheck, vitest **54 files / 513 tests**, build,
   discovery, billing-contract)
 - `npm run smoke:pack` — pass, including packed billing HTTP fixture through
   the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)
