@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format follows
   `run retry-evaluation`. Vendors the Stage 2A contract from main
   `67749b22f04bbb8d94c0309acd36be3cb3144400`. Quotes do not reserve credits.
   Not npm-published. Live sales remain disabled.
+- Offline `preview-mapping` inspects response mappings and the exact sanitized
+  relay evidence payload from a synthetic JSON fixture. It uses the production
+  extraction, allowlist, redaction, and canonicalization path. No target,
+  cloud, model, or `.env` access. Not in published `0.3.1`.
 
 ### Fixed
 

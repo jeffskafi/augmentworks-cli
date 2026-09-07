@@ -16,6 +16,8 @@ import {
   SOURCE_REPOSITORY,
   SOURCE_USAGE_COMMAND,
   SOURCE_USAGE_JSON_COMMAND,
+  SOURCE_PREVIEW_MAPPING_COMMAND,
+  SOURCE_PREVIEW_MAPPING_JSON_COMMAND,
   SOURCE_ESTIMATE_COMMAND,
   SOURCE_ESTIMATE_JSON_COMMAND,
   allowedDocumentedNpxPins
@@ -97,6 +99,8 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);
     expect(readme).toContain(SOURCE_USAGE_COMMAND);
     expect(readme).toContain(SOURCE_USAGE_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_PREVIEW_MAPPING_COMMAND);
+    expect(readme).toContain(SOURCE_PREVIEW_MAPPING_JSON_COMMAND);
     expect(readme).toContain(SOURCE_ESTIMATE_COMMAND);
     expect(readme).toContain(SOURCE_ESTIMATE_JSON_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
@@ -108,7 +112,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "demo", "test", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "init", "doctor", "preview-mapping", "demo", "test", "run", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

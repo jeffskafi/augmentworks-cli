@@ -208,6 +208,10 @@ result files.
 - v0.2 supports authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
+- `preview-mapping` is an offline inspector. It uses the same mapping, allowlist,
+  redaction, and canonical evidence serialization as a real run, against a
+  customer-supplied synthetic fixture. It does not load `.env`, call the target,
+  or contact AugmentWorks. It is not an automatic secret-detection guarantee.
 - Hosted `test` is the explicit action that starts a hosted assessment and
   keeps the connector online for that run. The dashboard can observe or request
   cancellation, but cannot start an assessment. There is no v0.2 `connect`

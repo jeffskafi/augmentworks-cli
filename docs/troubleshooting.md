@@ -50,9 +50,18 @@ sending credentials over an untrusted network.
 ### A response mapping is missing
 
 Confirm that the target returns JSON and that selectors use the supported
-`$.field.nested` subset. `doctor` does not execute lifecycle hooks, so use the
-mock example or a separately approved synthetic run to inspect application
-behavior.
+`$.field.nested` subset. `doctor` does not execute lifecycle hooks. Preview the
+exact sanitized evidence from a synthetic fixture with source 0.3.2:
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --fixture fixtures/send-preview.json
+```
+
+The inspector reports extracted versus missing fields, omitted allowlist paths,
+redactions, and truncation without calling the target or loading `.env`. It does
+not print unselected source objects. The preview is for that fixture only.
 
 ### A local packet is not found or is refused
 

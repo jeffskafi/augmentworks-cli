@@ -1,0 +1,50 @@
+version: 1
+
+target:
+  name: refunds-preview
+  connector: http
+  base_url: http://127.0.0.1:9
+  operations:
+    prepare:
+      method: POST
+      path: /__augmentworks/prepare
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+      response:
+        status: $.status
+    send:
+      method: POST
+      path: /chat
+      idempotent: false
+      request:
+        message: $input.message.content
+        turn_id: $input.turn_id
+        attempt_id: $input.attempt_id
+      response:
+        content: $.answer
+        tool_events: $.events
+        finished: $.finished
+    observe:
+      method: POST
+      path: /__augmentworks/observe
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+        request_id: $input.request_id
+      response:
+        order.status: $.order.status
+        order.refunded_amount: $.order.refunded_amount
+        customer.email: $.customer.email
+    cleanup:
+      method: POST
+      path: /__augmentworks/cleanup
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+
+telemetry:
+  allow_tool_events: true
+  allow_observations:
+    - order.status
+    - order.refunded_amount

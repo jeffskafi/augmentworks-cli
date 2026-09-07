@@ -136,10 +136,33 @@ then reserved and consumed credits with their ledger meanings. Values are a
 server snapshot at `asOf`, not a guaranteed future balance. The CLI never
 recomputes available credits by subtracting fields. Login refresh, logout, and
 browser reauthentication do not imply a new trial. Local `demo`, `test --local`,
-offline `doctor`, and `schema` remain account-free and make no billing calls.
+offline `doctor`, `preview-mapping`, and `schema` remain account-free and make no billing calls.
 
 Until source 0.3.2 is published, do not write an unpublished npx pin for
 `usage`.
+
+## Mapping preview (source 0.3.2)
+
+`preview-mapping` applies the same extraction, allowlist, redaction, and
+canonical relay serialization used during a real run. It reads only the selected
+configuration file and a synthetic JSON fixture. It does not load `.env`,
+resolve target credentials, call the target, or contact AugmentWorks.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js preview-mapping -c augmentworks.yaml --fixture fixtures/send-preview.json
+node dist/index.js preview-mapping -c augmentworks.yaml --fixture fixtures/send-preview.json --json
+```
+
+Human output lists extracted, missing, omitted, redacted, and truncated fields,
+then the exact canonical evidence bytes when mapping succeeds. `--json` emits
+`AW-MAPPING-PREVIEW-1`. The preview is for the supplied fixture only and does
+not guarantee that future target responses are secret-free. `doctor` stays the
+offline config validator and points at this inspector.
+
+Until source 0.3.2 is published, do not write an unpublished npx pin for
+`preview-mapping`.
 
 ## Hosted estimate and spending consent (source 0.3.2)
 
@@ -448,6 +471,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, or checkout. Source 0.3.2, not published 0.3.1 |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
+| `preview-mapping [-c path] --fixture path [--operation kind] [--json]` | Preview response mappings and the exact sanitized evidence payload | Reads only the selected config and fixture; no target, cloud, model, or `.env` access. Source 0.3.2 |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.2 uses `aw-relay/0.3` quotes; published 0.3.1 uses `aw-relay/0.2`. `--estimate` never reserves credits |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait; retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
@@ -529,7 +553,8 @@ authorized, isolated synthetic target in a test or staging environment:
 2. Map `prepare` / `send` / `observe` / `cleanup` in `augmentworks.yaml`.
 3. Put secret *names* in YAML and values only in local `.env`.
 4. `npx --yes @augmentworks/cli@0.3.1 doctor -c augmentworks.yaml`
-5. `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+5. `node dist/index.js preview-mapping -c augmentworks.yaml --fixture fixtures/send-preview.json`
+6. `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 
 Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
 not provide. Hosted access remains an invited workspace at

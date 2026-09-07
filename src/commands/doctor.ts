@@ -68,6 +68,14 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
       }
     }
   }
+  if (diagnostics.some((item) => item.code === "CONFIG_FILE_LOADED")) {
+    diagnostics.push({
+      level: "ok",
+      code: "MAPPING_PREVIEW_AVAILABLE",
+      message:
+        "Preview sanitized evidence offline with preview-mapping --fixture <json> before starting an assessment. Doctor does not execute response mappings."
+    });
+  }
   diagnostics.push({
     level: "ok",
     code: "OFFLINE_CHECK_COMPLETE",

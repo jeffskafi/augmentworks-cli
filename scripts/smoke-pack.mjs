@@ -359,6 +359,71 @@ async function main() {
       }
     });
 
+    process.stdout.write("[pack smoke] previewing sanitized evidence from a synthetic fixture\n");
+    const previewFixture = join(assessmentDirectory, "send-preview.json");
+    await writeFile(
+      previewFixture,
+      `${JSON.stringify(
+        {
+          answer: "Bearer sk-syntheticpreviewvalue",
+          events: [],
+          nested: { raw_token: "unselected-nested-secret-value" }
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+    const previewHelp = execCli(["preview-mapping", "--help"]);
+    assert(previewHelp.stdout.includes("--fixture"), "packed CLI is missing preview-mapping --fixture");
+    assert(previewHelp.stdout.includes("--json"), "packed CLI is missing preview-mapping --json");
+    const previewRun = execCli(
+      [
+        "preview-mapping",
+        "-c",
+        "augmentworks.yaml",
+        "--fixture",
+        "send-preview.json",
+        "--json"
+      ],
+      {
+        cwd: assessmentDirectory,
+        env: {
+          CHATBOT_API_KEY: "ambient-secret-must-not-be-used",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used",
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1"
+        }
+      }
+    );
+    let previewDocument;
+    try {
+      previewDocument = JSON.parse(previewRun.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `preview-mapping --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${previewRun.stdout}`
+      );
+    }
+    assert(previewDocument.schema_version === "AW-MAPPING-PREVIEW-1", "preview schema is wrong");
+    assert(previewDocument.ok === true, "packed preview-mapping did not succeed");
+    assert(previewDocument.offline === true, "preview-mapping must stay offline");
+    assert(previewDocument.operation === "send", "preview-mapping default operation must be send");
+    assert(
+      !previewRun.stdout.includes("sk-syntheticpreviewvalue"),
+      "mapped synthetic secret leaked into preview output"
+    );
+    assert(
+      !previewRun.stdout.includes("unselected-nested-secret-value"),
+      "unselected nested secret leaked into preview output"
+    );
+    assert(
+      !previewRun.stdout.includes("ambient-secret-must-not-be-used"),
+      "ambient target credential leaked into preview output"
+    );
+    assert(
+      !previewRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into preview output"
+    );
+
     process.stdout.write("[pack smoke] running bundled packet locally through packed CLI\n");
     const targetOrigin = "http://127.0.0.1:18473";
     targetProcess = spawn(

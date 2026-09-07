@@ -41,6 +41,15 @@ describe("connector mapping", () => {
     );
     expect(() => selectResponse({}, "$.constructor.name")).toThrow(AwError);
     expect(() => selectResponse({}, "$.__proto__.polluted")).toThrow(AwError);
+    try {
+      selectResponse({ answer: true }, "$.answer..nested");
+      throw new Error("expected INVALID_SELECTOR");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AwError);
+      expect((error as AwError).code).toBe("INVALID_SELECTOR");
+      expect((error as AwError).details?.["offset"]).toBe(9);
+      expect((error as AwError).details?.["selector"]).toBe("$.answer..nested");
+    }
   });
 
   it("redacts configured secret values recursively", () => {

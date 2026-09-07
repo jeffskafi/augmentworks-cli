@@ -1,0 +1,13 @@
+{
+  "order": {
+    "status": "paid",
+    "refunded_amount": 0,
+    "refundable": true
+  },
+  "customer": {
+    "email": "customer.private@example.test"
+  },
+  "internal": {
+    "raw_token": "unselected-nested-secret-value"
+  }
+}

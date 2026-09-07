@@ -69,7 +69,10 @@ function mapNode(template: JsonValue, input: unknown, depth: number): JsonValue 
 
 function parsePath(value: string, root: "$" | "$input", label: string): PathToken[] {
   if (!value.startsWith(root)) {
-    throw mappingError("INVALID_SELECTOR", `${label} must begin with ${root}.`);
+    throw mappingError("INVALID_SELECTOR", `${label} must begin with ${root}.`, {
+      selector: value,
+      offset: 0
+    });
   }
   let offset = root.length;
   const tokens: PathToken[] = [];
@@ -82,7 +85,10 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
       }
       const segment = value.slice(start, offset);
       if (!PROPERTY.test(segment)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid property segment.`);
+        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid property segment.`, {
+          selector: value,
+          offset: start
+        });
       }
       assertSafeSegment(segment, label);
       tokens.push(segment);
@@ -91,21 +97,33 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
     if (marker === "[") {
       const closing = value.indexOf("]", offset + 1);
       if (closing === -1) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an unterminated array index.`);
+        throw mappingError("INVALID_SELECTOR", `${label} contains an unterminated array index.`, {
+          selector: value,
+          offset
+        });
       }
       const indexText = value.slice(offset + 1, closing);
       if (!/^(0|[1-9][0-9]*)$/u.test(indexText)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid array index.`);
+        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid array index.`, {
+          selector: value,
+          offset
+        });
       }
       const index = Number(indexText);
       if (!Number.isSafeInteger(index) || index >= LIMITS.maxArrayItems) {
-        throw mappingError("INVALID_SELECTOR", `${label} array index is outside the supported range.`);
+        throw mappingError("INVALID_SELECTOR", `${label} array index is outside the supported range.`, {
+          selector: value,
+          offset
+        });
       }
       tokens.push(index);
       offset = closing + 1;
       continue;
     }
-    throw mappingError("INVALID_SELECTOR", `${label} contains unsupported syntax.`);
+    throw mappingError("INVALID_SELECTOR", `${label} contains unsupported syntax.`, {
+      selector: value,
+      offset
+    });
   }
   return tokens;
 }
@@ -115,18 +133,18 @@ function resolveTokens(root: unknown, tokens: readonly PathToken[], source: stri
   for (const token of tokens) {
     if (typeof token === "number") {
       if (!Array.isArray(current) || token >= current.length) {
-        throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
+        throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
       }
       current = current[token];
       continue;
     }
     if (current === null || typeof current !== "object" || Array.isArray(current)) {
-      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
+      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
     }
     assertSafeSegment(token, "path segment");
     const descriptor = Object.getOwnPropertyDescriptor(current, token);
     if (descriptor === undefined || !("value" in descriptor)) {
-      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
+      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
     }
     current = descriptor.value;
   }
@@ -222,6 +240,15 @@ function redactNode(value: unknown, secrets: readonly string[], seen: WeakSet<ob
   return result;
 }
 
-function mappingError(code: string, message: string): AwError {
-  return new AwError({ code, category: "config", message });
+function mappingError(
+  code: string,
+  message: string,
+  details?: Readonly<Record<string, string | number | boolean>>
+): AwError {
+  return new AwError({
+    code,
+    category: "config",
+    message,
+    ...(details === undefined ? {} : { details })
+  });
 }

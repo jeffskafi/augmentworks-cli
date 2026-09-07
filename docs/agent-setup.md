@@ -15,7 +15,7 @@ during unrelated coding.
 | Item | Value |
 | --- | --- |
 | Verified npm package | `@augmentworks/cli@0.3.1` |
-| Source package | `0.3.2` (unreleased `demo`, `usage`, `test --estimate`, and `run status` live here) |
+| Source package | `0.3.2` (unreleased `demo`, `usage`, `preview-mapping`, `test --estimate`, and `run status` live here) |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |
@@ -105,11 +105,15 @@ insert credentials.
 9. Run `doctor -c augmentworks.yaml`. It makes no network request and reports
    missing local environment-variable names without opening or printing `.env`
    values.
-10. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
+10. Preview sanitized evidence from a synthetic JSON fixture before any
+    assessment (source 0.3.2):
+    `node dist/index.js preview-mapping -c augmentworks.yaml --fixture fixtures/send-preview.json`.
+    It does not load `.env` or call the target.
+11. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
     add JavaScript, modules, shell instructions, remote URLs, or secret values.
     Validate its contract with
     `npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet`.
-11. Show the diff, explain which target operations will run, and stop for human
+12. Show the diff, explain which target operations will run, and stop for human
     approval before `test` unless that same scoped assessment was already
     authorized.
 

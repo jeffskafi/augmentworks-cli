@@ -221,7 +221,37 @@ npx --yes @augmentworks/cli@0.3.1 doctor \
 ```
 
 `doctor` makes no target or cloud network request, never invokes `prepare`,
-`send`, `observe`, or `cleanup`, and consumes no assessment credit.
+`send`, `observe`, or `cleanup`, and consumes no assessment credit. After
+`doctor` passes, preview the exact sanitized evidence for a synthetic fixture
+before starting an assessment (source 0.3.2):
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --fixture fixtures/send-preview.json
+```
+
+`--json` prints `AW-MAPPING-PREVIEW-1`. The command reads only the selected
+configuration file and fixture; it does not load `.env`, call the target, or
+contact AugmentWorks. A malformed selector or missing required field is
+explained locally. Seeded unselected or redacted values are omitted from human
+and JSON output. The preview is for the supplied fixture only and does not
+guarantee that future responses are secret-free.
+
+Representative successful JSON (synthetic fixture, support-safe):
+
+```json
+{
+  "schema_version": "AW-MAPPING-PREVIEW-1",
+  "ok": true,
+  "offline": true,
+  "operation": "send",
+  "fields": [
+    { "field": "content", "selector": "$.answer", "status": "extracted", "redacted": false }
+  ],
+  "disclaimer": "This preview is for the supplied fixture only. It does not guarantee that future target responses are secret-free."
+}
+```
 
 The canonical machine-readable definition is
 [`schemas/v1/augmentworks.schema.json`](../schemas/v1/augmentworks.schema.json).

@@ -124,6 +124,21 @@ export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
 export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
 export const SOURCE_USAGE_COMMAND = formatSourceCli(["usage"]);
 export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);
+export const SOURCE_PREVIEW_MAPPING_COMMAND = formatSourceCli([
+  "preview-mapping",
+  "-c",
+  "augmentworks.yaml",
+  "--fixture",
+  "fixtures/send-preview.json"
+]);
+export const SOURCE_PREVIEW_MAPPING_JSON_COMMAND = formatSourceCli([
+  "preview-mapping",
+  "-c",
+  "augmentworks.yaml",
+  "--fixture",
+  "fixtures/send-preview.json",
+  "--json"
+]);
 export const SOURCE_ESTIMATE_COMMAND = formatSourceCli([
   "test",
   "--assessment",
