@@ -134,9 +134,16 @@ the configured endpoint.
 - A POSIX file fallback requires explicit `--allow-file-credentials`, emits a
   warning, refuses symlinks, and enforces mode `0600`. Plaintext fallback is
   disabled on Windows because POSIX modes do not establish Windows ACL safety.
-- `AUGMENTWORKS_TOKEN` is reserved for future project tokens and development
-  integration harnesses; the v0.1 interactive auth service does not issue a
-  long-lived CI credential.
+- `AUGMENTWORKS_API_KEY` is explicit noninteractive workspace-key mode (source
+  `0.3.3`). It never loads a native keychain, file store, browser/device login,
+  or refresh token, and it does not persist credentials. Differing nonempty
+  `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail before network
+  access.
+- `AUGMENTWORKS_TOKEN` is reserved for connector tokens and development
+  integration harnesses when API-key mode is absent; the v0.1 interactive auth
+  service does not issue a long-lived CI credential. Prefer a workspace API
+  key for unattended report export. Do not run `logout` as routine automation
+  cleanup; it revokes reusable credentials.
 - Customer target credentials are named, not embedded, in YAML and are resolved
   from the local environment.
 - Tokens are never accepted as command-line flags, included in config digests,

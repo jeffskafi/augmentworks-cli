@@ -10,7 +10,9 @@ npx --yes @augmentworks/cli@0.3.2 doctor \
 `doctor` makes no target or cloud request and does
 not check AugmentWorks authentication. `doctor --json` prints the same
 diagnostics as a JSON object on stdout and does not log in or contact a
-target. Example successful output (illustrative):
+target. It is offline validation only. `run status` is not a full hosted
+report; use `node dist/index.js run report <run-id> --json` for criterion
+evidence. Example successful doctor output (illustrative):
 
 ```text
 OK OFFLINE_CHECK_COMPLETE: No target hooks or cloud operations were invoked.
@@ -124,6 +126,19 @@ clock, and retry browser authorization. Use `login --device` for an SSH or
 headless machine, or `--no-open` to print the browser URL. Do not set
 `AUGMENTWORKS_API_URL` to another hosted origin; hosted authentication accepts the production
 origin or an explicit loopback development origin only.
+
+### `AUTH_ENV_CONFLICT` or unexpected API-key identity
+
+If `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` are both nonempty and differ,
+the CLI exits `3` before contacting the network or opening a keychain. Unset
+one of them. Equal values are treated as the same explicit API key.
+
+Expired, revoked, or invalid workspace keys exit `3` with `API_KEY_REVOKED`.
+Issue a new key at https://augmentworks.ai/portal/settings/api-keys. Do not
+call `logout` from automation cleanup; logout revokes reusable workspace keys.
+
+`CHATBOT_API_KEY` authenticates only the synthetic target. Putting an
+AugmentWorks API key in `bearer_env` will not authorize hosted report reads.
 
 ### `CREDENTIAL_STORE_UNAVAILABLE`
 
@@ -244,8 +259,18 @@ run. Do not re-run the test command to resume grading. `run wait` keeps
 polling while target execution is nonterminal even when evaluation is
 `absent`. A successful HTTP status query is not a passing assessment: wait
 and release gates must use process exit `0` only after an explicit resolved
-`passed` outcome. Timed-out waits stay read-only and never create another
-quote, reservation, or run. Retry guidance names the original run ID.
+`passed` outcome with complete required grading and known coverage. A
+completed run with a null outcome exits `11`, never `0`. Timed-out waits stay
+read-only and never create another quote, reservation, or run. Retry guidance
+names the original run ID.
+
+`run report <run-id> --json` (source `0.3.3`) exports one
+`aw-run-report-export/1` document: `retrieved`, `complete`, `report`,
+`criteria`, and `diagnostics`. Retrieval success is not grading success. An
+expected failing assessment still exports mapped responses and criterion
+details and exits `10`. Incomplete or truncated required evidence exits `11`.
+The command never quotes, creates, purchases, or regrades. It works with a
+report-only API key at zero available credits.
 
 `billing` (source `0.3.3`) prints or opens the first-party
 `/portal/billing?workspace=` page. It does not create a Stripe Customer,

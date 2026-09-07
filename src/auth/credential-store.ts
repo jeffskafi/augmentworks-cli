@@ -31,6 +31,7 @@ import type {
 
 export const TOKEN_ENV = "AUGMENTWORKS_TOKEN";
 export const REFRESH_TOKEN_ENV = "AUGMENTWORKS_REFRESH_TOKEN";
+export const API_KEY_ENV = "AUGMENTWORKS_API_KEY";
 const ACCOUNT_PREFIX = "augmentworks-cli";
 const MACOS_KEYCHAIN_SERVICE = "ai.augmentworks.cli";
 const MACOS_SECURITY_PATH = "/usr/bin/security";
@@ -762,20 +763,90 @@ export async function createCredentialStore(options: CredentialStoreOptions): Pr
   });
 }
 
+export type ExplicitCredentialMode = "api_key" | "token" | "none";
+
+export type InspectedCredentialEnvironment = {
+  readonly mode: ExplicitCredentialMode;
+  readonly apiKey?: string;
+  readonly token?: string;
+  readonly refreshToken?: string;
+};
+
+function nonemptyEnv(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  const value = env[name];
+  if (value === undefined || value === "") return undefined;
+  return value;
+}
+
+export function envConflictError(): AwError {
+  return new AwError({
+    code: "AUTH_ENV_CONFLICT",
+    category: "auth",
+    message:
+      `${API_KEY_ENV} and ${TOKEN_ENV} are both set to different values. Unset one of them. Equal values are treated as the same explicit API key.`
+  });
+}
+
+/**
+ * Inspect explicit credential environment variables before any network or
+ * credential-store access. Differing nonempty API_KEY and TOKEN values fail
+ * closed. Equal nonempty values are the same explicit API key.
+ */
+export function inspectCredentialEnvironment(
+  env: NodeJS.ProcessEnv = process.env
+): InspectedCredentialEnvironment {
+  const apiKey = nonemptyEnv(env, API_KEY_ENV);
+  const token = nonemptyEnv(env, TOKEN_ENV);
+  const refreshToken = nonemptyEnv(env, REFRESH_TOKEN_ENV);
+  if (apiKey !== undefined && token !== undefined && apiKey !== token) {
+    throw envConflictError();
+  }
+  if (apiKey !== undefined) {
+    return {
+      mode: "api_key",
+      apiKey,
+      ...(token === undefined ? {} : { token })
+    };
+  }
+  if (token !== undefined) {
+    return {
+      mode: "token",
+      token,
+      ...(refreshToken === undefined ? {} : { refreshToken })
+    };
+  }
+  return { mode: "none" };
+}
+
+export function isApiKeyMode(env: NodeJS.ProcessEnv = process.env): boolean {
+  return inspectCredentialEnvironment(env).mode === "api_key";
+}
+
 export function credentialFromEnvironment(env: NodeJS.ProcessEnv = process.env): ResolvedCredential | null {
-  const token = env[TOKEN_ENV];
-  if (token === undefined || token === "") return null;
-  const refreshToken = env[REFRESH_TOKEN_ENV];
-  return {
-    credential: {
-      accessToken: validateToken(token),
-      tokenType: "Bearer",
-      ...(refreshToken === undefined || refreshToken === ""
-        ? {}
-        : { refreshToken: validateToken(refreshToken, "refresh token") })
-    },
-    source: "environment"
-  };
+  const inspected = inspectCredentialEnvironment(env);
+  if (inspected.mode === "api_key") {
+    return {
+      credential: {
+        accessToken: validateToken(inspected.apiKey!),
+        tokenType: "Bearer"
+      },
+      source: "api_key"
+    };
+  }
+  if (inspected.mode === "token") {
+    const refreshToken = inspected.refreshToken;
+    return {
+      credential: {
+        accessToken: validateToken(inspected.token!),
+        tokenType: "Bearer",
+        ...(refreshToken === undefined
+          ? {}
+          : { refreshToken: validateToken(refreshToken, "refresh token") })
+      },
+      source: "environment"
+    };
+  }
+  return null;
 }
 
 export interface GetCredentialOptions {
@@ -824,9 +895,9 @@ function createEnvironmentAccessTokenManager(
   resolved: ResolvedCredential,
   options: AccessTokenManagerOptions
 ): AccessTokenManager {
-  if (resolved.credential.refreshToken === undefined) {
+  if (resolved.source === "api_key" || resolved.credential.refreshToken === undefined) {
     return {
-      source: "environment",
+      source: resolved.source,
       getAccessToken: async () => resolved.credential.accessToken
     };
   }

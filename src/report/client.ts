@@ -1,0 +1,939 @@
+import { createHash } from "node:crypto";
+
+import { AwError, EXIT } from "../errors.js";
+import { CLI_VERSION } from "../version.js";
+import {
+  classifyHostedOutcome,
+  coverageKnowledge,
+  type HostedOutcomeClassification
+} from "../outcome/classify.js";
+import type { AccessTokenProvider } from "../auth/types.js";
+import { remapAuthError } from "../auth/client.js";
+import type { CredentialSource } from "../auth/types.js";
+import {
+  CRITERION_DETAIL_SCHEMA_VERSION,
+  CRITERION_MAX_PAGES,
+  CriterionDetailSchema,
+  CriterionIndexSchema,
+  REPORT_MAX_PAGES,
+  REPORT_PAGE_BYTES_MAX,
+  REPORT_RETRY_AFTER_CAP_MS,
+  REPORT_RETRY_BUDGET_MS,
+  REPORT_RETRY_MAX_ATTEMPTS,
+  RUN_REPORT_EXPORT_SCHEMA_VERSION,
+  RUN_REPORT_SCHEMA_VERSION,
+  ReportErrorSchema,
+  RunReportSchema,
+  reportPath,
+  type CriterionDetail,
+  type EvaluationBinding,
+  type ExportDiagnostic,
+  type RunReport,
+  type RunReportAttempt,
+  type RunReportExport
+} from "./schema.js";
+
+type FetchImplementation = typeof fetch;
+
+export interface RunReportClientOptions {
+  readonly apiOrigin: URL;
+  readonly accessTokenProvider: AccessTokenProvider;
+  readonly credentialSource?: CredentialSource;
+  readonly fetch?: FetchImplementation;
+  readonly now?: () => number;
+  readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  readonly signal?: AbortSignal;
+}
+
+export class ReportProtocolError extends AwError {
+  readonly httpStatus: number | undefined;
+  readonly retrieved: false = false;
+  readonly complete: false = false;
+
+  constructor(options: {
+    code: string;
+    message: string;
+    category?: "auth" | "protocol" | "relay";
+    retryable?: boolean;
+    httpStatus?: number;
+    cause?: unknown;
+  }) {
+    super({
+      code: options.code,
+      category: options.category ?? "protocol",
+      message: options.message,
+      retryable: options.retryable ?? false,
+      ...(options.cause === undefined ? {} : { cause: options.cause }),
+      ...(options.httpStatus === undefined ? {} : { details: { http_status: options.httpStatus } })
+    });
+    this.name = "ReportProtocolError";
+    this.httpStatus = options.httpStatus;
+  }
+}
+
+export async function exportHostedRunReport(
+  runId: string,
+  options: RunReportClientOptions
+): Promise<RunReportExport> {
+  const client = new RunReportClient(options);
+  try {
+    return await client.exportRun(runId);
+  } catch (error) {
+    const remapped = remapAuthError(error, options.credentialSource ?? "environment");
+    if (remapped instanceof AwError) {
+      return failureExport(remapped);
+    }
+    throw remapped;
+  }
+}
+
+const AUTH_FAILURE_CODES = new Set([
+  "AUTH_REQUIRED",
+  "AUTH_ENV_CONFLICT",
+  "API_KEY_REVOKED",
+  "TOKEN_REVOKED",
+  "CLOUD_AUTH_REJECTED",
+  "SCOPE_DENIED",
+  "UNSAFE_CLOUD_URL",
+  "HTTP_401",
+  "HTTP_403",
+  "CREDENTIAL_STORE",
+  "CREDENTIAL_STORE_UNAVAILABLE"
+]);
+
+export function classifyRunReportExport(document: RunReportExport): HostedOutcomeClassification & {
+  readonly retrieved: boolean;
+  readonly complete: boolean;
+} {
+  if (!document.retrieved || document.report === undefined) {
+    const code = document.error?.code;
+    if (code === "INTERRUPTED") {
+      return {
+        retrieved: false,
+        complete: false,
+        work: "terminal",
+        waitTerminal: true,
+        assessment: "interrupted",
+        exitCode: EXIT.INTERRUPTED,
+        deterministicOnly: false
+      };
+    }
+    const auth = code !== undefined && AUTH_FAILURE_CODES.has(code);
+    return {
+      retrieved: false,
+      complete: false,
+      work: "terminal",
+      waitTerminal: true,
+      assessment: "unknown",
+      exitCode: auth ? EXIT.AUTH : EXIT.RELAY,
+      deterministicOnly: false
+    };
+  }
+  if (!document.complete) {
+    return {
+      retrieved: true,
+      complete: false,
+      work: "terminal",
+      waitTerminal: true,
+      assessment: "incomplete",
+      exitCode: EXIT.EVALUATION_INCOMPLETE,
+      deterministicOnly: false
+    };
+  }
+  const classified = classifyHostedOutcome({
+    executionStatus: document.report.executionStatus,
+    evaluationStatus: document.report.evaluationStatus,
+    outcome: document.report.outcome,
+    coverageKnown: coverageKnowledge(document.report.coverage)
+  });
+  if (classified.exitCode === EXIT.OK && document.report.reportReady !== true) {
+    return {
+      retrieved: true,
+      complete: true,
+      work: classified.work,
+      waitTerminal: classified.waitTerminal,
+      assessment: "incomplete",
+      exitCode: EXIT.EVALUATION_INCOMPLETE,
+      deterministicOnly: classified.deterministicOnly
+    };
+  }
+  return {
+    retrieved: true,
+    complete: true,
+    ...classified
+  };
+}
+
+export function failureExport(error: AwError): RunReportExport {
+  return {
+    schemaVersion: RUN_REPORT_EXPORT_SCHEMA_VERSION,
+    retrieved: false,
+    complete: false,
+    diagnostics: [
+      {
+        code: error.code,
+        message: error.message,
+        retryable: error.retryable
+      }
+    ],
+    error: {
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      ...(typeof error.details?.["http_status"] === "number"
+        ? { httpStatus: error.details["http_status"] }
+        : {})
+    }
+  };
+}
+
+class RunReportClient {
+  readonly apiOrigin: URL;
+  readonly #accessTokenProvider: AccessTokenProvider;
+  readonly #credentialSource: CredentialSource;
+  readonly #fetch: FetchImplementation;
+  readonly #now: () => number;
+  readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
+  readonly #signal: AbortSignal | undefined;
+  #retryBudgetMs: number;
+
+  constructor(options: RunReportClientOptions) {
+    this.apiOrigin = new URL(options.apiOrigin.origin);
+    this.#accessTokenProvider = options.accessTokenProvider;
+    this.#credentialSource = options.credentialSource ?? "environment";
+    this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#now = options.now ?? Date.now;
+    this.#sleep = options.sleep ?? defaultSleep;
+    this.#signal = options.signal;
+    this.#retryBudgetMs = REPORT_RETRY_BUDGET_MS;
+  }
+
+  async exportRun(runId: string): Promise<RunReportExport> {
+    const diagnostics: ExportDiagnostic[] = [];
+    const pages: RunReport[] = [];
+    const seenCursors = new Set<string>();
+    let nextUrl = this.#sameOriginUrl(reportPath(runId));
+    let pinnedBinding: EvaluationBinding | null | undefined;
+    let generationCursorBound = false;
+
+    for (let pageIndex = 0; pageIndex < REPORT_MAX_PAGES; pageIndex += 1) {
+      const page = await this.#getReportPage(nextUrl);
+      if (pageIndex === 0) {
+        if (page.runId !== runId) {
+          throw new ReportProtocolError({
+            code: "REPORT_ID_MISMATCH",
+            message: "The hosted report runId does not match the requested run."
+          });
+        }
+        pinnedBinding = page.evaluationBinding;
+        generationCursorBound = page.evaluationBinding === null;
+      } else {
+        this.#assertPinnedPage(page, runId, pinnedBinding, generationCursorBound);
+      }
+      pages.push(page);
+      if (!page.page.hasMore) {
+        if (page.page.nextCursor !== null) {
+          diagnostics.push({
+            code: "REPORT_CURSOR_INCONSISTENT",
+            message: "The report page set hasMore false but returned a next cursor."
+          });
+        }
+        break;
+      }
+      const cursor = page.page.nextCursor;
+      if (cursor === null || cursor === "") {
+        diagnostics.push({
+          code: "REPORT_CURSOR_MISSING",
+          message: "The report page set hasMore true without a next cursor."
+        });
+        return this.#assemble(pages, [], diagnostics, false);
+      }
+      if (seenCursors.has(cursor)) {
+        diagnostics.push({
+          code: "REPORT_CURSOR_CYCLE",
+          message: "The report cursor repeated; refusing to follow a cycle."
+        });
+        return this.#assemble(pages, [], diagnostics, false);
+      }
+      seenCursors.add(cursor);
+      nextUrl = this.#cursorUrl(reportPath(runId), cursor, pinnedBinding ?? undefined);
+      if (pageIndex === REPORT_MAX_PAGES - 1) {
+        diagnostics.push({
+          code: "REPORT_PAGE_LIMIT",
+          message: "The report exceeded the bounded page limit without completing."
+        });
+        return this.#assemble(pages, [], diagnostics, false);
+      }
+    }
+
+    const merged = this.#mergePages(pages);
+    const total = merged.page.totalAttempts;
+    if (total !== null && merged.attempts.length > total) {
+      diagnostics.push({
+        code: "REPORT_TOTAL_BOUNDS",
+        message: "Collected attempts exceed the reported totalAttempts bound."
+      });
+      return this.#assemble([merged], [], diagnostics, false);
+    }
+    if (total !== null && merged.attempts.length < total && merged.page.hasMore) {
+      diagnostics.push({
+        code: "REPORT_TOTAL_BOUNDS",
+        message: "The report ended before collecting totalAttempts."
+      });
+      return this.#assemble([merged], [], diagnostics, false);
+    }
+
+    const { criteria, complete: criteriaComplete } = await this.#collectCriteria(
+      merged,
+      diagnostics
+    );
+    const evidenceComplete = this.#evidenceComplete(merged, criteria, diagnostics);
+    const complete = criteriaComplete && evidenceComplete && diagnostics.length === 0;
+    return this.#assemble([merged], criteria, diagnostics, complete);
+  }
+
+  #assertPinnedPage(
+    page: RunReport,
+    runId: string,
+    pinnedBinding: EvaluationBinding | null | undefined,
+    generationCursorBound: boolean
+  ): void {
+    if (page.runId !== runId) {
+      throw new ReportProtocolError({
+        code: "REPORT_ID_MISMATCH",
+        message: "A later report page returned a different runId."
+      });
+    }
+    if (generationCursorBound) {
+      if (page.evaluationBinding !== null) {
+        throw new ReportProtocolError({
+          code: "REPORT_BINDING_CHANGED",
+          message: "The report evaluation binding appeared after an unbound first page. Restart the export."
+        });
+      }
+      return;
+    }
+    if (pinnedBinding == null || page.evaluationBinding == null) {
+      throw new ReportProtocolError({
+        code: "REPORT_BINDING_CHANGED",
+        message: "The report evaluation binding changed during pagination."
+      });
+    }
+    if (!sameBinding(pinnedBinding, page.evaluationBinding)) {
+      throw new ReportProtocolError({
+        code: "REPORT_BINDING_CHANGED",
+        message: "The report evaluationId, revision, or snapshotHash changed during pagination."
+      });
+    }
+  }
+
+  #mergePages(pages: readonly RunReport[], skipDuplicateAttempts = false): RunReport {
+    const first = pages[0];
+    if (first === undefined) {
+      throw new ReportProtocolError({
+        code: "REPORT_EMPTY",
+        message: "The hosted report returned no pages."
+      });
+    }
+    const attempts: RunReportAttempt[] = [];
+    const seenAttempts = new Set<string>();
+    for (const page of pages) {
+      for (const attempt of page.attempts) {
+        if (seenAttempts.has(attempt.attemptId)) {
+          if (skipDuplicateAttempts) continue;
+          throw new ReportProtocolError({
+            code: "REPORT_ATTEMPT_DUPLICATE",
+            message: "The hosted report repeated an attemptId across pages."
+          });
+        }
+        seenAttempts.add(attempt.attemptId);
+        attempts.push(attempt);
+      }
+    }
+    const last = pages[pages.length - 1] ?? first;
+    return {
+      ...first,
+      attempts,
+      page: {
+        nextCursor: null,
+        hasMore: false,
+        totalAttempts: last.page.totalAttempts ?? first.page.totalAttempts
+      }
+    };
+  }
+
+  async #collectCriteria(
+    report: RunReport,
+    diagnostics: ExportDiagnostic[]
+  ): Promise<{ criteria: CriterionDetail[]; complete: boolean }> {
+    if (report.evaluationBinding === null) {
+      return { criteria: [], complete: true };
+    }
+    const binding = report.evaluationBinding;
+    const collected: CriterionDetail[] = [];
+    const seenDetails = new Set<string>();
+    for (const attempt of report.attempts) {
+      if (attempt.criterionIndexUrl === null) continue;
+      const indexUrl = this.#requireSameOriginLink(attempt.criterionIndexUrl, "criterionIndexUrl");
+      const { details, complete } = await this.#collectAttemptCriteria(
+        indexUrl,
+        report.runId,
+        attempt.attemptId,
+        binding,
+        diagnostics
+      );
+      for (const detail of details) {
+        const key = `${detail.attemptId}:${detail.criterionId}`;
+        if (seenDetails.has(key)) {
+          diagnostics.push({
+            code: "CRITERION_DUPLICATE",
+            message: "A criterion detail was repeated across pages."
+          });
+          return { criteria: collected, complete: false };
+        }
+        seenDetails.add(key);
+        collected.push(detail);
+      }
+      if (!complete) return { criteria: collected, complete: false };
+    }
+    return { criteria: collected, complete: true };
+  }
+
+  async #collectAttemptCriteria(
+    startUrl: URL,
+    runId: string,
+    attemptId: string,
+    binding: EvaluationBinding,
+    diagnostics: ExportDiagnostic[]
+  ): Promise<{ details: CriterionDetail[]; complete: boolean }> {
+    const details: CriterionDetail[] = [];
+    const seenCursors = new Set<string>();
+    let nextUrl: URL | undefined = startUrl;
+    for (let pageIndex = 0; pageIndex < CRITERION_MAX_PAGES && nextUrl !== undefined; pageIndex += 1) {
+      const payload = await this.#getJson(nextUrl);
+      const indexParsed = CriterionIndexSchema.safeParse(payload);
+      if (!indexParsed.success) {
+        const detailParsed = CriterionDetailSchema.safeParse(payload);
+        if (detailParsed.success) {
+          this.#assertCriterionBinding(detailParsed.data, runId, attemptId, binding);
+          details.push(detailParsed.data);
+          return { details, complete: true };
+        }
+        diagnostics.push({
+          code: "CRITERION_SCHEMA_INVALID",
+          message: "A criterion page did not match aw-criterion-detail-read/1."
+        });
+        return { details, complete: false };
+      }
+      const index = indexParsed.data;
+      this.#assertCriterionIndexBinding(index, runId, attemptId, binding);
+      for (const item of index.criteria) {
+        if (item.detailUrl !== null && item.detailUrl !== undefined && item.evidence === undefined) {
+          const detailUrl = this.#requireSameOriginLink(item.detailUrl, "criterion detailUrl");
+          const detailPayload = await this.#getJson(detailUrl);
+          const detail = CriterionDetailSchema.safeParse(detailPayload);
+          if (!detail.success) {
+            diagnostics.push({
+              code: "CRITERION_SCHEMA_INVALID",
+              message: "A criterion detail document did not match aw-criterion-detail-read/1."
+            });
+            return { details, complete: false };
+          }
+          this.#assertCriterionBinding(detail.data, runId, attemptId, binding);
+          details.push(detail.data);
+          continue;
+        }
+        const embedded = CriterionDetailSchema.safeParse({
+          schemaVersion: CRITERION_DETAIL_SCHEMA_VERSION,
+          runId: index.runId,
+          ...(index.workspaceId === undefined ? {} : { workspaceId: index.workspaceId }),
+          evaluationId: index.evaluationId,
+          evaluationRevision: index.evaluationRevision,
+          snapshotHash: index.snapshotHash,
+          attemptId: index.attemptId,
+          criterionId: item.criterionId,
+          ...(item.criterionKey === undefined ? {} : { criterionKey: item.criterionKey }),
+          required: item.required,
+          verdict: item.verdict,
+          evidence: item.evidence ?? {
+            availability: "missing",
+            text: null,
+            sha256: null,
+            truncated: false
+          }
+        });
+        if (!embedded.success) {
+          diagnostics.push({
+            code: "CRITERION_SCHEMA_INVALID",
+            message: "An embedded criterion projection was not a valid detail document."
+          });
+          return { details, complete: false };
+        }
+        details.push(embedded.data);
+      }
+      if (!index.page.hasMore) {
+        nextUrl = undefined;
+        break;
+      }
+      const cursor = index.page.nextCursor;
+      if (cursor === null || cursor === "") {
+        diagnostics.push({
+          code: "CRITERION_CURSOR_MISSING",
+          message: "A criterion index set hasMore true without a next cursor."
+        });
+        return { details, complete: false };
+      }
+      if (seenCursors.has(cursor)) {
+        diagnostics.push({
+          code: "CRITERION_CURSOR_CYCLE",
+          message: "A criterion cursor repeated; refusing to follow a cycle."
+        });
+        return { details, complete: false };
+      }
+      seenCursors.add(cursor);
+      nextUrl = this.#cursorUrl(startUrl.pathname + startUrl.search, cursor, binding);
+    }
+    if (nextUrl !== undefined) {
+      diagnostics.push({
+        code: "CRITERION_PAGE_LIMIT",
+        message: "Criterion pagination exceeded the bounded page limit without completing."
+      });
+      return { details, complete: false };
+    }
+    return { details, complete: true };
+  }
+
+  #assertCriterionIndexBinding(
+    index: {
+      runId: string;
+      evaluationId: string;
+      evaluationRevision: number;
+      snapshotHash: string;
+      attemptId: string;
+    },
+    runId: string,
+    attemptId: string,
+    binding: EvaluationBinding
+  ): void {
+    if (index.runId !== runId || index.attemptId !== attemptId) {
+      throw new ReportProtocolError({
+        code: "CRITERION_ID_MISMATCH",
+        message: "A criterion index did not match the parent run or attempt."
+      });
+    }
+    if (
+      index.evaluationId !== binding.evaluationId ||
+      index.evaluationRevision !== binding.evaluationRevision ||
+      index.snapshotHash !== binding.snapshotHash
+    ) {
+      throw new ReportProtocolError({
+        code: "CRITERION_BINDING_MISMATCH",
+        message: "A criterion index was not pinned to the report evaluation binding."
+      });
+    }
+  }
+
+  #assertCriterionBinding(
+    detail: CriterionDetail,
+    runId: string,
+    attemptId: string,
+    binding: EvaluationBinding
+  ): void {
+    if (detail.runId !== runId || detail.attemptId !== attemptId) {
+      throw new ReportProtocolError({
+        code: "CRITERION_ID_MISMATCH",
+        message: "A criterion detail did not match the parent run or attempt."
+      });
+    }
+    if (
+      detail.evaluationId !== binding.evaluationId ||
+      detail.evaluationRevision !== binding.evaluationRevision ||
+      detail.snapshotHash !== binding.snapshotHash
+    ) {
+      throw new ReportProtocolError({
+        code: "CRITERION_BINDING_MISMATCH",
+        message: "A criterion detail was not pinned to the report evaluation binding."
+      });
+    }
+  }
+
+  #evidenceComplete(
+    report: RunReport,
+    criteria: readonly CriterionDetail[],
+    diagnostics: ExportDiagnostic[]
+  ): boolean {
+    let complete = true;
+    for (const attempt of report.attempts) {
+      if (attempt.mappedResponse.truncated) {
+        diagnostics.push({
+          code: "MAPPED_RESPONSE_TRUNCATED",
+          message: `Attempt ${attempt.attemptId} mappedResponse is truncated.`
+        });
+        complete = false;
+      }
+      if (
+        attempt.mappedResponse.availability === "missing" ||
+        attempt.mappedResponse.availability === "purged"
+      ) {
+        diagnostics.push({
+          code: "MAPPED_RESPONSE_UNAVAILABLE",
+          message: `Attempt ${attempt.attemptId} mappedResponse is ${attempt.mappedResponse.availability}.`
+        });
+        complete = false;
+      }
+      if (
+        attempt.mappedResponse.text !== null &&
+        attempt.mappedResponse.sha256 !== null &&
+        sha256Utf8(attempt.mappedResponse.text) !== attempt.mappedResponse.sha256
+      ) {
+        diagnostics.push({
+          code: "MAPPED_RESPONSE_HASH_MISMATCH",
+          message: `Attempt ${attempt.attemptId} mappedResponse sha256 does not match text.`
+        });
+        complete = false;
+      }
+    }
+    for (const criterion of criteria) {
+      if (criterion.evidence.truncated) {
+        diagnostics.push({
+          code: "CRITERION_EVIDENCE_TRUNCATED",
+          message: `Criterion ${criterion.criterionId} evidence is truncated.`
+        });
+        complete = false;
+      }
+      if (criterion.required && (criterion.evidence.availability === "missing" || criterion.evidence.availability === "purged")) {
+        diagnostics.push({
+          code: "CRITERION_EVIDENCE_MISSING",
+          message: `Required criterion ${criterion.criterionId} evidence is ${criterion.evidence.availability}.`
+        });
+        complete = false;
+      }
+    }
+    return complete;
+  }
+
+  #assemble(
+    pages: readonly RunReport[],
+    criteria: readonly CriterionDetail[],
+    diagnostics: readonly ExportDiagnostic[],
+    complete: boolean
+  ): RunReportExport {
+    const report =
+      pages.length === 1 ? pages[0] : this.#mergePages(pages, !complete);
+    if (report === undefined) {
+      throw new ReportProtocolError({
+        code: "REPORT_EMPTY",
+        message: "The hosted report returned no pages."
+      });
+    }
+    return {
+      schemaVersion: RUN_REPORT_EXPORT_SCHEMA_VERSION,
+      retrieved: true,
+      complete,
+      report,
+      criteria: criteria.map((item) => ({ ...item })),
+      diagnostics: [...diagnostics]
+    };
+  }
+
+  async #getReportPage(url: URL): Promise<RunReport> {
+    const payload = await this.#getJson(url);
+    const parsed = RunReportSchema.safeParse(payload);
+    if (parsed.success) return parsed.data;
+    const errorEnvelope = ReportErrorSchema.safeParse(payload);
+    if (errorEnvelope.success) {
+      throw new ReportProtocolError({
+        code: errorEnvelope.data.error.code,
+        message: errorEnvelope.data.error.message,
+        retryable: errorEnvelope.data.error.retryable,
+        category: "relay"
+      });
+    }
+    throw new ReportProtocolError({
+      code: "REPORT_SCHEMA_INVALID",
+      message: "AugmentWorks returned a report that does not match aw-run-report/1."
+    });
+  }
+
+  async #getJson(url: URL): Promise<unknown> {
+    this.#assertSameOrigin(url);
+    let lastError: AwError | undefined;
+    for (let attempt = 0; attempt < REPORT_RETRY_MAX_ATTEMPTS; attempt += 1) {
+      throwIfAborted(this.#signal);
+      const accessToken = await this.#accessTokenProvider(
+        this.#signal === undefined ? {} : { signal: this.#signal }
+      );
+      const controller = new AbortController();
+      const onAbort = (): void => controller.abort(this.#signal?.reason);
+      this.#signal?.addEventListener("abort", onAbort, { once: true });
+      const timer = setTimeout(() => controller.abort(new Error("request timeout")), 30_000);
+      timer.unref?.();
+      let response: Response;
+      try {
+        response = await this.#fetch(url, {
+          method: "GET",
+          redirect: "manual",
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "X-AugmentWorks-CLI-Version": CLI_VERSION
+          }
+        });
+      } catch (cause) {
+        clearTimeout(timer);
+        this.#signal?.removeEventListener("abort", onAbort);
+        if (this.#signal?.aborted === true) {
+          throw new AwError({
+            code: "INTERRUPTED",
+            category: "local",
+            message: "The report request was interrupted.",
+            cause
+          });
+        }
+        throw new ReportProtocolError({
+          code: "REPORT_UNREACHABLE",
+          message: "Could not reach the AugmentWorks report API.",
+          retryable: true,
+          category: "relay",
+          cause
+        });
+      }
+      clearTimeout(timer);
+      this.#signal?.removeEventListener("abort", onAbort);
+
+      if (response.status >= 300 && response.status < 400) {
+        throw new ReportProtocolError({
+          code: "UNSAFE_REPORT_REDIRECT",
+          message: "The report API returned a redirect; the CLI does not follow redirects with the bearer.",
+          httpStatus: response.status
+        });
+      }
+
+      const text = await readBoundedText(response, REPORT_PAGE_BYTES_MAX);
+      let payload: unknown;
+      try {
+        payload = text === "" ? {} : JSON.parse(text);
+      } catch (cause) {
+        throw new ReportProtocolError({
+          code: "REPORT_SCHEMA_INVALID",
+          message: "AugmentWorks returned a report page that is not JSON.",
+          httpStatus: response.status,
+          cause
+        });
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        const remapped = remapAuthError(
+          new AwError({
+            code: response.status === 401 ? "TOKEN_REVOKED" : "SCOPE_DENIED",
+            category: "auth",
+            message:
+              response.status === 401
+                ? "The AugmentWorks credential is expired or revoked."
+                : "The AugmentWorks credential does not have the required report actions.",
+            details: { http_status: response.status }
+          }),
+          this.#credentialSource
+        );
+        throw remapped;
+      }
+      if (response.status === 404) {
+        throw new ReportProtocolError({
+          code: "REPORT_NOT_FOUND",
+          message: "The hosted run report was not found or is not visible to this credential.",
+          httpStatus: 404,
+          category: "relay"
+        });
+      }
+      if (response.status === 409) {
+        throw new ReportProtocolError({
+          code: "REPORT_BINDING_CONFLICT",
+          message: "The hosted report evaluation binding is incompatible with this request. Restart the export.",
+          httpStatus: 409
+        });
+      }
+      if (response.status === 410) {
+        throw new ReportProtocolError({
+          code: "REPORT_PURGED",
+          message: "The hosted report content has been purged or expired.",
+          httpStatus: 410
+        });
+      }
+      if (response.status === 429 || response.status === 503) {
+        lastError = new ReportProtocolError({
+          code: response.status === 429 ? "REPORT_RATE_LIMITED" : "REPORT_UNAVAILABLE",
+          message:
+            response.status === 429
+              ? "The report API rate-limited this read."
+              : "The report API is temporarily unavailable.",
+          retryable: true,
+          httpStatus: response.status,
+          category: "relay"
+        });
+        const delay = retryAfterMs(response.headers.get("retry-after"));
+        if (delay === undefined || this.#retryBudgetMs <= 0 || attempt === REPORT_RETRY_MAX_ATTEMPTS - 1) {
+          throw lastError;
+        }
+        const wait = Math.min(delay, REPORT_RETRY_AFTER_CAP_MS, this.#retryBudgetMs);
+        this.#retryBudgetMs -= wait;
+        await this.#sleep(wait, this.#signal);
+        continue;
+      }
+      if (!response.ok) {
+        const envelope = ReportErrorSchema.safeParse(payload);
+        throw new ReportProtocolError({
+          code: envelope.success ? envelope.data.error.code : "REPORT_REQUEST_FAILED",
+          message: envelope.success
+            ? envelope.data.error.message
+            : `The report API rejected the request with HTTP ${String(response.status)}.`,
+          retryable: envelope.success ? envelope.data.error.retryable : response.status >= 500,
+          httpStatus: response.status,
+          category: "relay"
+        });
+      }
+      return payload;
+    }
+    throw lastError ??
+      new ReportProtocolError({
+        code: "REPORT_UNAVAILABLE",
+        message: "The report API did not return a successful read.",
+        retryable: true,
+        category: "relay"
+      });
+  }
+
+  #cursorUrl(basePath: string, cursor: string, binding?: EvaluationBinding): URL {
+    if (/^https?:\/\//iu.test(cursor)) {
+      const absolute = this.#sameOriginUrl(cursor);
+      return this.#pinBinding(absolute, binding);
+    }
+    const url = this.#sameOriginUrl(basePath);
+    url.searchParams.set("cursor", cursor);
+    return this.#pinBinding(url, binding);
+  }
+
+  #pinBinding(url: URL, binding?: EvaluationBinding): URL {
+    if (binding === undefined) return url;
+    url.searchParams.set("evaluationId", binding.evaluationId);
+    url.searchParams.set("evaluationRevision", String(binding.evaluationRevision));
+    url.searchParams.set("snapshotHash", binding.snapshotHash);
+    return url;
+  }
+
+  #requireSameOriginLink(value: string, field: string): URL {
+    try {
+      return this.#sameOriginUrl(value);
+    } catch (cause) {
+      throw new ReportProtocolError({
+        code: "UNSAFE_REPORT_LINK",
+        message: `Refusing to follow ${field} to a different origin with the bearer credential.`,
+        cause
+      });
+    }
+  }
+
+  #sameOriginUrl(value: string): URL {
+    let url: URL;
+    try {
+      url = new URL(value, this.apiOrigin);
+    } catch (cause) {
+      throw new ReportProtocolError({
+        code: "UNSAFE_REPORT_LINK",
+        message: "The report contained an invalid URL.",
+        cause
+      });
+    }
+    this.#assertSameOrigin(url);
+    return url;
+  }
+
+  #assertSameOrigin(url: URL): void {
+    if (url.origin !== this.apiOrigin.origin || url.username !== "" || url.password !== "") {
+      throw new ReportProtocolError({
+        code: "UNSAFE_REPORT_LINK",
+        message: "Refusing to follow a report link to a different origin with the bearer credential."
+      });
+    }
+  }
+}
+
+function sameBinding(left: EvaluationBinding, right: EvaluationBinding): boolean {
+  return (
+    left.evaluationId === right.evaluationId &&
+    left.evaluationRevision === right.evaluationRevision &&
+    left.snapshotHash === right.snapshotHash
+  );
+}
+
+function sha256Utf8(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function retryAfterMs(header: string | null): number | undefined {
+  if (header === null || header.trim() === "") return 1_000;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1_000);
+  const date = Date.parse(header);
+  if (!Number.isFinite(date)) return 1_000;
+  return Math.max(0, date - Date.now());
+}
+
+async function readBoundedText(response: Response, limit: number): Promise<string> {
+  const declared = response.headers.get("content-length");
+  if (declared !== null && Number(declared) > limit) {
+    throw new ReportProtocolError({
+      code: "REPORT_PAGE_TOO_LARGE",
+      message: "The report page exceeds the 512KiB bound."
+    });
+  }
+  if (response.body === null) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  while (true) {
+    const item = await reader.read();
+    if (item.done) break;
+    bytes += item.value.byteLength;
+    if (bytes > limit) {
+      await reader.cancel();
+      throw new ReportProtocolError({
+        code: "REPORT_PAGE_TOO_LARGE",
+        message: "The report page exceeds the 512KiB bound."
+      });
+    }
+    chunks.push(item.value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted === true) {
+    throw new AwError({
+      code: "INTERRUPTED",
+      category: "local",
+      message: "The report request was interrupted."
+    });
+  }
+}
+
+async function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(
+        new AwError({
+          code: "INTERRUPTED",
+          category: "local",
+          message: "The report request was interrupted."
+        })
+      );
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}

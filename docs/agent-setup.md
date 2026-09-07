@@ -15,7 +15,7 @@ during unrelated coding.
 | Item | Value |
 | --- | --- |
 | Verified npm package | `@augmentworks/cli@0.3.2` |
-| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`, and `run status` live here) |
+| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`, `run status` / `run wait` / `run report`, and `AUGMENTWORKS_API_KEY` live here) |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |

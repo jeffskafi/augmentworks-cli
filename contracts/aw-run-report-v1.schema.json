@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://augmentworks.ai/contracts/aw-run-report-v1.schema.json",
+  "title": "aw-run-report/1",
+  "description": "Pinned hosted run report page. CLI compatibility copy of the AW-QA-1 contract until the main report owner publishes canonical artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "workspaceId",
+    "dashboardUrl",
+    "asOf",
+    "executionStatus",
+    "outcome",
+    "creditState",
+    "evaluationStatus",
+    "evaluationBinding",
+    "aggregate",
+    "coverage",
+    "attempts",
+    "retention",
+    "reportReady",
+    "page",
+    "createsBillableRun"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "aw-run-report/1" },
+    "runId": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "workspaceId": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "dashboardUrl": { "type": "string", "format": "uri" },
+    "asOf": { "type": "string", "format": "date-time" },
+    "executionStatus": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "connected",
+        "running",
+        "cancel_requested",
+        "cancelled",
+        "completed",
+        "failed"
+      ]
+    },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": ["passed", "failed", "inconclusive", "error", null]
+    },
+    "creditState": { "type": "string", "enum": ["reserved", "consumed", "released"] },
+    "evaluationStatus": {
+      "type": "string",
+      "enum": ["absent", "pending", "complete", "partial", "error"]
+    },
+    "evaluationBinding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "evaluationId",
+        "evaluationRevision",
+        "snapshotHash",
+        "executionResultHash",
+        "assessmentPlanHash",
+        "referenceBundleHash",
+        "graderConfigHash"
+      ],
+      "properties": {
+        "evaluationId": { "type": "string", "minLength": 1 },
+        "evaluationRevision": { "type": "integer", "minimum": 0 },
+        "snapshotHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "executionResultHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "assessmentPlanHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "referenceBundleHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+        "graderConfigHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "aggregate": { "type": ["object", "null"] },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plannedAttempts",
+        "completedAttempts",
+        "requiredJudgmentsPlanned",
+        "requiredJudgmentsComplete"
+      ],
+      "properties": {
+        "plannedAttempts": { "type": ["integer", "null"], "minimum": 0 },
+        "completedAttempts": { "type": ["integer", "null"], "minimum": 0 },
+        "requiredJudgmentsPlanned": { "type": ["integer", "null"], "minimum": 0 },
+        "requiredJudgmentsComplete": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "attempts": {
+      "type": "array",
+      "maxItems": 60,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "attemptId",
+          "scenarioId",
+          "repetitionIndex",
+          "attemptNumber",
+          "executionStatus",
+          "cleanupState",
+          "criterionIndexUrl",
+          "mappedResponse",
+          "outcome"
+        ],
+        "properties": {
+          "attemptId": { "type": "string", "minLength": 1 },
+          "scenarioId": { "type": "string", "minLength": 1 },
+          "repetitionIndex": { "type": "integer", "minimum": 0 },
+          "attemptNumber": { "type": "integer", "minimum": 1 },
+          "executionStatus": {
+            "type": "string",
+            "enum": ["queued", "running", "completed", "failed", "skipped", "cancelled", "not_started"]
+          },
+          "cleanupState": {
+            "type": "string",
+            "enum": ["not_required", "pending", "completed", "failed", "not_attempted"]
+          },
+          "criterionIndexUrl": { "type": ["string", "null"], "format": "uri" },
+          "mappedResponse": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["availability", "text", "sha256", "truncated", "turnId", "evidenceId"],
+            "properties": {
+              "availability": {
+                "type": "string",
+                "enum": ["available", "redacted", "missing", "purged"]
+              },
+              "text": { "type": ["string", "null"] },
+              "sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+              "truncated": { "type": "boolean" },
+              "turnId": { "type": ["string", "null"] },
+              "evidenceId": { "type": ["string", "null"] }
+            }
+          },
+          "outcome": {
+            "type": ["string", "null"],
+            "enum": ["pass", "fail", "error", "not_run", "uncertain", null]
+          }
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retainUntil", "policyVersion", "purgedAt", "contentAvailable"],
+      "properties": {
+        "retainUntil": { "type": ["string", "null"], "format": "date-time" },
+        "policyVersion": { "type": ["string", "null"] },
+        "purgedAt": { "type": ["string", "null"], "format": "date-time" },
+        "contentAvailable": { "type": "boolean" }
+      }
+    },
+    "reportReady": { "type": "boolean" },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nextCursor", "hasMore", "totalAttempts"],
+      "properties": {
+        "nextCursor": { "type": ["string", "null"] },
+        "hasMore": { "type": "boolean" },
+        "totalAttempts": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "createsBillableRun": { "const": false }
+  }
+}

@@ -143,7 +143,10 @@ function assertInventory(report) {
     "contracts/discovery-manifest.schema.json",
     "contracts/aw-billing-v1.schema.json",
     "contracts/aw-billing-v1.fixtures.json",
-    "contracts/aw-billing-v1.lock.json"
+    "contracts/aw-billing-v1.lock.json",
+    "contracts/aw-run-report-v1.schema.json",
+    "contracts/aw-run-report-v1.fixtures.json",
+    "contracts/aw-run-report-v1.lock.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
@@ -322,6 +325,11 @@ async function main() {
     assert(recoverHelp.stdout.includes("--resume"), "packed CLI is missing recover --resume");
     assert(recoverHelp.stdout.includes("--cancel"), "packed CLI is missing recover --cancel");
     assert(!recoverHelp.stdout.includes("--force-delete"), "packed CLI advertised --force-delete");
+
+    const runHelp = execCli(["run", "--help"]);
+    assert(runHelp.stdout.includes("report"), "packed CLI is missing run report");
+    const reportHelp = execCli(["run", "report", "--help"]);
+    assert(reportHelp.stdout.includes("--json"), "packed CLI is missing run report --json");
 
     process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
     const schemaResult = execCli(["schema"]);
@@ -567,6 +575,34 @@ async function main() {
       );
     }
     process.stdout.write(fixture.stdout);
+
+    process.stdout.write("[pack smoke] packed report HTTP fixture through installed binary\n");
+    const reportFixture = spawnSync(process.execPath, [join(projectRoot, "scripts", "packed-report-fixture.mjs")], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        AUGMENTWORKS_PACKED_BIN: packedCli,
+        NO_COLOR: "1"
+      },
+      encoding: "utf8",
+      timeout: 120_000,
+      windowsHide: true
+    });
+    if (reportFixture.error !== undefined) {
+      throw new SmokeFailure(`packed report fixture failed to start: ${reportFixture.error.message}`);
+    }
+    if (reportFixture.status !== 0) {
+      throw new SmokeFailure(
+        [
+          "packed report HTTP fixture failed",
+          reportFixture.stdout.trim(),
+          reportFixture.stderr.trim()
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(reportFixture.stdout);
 
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`

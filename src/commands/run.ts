@@ -13,6 +13,13 @@ import { statusUnsupportedError } from "../billing/errors.js";
 import { STATUS_V1 } from "../billing/protocol.js";
 import { capabilityIsAvailable } from "../billing/protocol.js";
 import {
+  classifyRunReportExport,
+  exportHostedRunReport,
+  failureExport,
+  type RunReportClientOptions
+} from "../report/client.js";
+import type { RunReportExport } from "../report/schema.js";
+import {
   authenticateHostedSession,
   type HostedAuthDependencies,
   type HostedAuthOptions,
@@ -35,6 +42,10 @@ export interface RunCommandDependencies extends HostedAuthDependencies {
   readonly setExitCode?: (code: number) => void;
   readonly now?: () => number;
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  readonly exportReport?: (
+    runId: string,
+    options: RunReportClientOptions
+  ) => Promise<RunReportExport>;
 }
 
 export function createRunCommand(dependencies: RunCommandDependencies = {}): Command {
@@ -78,17 +89,31 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
     .action(async (runId: string, values: RunCommandOptions) => {
       await executeRunSubcommand("retry-evaluation", runId, values, dependencies);
     });
+  run
+    .command("report")
+    .description(
+      "Export the complete hosted report and criterion evidence for an original run (read-only JSON)"
+    )
+    .argument("<run-id>", "original run ID")
+    .option("--json", "write one aw-run-report-export/1 document to stdout (required machine output)")
+    .option(
+      "--allow-file-credentials",
+      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+    )
+    .action(async (runId: string, values: RunCommandOptions) => {
+      await executeRunSubcommand("report", runId, values, dependencies);
+    });
   return run;
 }
 
 async function executeRunSubcommand(
-  action: "status" | "wait" | "retry-evaluation",
+  action: "status" | "wait" | "retry-evaluation" | "report",
   runId: string,
   values: RunCommandOptions,
   dependencies: RunCommandDependencies
 ): Promise<void> {
   const stdout = dependencies.stdout ?? process.stdout;
-  const json = values.json === true;
+  const json = values.json === true || action === "report";
   const setExitCode =
     dependencies.setExitCode ??
     ((code: number) => {
@@ -97,6 +122,10 @@ async function executeRunSubcommand(
   try {
     const id = parseRunId(runId);
     const session = await authenticateHostedSession(values, dependencies);
+    if (action === "report") {
+      await executeRunReport(session, id, values, dependencies, stdout, setExitCode);
+      return;
+    }
     await assertStatusAvailable(session, values.signal);
     if (action === "retry-evaluation") {
       const retried =
@@ -134,7 +163,6 @@ async function executeRunSubcommand(
     const exitCode = billingStatusExitCode(status);
     if (exitCode !== EXIT.OK) setExitCode(exitCode);
   } catch (error) {
-    if (!json) throw error;
     const awError =
       error instanceof AwError
         ? error
@@ -143,6 +171,14 @@ async function executeRunSubcommand(
             category: "local",
             message: "The run command could not be completed."
           });
+    if (action === "report") {
+      const document = failureExport(awError);
+      stdout.write(`${JSON.stringify(document)}\n`);
+      const classified = classifyRunReportExport(document);
+      if (classified.exitCode !== EXIT.OK) setExitCode(classified.exitCode);
+      return;
+    }
+    if (!json) throw error;
     stdout.write(
       `${JSON.stringify({
         ok: false,
@@ -152,6 +188,28 @@ async function executeRunSubcommand(
     );
     setExitCode(exitCodeFor(awError));
   }
+}
+
+async function executeRunReport(
+  session: HostedAuthSession,
+  runId: string,
+  values: RunCommandOptions,
+  dependencies: RunCommandDependencies,
+  stdout: Pick<NodeJS.WriteStream, "write">,
+  setExitCode: (code: number) => void
+): Promise<void> {
+  const exporter = dependencies.exportReport ?? exportHostedRunReport;
+  const document = await exporter(runId, {
+    apiOrigin: session.apiOrigin,
+    accessTokenProvider: session.accessTokenProvider,
+    credentialSource: session.source,
+    ...(values.signal === undefined ? {} : { signal: values.signal }),
+    ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
+    ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep })
+  });
+  stdout.write(`${JSON.stringify(document)}\n`);
+  const classified = classifyRunReportExport(document);
+  if (classified.exitCode !== EXIT.OK) setExitCode(classified.exitCode);
 }
 
 async function assertStatusAvailable(session: HostedAuthSession, signal?: AbortSignal): Promise<void> {

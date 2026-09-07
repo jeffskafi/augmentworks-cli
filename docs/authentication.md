@@ -44,11 +44,13 @@ origins containing credentials, paths, queries, or fragments are refused.
 | `POST /api/v1/cli/auth/device` | Create a device/user code pair |
 | `POST /api/v1/cli/auth/token` | Exchange authorization-code, device-code, or refresh-token grants |
 | `POST /api/v1/cli/auth/revoke` | Revoke the active connector credential |
-| `GET /api/v1/cli/auth/me` | Resolve workspace and connector identity |
+| `GET /api/v1/cli/auth/me` | Resolve workspace and connector identity. Optional machine fields: `principal_kind`, `credential_id`, `actions`, `expires_at` |
 | `GET /v1/billing/capabilities` | Discover implemented billing capabilities (`usage_v1`, `quote_v1`, `status_v1`, `billing_portal_link_v1` when the server advertises them) |
 | `GET /v1/billing/usage` | Read the workspace billing snapshot |
 | `POST /v1/billing/quote` | Compile a hosted estimate; does not reserve credits or start a run (`connector:run`) |
 | `GET /v1/billing/status?runId=` | Read original-run execution/grading status (`connector:run`) |
+| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). Source 0.3.3. Read-only; never creates or regrades |
+| `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria` | Existing criterion index/detail pages (`aw-criterion-detail-read/1`), followed only when same-origin |
 
 Aliases `GET /api/v1/billing/*` exist on the server. The CLI uses the primary
 `/v1/billing/*` paths. Quote and status require `connector:run`. Usage and
@@ -118,7 +120,43 @@ customers. A connector token is not billing-management permission.
 
 `logout` requests server-side revocation and removes local credential material.
 A workspace owner can also revoke a lost machine or connector from the
-AugmentWorks portal.
+AugmentWorks portal. Routine automation cleanup must not run `logout`: it
+revokes reusable workspace API keys and connector credentials.
+
+## Workspace API keys (source 0.3.3)
+
+Issue a workspace API key at
+[https://augmentworks.ai/portal/settings/api-keys](https://augmentworks.ai/portal/settings/api-keys).
+Keys use prefix `aw_api_`, are shown once, expire (default 30 days, maximum 90),
+and can be revoked or rotated in that settings page. Transport is
+`Authorization: Bearer` to the production origin `https://augmentworks.ai` (or
+an explicit loopback `AUGMENTWORKS_API_URL` in development). This is not a
+Supabase anon/service key and not a chatbot target key.
+
+```bash
+export AUGMENTWORKS_API_KEY=aw_api_...
+node dist/index.js whoami --json
+node dist/index.js run report <run-id> --json
+```
+
+`AUGMENTWORKS_API_KEY` is an explicit noninteractive mode. Before any network
+or credential-store access, the CLI rejects differing nonempty
+`AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values (`AUTH_ENV_CONFLICT`,
+exit `3`). Equal nonempty values are the same explicit key. In this mode the
+CLI never loads a keychain or credential file, never launches browser or
+device login, never refreshes, never persists credentials, and never falls
+back to another identity. A stale `AUGMENTWORKS_REFRESH_TOKEN` is ignored.
+When `AUGMENTWORKS_API_KEY` is absent, paired `AUGMENTWORKS_TOKEN` +
+`AUGMENTWORKS_REFRESH_TOKEN` behavior is unchanged.
+
+`whoami` prints safe credential metadata (principal kind, credential id,
+actions, expiry, workspace, connector) and never prints the bearer. Machine
+principals do not require an email. Invalid, expired, or revoked keys exit `3`
+with `API_KEY_REVOKED` and point at the API-keys settings page.
+
+Report reads need `run:read`, `evaluation:read`, and `criterion_detail:read`.
+A report-only key with zero spendable credits can still export a retained
+report. `run report` does not quote, create, purchase, or regrade.
 
 ## Target authentication is separate
 
@@ -127,19 +165,21 @@ authentication is configured independently in `augmentworks.yaml`, for example
 with `bearer_env` or `headers_env`, and resolved from the local process
 environment or the `.env` file beside the selected configuration. Target
 credential values are not put in YAML, sent during login, or uploaded during
-run creation.
+run creation. `CHATBOT_API_KEY` (or whatever name `bearer_env` selects) is the
+synthetic chatbot target secret. It is never an AugmentWorks workspace API key.
 
-## Future automation credentials
+## Environment tokens and API keys
 
-`AUGMENTWORKS_TOKEN` is a static, non-refreshing injection point reserved for
-future project tokens and integration harnesses. `login`, `whoami`, `usage`, `billing`, and hosted
-`test` give it precedence and do not load or write the interactive credential
-store. `logout` still attempts to revoke the environment token and any stored
-connector credential, removes local stored credential material when accessible,
-and warns that the environment variable remains set. Project-token issuance is
-intentionally separate from the interactive connector-auth endpoints and
-is not implemented by this release. Do not use the
-one-hour interactive access token as an unattended CI credential.
+`AUGMENTWORKS_TOKEN` is a static injection point for connector tokens and
+integration harnesses. When `AUGMENTWORKS_API_KEY` is unset, `login`, `whoami`,
+`usage`, `billing`, and hosted `test` give `AUGMENTWORKS_TOKEN` precedence and
+do not load or write the interactive credential store. Pair it with
+`AUGMENTWORKS_REFRESH_TOKEN` when the token can rotate. `logout` still attempts
+to revoke the environment token and any stored connector credential, removes
+local stored credential material when accessible, and warns that the
+environment variable remains set. Do not use the one-hour interactive access
+token as an unattended CI credential. Prefer a workspace API key for
+noninteractive report export.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a
 build log, or paste it into an AI assistant. Rotate CI credentials on exposure

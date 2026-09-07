@@ -1,7 +1,11 @@
-import { CloudAuthClient } from "../auth/client.js";
+import { CloudAuthClient, remapAuthError } from "../auth/client.js";
 import { getApiOrigin } from "../auth/api-origin.js";
-import { createAccessTokenManager, resolveAccessToken } from "../auth/credential-store.js";
-import type { AccessTokenProvider, AuthIdentity } from "../auth/types.js";
+import {
+  createAccessTokenManager,
+  inspectCredentialEnvironment,
+  resolveAccessToken
+} from "../auth/credential-store.js";
+import type { AccessTokenProvider, AuthIdentity, CredentialSource } from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
 import type { RunIntentTenantBinding } from "../relay/run-intent.js";
@@ -34,6 +38,8 @@ export interface HostedAuthSession {
   readonly identity: AuthIdentity;
   readonly tenant: RunIntentTenantBinding;
   readonly cloud: CloudClient;
+  readonly source: CredentialSource;
+  readonly accessTokenProvider: AccessTokenProvider;
 }
 
 export async function authenticateHostedSession(
@@ -41,6 +47,7 @@ export async function authenticateHostedSession(
   dependencies: HostedAuthDependencies = {}
 ): Promise<HostedAuthSession> {
   const env = options.env ?? process.env;
+  const inspected = inspectCredentialEnvironment(env);
   const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
   const accessTokenOptions = {
     apiOrigin,
@@ -50,14 +57,20 @@ export async function authenticateHostedSession(
       : { allowFileFallback: options.allowFileCredentials }),
     onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
   };
-  const rawAccessTokenProvider: AccessTokenProvider =
+  const manager =
     dependencies.accessToken === undefined
-      ? (await createAccessTokenManager(accessTokenOptions)).getAccessToken
-      : async (request = {}) =>
+      ? await createAccessTokenManager(accessTokenOptions)
+      : undefined;
+  const source: CredentialSource =
+    manager?.source ?? (inspected.mode === "api_key" ? "api_key" : "environment");
+  const rawAccessTokenProvider: AccessTokenProvider =
+    manager === undefined
+      ? async (request = {}) =>
           await dependencies.accessToken!({
             ...accessTokenOptions,
             ...request
-          });
+          })
+      : manager.getAccessToken;
   const authClient = new CloudAuthClient({ apiOrigin });
   const lookupIdentity =
     dependencies.identity ??
@@ -72,13 +85,18 @@ export async function authenticateHostedSession(
       ...(options.signal === undefined ? {} : { signal: options.signal })
     });
   } catch (cause) {
-    if (!(cause instanceof AwError) || cause.code !== "TOKEN_REVOKED") throw cause;
+    const remapped = remapAuthError(cause, source);
+    const canRefresh =
+      remapped instanceof AwError &&
+      remapped.code === "TOKEN_REVOKED" &&
+      source !== "api_key";
+    if (!canRefresh) throw remapped;
     const replacement = await rawAccessTokenProvider({
       forceRefresh: true,
       rejectedAccessToken: accessToken,
       ...(options.signal === undefined ? {} : { signal: options.signal })
     });
-    if (replacement === accessToken) throw cause;
+    if (replacement === accessToken) throw remapped;
     accessToken = replacement;
     identity = await lookupIdentity({
       apiOrigin,
@@ -103,7 +121,7 @@ export async function authenticateHostedSession(
   const cloud =
     dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
     new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
-  return { apiOrigin, identity, tenant, cloud };
+  return { apiOrigin, identity, tenant, cloud, source, accessTokenProvider };
 }
 
 export function tenantBinding(identity: AuthIdentity): RunIntentTenantBinding {

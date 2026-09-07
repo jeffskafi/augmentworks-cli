@@ -38,7 +38,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.2**. That published tarball includes packaged `demo`, hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `usage`, `billing`, `test --estimate`, `--max-credits`, `run status` / `run wait`, or empty-directory assessment generation. Clone this repository and build source `0.3.3` for those commands. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.2**. That published tarball includes packaged `demo`, hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `usage`, `billing`, `test --estimate`, `--max-credits`, `run status` / `run wait` / `run report`, `AUGMENTWORKS_API_KEY` mode, or empty-directory assessment generation. Clone this repository and build source `0.3.3` for those commands. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (published 0.3.2)
 
@@ -247,6 +247,7 @@ node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate -
 node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits 30 --yes
 node dist/index.js run status <run-id>
 node dist/index.js run wait <run-id>
+node dist/index.js run report <run-id> --json
 ```
 
 Source assessment doctor and quoted hosted execution:
@@ -272,12 +273,18 @@ node dist/index.js test \
 If grading is pending after target work finishes, evidence is saved. Wait on
 the original run; do not re-run the test command. `run wait` also continues
 while target execution is still `queued`, `connected`, `running`, or
-`cancel_requested`, including when grading is `absent`. Exit `0` means the
-assessment passed. A successful status query of unfinished work is not a
-pass (`ok: true` with `assessment: "incomplete"` and exit `11`). Billing
-rejection is exit `13` and is not a chatbot assertion failure. Account-free
-`demo`, `test --local`, offline `doctor`, and `schema` still make no billing
-calls.
+`cancel_requested`, including when grading is `absent`. `run status` is not a
+full report: it does not page criterion evidence. Export the complete hosted
+report with `run report <run-id> --json` (JSON stdout only;
+`aw-run-report-export/1`). Exit `0` means the assessment passed with complete
+required grading and known coverage. A successful status query of unfinished
+work is not a pass (`ok: true` with `assessment: "incomplete"` and exit `11`).
+A completed run with a null outcome never exits `0`. An expected failing
+negative-control report exits `10` and still includes mapped responses and
+criterion documents. Billing rejection is exit `13` and is not a chatbot
+assertion failure. Account-free `demo`, `test --local`, offline `doctor`, and
+`schema` still make no billing calls. `doctor` is offline validation only; it
+does not check AugmentWorks authentication or fetch a hosted report.
 
 Copy-pastable noninteractive CI (source 0.3.3 after `npm ci && npm run build`;
 no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
@@ -312,6 +319,9 @@ if [ "$code" -eq 11 ]; then
   node dist/index.js run wait "$run_id" --json --timeout-ms 60000
   code=$?
 fi
+# Read-only complete export. Do not run logout in automation cleanup;
+# logout revokes reusable workspace API keys.
+node dist/index.js run report "$run_id" --json
 exit "$code"
 ```
 
@@ -370,8 +380,14 @@ Windows because POSIX file modes cannot establish a safe Windows ACL.
 Do not put an AugmentWorks token on the command line. Long-lived project-token
 issuance is not part of the interactive connector-auth release, so do not
 substitute its one-hour interactive access token for an unattended CI
-credential. `AUGMENTWORKS_TOKEN` remains reserved for future project tokens and
-local integration harnesses.
+credential. Source `0.3.3` accepts `AUGMENTWORKS_API_KEY` for noninteractive
+workspace keys issued at https://augmentworks.ai/portal/settings/api-keys.
+That mode never loads a keychain, refreshes, or persists credentials. Differing
+nonempty `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail closed
+before any network call. `AUGMENTWORKS_TOKEN` remains available for paired
+token/refresh injection when the API key is unset. `CHATBOT_API_KEY` is only
+the synthetic target secret named by YAML `bearer_env`; it is not a platform
+key. Do not run `logout` from routine CI cleanup.
 
 ## Configuration
 
@@ -596,8 +612,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | Command | Purpose | Side effects |
 | --- | --- | --- |
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
-| `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
-| `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
+| `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material. Do not use as routine CI cleanup when `AUGMENTWORKS_API_KEY` is set |
+| `whoami` | Show the current workspace identity | Reads cloud identity; may refresh interactive credentials. API-key mode reports principal kind, credential id, actions, and expiry without the bearer |
 | `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel. Source 0.3.3, not published 0.3.2 |
 | `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, subscription mutation, or reservation. Source 0.3.3 |
 | `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Source 0.3.3 writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
@@ -605,7 +621,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.3. Reads only the selected config and fixture. No target, cloud, or model call |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.3 uses `aw-relay/0.3` quotes; published 0.3.2 uses `aw-relay/0.2`. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
-| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait; retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.3 |
+| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.3 |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; published in 0.3.2 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
@@ -623,7 +639,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `5` | Target, protocol-evidence, or indeterminate execution error |
 | `6` | Cleanup failure; takes precedence over assessment status |
 | `10` | Assertions failed or the assessment was inconclusive |
-| `11` | Hosted hybrid grading is pending or incomplete after target work finished |
+| `11` | Hosted grading is pending, partial, unknown, unsupported, or a report export is incomplete |
 | `12` | Required hosted evaluation did not complete because of an operational judging error |
 | `13` | Hosted billing/usage rejection; unreachable from `--local` |
 | `130` | Interrupted after cleanup was drained; a second interrupt exits immediately |
@@ -708,9 +724,9 @@ define pricing or public signup.
 - Published `@augmentworks/cli@0.3.2` includes `--assessment` and `demo`. Copy
   or write `augmentworks.assessment.yaml` before that hosted path; published
   `init` does not create the assessment file. Source `0.3.3` `init` does.
-- Packaged `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`, and
-  `run status`/`run wait` are implemented in source `0.3.3` and are not in
-  the verified `0.3.2` npm tarball.
+- Packaged `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`,
+  `run status`/`run wait`/`run report`, and `AUGMENTWORKS_API_KEY` mode are
+  implemented in source `0.3.3` and are not in the verified `0.3.2` npm tarball.
 
 ## Development
 

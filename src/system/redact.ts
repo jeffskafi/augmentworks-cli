@@ -1,5 +1,5 @@
 const BEARER_PATTERN = /\bBearer[ \t]+[^\s,;]+/gi;
-const AUGMENTWORKS_TOKEN_PATTERN = /\baw_(?:project|connector|run)_[A-Za-z0-9._~-]+/gi;
+const AUGMENTWORKS_TOKEN_PATTERN = /\baw_(?:project|connector|run|api)_[A-Za-z0-9._~-]+/gi;
 const GITHUB_TOKEN_PATTERN = /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g;
 const NPM_TOKEN_PATTERN = /\bnpm_[A-Za-z0-9]{20,}\b/g;
 const PROVIDER_KEY_PATTERN = /\b(?:sk|rk|sess)-[A-Za-z0-9_-]{12,}\b/g;

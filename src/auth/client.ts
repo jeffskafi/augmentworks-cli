@@ -3,6 +3,7 @@ import { isTrustedApiOrigin } from "./api-origin.js";
 import {
   CLI_OAUTH_CLIENT_ID,
   type AuthIdentity,
+  type CredentialSource,
   type DeviceAuthorization,
   type StoredCredential,
   type TokenResponse
@@ -221,6 +222,8 @@ export class CloudAuthClient {
     if (!Array.isArray(scopes) || !scopes.every((scope) => typeof scope === "string")) {
       throw invalidAuthResponse("scopes");
     }
+    const principalKind = optionalPrincipalKind(body);
+    const actions = optionalStringArray(body, "actions");
     return {
       subject: requiredString(body, "subject"),
       ...(optionalString(body, "email") === undefined ? {} : { email: optionalString(body, "email")! }),
@@ -232,7 +235,15 @@ export class CloudAuthClient {
       ...(optionalString(body, "connector_name") === undefined
         ? {}
         : { connectorName: optionalString(body, "connector_name")! }),
-      scopes: scopes as string[]
+      scopes: scopes as string[],
+      ...(principalKind === undefined ? {} : { principalKind }),
+      ...(optionalString(body, "credential_id") === undefined
+        ? {}
+        : { credentialId: optionalString(body, "credential_id")! }),
+      ...(actions === undefined ? {} : { actions }),
+      ...(optionalString(body, "expires_at") === undefined
+        ? {}
+        : { expiresAt: optionalString(body, "expires_at")! })
     };
   }
 
@@ -469,6 +480,27 @@ function authResponseError(status: number, body: Record<string, unknown>): AwErr
   });
 }
 
+function optionalStringArray(record: Record<string, unknown>, field: string): string[] | undefined {
+  if (record[field] === undefined) return undefined;
+  const value = record[field];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+    throw invalidAuthResponse(field);
+  }
+  for (const item of value) {
+    if (item === "" || item.length > 200 || /[\r\n\0]/.test(item)) {
+      throw invalidAuthResponse(field);
+    }
+  }
+  return value;
+}
+
+function optionalPrincipalKind(record: Record<string, unknown>): "user" | "machine" | undefined {
+  if (record["principal_kind"] === undefined) return undefined;
+  const value = record["principal_kind"];
+  if (value !== "user" && value !== "machine") throw invalidAuthResponse("principal_kind");
+  return value;
+}
+
 function requiredString(record: Record<string, unknown>, field: string): string {
   const value = record[field];
   if (typeof value !== "string" || value === "" || value.length > 32 * 1024 || /[\r\n\0]/.test(value)) {
@@ -505,6 +537,28 @@ function throwIfAborted(signal?: AbortSignal): void {
       message: "Authentication was interrupted."
     });
   }
+}
+
+export function apiKeyRevokedError(cause?: unknown): AwError {
+  return new AwError({
+    code: "API_KEY_REVOKED",
+    category: "auth",
+    message:
+      "The AugmentWorks API key is expired, revoked, or invalid. Issue a new workspace key at https://augmentworks.ai/portal/settings/api-keys. Do not call logout from automation cleanup; logout revokes reusable credentials.",
+    ...(cause === undefined ? {} : { cause })
+  });
+}
+
+export function remapAuthError(error: unknown, source: CredentialSource): unknown {
+  if (!(error instanceof AwError) || source !== "api_key") return error;
+  if (
+    error.code === "TOKEN_REVOKED" ||
+    error.code === "CLOUD_AUTH_REJECTED" ||
+    error.code === "API_KEY_REVOKED"
+  ) {
+    return error.code === "API_KEY_REVOKED" ? error : apiKeyRevokedError(error);
+  }
+  return error;
 }
 
 async function sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {

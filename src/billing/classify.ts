@@ -1,4 +1,10 @@
-import { EXIT } from "../errors.js";
+import {
+  billingCoverageKnowledge,
+  classifyHostedOutcome,
+  isResolvedHostedOutcome,
+  type HostedRunAssessment,
+  type HostedRunWork
+} from "../outcome/classify.js";
 import { isBillingExecutionStatus, type BillingRunStatus } from "./protocol.js";
 
 /**
@@ -10,16 +16,9 @@ export const BILLING_RESOLVED_OUTCOMES = ["passed", "failed", "inconclusive", "e
 
 export type BillingResolvedOutcome = (typeof BILLING_RESOLVED_OUTCOMES)[number];
 
-export type BillingRunWork = "in_progress" | "terminal";
+export type BillingRunWork = HostedRunWork;
 
-export type BillingRunAssessment =
-  | "passed"
-  | "failed"
-  | "incomplete"
-  | "evaluator_error"
-  | "interrupted"
-  | "unsupported"
-  | "unknown";
+export type BillingRunAssessment = HostedRunAssessment;
 
 /**
  * One explicit classification for a successfully parsed billing status.
@@ -35,7 +34,7 @@ export type BillingRunAssessment =
  * | --- | --- | --- | --- | --- | --- |
  * | queued/connected/running/cancel_requested | absent | null | continue | incomplete | 11 |
  * | running | absent | 0/N attempts, null | continue | incomplete | 11 |
- * | completed | absent | passed | terminal | passed (deterministic-only) | 0 |
+ * | completed | absent | passed | terminal | passed (deterministic-only, known coverage) | 0 |
  * | completed | absent | failed/inconclusive/error | terminal | failed | 10 |
  * | completed | absent | null/unknown | terminal | incomplete/unknown | 11 |
  * | completed | pending/partial | any | continue | incomplete | 11 |
@@ -51,6 +50,7 @@ export type BillingRunAssessment =
  *
  * Ambiguous contract combinations never silently pass. Evaluation `error`
  * takes precedence over execution failure so exit 12 stays distinct from 10.
+ * Exit 0 additionally requires known reconciled coverage when progress is present.
  */
 export type BillingRunClassification = {
   readonly observation: "succeeded";
@@ -66,86 +66,18 @@ export function isKnownBillingExecutionStatus(value: string): boolean {
 }
 
 export function isResolvedBillingOutcome(value: string): value is BillingResolvedOutcome {
-  return (BILLING_RESOLVED_OUTCOMES as readonly string[]).includes(value);
-}
-
-function executionWork(executionStatus: string): BillingRunWork | "unknown" {
-  if (!isBillingExecutionStatus(executionStatus)) return "unknown";
-  if (
-    executionStatus === "completed" ||
-    executionStatus === "failed" ||
-    executionStatus === "cancelled"
-  ) {
-    return "terminal";
-  }
-  return "in_progress";
-}
-
-function resolvedOutcome(
-  outcome: string | null | undefined
-): BillingResolvedOutcome | null | "unknown" {
-  if (outcome === undefined || outcome === null || outcome === "") return null;
-  if (isResolvedBillingOutcome(outcome)) return outcome;
-  return "unknown";
+  return isResolvedHostedOutcome(value);
 }
 
 export function classifyBillingRunStatus(status: BillingRunStatus): BillingRunClassification {
-  const execution = executionWork(status.executionStatus);
-  const work: BillingRunWork = execution === "in_progress" ? "in_progress" : "terminal";
-  const gradingInProgress =
-    status.evaluationStatus === "pending" || status.evaluationStatus === "partial";
-  const waitTerminal = work === "terminal" && !gradingInProgress;
-  const outcome = resolvedOutcome(status.outcome);
-  const deterministicOnly =
-    status.executionStatus === "completed" && status.evaluationStatus === "absent";
-
-  let assessment: BillingRunAssessment;
-  let exitCode: number;
-
-  if (execution === "in_progress" || gradingInProgress) {
-    assessment = "incomplete";
-    exitCode = EXIT.EVALUATION_INCOMPLETE;
-  } else if (status.evaluationStatus === "error") {
-    assessment = "evaluator_error";
-    exitCode = EXIT.EVALUATION_ERROR;
-  } else if (status.executionStatus === "cancelled") {
-    assessment = "interrupted";
-    exitCode = EXIT.INTERRUPTED;
-  } else if (status.evaluationStatus === "unsupported") {
-    assessment = "unsupported";
-    exitCode = EXIT.EVALUATION_INCOMPLETE;
-  } else if (execution === "unknown") {
-    assessment = "unknown";
-    exitCode = EXIT.EVALUATION_INCOMPLETE;
-  } else if (
-    status.executionStatus === "failed" ||
-    outcome === "failed" ||
-    outcome === "inconclusive" ||
-    outcome === "error"
-  ) {
-    assessment = "failed";
-    exitCode = EXIT.ASSESSMENT_FAILED;
-  } else if (outcome === "unknown") {
-    assessment = "unknown";
-    exitCode = EXIT.EVALUATION_INCOMPLETE;
-  } else if (
-    outcome === "passed" &&
-    status.executionStatus === "completed" &&
-    (status.evaluationStatus === "complete" || status.evaluationStatus === "absent")
-  ) {
-    assessment = "passed";
-    exitCode = EXIT.OK;
-  } else {
-    assessment = "incomplete";
-    exitCode = EXIT.EVALUATION_INCOMPLETE;
-  }
-
+  const classified = classifyHostedOutcome({
+    executionStatus: status.executionStatus,
+    evaluationStatus: status.evaluationStatus,
+    outcome: status.outcome ?? null,
+    coverageKnown: billingCoverageKnowledge(status.progress, status.evaluationStatus)
+  });
   return {
     observation: "succeeded",
-    work,
-    waitTerminal,
-    assessment,
-    exitCode,
-    deterministicOnly
+    ...classified
   };
 }
