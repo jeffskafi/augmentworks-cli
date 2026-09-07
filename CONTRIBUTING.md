@@ -28,9 +28,9 @@ command journals, or generated credential-store files.
   `assets/demo/` tree if the runtime demo needs a minimal asset. Prefer the
   generic HTTP YAML connector; do not add framework adapters the CLI does not
   provide.
-- **Documentation correction:** keep version pins accurate. Distinguish source
-  `0.3.2` from verified npm `0.3.1`. Historical changelog entries are not
-  current executable quickstarts.
+- **Documentation correction:** keep version pins accurate. Distinguish this
+  package `0.3.4` from last independently verified npm `0.3.2`. Historical
+  changelog entries are not current executable quickstarts.
 - **Reported setup failure:** file an issue with CLI version, Node.js version,
   OS, redacted config, and the safe error code. Never attach `.env`,
   credentials, or customer reports.

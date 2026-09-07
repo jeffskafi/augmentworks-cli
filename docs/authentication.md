@@ -13,7 +13,7 @@ resolves only the target credentials named by the selected configuration.
 ## Interactive login
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 login
+npx --yes @augmentworks/cli@0.3.4 login
 ```
 
 The default flow uses browser Authorization Code with PKCE and a temporary
@@ -25,7 +25,7 @@ single-use and short-lived, and the callback listener closes after completion.
 For SSH and other headless environments:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 login --device
+npx --yes @augmentworks/cli@0.3.4 login --device
 ```
 
 The CLI displays a short user code and verification URL. Entering the code in a
@@ -49,7 +49,7 @@ origins containing credentials, paths, queries, or fragments are refused.
 | `GET /v1/billing/usage` | Read the workspace billing snapshot |
 | `POST /v1/billing/quote` | Compile a hosted estimate; does not reserve credits or start a run (`connector:run`) |
 | `GET /v1/billing/status?runId=` | Read original-run execution/grading status (`connector:run`) |
-| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). Source 0.3.3. Read-only; never creates or regrades |
+| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). Read-only; never creates or regrades |
 | `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria` | Existing criterion index/detail pages (`aw-criterion-detail-read/1`), followed only when same-origin |
 
 Aliases `GET /api/v1/billing/*` exist on the server. The CLI uses the primary
@@ -98,11 +98,11 @@ before removal; unknown identity remains fail-closed.
 Use:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 whoami
-npx --yes @augmentworks/cli@0.3.2 logout
+npx --yes @augmentworks/cli@0.3.4 whoami
+npx --yes @augmentworks/cli@0.3.4 logout
 ```
 
-Source `0.3.3` also provides `usage` and `billing`, which use the same connector
+This package also provides `usage` and `billing`, which use the same connector
 credential and `connector:identity` scope. They do not need target YAML. They
 are read-only: they do not grant credits, reserve units, create Checkout
 Sessions, or manage payment methods.
@@ -123,7 +123,7 @@ A workspace owner can also revoke a lost machine or connector from the
 AugmentWorks portal. Routine automation cleanup must not run `logout`: it
 revokes reusable workspace API keys and connector credentials.
 
-## Workspace API keys (source 0.3.3)
+## Workspace API keys
 
 Issue a workspace API key at
 [https://augmentworks.ai/portal/settings/api-keys](https://augmentworks.ai/portal/settings/api-keys).

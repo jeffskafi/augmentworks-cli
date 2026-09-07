@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 import {
+  LAST_VERIFIED_PUBLISHED_AT,
+  LAST_VERIFIED_PUBLISHED_GIT_HEAD,
+  LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION,
   LOCAL_PACKET_REFERENCE,
   NPM_PACKAGE,
-  PUBLISHED_PACKAGE_VERSION,
   SOURCE_PACKAGE_VERSION
 } from "./release.js";
 
@@ -306,8 +308,8 @@ function discoveryCommands(options: {
 }
 
 export const LAST_VERIFIED_PUBLISHED_DISCOVERY = publishedDiscoveryManifest({
-  version: PUBLISHED_PACKAGE_VERSION,
+  version: LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION,
   localDemo: true,
-  sourceCommit: "d36ec8590b005445dba940d2df3abcb53971cea5",
-  verifiedAt: "2026-09-06T14:33:30.670Z"
+  sourceCommit: LAST_VERIFIED_PUBLISHED_GIT_HEAD,
+  verifiedAt: LAST_VERIFIED_PUBLISHED_AT
 });

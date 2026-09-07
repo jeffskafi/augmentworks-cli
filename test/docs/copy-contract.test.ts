@@ -105,9 +105,11 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(LOCAL_COMMANDS.demo);
     expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.test);
     expect(readme).toContain(`@augmentworks/cli@${PUBLISHED_PACKAGE_VERSION}`);
-    expect(readme).not.toMatch(
-      new RegExp(`npx(?:\\s+(?:--yes|-y))?\\s+@augmentworks/cli@${SOURCE_PACKAGE_VERSION}\\b`, "u")
-    );
+    if (SOURCE_PACKAGE_VERSION !== PUBLISHED_PACKAGE_VERSION) {
+      expect(readme).not.toMatch(
+        new RegExp(`npx(?:\\s+(?:--yes|-y))?\\s+@augmentworks/cli@${SOURCE_PACKAGE_VERSION}\\b`, "u")
+      );
+    }
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.doctor);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testQuick);
     expect(readme).toContain(SOURCE_ASSESSMENT_COMMANDS.testFull);

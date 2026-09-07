@@ -6,9 +6,20 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-export const PUBLISHED_PACKAGE_VERSION: string = "0.3.2";
-export const PUBLISHED_PACKAGE_VERIFIED = true;
-export const HOSTED_COMMAND_PIN: string = PUBLISHED_PACKAGE_VERSION;
+/** Identity of this tarball. Distinct from last independently verified registry evidence. */
+export const PUBLISHED_PACKAGE_VERSION: string = CLI_VERSION;
+/**
+ * True only after the matching registry tarball is downloaded and inspected.
+ * Candidate metadata in this file must not be treated as that evidence.
+ */
+export const PUBLISHED_PACKAGE_VERIFIED = false;
+/** Last independently verified npm tarball. Do not relabel 0.3.2 or 0.3.3 provenance. */
+export const LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION = "0.3.2";
+export const LAST_VERIFIED_PUBLISHED_GIT_HEAD = "d36ec8590b005445dba940d2df3abcb53971cea5";
+export const LAST_VERIFIED_PUBLISHED_AT = "2026-09-06T14:33:30.670Z";
+/** Immutable npm 0.3.3 (not this release). Do not overwrite or relabel. */
+export const REGISTRY_0_3_3_GIT_HEAD = "4a08ea0d352f2515e725cb9ca946807112422436";
+export const HOSTED_COMMAND_PIN: string = SOURCE_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
   SOURCE_PACKAGE_VERSION === PUBLISHED_PACKAGE_VERSION ? "npm" : "git";
 
@@ -55,7 +66,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Source 0.3.3 adds Stage 5B subscription usage display (monthly vs purchased vs trial lots, cancel-at-period-end, processing/failed renewal, pack-only fallback), packaged empty-directory starters, packed billing HTTP fixture coverage, and prepaid-journey recovery docs. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Verified npm remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Hosted npx commands pin 0.3.2. Do not document npx @0.3.3 until that tarball is independently verified on the registry. Live subscription sales stay gated on the server."
+    "Candidate 0.3.4 is the first-dollar customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.4), not 0.3.2. npm 0.3.3 remains an immutable registry artifact (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, published 2026-09-07T16:21:14Z) and is not overwritten or relabeled; that tarball lacks suite validate/preview, test --suite, and starter/probe. Last independently verified published tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Registry verification of 0.3.4 is recorded in docs/feature-readiness/first-dollar-registry-acceptance.json, not by flipping this candidate flag. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Do not run @latest."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {

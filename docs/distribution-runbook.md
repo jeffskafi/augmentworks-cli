@@ -28,7 +28,7 @@ accurate extra term.
 
 ## npm
 
-Do not run `npm publish` here. After CI is green on a `v0.3.2` tag, the
+Do not run `npm publish` here. After CI is green on a `v0.3.4` tag, the
 existing trusted-publishing release workflow publishes. Then verify the
 downloaded tarball; do not treat `package.json` version as publication.
 

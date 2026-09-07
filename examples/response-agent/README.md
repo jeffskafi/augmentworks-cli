@@ -1,16 +1,14 @@
 # Synthetic response-agent example
 
-This directory is a **synthetic** FAQ assessment fixture for CLI 0.3.2.
+This directory is a **synthetic** FAQ assessment fixture for this 0.3.4 CLI.
 It is not a production knowledge base, not a real customer policy, and not
 included in the npm tarball. Clone this repository for the example server.
 
-Published `@augmentworks/cli@0.3.2` includes `--assessment`. Copy or write
-`augmentworks.assessment.yaml`, then run hosted test against this isolated
-synthetic target only. Source `0.3.3` `init --starter response-only` writes a
-packaged copy of this fixture (including `server.mjs`) instead of copying
-this git-only example directory.
+This `@augmentworks/cli@0.3.4` package includes `--assessment`. `init --starter
+response-only` writes a packaged copy of this fixture (including `server.mjs`)
+instead of copying this git-only example directory.
 
-From a source 0.3.3 build, preview the chat-only send mapping before an
+From a clone after `npm ci && npm run build`, preview the chat-only send mapping before an
 assessment. This does not call the target or consume credits:
 
 ```bash
@@ -61,7 +59,7 @@ conversation identifier, and `turn_id` cannot append a second accepted user
 message. This fixture does that; arbitrary endpoints are not assumed
 idempotent.
 
-From a source 0.3.3 build, validate the session mapping offline, then probe
+From a clone after `npm ci && npm run build`, validate the session mapping offline, then probe
 the session fixture. Doctor and init never probe:
 
 ```bash

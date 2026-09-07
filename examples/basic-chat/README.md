@@ -5,7 +5,7 @@ and extracts `answer` as assistant content. It can assess conversational
 behavior, but it cannot establish whether a tool ran or state changed.
 
 Copy `.env.example` to `.env`, set values locally, and run `doctor` against the
-YAML before starting an assessment. Source 0.3.3 can preview the sanitized
+YAML before starting an assessment. This 0.3.4 package can preview the sanitized
 evidence payload without calling the target, then explicitly probe a running
 synthetic process. Doctor and init never probe.
 
@@ -20,11 +20,11 @@ node dist/index.js probe -c augmentworks.yaml --yes
 ```
 
 This directory is a **source-only fixture**. It is **not** copied into the
-published npm tarball. `npx @augmentworks/cli@0.3.2` cannot start this
+published npm tarball. `npx @augmentworks/cli@0.3.4` cannot start this
 server from a clean directory.
 
 A packaged copy of `server.mjs` ships inside `@augmentworks/cli` under
 `dist/assets/starters/response-quality/` and is written by
-`node dist/index.js init --starter response-only` on source 0.3.3.
-Published 0.3.2 does not include `probe` or starter generation.
+`node dist/index.js init --starter response-only` in this 0.3.4 package.
+Immutable npm `0.3.3` does not include `probe` or these starter files.
 

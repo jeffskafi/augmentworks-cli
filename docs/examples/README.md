@@ -19,9 +19,8 @@ directories retain raw provenance from the generation command.
 
 See `../walkthrough-draft.md`. Do not fabricate a recording.
 
-## Hosted CI (source 0.3.3)
+## Hosted CI (this 0.3.4 package)
 
 `github-actions-hosted-source.yml` is a copy-pastable quoted hosted workflow
-for this source build. It is not a published `0.3.2` pin and must not be
-advertised as an unpublished npm version until that tarball is verified on
-the registry.
+for this package. Executable npx pins match `0.3.4`. Do not advertise
+immutable npm `0.3.3`. Website adoption waits for registry evidence.

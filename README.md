@@ -15,9 +15,9 @@ target SDK, and no coding assistant is used in either runtime path.
 
 | Path | What it is | Needs | Status |
 | --- | --- | --- | --- |
-| Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ | Published in `@augmentworks/cli@0.3.2` |
-| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | Published in `@augmentworks/cli@0.3.2` |
-| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | Published in `@augmentworks/cli@0.3.2`. Quoted `--estimate` / `--max-credits` are source `0.3.3` |
+| Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ | In this `@augmentworks/cli@0.3.4` package |
+| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | In this `@augmentworks/cli@0.3.4` package |
+| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | In this `@augmentworks/cli@0.3.4` package, including quoted `--estimate` / `--max-credits` |
 
 Product site: [https://augmentworks.ai](https://augmentworks.ai).
 Report schemas: `schema --kind local-packet` and `schema --kind local-result`.
@@ -33,14 +33,16 @@ audit, or hosted evidence record.
 
 | Identity | Current value |
 | --- | --- |
-| Source package (`package.json`) | `0.3.3` |
-| Verified published npm package | `@augmentworks/cli@0.3.2` |
+| This package (`package.json`) | `0.3.4` |
+| Executable `npx` pin (matches this tarball) | `@augmentworks/cli@0.3.4` |
+| Last independently verified npm tarball | `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
+| Immutable npm artifact (not this release) | `@augmentworks/cli@0.3.3` (`gitHead` `4a08ea0d352f2515e725cb9ca946807112422436`) |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.2**. That published tarball includes packaged `demo`, hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `usage`, `billing`, `test --estimate`, `--max-credits`, `run status` / `run wait` / `run report`, `AUGMENTWORKS_API_KEY` mode, or empty-directory assessment generation. Clone this repository and build source `0.3.3` for those commands. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.4**, the version of this package. That candidate includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `suite validate` / `preview`, `test --suite`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. Registry verification of 0.3.4 is recorded in `docs/feature-readiness/first-dollar-registry-acceptance.json` and is not implied by this candidate metadata. Do not overwrite or relabel npm 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
 
-## Packaged demo (published 0.3.2)
+## Packaged demo (this 0.3.4 package)
 
 Prerequisites: Node.js 20 or newer. No API key, login, second terminal, Docker,
 database, or model.
@@ -54,7 +56,7 @@ node dist/index.js demo
 Published npm:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 demo
+npx --yes @augmentworks/cli@0.3.4 demo
 ```
 
 Machine-readable summary (not an `AW-LOCAL-RESULT-1` report):
@@ -82,8 +84,9 @@ opens HTML only if you pass it; default is no browser. After a hard kill,
 cleanup may not run; the in-memory demo target vanishes with the process, but
 a real application still needs a server-side fixture TTL.
 
-Until a later tarball is independently verified, do not write an unpublished
-npx pin for source-only billing commands.
+Website adoption must wait for registry evidence in
+`docs/feature-readiness/first-dollar-registry-acceptance.json`. Do not treat
+this candidate pin as that evidence, and do not use `@latest` or `@0.3.3`.
 
 ## Hosted quickstart
 
@@ -91,8 +94,9 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target. Hosted access is not a public
 self-serve signup; do not assume a trial entitlement.
 
-Published `@augmentworks/cli@0.3.2` can log in and run `--assessment`, but its
-`init` does **not** write `augmentworks.assessment.yaml`. Source `0.3.3` does:
+This `@augmentworks/cli@0.3.4` package can log in, run `--assessment`, and
+`init` writes `augmentworks.assessment.yaml`. From a clone after
+`npm ci && npm run build`:
 
 ```bash
 node dist/index.js init
@@ -109,16 +113,16 @@ you pass `--force`. `--force` still never replaces an existing `.env`.
 `npm --yes` only skips the npm installer prompt; it is not CLI spending consent.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 login
+npx --yes @augmentworks/cli@0.3.4 login
 
-npx --yes @augmentworks/cli@0.3.2 init --agent
-# Published 0.3.2 init does not create augmentworks.assessment.yaml.
-# Source 0.3.3 init does. Edit .env with isolated synthetic target values.
+npx --yes @augmentworks/cli@0.3.4 init --agent
+# This 0.3.4 package writes augmentworks.assessment.yaml and starter files.
+# Edit .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.3.2 doctor \
+npx --yes @augmentworks/cli@0.3.4 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   -c augmentworks.yaml \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
@@ -126,14 +130,13 @@ npx --yes @augmentworks/cli@0.3.2 test \
 ```
 
 `login` authorizes this terminal. Browser approval does not start an
-assessment. Source `0.3.3` `init` creates the YAML, assessment file, starter
+assessment. This package's `init` creates the YAML, assessment file, starter
 references, `.env.example`, a local `.env`, and optional repository guidance.
-On POSIX systems, the CLI creates `.env` with mode `0600`. Published `0.3.2`
-`init` still requires you to add `augmentworks.assessment.yaml` before hosted
-`--assessment`. Source `doctor` validates the config, assessment, profile
-overrides, reference sizes, and wire bounds without calling AugmentWorks or
-the target. Hosted `test --assessment` starts one assessment, keeps this
-terminal online only for that run, and `--open` opens its live dashboard.
+On POSIX systems, the CLI creates `.env` with mode `0600`. `doctor` validates
+the config, assessment, profile overrides, reference sizes, and wire bounds
+without calling AugmentWorks or the target. Hosted `test --assessment` starts
+one assessment, keeps this terminal online only for that run, and `--open`
+opens its live dashboard.
 There is no separate `connect` command. Keep the terminal open until the
 assessment finishes. If grading is pending after target work, wait on the
 original run; do not delete journals or blindly rerun the test command.
@@ -141,10 +144,10 @@ original run; do not delete journals or blindly rerun the test command.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 login --device
+npx --yes @augmentworks/cli@0.3.4 login --device
 ```
 
-## Workspace usage (source 0.3.3)
+## Workspace usage
 
 `usage` reads the authenticated workspace ledger. It does not need target YAML,
 a target API key, or a target server. It does not grant credits, reserve units,
@@ -172,10 +175,10 @@ tomorrow. Login refresh, logout, and browser reauthentication do not imply a
 new trial. Local `demo`, `test --local`, offline `doctor`, and `schema`
 remain account-free and make no billing calls.
 
-Until source 0.3.3 is published, do not write an unpublished npx pin for
-`usage`.
+This package includes `usage`. Do not use `@latest` or the immutable npm `0.3.3`
+artifact for this command.
 
-## Mapping preview (source 0.3.3)
+## Mapping preview
 
 `preview-mapping` applies the production response extraction, allowlist,
 redaction, and evidence serialization to a local synthetic JSON fixture. It
@@ -195,10 +198,10 @@ The preview is for the supplied fixture only. It does not guarantee that
 future responses are secret-free. Do not pass production transcripts or live
 target output.
 
-Until source 0.3.3 is published, do not write an unpublished npx pin for
-`preview-mapping`.
+This package includes `preview-mapping`. Do not use `@latest` or the immutable
+npm `0.3.3` artifact for this command.
 
-## Connection probe (source 0.3.3)
+## Connection probe
 
 Offline doctor and mapping preview do not prove network auth, selector
 behavior, session continuity, or cleanup. `probe` is an explicit bounded
@@ -218,10 +221,10 @@ node dist/index.js probe -c augmentworks.yaml --json
 node dist/index.js probe -c augmentworks.yaml --yes
 ```
 
-Until source 0.3.3 is published, do not write an unpublished npx pin for
-`probe`.
+This package includes `probe`. Do not use `@latest` or the immutable npm `0.3.3`
+artifact for this command.
 
-## Browser billing (source 0.3.3)
+## Browser billing
 
 `billing` retrieves the authenticated first-party billing page advertised by
 `billing_portal_link_v1` and prints or opens that URL. It does not create a
@@ -251,7 +254,7 @@ snapshot is processing metadata, not spendable credit. Pack prices belong to
 the website catalog; this CLI does not market the $49 pack or the $149
 monthly plan. If `subscriptions_v1` is absent, recurring CTAs are omitted.
 
-## Hosted estimate and spending consent (source 0.3.3)
+## Hosted estimate and spending consent
 
 `test --estimate` compiles the same assessment that admission uses and calls
 `POST /v1/billing/quote`. It does not create a run, reserve credits, call a
@@ -311,7 +314,7 @@ assertion failure. Account-free `demo`, `test --local`, offline `doctor`, and
 `schema` still make no billing calls. `doctor` is offline validation only; it
 does not check AugmentWorks authentication or fetch a hosted report.
 
-Copy-pastable noninteractive CI (source 0.3.3 after `npm ci && npm run build`;
+Copy-pastable noninteractive CI (this 0.3.4 package after `npm ci && npm run build`;
 no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
 on that exact run if grading is pending, and recover an interrupted create
 before considering a new admission:
@@ -350,15 +353,17 @@ node dist/index.js run report "$run_id" --json
 exit "$code"
 ```
 
-Do not document an unpublished source `0.3.3` npm pin until that tarball is
-published and independently verified. Website examples stay on **0.3.2**.
+Do not use `@latest` or immutable npm `0.3.3` for this package. Website
+examples must wait for registry evidence in
+`docs/feature-readiness/first-dollar-registry-acceptance.json`. Last
+independently verified npm remains **0.3.2**.
 
-## Local assessment (published 0.3.2)
+## Local assessment
 
 No AugmentWorks account, login, credit, relay, or dashboard is required. Point
 the published CLI at **your** authorized isolated synthetic target, or clone
 this repository for the refund-agent example server. `examples/` is not in the
-npm tarball. The local CLI itself is the published `0.3.2` package. This path
+npm tarball. The local CLI itself is this `0.3.4` package. This path
 is not the packaged `demo` command.
 
 ```bash
@@ -375,10 +380,10 @@ node --env-file=.env server.mjs
 In another terminal, from the example directory, run the published local CLI:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 doctor \
+npx --yes @augmentworks/cli@0.3.4 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -405,7 +410,7 @@ Windows because POSIX file modes cannot establish a safe Windows ACL.
 Do not put an AugmentWorks token on the command line. Long-lived project-token
 issuance is not part of the interactive connector-auth release, so do not
 substitute its one-hour interactive access token for an unattended CI
-credential. Source `0.3.3` accepts `AUGMENTWORKS_API_KEY` for noninteractive
+credential. This `0.3.4` package accepts `AUGMENTWORKS_API_KEY` for noninteractive
 workspace keys issued at https://augmentworks.ai/portal/settings/api-keys.
 That mode never loads a keychain, refreshes, or persists credentials. Differing
 nonempty `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail closed
@@ -575,8 +580,8 @@ before any target call.
 Print the packet and result schemas with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet
-npx --yes @augmentworks/cli@0.3.2 schema --kind local-result
+npx --yes @augmentworks/cli@0.3.4 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.4 schema --kind local-result
 ```
 
 ### Local reports and trust
@@ -596,25 +601,24 @@ a self-contained static file with no scripts or external assets. Treat all
 three artifacts as sensitive customer-controlled evidence. `--json` emits the
 same final local result on stdout; the three files are still generated.
 
-## Hosted assessment files (published 0.3.2; source 0.3.3 starters)
+## Hosted assessment files
 
-`--assessment` is in npm `@augmentworks/cli@0.3.2`. Published `init` does not
-create the assessment file. Source `0.3.3` `init` writes `augmentworks.yaml`,
-`augmentworks.assessment.yaml`, and referenced starter files before you run an
-assessment. See `examples/response-agent/` for the FAQ fixture used as the
-packaged `response-quality` starter.
+`--assessment` is in this `@augmentworks/cli@0.3.4` package. `init` writes
+`augmentworks.yaml`, `augmentworks.assessment.yaml`, and referenced starter
+files before you run an assessment. See `examples/response-agent/` for the FAQ
+fixture used as the packaged `response-quality` starter.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 doctor \
+npx --yes @augmentworks/cli@0.3.4 doctor \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick
 
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
   --open
 
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile full \
   --open
@@ -639,19 +643,19 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material. Do not use as routine CI cleanup when `AUGMENTWORKS_API_KEY` is set |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh interactive credentials. API-key mode reports principal kind, credential id, actions, and expiry without the bearer |
-| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel. Source 0.3.3, not published 0.3.2 |
-| `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, subscription mutation, or reservation. Source 0.3.3 |
-| `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Source 0.3.3 writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
+| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel |
+| `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, subscription mutation, or reservation |
+| `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
-| `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.3. Reads only the selected config and fixture. No target, cloud, or model call |
-| `probe [-c path] [--yes] [--json]` | Explicit bounded synthetic connection probe | Source 0.3.3. Prints the planned calls first. `--yes` executes them against the configured target only. Never runs during doctor or init. No hosted API, no credits |
-| `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Source 0.3.3. Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
+| `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Reads only the selected config and fixture. No target, cloud, or model call |
+| `probe [-c path] [--yes] [--json]` | Explicit bounded synthetic connection probe | Prints the planned calls first. `--yes` executes them against the configured target only. Never runs during doctor or init. No hosted API, no credits |
+| `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.3 uses `aw-relay/0.3` quotes; published 0.3.2 uses `aw-relay/0.2`. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
-| `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Source 0.3.3. Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
-| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.3 |
+| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
+| `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
+| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
-| `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; published in 0.3.2 |
+| `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
 | `schema [--kind config\|local-packet\|local-result\|customer-suite]` | Print a bundled v1 JSON Schema | None |
 
@@ -712,7 +716,7 @@ that the observer is truthful or that staging matches production.
   staging result is not proof of production equivalence.
 - v0.2 is for authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only. Do not connect production systems
-  or use production or regulated data. Source 0.3.3 keeps that same target
+  or use production or regulated data. This package keeps that same target
   boundary.
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
@@ -724,13 +728,13 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 After the packaged demo, configure the generic HTTP connector against an
 authorized, isolated synthetic target in a test or staging environment:
 
-1. `npx --yes @augmentworks/cli@0.3.2 init --agent`
-2. Source `0.3.3`: `node dist/index.js init` or `node dist/index.js init --starter workflow`. Map only the hooks required by that pattern.
+1. `npx --yes @augmentworks/cli@0.3.4 init --agent`
+2. `node dist/index.js init` or `node dist/index.js init --starter workflow` from a clone after `npm ci && npm run build`. Map only the hooks required by that pattern.
 3. Put secret *names* in YAML and values only in local `.env`.
-4. `npx --yes @augmentworks/cli@0.3.2 doctor -c augmentworks.yaml`
-5. `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json` (source 0.3.3)
-6. `node dist/index.js probe -c augmentworks.yaml` then `node dist/index.js probe -c augmentworks.yaml --yes` (source 0.3.3)
-7. `npx --yes @augmentworks/cli@0.3.2 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+4. `npx --yes @augmentworks/cli@0.3.4 doctor -c augmentworks.yaml`
+5. `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
+6. `node dist/index.js probe -c augmentworks.yaml` then `node dist/index.js probe -c augmentworks.yaml --yes`
+7. `npx --yes @augmentworks/cli@0.3.4 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 
 Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
 not provide. Hosted access remains an invited workspace at
@@ -750,12 +754,15 @@ define pricing or public signup.
   or blindly rerun the test. There is no `--rerun` flag.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
-- Published `@augmentworks/cli@0.3.2` includes `--assessment` and `demo`. Copy
-  or write `augmentworks.assessment.yaml` before that hosted path; published
-  `init` does not create the assessment file. Source `0.3.3` `init` does.
+- This `@augmentworks/cli@0.3.4` package includes `--assessment`, `demo`, and
+  `init` starter generation. Registry verification of 0.3.4 is recorded in
+  `docs/feature-readiness/first-dollar-registry-acceptance.json`. Last
+  independently verified npm remains `0.3.2`. Do not overwrite or relabel
+  immutable npm `0.3.3`.
 - Packaged `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`, `--max-credits`,
-  `run status`/`run wait`/`run report`, and `AUGMENTWORKS_API_KEY` mode are
-  implemented in source `0.3.3` and are not in the verified `0.3.2` npm tarball.
+  `run status`/`run wait`/`run report`, `AUGMENTWORKS_API_KEY` mode, owned-suite
+  commands, and own-target starters are in this 0.3.4 candidate. They were not
+  in the independently verified `0.3.2` tarball.
 
 ## Development
 
