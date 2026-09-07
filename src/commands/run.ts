@@ -6,6 +6,7 @@ import {
   retryEvaluationSuccessJson,
   runStatusSuccessJson
 } from "../billing/format.js";
+import { classifyBillingRunStatus } from "../billing/classify.js";
 import type { BillingRunStatus } from "../billing/protocol.js";
 import { assertStatusCapability, assertStatusWorkspace } from "../billing/validate.js";
 import { statusUnsupportedError } from "../billing/errors.js";
@@ -54,7 +55,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
     });
   run
     .command("wait")
-    .description("Wait for hosted grading on an original run without calling the target")
+    .description("Wait for original-run target work and grading without calling the target")
     .argument("<run-id>", "original run ID")
     .option("--json", "write one machine-readable status object to stdout")
     .option("--timeout-ms <ms>", "maximum wait in milliseconds", String(DEFAULT_WAIT_MS))
@@ -196,53 +197,41 @@ async function waitForRunStatus(
   const sleep = dependencies.sleep ?? sleepWithSignal;
   const deadline = now() + timeoutMs;
   let delay = 1_000;
+  let last: BillingRunStatus | undefined;
   for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
-    const status = await readRunStatus(session, runId, values.signal);
-    if (isWaitTerminal(status)) return status;
+    last = await readRunStatus(session, runId, values.signal);
+    if (isWaitTerminal(last)) return last;
     const remaining = deadline - now();
     if (remaining <= 0) {
-      throw new AwError({
-        code: "EVALUATION_INCOMPLETE",
-        category: "relay",
-        message: `Grading is still pending on original run ${runId}. Evidence remains saved. Retry: augmentworks run wait ${runId}`
-      });
+      throw waitIncompleteError(runId, last);
     }
     const jitter = Math.floor(delay * 0.2 * Math.random());
     await sleep(Math.min(delay + jitter, remaining), values.signal);
     delay = Math.min(delay * 2, 5_000);
   }
-  throw new AwError({
+  throw waitIncompleteError(runId, last);
+}
+
+function waitIncompleteError(runId: string, status: BillingRunStatus | undefined): AwError {
+  const gradingPending =
+    status !== undefined &&
+    (status.evaluationStatus === "pending" || status.evaluationStatus === "partial");
+  const reason = gradingPending
+    ? "Grading is still pending"
+    : "The original run is still in progress";
+  return new AwError({
     code: "EVALUATION_INCOMPLETE",
     category: "relay",
-    message: `Grading is still pending on original run ${runId}. Evidence remains saved.`
+    message: `${reason} on original run ${runId}. Evidence remains saved. Retry: augmentworks run wait ${runId}`
   });
 }
 
-function isWaitTerminal(status: BillingRunStatus): boolean {
-  return (
-    status.evaluationStatus === "complete" ||
-    status.evaluationStatus === "error" ||
-    status.evaluationStatus === "unsupported" ||
-    status.evaluationStatus === "absent"
-  );
+export function isWaitTerminal(status: BillingRunStatus): boolean {
+  return classifyBillingRunStatus(status).waitTerminal;
 }
 
 export function billingStatusExitCode(status: BillingRunStatus): number {
-  if (status.evaluationStatus === "pending" || status.evaluationStatus === "partial") {
-    return EXIT.EVALUATION_INCOMPLETE;
-  }
-  if (status.evaluationStatus === "error") return EXIT.EVALUATION_ERROR;
-  if (status.outcome === "failed" || status.outcome === "inconclusive" || status.outcome === "error") {
-    return EXIT.ASSESSMENT_FAILED;
-  }
-  if (
-    status.executionStatus === "failed" &&
-    (status.outcome === undefined || status.outcome === null)
-  ) {
-    return EXIT.ASSESSMENT_FAILED;
-  }
-  if (status.executionStatus === "cancelled") return EXIT.INTERRUPTED;
-  return EXIT.OK;
+  return classifyBillingRunStatus(status).exitCode;
 }
 
 function parseRunId(value: string): string {

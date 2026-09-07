@@ -164,8 +164,13 @@ node dist/index.js run wait <run-id>
 ```
 
 If grading is pending after target work finishes, evidence is saved. Wait on
-the original run; do not re-run the test command. Account-free `demo`,
-`test --local`, offline `doctor`, and `schema` still make no billing calls.
+the original run; do not re-run the test command. `run wait` also continues
+while target execution is still `queued`, `connected`, `running`, or
+`cancel_requested`, including when grading is `absent`. Exit `0` means the
+assessment passed. A successful status query of unfinished work is not a
+pass (`ok: true` with `assessment: "incomplete"` and exit `11`). Account-free
+`demo`, `test --local`, offline `doctor`, and `schema` still make no billing
+calls.
 
 ## Local assessment (published 0.3.1)
 
