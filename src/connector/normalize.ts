@@ -21,12 +21,47 @@ import type {
   TargetEvent
 } from "./types.js";
 
-const RESERVED_OBSERVE_FIELDS = new Set([
+export const RESERVED_OBSERVE_FIELDS = new Set([
   "protocol_version",
   "request_id",
   "observations",
   "metadata"
 ]);
+
+export function shouldOmitMappedResponseField(
+  kind: OperationKind,
+  field: string,
+  options: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
+  }
+): boolean {
+  if (field === "metadata") return true;
+  if (kind === "send" && !options.allowToolEvents && (field === "events" || field === "tool_events")) {
+    return true;
+  }
+  return kind === "observe" && !RESERVED_OBSERVE_FIELDS.has(field) && !options.allowedObservations.has(field);
+}
+
+export function omittedMappedResponseReason(
+  kind: OperationKind,
+  field: string,
+  options: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
+  }
+): string {
+  if (field === "metadata") {
+    return "Target response metadata is not uploaded; this mapping is ignored.";
+  }
+  if (kind === "send" && (field === "events" || field === "tool_events") && !options.allowToolEvents) {
+    return "telemetry.allow_tool_events is not true, so structured events will not leave this machine.";
+  }
+  if (kind === "observe" && !RESERVED_OBSERVE_FIELDS.has(field) && !options.allowedObservations.has(field)) {
+    return `${field} is not in telemetry.allow_observations and will be discarded.`;
+  }
+  return "This mapped field is omitted from evidence.";
+}
 
 export function normalizeConnectorResult(options: {
   kind: OperationKind;
@@ -38,21 +73,12 @@ export function normalizeConnectorResult(options: {
   allowedObservations: ReadonlySet<string>;
   secrets: readonly string[];
 }): ConnectorResult {
-  const mapped = applyResponseMap(options.response, options.responseMap, (field) => {
-    if (field === "metadata") return true;
-    if (
-      options.kind === "send" &&
-      !options.allowToolEvents &&
-      (field === "events" || field === "tool_events")
-    ) {
-      return true;
-    }
-    return (
-      options.kind === "observe" &&
-      !RESERVED_OBSERVE_FIELDS.has(field) &&
-      !options.allowedObservations.has(field)
-    );
-  });
+  const mapped = applyResponseMap(options.response, options.responseMap, (field) =>
+    shouldOmitMappedResponseField(options.kind, field, {
+      allowToolEvents: options.allowToolEvents,
+      allowedObservations: options.allowedObservations
+    })
+  );
   let result: ConnectorResult;
   switch (options.kind) {
     case "prepare":

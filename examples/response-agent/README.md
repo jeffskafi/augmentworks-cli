@@ -8,6 +8,16 @@ Published `@augmentworks/cli@0.3.1` includes `--assessment`. Copy or write
 `augmentworks.assessment.yaml`, then run hosted test against this isolated
 synthetic target only.
 
+From a source 0.3.2 build, preview the chat-only send mapping before an
+assessment. This does not call the target or consume credits:
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --operation send \
+  --fixture ./fixtures/send-response.json
+```
+
 ```yaml
 # augmentworks.assessment.yaml is synthetic test data only.
 ```
