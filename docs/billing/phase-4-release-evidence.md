@@ -9,15 +9,15 @@ external checks are **BLOCKED** / `not_run`, never counted as passed.
 | --- | --- |
 | CLI 3B baseline | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` |
 | Branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `82e0c3e615e90ab766a3f55d848e7a39644ce9b9` |
+| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` |
 | Main 4A commit vendored | `49806f0f52377bbca0fbe02f160668723c589fa7` |
 | Source package | `0.3.3` |
 | Published npm (do not replace yet) | `0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
 | `aw-billing/1` schema SHA-256 | `e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b` |
 | `aw-billing/1` fixtures SHA-256 | `42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c` |
 
-Record the Stage 4B implementation commit `82e0c3e615e90ab766a3f55d848e7a39644ce9b9`.
-The follow-up docs commit only pins that SHA.
+Record the Stage 4B packed-journey implementation commit `c9f079a3fe9b08ba743977115849e594462bbb3d`.
+The follow-up docs commit only pins that SHA. First onboarding implementation remains `82e0c3e615e90ab766a3f55d848e7a39644ce9b9`.
 
 ## Tarball
 

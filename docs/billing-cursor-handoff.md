@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI 3B baseline HEAD | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`) |
 | Working branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `82e0c3e615e90ab766a3f55d848e7a39644ce9b9` |
+| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` |
 | Vendored main commit | `49806f0f52377bbca0fbe02f160668723c589fa7` (`origin/main` Stage 4A merge) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
