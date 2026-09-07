@@ -164,8 +164,10 @@ node dist/index.js run wait <run-id>
 ```
 
 If grading is pending after target work finishes, evidence is saved. Wait on
-the original run; do not re-run the test command. Account-free `demo`,
-`test --local`, offline `doctor`, and `schema` still make no billing calls.
+the original run; do not re-run the test command. `run wait` / `run status`
+exit `0` only for a classified passing assessment, not because the status
+query succeeded. Account-free `demo`, `test --local`, offline `doctor`, and
+`schema` still make no billing calls.
 
 ## Local assessment (published 0.3.1)
 
@@ -450,7 +452,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.2 uses `aw-relay/0.3` quotes; published 0.3.1 uses `aw-relay/0.2`. `--estimate` never reserves credits |
-| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait; retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
+| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait. Query success is not a pass: wait stays open while execution is running even if grading is `absent`. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; source 0.3.2, not published 0.3.1 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |

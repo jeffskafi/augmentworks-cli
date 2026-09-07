@@ -715,6 +715,7 @@ describe("run status wait and retry-evaluation", () => {
     const command = createRunCommand({
       stdout: { write: () => true },
       stderr: { write: () => true },
+      setExitCode: () => undefined,
       accessToken: async () => "token",
       identity: async () => identity(),
       apiOrigin: () => new URL("http://127.0.0.1:8787/"),
@@ -730,9 +731,9 @@ describe("run status wait and retry-evaluation", () => {
       ["node", "augmentworks", "status", "66666666-6666-4666-8666-666666666666", "--json"],
       { from: "node" }
     );
-    expect(billingStatus).toBe(1);
-    expect(retry).toBe(0);
     expect(target).toBe(0);
+    expect(retry).toBe(0);
+    expect(billingStatus).toBe(1);
   });
 
   it("waits until grading completes without creating a run or constructing a target", async () => {
@@ -759,6 +760,7 @@ describe("run status wait and retry-evaluation", () => {
       throw new Error(`unexpected ${url.pathname}`);
     });
     const stdout: string[] = [];
+    const exitCodes: number[] = [];
     const command = createRunCommand({
       stdout: {
         write: (chunk) => {
@@ -768,7 +770,9 @@ describe("run status wait and retry-evaluation", () => {
       },
       stderr: { write: () => true },
       sleep: async () => undefined,
-      setExitCode: () => undefined,
+      setExitCode: (code) => {
+        exitCodes.push(code);
+      },
       accessToken: async () => "token",
       identity: async () => identity(),
       apiOrigin: () => new URL("http://127.0.0.1:8787/"),
@@ -782,9 +786,16 @@ describe("run status wait and retry-evaluation", () => {
     const payload = JSON.parse(stdout.join("")) as {
       evaluationStatus: string;
       outcome?: string;
+      release_success?: boolean;
+      exit_code?: number;
+      originalRunId?: string;
     };
     expect(payload.evaluationStatus).toBe("complete");
     expect(payload.outcome).toBe("failed");
+    expect(payload.release_success).toBe(false);
+    expect(payload.exit_code).toBe(EXIT.ASSESSMENT_FAILED);
+    expect(payload.originalRunId).toBe("66666666-6666-4666-8666-666666666666");
+    expect(exitCodes).toEqual([EXIT.ASSESSMENT_FAILED]);
   });
 
   it("retries evaluation without a new reservation or target call", async () => {

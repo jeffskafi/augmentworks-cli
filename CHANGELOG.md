@@ -30,6 +30,12 @@ All notable changes to this project are documented here. The format follows
 
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
+- `run wait` / `run status` no longer treat a successful billing-status query
+  as a passing assessment. Wait continues while target execution is
+  nonterminal even when evaluation is `absent` (including running, 0-of-N
+  attempts, and a null outcome). Release success requires a classified
+  terminal pass; incomplete grading stays exit `11`, evaluator errors `12`,
+  failed assessments `10`, interruptions `130`, and billing rejections `13`.
 
 ### Changed
 

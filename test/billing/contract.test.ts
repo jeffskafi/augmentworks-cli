@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { AW_BILLING_CONTRACT } from "../../src/billing/generated/contract.js";
 import { EXIT, exitCodeFor, AwError } from "../../src/errors.js";
 import { formatEstimateHuman, formatRunStatusHuman, formatUsageHuman } from "../../src/billing/format.js";
+import { classifyBillingRunStatus } from "../../src/billing/status-classification.js";
 import {
   parseBillingCapabilitiesResponse,
   parseBillingQuoteResponse,
@@ -249,6 +250,12 @@ describe("vendored aw-billing/1 contract", () => {
     const human = formatRunStatusHuman(status);
     expect(human).toContain("Your test evidence is saved.");
     expect(human).toContain("run wait");
+    expect(human).toContain("This status read succeeded. It is not a passing assessment");
     expect(human).not.toContain("Re-run the same test command");
+    const classified = classifyBillingRunStatus(status);
+    expect(classified.observation).toBe("success");
+    expect(classified.waitTerminal).toBe(false);
+    expect(classified.releaseSuccess).toBe(false);
+    expect(classified.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
   });
 });

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceEntrypoint = resolve(projectRoot, "src/index.ts");
+const packedEntrypoint = resolve(projectRoot, "dist/index.js");
 const tsxImportUrl = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 const maxCapturedBytes = 2 * 1024 * 1024;
 
@@ -26,10 +27,33 @@ export async function runSourceCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  const child = spawn(
-    process.execPath,
-    ["--disable-warning=DEP0205", "--import", tsxImportUrl, sourceEntrypoint, ...args],
-    {
+  return await runCliProcess(
+    [
+      process.execPath,
+      "--disable-warning=DEP0205",
+      "--import",
+      tsxImportUrl,
+      sourceEntrypoint,
+      ...args
+    ],
+    options
+  );
+}
+
+export async function runPackedCli(
+  args: readonly string[],
+  options: CliProcessOptions
+): Promise<CliProcessResult> {
+  return await runCliProcess([process.execPath, packedEntrypoint, ...args], options);
+}
+
+async function runCliProcess(
+  argv: readonly string[],
+  options: CliProcessOptions
+): Promise<CliProcessResult> {
+  const [executable, ...spawnArgs] = argv;
+  if (executable === undefined) throw new Error("CLI process argv is empty");
+  const child = spawn(executable, spawnArgs, {
     cwd: options.cwd,
     env: {
       ...process.env,
