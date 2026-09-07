@@ -10,6 +10,8 @@ Owned repository: `jeffskafi/augmentworks-cli`. Main remains read-only.
 | --- | --- |
 | Audit baseline / default main | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working branch | `cursor/prevent-unfinished-run-observation-5ddb` |
+| Implementation HEAD | recorded after verification commit on this branch |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/18 |
 | Consumed billing 2B | already merged on main (`dc35d9e` / PR #15), vendored main `67749b22f04bbb8d94c0309acd36be3cb3144400` |
 | Schema version | `aw-billing/1` |
 | Schema SHA-256 | `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901` |
@@ -87,18 +89,21 @@ node dist/index.js run wait <run-id>
 
 ## Verification
 
-Recorded after the commands below. Fill exact counts from the checkout that produced this PR.
+Working directory: this checkout. Commands and real outcomes:
 
 | Command | Outcome |
 | --- | --- |
-| `npm run check:billing-contract` | pending in this draft |
-| `npm run typecheck` | pending |
-| targeted vitest (`run-status-classification`, `cli-run-wait`, `cli-quote`, `contract`) | pending |
-| `npm test` | pending |
-| `npm run build` | pending |
-| packed `dist/index.js run wait` against the fixture API | pending (covered by `test/billing/cli-run-wait.test.ts`) |
-| `npm run smoke:pack` | pending |
-| Live paid target / Stage 2A host | **not run** (scope exclusion) |
+| `npm run typecheck` | Pass (`tsc --noEmit`) |
+| `npx vitest run test/billing/run-status-classification.test.ts test/billing/cli-quote.test.ts test/billing/contract.test.ts test/billing/cli-run-wait.test.ts` | Pass. **4 files, 55 tests** including packed `dist/index.js run wait` / `run status` process exits |
+| `npm test` | Pass. Vitest 4.1.11: **49 files, 407 tests** |
+| `npm run build` | Pass. tsup ESM `dist/index.js` 1.63 MB |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2` (development) |
+| `npm run check:billing-contract` | Pass. `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400`; schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`; fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1` |
+| `npm run check` | Pass (typecheck + test + build + discovery + billing contract) |
+| `npm run smoke:pack` | Pass. Packed tarball **20 files, 356000 compressed bytes** |
+| Live paid target / Stage 2A host | **Not run.** Scope exclusion; missing live credentials are blockers, not passes |
+
+Packed wait tests assert process exit `11` for the running/absent/0-of-10/null reproduction, exit `0` after the fixture API becomes deterministic `completed`/`absent`/`passed`, timeout output containing `augmentworks run wait <original-run-id>`, and zero `POST /v1/billing/quote` / `POST /v1/relay/runs` / retry-evaluation calls.
 
 ## Compatibility
 
