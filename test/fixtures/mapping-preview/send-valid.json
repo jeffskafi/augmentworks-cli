@@ -1,8 +1,6 @@
 {
-  "answer": "The synthetic order is still paid.",
+  "answer": "The synthetic order remains paid.",
   "finished": true,
-  "events": [],
-  "metadata": {
-    "debug": true
-  }
+  "finish_reason": "stop",
+  "events": []
 }

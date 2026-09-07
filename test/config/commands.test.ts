@@ -77,8 +77,9 @@ describe("configuration commands", () => {
     expect(report.ok).toBe(true);
     expect(report.offline).toBe(true);
     expect(report.resolvedConfig?.capabilities.level).toBe("stateful");
-    expect(report.diagnostics.map((item) => item.code)).toContain("OFFLINE_CHECK_COMPLETE");
-    expect(report.diagnostics.map((item) => item.code)).toContain("MAPPING_PREVIEW_AVAILABLE");
+    expect(report.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(["OFFLINE_CHECK_COMPLETE", "MAPPING_PREVIEW_AVAILABLE"])
+    );
   });
 
   it("prints a valid bundled schema", async () => {

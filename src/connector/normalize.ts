@@ -28,41 +28,39 @@ export const RESERVED_OBSERVE_FIELDS = new Set([
   "metadata"
 ]);
 
-export function shouldOmitMappedResponseField(options: {
-  kind: OperationKind;
-  field: string;
-  allowToolEvents: boolean;
-  allowedObservations: ReadonlySet<string>;
-}): boolean {
-  if (options.field === "metadata") return true;
-  if (
-    options.kind === "send" &&
-    !options.allowToolEvents &&
-    (options.field === "events" || options.field === "tool_events")
-  ) {
+export function shouldOmitMappedResponseField(
+  kind: OperationKind,
+  field: string,
+  options: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
+  }
+): boolean {
+  if (field === "metadata") return true;
+  if (kind === "send" && !options.allowToolEvents && (field === "events" || field === "tool_events")) {
     return true;
   }
-  return (
-    options.kind === "observe" &&
-    !RESERVED_OBSERVE_FIELDS.has(options.field) &&
-    !options.allowedObservations.has(options.field)
-  );
+  return kind === "observe" && !RESERVED_OBSERVE_FIELDS.has(field) && !options.allowedObservations.has(field);
 }
 
-export function omitMappedResponseFieldReason(options: {
-  kind: OperationKind;
-  field: string;
-  allowToolEvents: boolean;
-  allowedObservations: ReadonlySet<string>;
-}): string | undefined {
-  if (!shouldOmitMappedResponseField(options)) return undefined;
-  if (options.field === "metadata") {
-    return "Target response metadata is not uploaded.";
+export function omittedMappedResponseReason(
+  kind: OperationKind,
+  field: string,
+  options: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
   }
-  if (options.kind === "send" && (options.field === "events" || options.field === "tool_events")) {
-    return "telemetry.allow_tool_events is not true.";
+): string {
+  if (field === "metadata") {
+    return "Target response metadata is not uploaded; this mapping is ignored.";
   }
-  return "The field is not in telemetry.allow_observations.";
+  if (kind === "send" && (field === "events" || field === "tool_events") && !options.allowToolEvents) {
+    return "telemetry.allow_tool_events is not true, so structured events will not leave this machine.";
+  }
+  if (kind === "observe" && !RESERVED_OBSERVE_FIELDS.has(field) && !options.allowedObservations.has(field)) {
+    return `${field} is not in telemetry.allow_observations and will be discarded.`;
+  }
+  return "This mapped field is omitted from evidence.";
 }
 
 export function normalizeConnectorResult(options: {
@@ -76,9 +74,7 @@ export function normalizeConnectorResult(options: {
   secrets: readonly string[];
 }): ConnectorResult {
   const mapped = applyResponseMap(options.response, options.responseMap, (field) =>
-    shouldOmitMappedResponseField({
-      kind: options.kind,
-      field,
+    shouldOmitMappedResponseField(options.kind, field, {
       allowToolEvents: options.allowToolEvents,
       allowedObservations: options.allowedObservations
     })

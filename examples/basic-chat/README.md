@@ -11,6 +11,7 @@ evidence payload without calling the target:
 ```bash
 node dist/index.js preview-mapping \
   -c augmentworks.yaml \
-  --fixture fixtures/send-preview.json
+  --operation send \
+  --fixture ./fixtures/send-preview.json
 ```
 

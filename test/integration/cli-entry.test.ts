@@ -46,7 +46,7 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).not.toContain("--packet");
   });
 
-  it("documents preview-mapping as an offline inspector", async () => {
+  it("documents preview-mapping as an offline fixture inspector", async () => {
     const result = await runSourceCli(["preview-mapping", "--help"], { cwd: projectRoot });
 
     expect(result.exitCode).toBe(0);
@@ -54,9 +54,8 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("--fixture");
     expect(result.stdout).toContain("--operation");
     expect(result.stdout).toContain("--json");
-    expect(result.stdout).not.toContain("--open");
+    expect(result.stdout).not.toContain("http://");
   });
-
   it("documents recover as inspect-only with mutually exclusive actions", async () => {
     const result = await runSourceCli(["recover", "--help"], { cwd: projectRoot });
 

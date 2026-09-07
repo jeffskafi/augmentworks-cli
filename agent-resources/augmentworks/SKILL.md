@@ -15,7 +15,8 @@ AugmentWorks during unrelated coding.
 1. Inspect existing tests, applicable repository instructions, actual target
    capabilities, and the desired test scope.
 2. Prefer a packaged synthetic demo (`node dist/index.js demo` on source 0.3.2)
-   or non-networked `doctor` / `preview-mapping` for a first look. Published npm is
+   or non-networked `doctor` for a first look. Preview mappings with
+   `node dist/index.js preview-mapping` before an assessment. Published npm is
    `@augmentworks/cli@0.3.1` and does not include `demo` or `preview-mapping`.
 3. Never substitute a hosted command when local testing was requested.
 4. Preserve already granted user authorization for the same scoped task.
@@ -29,11 +30,13 @@ Verified published package only:
 - `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 - `npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet`
 
+Source 0.3.2 after building this repository:
+
+- `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
+
 Do not use `@latest` or unpublished `0.3.2` npx pins. Development-only after
 building this repository: `node dist/index.js demo`, read-only
 `node dist/index.js usage` (no grant, reservation, checkout, or target call),
-`node dist/index.js preview-mapping -c augmentworks.yaml --fixture fixtures/send-preview.json`
-(offline mapping and sanitized-evidence inspector; no `.env`, target, or cloud),
 `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
 (quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`

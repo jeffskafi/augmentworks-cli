@@ -1,154 +1,113 @@
-# C06 completion record — local mapping and evidence preview
+# C06 completion record
 
-Linear: [AUG-12](https://linear.app/augmentworks/issue/AUG-12/cli-preview-response-mappings-and-the-exact-sanitized-evidence-payload)
-Repository: `jeffskafi/augmentworks-cli`
-Work package: C06 · Audit coverage: F05, F13
+Work package C06 / Linear [AUG-12](https://linear.app/augmentworks/issue/AUG-12/cli-preview-response-mappings-and-the-exact-sanitized-evidence-payload): preview response mappings and the exact sanitized evidence payload locally.
 
-This record is issue-specific. It does not rewrite billing or shared completion
-files owned by parallel agents.
+This is the CLI (`jeffskafi/augmentworks-cli`) record for F05/F13 mapping preview. It is **code complete** in this repository.
 
-## Source identity
+It is **not** npm-published. Source integration is distinct from release acceptance under AUG-7.
+
+## Source and implementation identity
 
 | Item | Value |
 | --- | --- |
-| Audit baseline / default `main` | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
-| Working branch | `cursor/aug-12-end-to-end-ticket-c610` |
-| Implementation HEAD | Feature `046e82e034555685162d9c94aff36b6cfb1b6c43`; this record `d65caa5fd8a07374480c0ccee25d97448e0ffb08` |
-| Consumed predecessors | None. Native blockers: none. Rechecked open CLI PRs: none competing for this command. |
-| Counterpart | `jeffskafi/augmentworks` was not modified |
-| Schema / migrations | None. No SQL. Billing contract unchanged: `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400` (schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`, fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1`) |
+| Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
+| Working branch | `cursor/preview-mapping-e212` |
+| Feature commit | `fa6b664f2af5aab610d55f3ba6246f034a0bbc9e` |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/20 |
+| Consumed dependency commits | None. C06 has no blocking implementation PRs. Open CLI PRs at start: none. |
+| Schema versions | Unchanged. Config remains v1 (`CONFIG_VERSION = 1`). Relay evidence remains `aw-target/0.1`. Preview JSON is `AW-MAPPING-PREVIEW-1`. |
+| Billing contract (untouched) | `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400`; schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`; fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1` |
+| Migrations | None. This repository does not own SQL. |
+| Counterpart | `jeffskafi/augmentworks` was **not** modified |
 
-## Outcome
+## Code completion vs verification vs release
 
-Offline `doctor` still validates configuration without executing mappings.
-`preview-mapping` is the lightweight F13 inspector: it runs the **same**
-`selectResponse` / `normalizeConnectorResult` / `redactSecrets` /
-`canonicalize` path used by the HTTP connector and relay journal, against a
-bounded synthetic JSON fixture.
-
-No target HTTP call, AugmentWorks API call, model call, billing quote, or `.env`
-load occurs. Session configuration fields were not added (C05 remains the owner).
-`init` templates and generated starter files were not edited (C07 consumes this
-module later).
+| Gate | Status |
+| --- | --- |
+| Code completion (this repository) | **Complete.** Pure `previewMapping` plus offline `preview-mapping` command registered additively on the existing Commander program |
+| Deterministic verification | **Passed** in this checkout. Commands and real outcomes below |
+| Live target / hosted run / npm publish | **Not run / not done.** Preview is fixture-only by design |
+| Release readiness | **Not ready.** No npm publish. Published `@augmentworks/cli@0.3.1` does not include this command |
 
 ## Interfaces
 
-Pure module: `src/connector/mapping-preview.ts`
+Pure module `src/connector/mapping-preview.ts` (also exported from `src/connector/index.ts` for C07):
 
-```ts
-previewMappedEvidence({
-  kind: "prepare" | "send" | "observe" | "cleanup",
-  config: AugmentWorksConfig,
-  response: JsonValue,
-  secrets?: readonly string[]
-}): MappingPreviewResult
+- `previewMapping({ config, operation, response?, secrets?, probeKeys? })`
+- Reuses `selectResponse`, `redactSecrets`, `shouldOmitMappedResponseField`, and `normalizeConnectorResult`
+- Evidence bytes are `canonicalize(result)` from that production normalizer, then SHA-256 of those bytes — the same digest `CloudClient.completeOperation` hashes
+- CLI command does **not** load `.env` or `ResolvedConfig.secrets`; C07 may pass `secrets` later without a second sanitizer
+
+CLI:
+
+```text
+augmentworks preview-mapping [-c path] [--operation send|observe|cleanup|prepare] [--fixture path] [--probe-keys keys] [--json]
 ```
 
-CLI: `augmentworks preview-mapping -c <yaml> --fixture <json> [--operation send] [--json]`
-
-JSON schema_version: `AW-MAPPING-PREVIEW-1`
-
-Shared omit helper: `shouldOmitMappedResponseField` in `src/connector/normalize.ts`.
-C07 must import this preview module rather than a second sanitizer.
-
-The CLI path uses `secrets: []` so it does not silently read environment secret
-values. Credential-shaped strings and sensitive keys are still redacted by the
-production redactor. Unit tests pass the same `secrets` array to
-`previewMappedEvidence` and `normalizeConnectorResult` and require identical
-canonical bytes.
+Default operation is `send`. `send` and `observe` require `--fixture`. `cleanup` (and empty `prepare`) do not. Chat-only YAML can preview `send` without stateful hooks.
 
 ## Examples
 
-Source 0.3.2 (not an unpublished npx pin):
+Source 0.3.2 (no unpublished npx pin):
 
 ```bash
-node dist/index.js preview-mapping \
-  -c augmentworks.yaml \
-  --fixture fixtures/send-preview.json
-
-node dist/index.js preview-mapping \
-  -c augmentworks.yaml \
-  --fixture fixtures/send-preview.json \
-  --json
+node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
+node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json --json
 ```
 
-Chat-only starter fixture: `examples/basic-chat/fixtures/send-preview.json`.
+Synthetic fixtures:
 
-Representative successful `--json` (synthetic send fixture; paths abbreviated):
+- `examples/response-agent/fixtures/send-response.json`
+- `examples/refund-agent/fixtures/send-response.json`
+- `examples/refund-agent/fixtures/observe-response.json`
+- `test/fixtures/mapping-preview/` (valid, nested synthetic secrets, missing fields, malformed JSON, observe)
 
-```json
-{
-  "schema_version": "AW-MAPPING-PREVIEW-1",
-  "ok": true,
-  "offline": true,
-  "operation": "send",
-  "fields": [
-    { "field": "content", "selector": "$.answer", "status": "extracted", "redacted": false },
-    { "field": "tool_events", "selector": "$.events", "status": "omitted" },
-    { "field": "finished", "selector": "$.finished", "status": "extracted" },
-    { "field": "metadata", "selector": "$.metadata", "status": "omitted" }
-  ],
-  "evidence": {
-    "protocol_version": "aw-target/0.1",
-    "turn_id": "preview-turn",
-    "message": { "role": "assistant", "content": "The synthetic order is still paid." },
-    "events": [],
-    "finished": true,
-    "metadata": {}
-  },
-  "disclaimer": "This preview is for the supplied fixture only. It does not guarantee that future target responses are secret-free."
-}
-```
+Doctor remains offline validation and now emits `MAPPING_PREVIEW_AVAILABLE`.
 
-Missing required field (exit `2`, no hosted run):
-
-```text
-ERROR MAPPING_VALUE_MISSING: No value exists at $.answer. (target.operations.send.response.content)
-Preview found mapping problems.
-```
-
-Malformed selector (exit `2`): `RESPONSE_MAPPING_INVALID` at
-`target.operations.send.response.content`.
-
-## Verification actually run
-
-Working directory: `/agent/repos/augmentworks-cli`. Node.js v22.14.0.
+## Test evidence
 
 | Command | Outcome |
 | --- | --- |
-| `npx tsc --noEmit` | Pass |
-| `npx vitest run test/connector/mapping-preview.test.ts test/connector/mapping.test.ts test/integration/cli-entry.test.ts test/docs/copy-contract.test.ts test/config/commands.test.ts test/docs/agent-resources.test.ts` | Pass. 6 files / 82 tests |
-| `npm test` | Pass. Vitest 4.1.11: **48 files / 393 tests** |
-| `npm run build` | Pass. tsup ESM `dist/index.js` 1.65 MB |
-| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2` development |
-| `npm run check:billing-contract` | Pass. hashes above |
-| `npm run smoke:pack` | Pass. Packed tarball 20 files, 361512 compressed bytes. Installed `preview-mapping --json` succeeded offline; mapped `sk-syntheticpreviewvalue` and unselected `unselected-nested-secret-value` absent from output; ambient `CHATBOT_API_KEY` / `AUGMENTWORKS_TOKEN` unused |
-| `node dist/index.js --help` | Lists `preview-mapping` beside existing commands; no `connect` replacement |
-| `node dist/index.js preview-mapping --help` | Documents `--fixture`, `--operation`, `--json` |
+| `npm run typecheck` | Pass |
+| `npm test` | Pass. 49 files, 399 tests |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2 (development)` |
+| `npm run check:billing-contract` | Pass. Untouched `aw-billing/1` hashes above |
+| `npm run smoke:pack` | Pass. Packed tarball **20 files, 362798 compressed bytes**; packed `preview-mapping --help` and `--json` from a clean install with poisoned `AUGMENTWORKS_TOKEN` / `CHATBOT_API_KEY` (neither leaked); existing doctor / local packet / demo still ran |
+| Live hosted assessment / npm publish | **Not run** |
 
-Negative cases exercised in tests and the built binary: malformed selector,
-unsafe `$.__proto__` selector, missing `$.answer`, malformed JSON (position
-only, no fixture snippet), oversized content (truncation / evidence-limit
-visible, payload not dumped), nested unselected secrets, observe allowlist,
-cleanup without a response map, sibling `.env` unread.
+Behavior covered:
+
+- Malformed selector (`$.answer[`, `$.__proto__.polluted`) reported with YAML path / offset; no hosted run
+- Absent required mapped field reported as `MAPPING_VALUE_MISSING` at `target.operations.send.response.content`
+- Same fixture/configuration: preview `evidence.canonical` equals `canonicalize(normalizeConnectorResult(...))` and `canonicalize(HttpConnector.execute(...))`
+- Seeded excluded nested secrets never appear in human output, JSON, or error text
+- Oversized assistant content shows `TARGET_MESSAGE_TOO_LARGE` truncation and omits the body
+- Observe/cleanup preview without invoking send; send-only configs do not require observe/cleanup
+- Command does not read `.env`, unrelated files, process env secrets, or `fetch`
 
 ## Compatibility
 
-- Additive Commander registration only in `src/cli.ts`. No parallel command
-  registry. `test.ts` / `run.ts` untouched.
-- Source package remains `0.3.2`. Verified npm remains `0.3.1`. No unpublished
-  npx pin.
-- Billing initializer and generated starter YAML were not edited.
-- Preview is not an automatic secret-detection guarantee and does not ingest
-  production transcripts.
+- Additive Commander registration only (`src/cli.ts`). No `test.ts` / `run.ts` rewrite, no parallel registry
+- Init templates and generated starter YAML were not edited (C07 owns billing starter integration)
+- Session fields were not added (C05)
+- Billing initializer, contracts, and live billing were not touched
+- Existing commands remain dispatched from the same `createCli` program
 
 ## Remaining release requirements
 
-- Keep AUG-12 **In Review** until source integration review. Npm publication and
-  live billing remain AUG-7 / billing-policy owned.
-- C07 ([AUG-35](https://linear.app/augmentworks/issue/AUG-35/cli-complete-own-target-starter-recipes-and-an-explicit-bounded-connection-probe))
-  should call `previewMappedEvidence` from the merged starter rather than
-  duplicating sanitization.
-- C05 session-mode advertisement stays blocked on its own predecessors; this
-  preview uses existing `aw-target/0.1` prepare `target_session_id` only when
-  present in a fixture.
+- npm publication of a version that contains `preview-mapping` (not 0.3.1)
+- AUG-7 release-acceptance against the published tarball
+- C07 should call `previewMapping` rather than duplicating sanitization when it wires starter recipes / connection probe
+- Keep AUG-12 In Review until source review; do not mark Done from this record
+
+## Follow-up after #20 (this PR)
+
+[PR #20](https://github.com/jeffskafi/augmentworks-cli/pull/20) landed the
+shipped `previewMapping` implementation on `main`. This branch was the parallel
+C06 agent (`cursor/aug-12-end-to-end-ticket-c610`). After rebase it keeps that
+implementation and adds:
+
+- JSON parse errors report a numeric position only
+- Extra fixtures: unsafe/malformed selectors, send-only, stateful, prepare,
+  cleanup, and `examples/basic-chat/fixtures/send-preview.json`
+- Command tests for those fixtures and the chat example path

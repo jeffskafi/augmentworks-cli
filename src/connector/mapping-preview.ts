@@ -1,431 +1,630 @@
 import { Buffer } from "node:buffer";
 
-import type { AugmentWorksConfig, Diagnostic, JsonValue } from "../config/types.js";
+import type {
+  AugmentWorksConfig,
+  Diagnostic,
+  JsonValue,
+  OperationResponseMap
+} from "../config/types.js";
 import { AwError, type OperationKind } from "../errors.js";
 import { canonicalize, sha256 } from "../util/canonical.js";
 import { LIMITS } from "../util/limits.js";
 import { redactSecrets, selectResponse } from "./mapping.js";
 import {
   normalizeConnectorResult,
-  omitMappedResponseFieldReason,
+  omittedMappedResponseReason,
   shouldOmitMappedResponseField
 } from "./normalize.js";
 import type { ConnectorExecutionContext, ConnectorResult } from "./types.js";
 
 export const MAPPING_PREVIEW_SCHEMA_VERSION = "AW-MAPPING-PREVIEW-1" as const;
 
-export const PREVIEW_DISCLAIMER =
-  "This preview is for the supplied fixture only. It does not guarantee that future target responses are secret-free.";
+export const MAPPING_PREVIEW_DISCLAIMER =
+  "This preview applies the production mapping, allowlist, redaction, and evidence limits to the supplied fixture only. It does not call the target, AugmentWorks, or a model, consumes no credits, and does not guarantee that future responses are secret-free.";
 
-export const PREVIEW_CORRELATION = {
-  commandId: "preview-command",
-  idempotencyKey: "preview-idempotency",
-  runId: "preview-run",
-  attemptId: "preview-attempt",
-  turnId: "preview-turn",
-  requestId: "preview-request"
-} as const;
+const DISPLAY_PREVIEW_CHARS = 240;
+const SYNTHETIC_TURN_ID = "preview_turn";
+const SYNTHETIC_ATTEMPT_ID = "preview_attempt";
+const SYNTHETIC_REQUEST_ID = "preview_request";
 
-export const HUMAN_DISPLAY_LIMIT_BYTES = 240;
-export const HUMAN_EVIDENCE_LISTING_LIMIT_BYTES = 2048;
+const KNOWN_SEND_ROOT_FIELDS = [
+  "protocol_version",
+  "turn_id",
+  "message",
+  "content",
+  "finish_reason",
+  "events",
+  "tool_events",
+  "finished",
+  "metadata"
+] as const;
 
-const OPERATION_KINDS = ["prepare", "send", "observe", "cleanup"] as const;
+const KNOWN_PREPARE_ROOT_FIELDS = [
+  "protocol_version",
+  "status",
+  "attempt_id",
+  "target_session_id",
+  "metadata"
+] as const;
 
-export type MappingPreviewFieldStatus =
-  | "extracted"
-  | "missing"
-  | "omitted"
-  | "invalid_selector"
-  | "unsafe_selector";
+const KNOWN_OBSERVE_ROOT_FIELDS = ["protocol_version", "request_id", "observations", "metadata"] as const;
 
-export interface MappingPreviewField {
+export type MappingPreviewValueKind = "string" | "number" | "boolean" | "null" | "array" | "object";
+
+export interface MappingPreviewExtractedField {
   readonly field: string;
   readonly selector: string;
-  readonly location: string;
-  readonly status: MappingPreviewFieldStatus;
+  readonly path: string;
+  readonly value_kind: MappingPreviewValueKind;
+  readonly bytes: number;
   readonly redacted: boolean;
-  readonly omitted_reason?: string;
-  readonly selector_offset?: number;
-  readonly display?: string;
-  readonly value_bytes?: number;
+  readonly display_truncated: boolean;
+  readonly preview: string;
+}
+
+export interface MappingPreviewMissingField {
+  readonly field: string;
+  readonly selector: string;
+  readonly path: string;
+  readonly code: string;
+}
+
+export interface MappingPreviewOmittedField {
+  readonly field: string;
+  readonly selector: string;
+  readonly path: string;
+  readonly reason: string;
 }
 
 export interface MappingPreviewRedaction {
   readonly field: string;
-  readonly location: string;
+  readonly path: string;
+  readonly preview: string;
 }
 
 export interface MappingPreviewTruncation {
   readonly field: string;
-  readonly location: string;
-  readonly original_bytes: number;
-  readonly display_bytes: number;
-  readonly truncated: boolean;
-  readonly scope: "human_listing" | "evidence_limit";
-  readonly rejected?: boolean;
+  readonly path: string;
+  readonly decision: "rejected";
+  readonly limit_bytes: number;
+  readonly actual_bytes: number;
+  readonly code: string;
+  readonly message: string;
 }
 
-export interface MappingPreviewResult {
+export interface MappingPreviewEvidence {
+  readonly protocol_version: "aw-target/0.1";
+  readonly canonical: string;
+  readonly sha256: string;
+  readonly bytes: number;
+  readonly result: ConnectorResult;
+}
+
+export interface MappingPreviewRequest {
+  readonly config: AugmentWorksConfig;
+  readonly operation: OperationKind;
+  readonly response?: JsonValue;
+  readonly secrets?: readonly string[];
+  readonly probeKeys?: readonly string[];
+  readonly configPath?: string;
+  readonly fixturePath?: string;
+}
+
+export interface MappingPreviewReport {
   readonly schema_version: typeof MAPPING_PREVIEW_SCHEMA_VERSION;
   readonly ok: boolean;
   readonly offline: true;
+  readonly credits_consumed: 0;
   readonly operation: OperationKind;
-  readonly fields: readonly MappingPreviewField[];
-  readonly redactions: readonly MappingPreviewRedaction[];
-  readonly truncations: readonly MappingPreviewTruncation[];
-  readonly evidence: ConnectorResult | null;
-  readonly evidence_canonical: string | null;
-  readonly evidence_sha256: string | null;
-  readonly evidence_bytes: number | null;
+  readonly config_path: string | null;
+  readonly fixture_path: string | null;
+  readonly extracted: readonly MappingPreviewExtractedField[];
+  readonly missing: readonly MappingPreviewMissingField[];
+  readonly omitted: readonly MappingPreviewOmittedField[];
+  readonly redacted: readonly MappingPreviewRedaction[];
+  readonly truncation: readonly MappingPreviewTruncation[];
   readonly diagnostics: readonly Diagnostic[];
-  readonly disclaimer: typeof PREVIEW_DISCLAIMER;
+  readonly evidence: MappingPreviewEvidence | null;
+  readonly disclaimer: typeof MAPPING_PREVIEW_DISCLAIMER;
 }
 
-export interface PreviewMappedEvidenceOptions {
-  readonly kind: OperationKind;
-  readonly config: AugmentWorksConfig;
-  readonly response: JsonValue;
-  readonly secrets?: readonly string[];
+interface FieldInspection {
+  extracted: MappingPreviewExtractedField[];
+  missing: MappingPreviewMissingField[];
+  omitted: MappingPreviewOmittedField[];
+  redacted: MappingPreviewRedaction[];
+  truncation: MappingPreviewTruncation[];
+  diagnostics: Diagnostic[];
+  selected: Map<string, JsonValue>;
+  mappingFailed: boolean;
 }
 
-export function isOperationKind(value: string): value is OperationKind {
-  return (OPERATION_KINDS as readonly string[]).includes(value);
-}
-
-export function previewCorrelationInput(): Record<string, string> {
-  return {
-    attempt_id: PREVIEW_CORRELATION.attemptId,
-    turn_id: PREVIEW_CORRELATION.turnId,
-    request_id: PREVIEW_CORRELATION.requestId,
-    run_id: PREVIEW_CORRELATION.runId
-  };
-}
-
-export function previewCorrelationContext(): ConnectorExecutionContext {
-  return { ...PREVIEW_CORRELATION };
-}
-
-export function previewMappedEvidence(options: PreviewMappedEvidenceOptions): MappingPreviewResult {
-  const diagnostics: Diagnostic[] = [
-    {
-      level: "ok",
-      code: "PREVIEW_OFFLINE",
-      message: "No target, cloud, model, or billing operation was invoked."
-    }
-  ];
-  const allowToolEvents = options.config.telemetry?.allow_tool_events === true;
-  const allowedObservations = new Set(options.config.telemetry?.allow_observations ?? []);
-  const secrets = [...new Set((options.secrets ?? []).filter((secret) => secret.length > 0))];
-  const operation = options.config.target.operations[options.kind];
-
+export function previewMapping(request: MappingPreviewRequest): MappingPreviewReport {
+  const secrets = [...new Set((request.secrets ?? []).filter((secret) => secret.length > 0))];
+  const diagnostics: Diagnostic[] = [];
+  const operation = request.config.target.operations[request.operation];
   if (operation === undefined) {
     diagnostics.push({
       level: "error",
-      code: "OPERATION_NOT_CONFIGURED",
-      message: `No ${options.kind} operation is configured.`,
-      path: `target.operations.${options.kind}`
+      code: "CONNECTOR_OPERATION_NOT_CONFIGURED",
+      message: `The ${request.operation} operation is not configured.`,
+      path: `target.operations.${request.operation}`
     });
-    return failedPreview(options.kind, [], [], [], diagnostics);
+    return finalizeReport(request, emptyInspection(), diagnostics, null);
   }
 
-  const responseMap = operation.response;
-  if (responseMap === undefined) {
-    diagnostics.push({
-      level: "ok",
-      code: "RESPONSE_MAP_ABSENT",
-      message:
-        options.kind === "cleanup"
-          ? "Cleanup evidence does not use a response mapping."
-          : "No response mapping is configured; the fixture is normalized as the operation result."
-    });
+  const allowToolEvents = request.config.telemetry?.allow_tool_events === true;
+  const allowedObservations = new Set(request.config.telemetry?.allow_observations ?? []);
+  const omitOptions = { allowToolEvents, allowedObservations };
+  const probeKeys = resolveProbeKeys(request, allowedObservations, diagnostics);
+  const inspection =
+    operation.response === undefined
+      ? inspectRootFields(request.operation, request.response, omitOptions, secrets, diagnostics)
+      : inspectMappedFields(
+          request.operation,
+          request.response,
+          operation.response,
+          omitOptions,
+          secrets
+        );
+
+  if (request.operation === "send" && !sendHasContent(inspection.selected)) {
+    const alreadyMissing = inspection.missing.some((item) => item.field === "content" || item.field === "message");
+    if (!alreadyMissing) {
+      inspection.diagnostics.push({
+        level: "error",
+        code: "REQUIRED_FIELD_MISSING",
+        message:
+          "Send evidence requires assistant content. Map target.operations.send.response.content (or message) to a string in the fixture.",
+        path: "target.operations.send.response.content"
+      });
+      inspection.missing.push({
+        field: "content",
+        selector: operation.response?.["content"] ?? operation.response?.["message"] ?? "$.content",
+        path: "target.operations.send.response.content",
+        code: "REQUIRED_FIELD_MISSING"
+      });
+    }
   }
 
-  const fields: MappingPreviewField[] = [];
-  const redactions: MappingPreviewRedaction[] = [];
-  const truncations: MappingPreviewTruncation[] = [];
-
-  for (const [field, selector] of Object.entries(responseMap ?? {})) {
-    const location = `target.operations.${options.kind}.response.${field}`;
-    const omitReason = omitMappedResponseFieldReason({
-      kind: options.kind,
-      field,
-      allowToolEvents,
-      allowedObservations
-    });
+  if (request.operation === "observe" && allowedObservations.size > 0 && operation.response !== undefined) {
+    const mappedAllowed = Object.keys(operation.response).filter(
+      (field) => !shouldOmitMappedResponseField("observe", field, omitOptions)
+    );
     if (
-      shouldOmitMappedResponseField({
-        kind: options.kind,
-        field,
-        allowToolEvents,
-        allowedObservations
-      })
+      mappedAllowed.length > 0 &&
+      mappedAllowed.every((field) => inspection.missing.some((item) => item.field === field))
     ) {
-      fields.push({
+      inspection.diagnostics.push({
+        level: "error",
+        code: "REQUIRED_FIELD_MISSING",
+        message: "Observe evidence has no allowlisted mapped fields in this fixture.",
+        path: "target.operations.observe.response"
+      });
+    }
+  }
+
+  diagnostics.push(...inspection.diagnostics);
+  const blocked =
+    inspection.mappingFailed ||
+    inspection.missing.length > 0 ||
+    inspection.truncation.length > 0 ||
+    diagnostics.some((item) => item.level === "error");
+
+  let evidence: MappingPreviewEvidence | null = null;
+  if (!blocked) {
+    try {
+      evidence = serializeEvidence(request, inspection.selected, probeKeys, secrets);
+    } catch (error) {
+      if (error instanceof AwError) {
+        diagnostics.push({
+          level: "error",
+          code: error.code,
+          message: error.message,
+          ...(error.operation === undefined
+            ? {}
+            : { path: `target.operations.${error.operation}` })
+        });
+      } else {
+        diagnostics.push({
+          level: "error",
+          code: "MAPPING_PREVIEW_FAILED",
+          message: "The fixture could not be projected through the production evidence pipeline."
+        });
+      }
+    }
+  }
+
+  return finalizeReport(request, inspection, diagnostics, evidence);
+}
+
+export function isMappingPreviewOperation(value: string): value is OperationKind {
+  return value === "prepare" || value === "send" || value === "observe" || value === "cleanup";
+}
+
+function inspectMappedFields(
+  kind: OperationKind,
+  response: JsonValue | undefined,
+  responseMap: OperationResponseMap,
+  omitOptions: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
+  },
+  secrets: readonly string[]
+): FieldInspection {
+  const inspection = emptyInspection();
+  if (response === undefined) {
+    inspection.mappingFailed = true;
+    inspection.diagnostics.push({
+      level: "error",
+      code: "TARGET_RESPONSE_REQUIRED",
+      message: "The configured response mapping requires a JSON response fixture.",
+      path: `target.operations.${kind}.response`
+    });
+    return inspection;
+  }
+
+  const entries = Object.entries(responseMap).sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  for (const [field, selector] of entries) {
+    const path = `target.operations.${kind}.response.${field}`;
+    if (shouldOmitMappedResponseField(kind, field, omitOptions)) {
+      inspection.omitted.push({
         field,
         selector,
-        location,
-        status: "omitted",
-        redacted: false,
-        ...(omitReason === undefined ? {} : { omitted_reason: omitReason })
-      });
-      diagnostics.push({
-        level: "ok",
-        code: "RESPONSE_FIELD_OMITTED",
-        message: omitReason ?? "The mapped field is omitted from evidence.",
-        path: location
+        path,
+        reason: omittedMappedResponseReason(kind, field, omitOptions)
       });
       continue;
     }
-
     try {
-      const extracted = selectResponse(options.response, selector);
-      const redacted = redactSecrets(extracted, secrets);
-      const wasRedacted = canonicalize(extracted) !== canonicalize(redacted);
-      const display = listingFor(redacted);
-      const valueBytes = Buffer.byteLength(canonicalize(redacted), "utf8");
-      fields.push({
+      recordSelectedField(inspection, field, selector, path, selectResponse(response, selector), secrets);
+    } catch (error) {
+      inspection.mappingFailed = true;
+      recordSelectionError(inspection, field, selector, path, error);
+    }
+  }
+  return inspection;
+}
+
+function inspectRootFields(
+  kind: OperationKind,
+  response: JsonValue | undefined,
+  omitOptions: {
+    readonly allowToolEvents: boolean;
+    readonly allowedObservations: ReadonlySet<string>;
+  },
+  secrets: readonly string[],
+  diagnostics: Diagnostic[]
+): FieldInspection {
+  const inspection = emptyInspection();
+  if (kind === "cleanup") {
+    return inspection;
+  }
+  if (response === undefined) {
+    if (kind === "prepare") return inspection;
+    inspection.mappingFailed = true;
+    diagnostics.push({
+      level: "error",
+      code: "TARGET_RESPONSE_EMPTY",
+      message: "A JSON response fixture is required for this operation.",
+      path: `target.operations.${kind}`
+    });
+    return inspection;
+  }
+  if (response === null || typeof response !== "object" || Array.isArray(response)) {
+    inspection.mappingFailed = true;
+    diagnostics.push({
+      level: "error",
+      code: "INVALID_TARGET_RESPONSE",
+      message: `${kind} response must be a JSON object.`,
+      path: `target.operations.${kind}`
+    });
+    return inspection;
+  }
+
+  const fields =
+    kind === "send" ? KNOWN_SEND_ROOT_FIELDS : kind === "prepare" ? KNOWN_PREPARE_ROOT_FIELDS : KNOWN_OBSERVE_ROOT_FIELDS;
+  for (const field of fields) {
+    if (!Object.hasOwn(response, field)) continue;
+    const path = `target.operations.${kind}.response.${field}`;
+    const selector = `$.${field}`;
+    if (shouldOmitMappedResponseField(kind, field, omitOptions)) {
+      inspection.omitted.push({
         field,
         selector,
-        location,
-        status: "extracted",
-        redacted: wasRedacted,
-        display: display.text,
-        value_bytes: valueBytes
+        path,
+        reason: omittedMappedResponseReason(kind, field, omitOptions)
       });
-      if (wasRedacted) {
-        redactions.push({ field, location });
-        diagnostics.push({
-          level: "ok",
-          code: "RESPONSE_VALUE_REDACTED",
-          message: "Extracted values were replaced with [REDACTED] by the production redactor.",
-          path: location
-        });
-      }
-      if (display.truncated) {
-        truncations.push({
-          field,
-          location,
-          original_bytes: display.original_bytes,
-          display_bytes: display.display_bytes,
-          truncated: true,
-          scope: "human_listing"
-        });
-      }
-      if (typeof extracted === "string" && Buffer.byteLength(extracted, "utf8") > LIMITS.maxMessageBytes) {
-        truncations.push({
-          field,
-          location,
-          original_bytes: Buffer.byteLength(extracted, "utf8"),
-          display_bytes: 0,
-          truncated: false,
-          scope: "evidence_limit",
-          rejected: true
-        });
-        diagnostics.push({
-          level: "error",
-          code: "TARGET_MESSAGE_TOO_LARGE",
-          message: "Assistant content exceeds the evidence size limit.",
-          path: location
-        });
-      }
-    } catch (error) {
-      const mapped = fieldError(error, field, selector, location);
-      fields.push(mapped.field);
-      diagnostics.push(mapped.diagnostic);
+      continue;
     }
-  }
-
-  let evidence: ConnectorResult | null = null;
-  let evidenceCanonical: string | null = null;
-  let evidenceDigest: string | null = null;
-  let evidenceBytes: number | null = null;
-
-  const blocking = diagnostics.some((item) => item.level === "error");
-  if (!blocking) {
     try {
-      evidence = normalizeConnectorResult({
-        kind: options.kind,
-        input: previewCorrelationInput(),
-        context: previewCorrelationContext(),
-        response: options.response,
-        responseMap,
-        allowToolEvents,
-        allowedObservations,
-        secrets
-      });
-      evidenceCanonical = canonicalize(evidence);
-      evidenceDigest = sha256(evidenceCanonical);
-      evidenceBytes = Buffer.byteLength(evidenceCanonical, "utf8");
-      const listing = listingFor(evidence, HUMAN_EVIDENCE_LISTING_LIMIT_BYTES);
-      if (listing.truncated) {
-        truncations.push({
-          field: "evidence",
-          location: "evidence",
-          original_bytes: listing.original_bytes,
-          display_bytes: listing.display_bytes,
-          truncated: true,
-          scope: "human_listing"
-        });
-      }
-      diagnostics.push({
-        level: "ok",
-        code: "EVIDENCE_SERIALIZED",
-        message: `Canonical relay evidence is ${evidenceBytes} bytes.`
-      });
+      recordSelectedField(inspection, field, selector, path, selectResponse(response, selector), secrets);
     } catch (error) {
-      diagnostics.push(safeDiagnostic(error, `target.operations.${options.kind}`));
+      inspection.mappingFailed = true;
+      recordSelectionError(inspection, field, selector, path, error);
     }
   }
+  return inspection;
+}
 
-  const ok = !diagnostics.some((item) => item.level === "error") && evidence !== null;
-  diagnostics.push({
-    level: "ok",
-    code: "PREVIEW_DISCLAIMER",
-    message: PREVIEW_DISCLAIMER
+function recordSelectedField(
+  inspection: FieldInspection,
+  field: string,
+  selector: string,
+  path: string,
+  selected: JsonValue,
+  secrets: readonly string[]
+): void {
+  const redactedValue = redactSecrets(selected, secrets);
+  const redacted = canonicalize(selected) !== canonicalize(redactedValue);
+  const display = displayPreview(redactedValue);
+  const extracted: MappingPreviewExtractedField = {
+    field,
+    selector,
+    path,
+    value_kind: jsonKind(redactedValue),
+    bytes: Buffer.byteLength(canonicalize(redactedValue), "utf8"),
+    redacted,
+    display_truncated: display.truncated,
+    preview: display.text
+  };
+  inspection.extracted.push(extracted);
+  inspection.selected.set(field, selected);
+  if (redacted) {
+    inspection.redacted.push({ field, path, preview: display.text });
+  }
+  const limit = contentLimit(field, selected);
+  if (limit !== undefined && limit.actual_bytes > limit.limit_bytes) {
+    inspection.truncation.push({
+      field,
+      path,
+      decision: "rejected",
+      limit_bytes: limit.limit_bytes,
+      actual_bytes: limit.actual_bytes,
+      code: "TARGET_MESSAGE_TOO_LARGE",
+      message: `Assistant content is ${String(limit.actual_bytes)} bytes and exceeds the ${String(limit.limit_bytes)}-byte evidence limit.`
+    });
+    inspection.diagnostics.push({
+      level: "error",
+      code: "TARGET_MESSAGE_TOO_LARGE",
+      message: `Assistant content is ${String(limit.actual_bytes)} bytes and exceeds the ${String(limit.limit_bytes)}-byte evidence limit.`,
+      path
+    });
+  }
+}
+
+function recordSelectionError(
+  inspection: FieldInspection,
+  field: string,
+  selector: string,
+  path: string,
+  error: unknown
+): void {
+  if (error instanceof AwError) {
+    const location = selectorLocation(error, selector);
+    inspection.diagnostics.push({
+      level: "error",
+      code: error.code,
+      message: location,
+      path
+    });
+    if (error.code === "MAPPING_VALUE_MISSING" || error.code === "REQUIRED_FIELD_MISSING") {
+      inspection.missing.push({ field, selector, path, code: error.code });
+    }
+    return;
+  }
+  inspection.diagnostics.push({
+    level: "error",
+    code: "MAPPING_PREVIEW_FAILED",
+    message: "The response mapping could not be applied to the fixture.",
+    path
   });
+}
+
+function selectorLocation(error: AwError, selector: string): string {
+  const offset = error.details?.["offset"];
+  if (typeof offset === "number") {
+    return `${error.message} Selector ${JSON.stringify(selector)}.`;
+  }
+  return error.message;
+}
+
+function serializeEvidence(
+  request: MappingPreviewRequest,
+  selected: ReadonlyMap<string, JsonValue>,
+  probeKeys: readonly string[],
+  secrets: readonly string[]
+): MappingPreviewEvidence {
+  const turnId = usableIdentifier(selected.get("turn_id"), SYNTHETIC_TURN_ID);
+  const attemptId = usableIdentifier(selected.get("attempt_id"), SYNTHETIC_ATTEMPT_ID);
+  const requestId = usableIdentifier(selected.get("request_id"), SYNTHETIC_REQUEST_ID);
+  const context: ConnectorExecutionContext = {
+    commandId: "preview_command",
+    idempotencyKey: "preview_idempotency",
+    turnId,
+    attemptId,
+    requestId
+  };
+  const input = previewInput(request.operation, { turnId, attemptId, requestId, probeKeys });
+  const result = normalizeConnectorResult({
+    kind: request.operation,
+    input,
+    context,
+    response: request.response,
+    responseMap: request.config.target.operations[request.operation]?.response,
+    allowToolEvents: request.config.telemetry?.allow_tool_events === true,
+    allowedObservations: new Set(
+      request.operation === "observe" && probeKeys.length > 0
+        ? probeKeys
+        : (request.config.telemetry?.allow_observations ?? [])
+    ),
+    secrets
+  });
+  const canonical = canonicalize(result);
+  return {
+    protocol_version: "aw-target/0.1",
+    canonical,
+    sha256: sha256(canonical),
+    bytes: Buffer.byteLength(canonical, "utf8"),
+    result
+  };
+}
+
+function previewInput(
+  kind: OperationKind,
+  ids: {
+    readonly turnId: string;
+    readonly attemptId: string;
+    readonly requestId: string;
+    readonly probeKeys: readonly string[];
+  }
+): Record<string, JsonValue> {
+  switch (kind) {
+    case "send":
+      return { turn_id: ids.turnId };
+    case "observe":
+      return {
+        request_id: ids.requestId,
+        probe_keys: [...ids.probeKeys]
+      };
+    case "prepare":
+    case "cleanup":
+      return { attempt_id: ids.attemptId };
+  }
+}
+
+function resolveProbeKeys(
+  request: MappingPreviewRequest,
+  allowedObservations: ReadonlySet<string>,
+  diagnostics: Diagnostic[]
+): string[] {
+  if (request.operation !== "observe") return [];
+  const requested = request.probeKeys === undefined ? [...allowedObservations] : [...request.probeKeys];
+  const unique = [...new Set(requested)];
+  const allowed: string[] = [];
+  for (const key of unique) {
+    if (allowedObservations.has(key)) {
+      allowed.push(key);
+      continue;
+    }
+    diagnostics.push({
+      level: "error",
+      code: "OBSERVATION_NOT_ALLOWED",
+      message: "The preview requested an observation outside the local telemetry allowlist.",
+      path: "telemetry.allow_observations"
+    });
+  }
+  return allowed;
+}
+
+function sendHasContent(selected: ReadonlyMap<string, JsonValue>): boolean {
+  const content = selected.get("content");
+  if (typeof content === "string") return true;
+  const message = selected.get("message");
+  if (message !== null && typeof message === "object" && !Array.isArray(message)) {
+    return typeof message["content"] === "string";
+  }
+  return false;
+}
+
+function contentLimit(
+  field: string,
+  selected: JsonValue
+): { readonly limit_bytes: number; readonly actual_bytes: number } | undefined {
+  if (field === "content" && typeof selected === "string") {
+    return { limit_bytes: LIMITS.maxMessageBytes, actual_bytes: Buffer.byteLength(selected, "utf8") };
+  }
+  if (field === "message" && selected !== null && typeof selected === "object" && !Array.isArray(selected)) {
+    const content = selected["content"];
+    if (typeof content === "string") {
+      return { limit_bytes: LIMITS.maxMessageBytes, actual_bytes: Buffer.byteLength(content, "utf8") };
+    }
+  }
+  return undefined;
+}
+
+function usableIdentifier(value: JsonValue | undefined, fallback: string): string {
+  if (typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u.test(value) && value.length <= 300) {
+    return value;
+  }
+  return fallback;
+}
+
+function jsonKind(value: JsonValue): MappingPreviewValueKind {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  return "object";
+}
+
+function displayPreview(value: JsonValue): { text: string; truncated: boolean } {
+  if (typeof value === "string") return boundDisplay(value);
+  if (value === null || typeof value === "number" || typeof value === "boolean") {
+    return { text: JSON.stringify(value), truncated: false };
+  }
+  return boundDisplay(canonicalize(value));
+}
+
+function boundDisplay(text: string): { text: string; truncated: boolean } {
+  const characters = [...text];
+  if (characters.length <= DISPLAY_PREVIEW_CHARS) return { text, truncated: false };
+  const omitted = characters.length - DISPLAY_PREVIEW_CHARS;
+  return {
+    text: `${characters.slice(0, DISPLAY_PREVIEW_CHARS).join("")}…[TRUNCATED ${String(omitted)} chars]`,
+    truncated: true
+  };
+}
+
+function emptyInspection(): FieldInspection {
+  return {
+    extracted: [],
+    missing: [],
+    omitted: [],
+    redacted: [],
+    truncation: [],
+    diagnostics: [],
+    selected: new Map(),
+    mappingFailed: false
+  };
+}
+
+function finalizeReport(
+  request: MappingPreviewRequest,
+  inspection: FieldInspection,
+  diagnostics: readonly Diagnostic[],
+  evidence: MappingPreviewEvidence | null
+): MappingPreviewReport {
+  const uniqueDiagnostics = dedupeDiagnostics(diagnostics);
+  const ok = evidence !== null && !uniqueDiagnostics.some((item) => item.level === "error");
   return {
     schema_version: MAPPING_PREVIEW_SCHEMA_VERSION,
     ok,
     offline: true,
-    operation: options.kind,
-    fields,
-    redactions,
-    truncations,
+    credits_consumed: 0,
+    operation: request.operation,
+    config_path: request.configPath ?? null,
+    fixture_path: request.fixturePath ?? null,
+    extracted: inspection.extracted,
+    missing: inspection.missing,
+    omitted: inspection.omitted,
+    redacted: inspection.redacted,
+    truncation: inspection.truncation,
+    diagnostics: uniqueDiagnostics,
     evidence,
-    evidence_canonical: evidenceCanonical,
-    evidence_sha256: evidenceDigest,
-    evidence_bytes: evidenceBytes,
-    diagnostics,
-    disclaimer: PREVIEW_DISCLAIMER
+    disclaimer: MAPPING_PREVIEW_DISCLAIMER
   };
 }
 
-function failedPreview(
-  operation: OperationKind,
-  fields: readonly MappingPreviewField[],
-  redactions: readonly MappingPreviewRedaction[],
-  truncations: readonly MappingPreviewTruncation[],
-  diagnostics: readonly Diagnostic[]
-): MappingPreviewResult {
-  return {
-    schema_version: MAPPING_PREVIEW_SCHEMA_VERSION,
-    ok: false,
-    offline: true,
-    operation,
-    fields,
-    redactions,
-    truncations,
-    evidence: null,
-    evidence_canonical: null,
-    evidence_sha256: null,
-    evidence_bytes: null,
-    diagnostics: [
-      ...diagnostics,
-      {
-        level: "ok",
-        code: "PREVIEW_DISCLAIMER",
-        message: PREVIEW_DISCLAIMER
-      }
-    ],
-    disclaimer: PREVIEW_DISCLAIMER
-  };
-}
-
-function fieldError(
-  error: unknown,
-  field: string,
-  selector: string,
-  location: string
-): { field: MappingPreviewField; diagnostic: Diagnostic } {
-  const code = error instanceof AwError ? error.code : "INVALID_SELECTOR";
-  const status: MappingPreviewFieldStatus =
-    code === "UNSAFE_SELECTOR"
-      ? "unsafe_selector"
-      : code === "MAPPING_VALUE_MISSING"
-        ? "missing"
-        : "invalid_selector";
-  const offset =
-    error instanceof AwError && typeof error.details?.["offset"] === "number"
-      ? error.details["offset"]
-      : undefined;
-  const message =
-    error instanceof AwError
-      ? error.message
-      : "The response selector could not be applied.";
-  return {
-    field: {
-      field,
-      selector,
-      location,
-      status,
-      redacted: false,
-      ...(offset === undefined ? {} : { selector_offset: offset })
-    },
-    diagnostic: {
-      level: "error",
-      code,
-      message:
-        offset === undefined
-          ? message
-          : `${message} (selector offset ${offset})`,
-      path: location
-    }
-  };
-}
-
-function safeDiagnostic(error: unknown, path: string): Diagnostic {
-  if (error instanceof AwError) {
-    return {
-      level: "error",
-      code: error.code,
-      message: error.message,
-      path
-    };
+function dedupeDiagnostics(diagnostics: readonly Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  const result: Diagnostic[] = [];
+  for (const item of diagnostics) {
+    const key = `${item.level}:${item.code}:${item.path ?? ""}:${item.message}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
   }
-  return {
-    level: "error",
-    code: "PREVIEW_FAILED",
-    message: "The fixture could not be normalized into relay evidence.",
-    path
-  };
-}
-
-function listingFor(
-  value: JsonValue | ConnectorResult,
-  limit = HUMAN_DISPLAY_LIMIT_BYTES
-): { text: string; truncated: boolean; original_bytes: number; display_bytes: number } {
-  const text = canonicalize(value);
-  const originalBytes = Buffer.byteLength(text, "utf8");
-  if (originalBytes <= limit) {
-    return {
-      text,
-      truncated: false,
-      original_bytes: originalBytes,
-      display_bytes: originalBytes
-    };
-  }
-  const truncated = `${truncateUtf8(text, limit)}… [truncated ${originalBytes} bytes]`;
-  return {
-    text: truncated,
-    truncated: true,
-    original_bytes: originalBytes,
-    display_bytes: Buffer.byteLength(truncated, "utf8")
-  };
-}
-
-export function truncateUtf8(value: string, maxBytes: number): string {
-  if (maxBytes < 1) return "";
-  let bytes = 0;
-  let end = 0;
-  for (const character of value) {
-    const size = Buffer.byteLength(character, "utf8");
-    if (bytes + size > maxBytes) break;
-    bytes += size;
-    end += character.length;
-  }
-  return value.slice(0, end);
-}
-
-export function fieldListing(result: MappingPreviewResult, field: string): string | undefined {
-  return result.fields.find((entry) => entry.field === field)?.display;
+  return result;
 }

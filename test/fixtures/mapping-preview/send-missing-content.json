@@ -1,7 +1,6 @@
 {
   "finished": true,
-  "events": [],
-  "internal": {
-    "raw_token": "unselected-nested-secret-value"
+  "nested": {
+    "password": "missing-content-must-not-leak-SYNTHETIC"
   }
 }

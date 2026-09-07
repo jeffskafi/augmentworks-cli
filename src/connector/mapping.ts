@@ -85,10 +85,11 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
       }
       const segment = value.slice(start, offset);
       if (!PROPERTY.test(segment)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid property segment.`, {
-          selector: value,
-          offset: start
-        });
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an invalid property segment at offset ${String(start)}.`,
+          { selector: value, offset: start }
+        );
       }
       assertSafeSegment(segment, label);
       tokens.push(segment);
@@ -97,33 +98,37 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
     if (marker === "[") {
       const closing = value.indexOf("]", offset + 1);
       if (closing === -1) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an unterminated array index.`, {
-          selector: value,
-          offset
-        });
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an unterminated array index at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       const indexText = value.slice(offset + 1, closing);
       if (!/^(0|[1-9][0-9]*)$/u.test(indexText)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid array index.`, {
-          selector: value,
-          offset
-        });
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an invalid array index at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       const index = Number(indexText);
       if (!Number.isSafeInteger(index) || index >= LIMITS.maxArrayItems) {
-        throw mappingError("INVALID_SELECTOR", `${label} array index is outside the supported range.`, {
-          selector: value,
-          offset
-        });
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} array index is outside the supported range at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       tokens.push(index);
       offset = closing + 1;
       continue;
     }
-    throw mappingError("INVALID_SELECTOR", `${label} contains unsupported syntax.`, {
-      selector: value,
-      offset
-    });
+    throw mappingError(
+      "INVALID_SELECTOR",
+      `${label} contains unsupported syntax at offset ${String(offset)}.`,
+      { selector: value, offset }
+    );
   }
   return tokens;
 }
@@ -133,18 +138,18 @@ function resolveTokens(root: unknown, tokens: readonly PathToken[], source: stri
   for (const token of tokens) {
     if (typeof token === "number") {
       if (!Array.isArray(current) || token >= current.length) {
-        throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
+        throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
       }
       current = current[token];
       continue;
     }
     if (current === null || typeof current !== "object" || Array.isArray(current)) {
-      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
+      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
     }
     assertSafeSegment(token, "path segment");
     const descriptor = Object.getOwnPropertyDescriptor(current, token);
     if (descriptor === undefined || !("value" in descriptor)) {
-      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`, { selector: source });
+      throw mappingError("MAPPING_VALUE_MISSING", `No value exists at ${source}.`);
     }
     current = descriptor.value;
   }
