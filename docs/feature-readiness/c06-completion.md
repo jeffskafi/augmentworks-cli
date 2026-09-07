@@ -12,7 +12,7 @@ It is **not** npm-published. Source integration is distinct from release accepta
 | --- | --- |
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working branch | `cursor/preview-mapping-e212` |
-| Head | `fa6b664f2af5aab610d55f3ba6246f034a0bbc9e` |
+| Feature commit | `fa6b664f2af5aab610d55f3ba6246f034a0bbc9e` |
 | Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/20 |
 | Consumed dependency commits | None. C06 has no blocking implementation PRs. Open CLI PRs at start: none. |
 | Schema versions | Unchanged. Config remains v1 (`CONFIG_VERSION = 1`). Relay evidence remains `aw-target/0.1`. Preview JSON is `AW-MAPPING-PREVIEW-1`. |
