@@ -54,6 +54,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- `init -c custom.yaml` writes the requested connector filename instead of
+  always emitting `augmentworks.yaml`. Companion assessment, reference, and
+  environment files stay in the selected config directory. `--force` replaces
+  only the selected generated files. Not npm-published.
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
 - Packed billing HTTP fixture uses async `spawn` so the in-process loopback

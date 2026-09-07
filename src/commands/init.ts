@@ -1,33 +1,31 @@
 import { constants as fsConstants } from "node:fs";
-import { access, link, lstat, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { access, link, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
 
 import { Command } from "commander";
 
 import { AwError } from "../errors.js";
-import { HOSTED_COMMAND_PIN, INIT_NEXT_STEPS, NPM_PACKAGE } from "../release.js";
-import { loadStarterFiles, parseStarterId, type StarterId } from "../onboarding/starters.js";
+import { HOSTED_COMMAND_PIN, initNextSteps, NPM_PACKAGE } from "../release.js";
+import {
+  loadStarterFiles,
+  parseStarterId,
+  STARTER_ASSESSMENT_RELATIVE_PATH,
+  STARTER_CONNECTOR_RELATIVE_PATH,
+  STARTER_ENV_EXAMPLE_RELATIVE_PATH,
+  type StarterFile,
+  type StarterId
+} from "../onboarding/starters.js";
 
 const ENV_TEMPLATE = `# Local target settings. Keep .env out of version control.
 CHATBOT_BASE_URL=http://localhost:8000
 CHATBOT_API_KEY=
 `;
 
-const AGENT_TEMPLATE = `# AugmentWorks agent setup
-
-Use the pinned AugmentWorks CLI when working on this integration:
-
-\`\`\`bash
-npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c augmentworks.yaml
-\`\`\`
-
-- Read \`augmentworks.yaml\`, \`augmentworks.assessment.yaml\`, and \`.env.example\`; never read, print, or commit \`.env\`.
-- Keep target paths and request/response mappings declarative. Do not add executable mappings.
-- Add only synthetic prepare, send, observe, and cleanup hooks required by the configured packet.
-- Show the diff and ask before starting an assessment or changing external systems.
-- Do not overwrite an edited assessment or reference file. Re-run init with --force only when replacing generated starters.
-`;
+interface PlannedWrite {
+  readonly path: string;
+  readonly content: string;
+}
 
 export interface InitOptions {
   readonly config?: string;
@@ -56,6 +54,70 @@ async function exists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+function displayPathFrom(root: string, path: string): string {
+  const relativePath = relative(root, path);
+  if (relativePath === "" || isAbsolute(relativePath) || relativePath.split(sep)[0] === "..") {
+    return path;
+  }
+  return relativePath.split(sep).join("/");
+}
+
+function agentTemplate(configDisplayPath: string): string {
+  return `# AugmentWorks agent setup
+
+Use the pinned AugmentWorks CLI when working on this integration:
+
+\`\`\`bash
+npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c ${configDisplayPath}
+\`\`\`
+
+- Read \`${configDisplayPath}\`, \`${STARTER_ASSESSMENT_RELATIVE_PATH}\`, and \`${STARTER_ENV_EXAMPLE_RELATIVE_PATH}\`; never read, print, or commit \`.env\`.
+- Keep target paths and request/response mappings declarative. Do not add executable mappings.
+- Add only synthetic prepare, send, observe, and cleanup hooks required by the configured packet.
+- Show the diff and ask before starting an assessment or changing external systems.
+- Do not overwrite an edited assessment or reference file. Re-run init with --force only when replacing generated starters.
+`;
+}
+
+function destinationForStarterFile(file: StarterFile, configDirectory: string, configPath: string): string {
+  if (file.relativePath === STARTER_CONNECTOR_RELATIVE_PATH) return configPath;
+  return resolve(configDirectory, file.relativePath);
+}
+
+function planGeneratedWrites(
+  starterFiles: readonly StarterFile[],
+  configDirectory: string,
+  configPath: string,
+  agent: boolean
+): PlannedWrite[] {
+  const writes: PlannedWrite[] = starterFiles.map((file) => ({
+    path: destinationForStarterFile(file, configDirectory, configPath),
+    content: file.content
+  }));
+  if (agent) {
+    writes.push({
+      path: resolve(configDirectory, "augmentworks.agent.md"),
+      content: agentTemplate(displayPathFrom(configDirectory, configPath))
+    });
+  }
+  return writes;
+}
+
+function assertUniqueWritePaths(writes: readonly PlannedWrite[]): void {
+  const seen = new Set<string>();
+  for (const write of writes) {
+    if (seen.has(write.path)) {
+      throw new AwError({
+        code: "INIT_CONFIG_PATH_COLLISION",
+        category: "config",
+        message: `Refusing to write the connector to ${write.path} because it collides with another generated starter file.`,
+        details: { path: write.path }
+      });
+    }
+    seen.add(write.path);
   }
 }
 
@@ -112,19 +174,17 @@ async function ensureIgnored(gitignorePath: string): Promise<"created" | "update
 export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const cwd = resolve(options.cwd ?? process.cwd());
   const starter = parseStarterId(options.starter);
-  const configPath = resolve(cwd, options.config ?? "augmentworks.yaml");
+  const configPath = resolve(cwd, options.config ?? STARTER_CONNECTOR_RELATIVE_PATH);
   const configDirectory = dirname(configPath);
-  const envExamplePath = resolve(configDirectory, ".env.example");
   const envPath = resolve(configDirectory, ".env");
   const gitignorePath = resolve(configDirectory, ".gitignore");
-  const agentPath = resolve(configDirectory, "augmentworks.agent.md");
   const force = options.force === true;
   const createEnvironment = options.env !== false;
   const starterFiles = await loadStarterFiles(starter);
-  const generated = starterFiles.map((file) => resolve(configDirectory, file.relativePath));
-  if (options.agent === true) generated.push(agentPath);
+  const writes = planGeneratedWrites(starterFiles, configDirectory, configPath, options.agent === true);
+  assertUniqueWritePaths(writes);
   if (!force) {
-    const collision = (await Promise.all(generated.map(async (path) => ({ path, exists: await exists(path) })))).find(
+    const collision = (await Promise.all(writes.map(async (write) => ({ path: write.path, exists: await exists(write.path) })))).find(
       (item) => item.exists
     );
     if (collision !== undefined) {
@@ -140,21 +200,16 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const created: string[] = [];
   const updated: string[] = [];
   const preserved: string[] = [];
-  const writes: Array<[string, string]> = starterFiles.map((file) => [
-    resolve(configDirectory, file.relativePath),
-    file.content
-  ]);
-  if (options.agent === true) writes.push([agentPath, AGENT_TEMPLATE]);
-  for (const [path, content] of writes) {
-    const alreadyExists = await exists(path);
-    await atomicWrite(path, content, 0o644, alreadyExists && force);
-    (alreadyExists ? updated : created).push(path);
+  for (const write of writes) {
+    const alreadyExists = await exists(write.path);
+    await atomicWrite(write.path, write.content, 0o644, alreadyExists && force);
+    (alreadyExists ? updated : created).push(write.path);
   }
 
   if (createEnvironment) {
     if (await exists(envPath)) preserved.push(envPath);
     else {
-      const example = starterFiles.find((file) => file.relativePath === ".env.example");
+      const example = starterFiles.find((file) => file.relativePath === STARTER_ENV_EXAMPLE_RELATIVE_PATH);
       await atomicWrite(envPath, example?.content ?? ENV_TEMPLATE, 0o600, false);
       created.push(envPath);
     }
@@ -170,7 +225,7 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
 export function createInitCommand(dependencies: InitCommandDependencies = {}): Command {
   return new Command("init")
     .description("Create a complete AugmentWorks connector, assessment, and starter references")
-    .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
+    .option("-c, --config <path>", "configuration path", STARTER_CONNECTOR_RELATIVE_PATH)
     .option("--starter <name>", "response-quality (default) or workflow", DEFAULT_STARTER_OPTION)
     .option("--agent", "also create repository-local coding-agent instructions")
     .option("--force", "replace generated files, but never replace an existing .env")
@@ -183,9 +238,10 @@ export function createInitCommand(dependencies: InitCommandDependencies = {}): C
         force?: boolean;
         env: boolean;
       }) => {
+        const cwd = dependencies.cwd?.() ?? process.cwd();
         const result = await runInit({
           config: commandOptions.config,
-          cwd: dependencies.cwd?.() ?? process.cwd(),
+          cwd,
           force: commandOptions.force === true,
           agent: commandOptions.agent === true,
           env: commandOptions.env,
@@ -196,7 +252,14 @@ export function createInitCommand(dependencies: InitCommandDependencies = {}): C
         for (const path of result.created) output.write(`created ${path}\n`);
         for (const path of result.updated) output.write(`updated ${path}\n`);
         for (const path of result.preserved) output.write(`preserved ${path}\n`);
-        output.write(`${INIT_NEXT_STEPS}\n`);
+        const configPath = resolve(cwd, commandOptions.config);
+        const configDirectory = dirname(configPath);
+        output.write(
+          `${initNextSteps(
+            displayPathFrom(cwd, configPath),
+            displayPathFrom(cwd, resolve(configDirectory, STARTER_ASSESSMENT_RELATIVE_PATH))
+          )}\n`
+        );
       }
     );
 }

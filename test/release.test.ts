@@ -6,12 +6,14 @@ import {
   CLI_RELEASE,
   HOSTED_COMMAND_PIN,
   HOSTED_COMMANDS,
+  INIT_NEXT_STEPS,
   LOCAL_COMMANDS,
   LOCAL_DISTRIBUTION,
   PUBLISHED_PACKAGE_VERSION,
   SOURCE_PACKAGE_VERSION,
   allowedDocumentedNpxPins,
-  formatNpx
+  formatNpx,
+  initNextSteps
 } from "../src/release.js";
 import { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION } from "../src/version.js";
 
@@ -57,5 +59,16 @@ describe("CLI release metadata", () => {
     } else {
       expect(LOCAL_COMMANDS.test).toContain(`@augmentworks/cli@${PUBLISHED_PACKAGE_VERSION}`);
     }
+  });
+
+  it("keeps default init next-steps copy and names a custom connector file", () => {
+    expect(initNextSteps()).toBe(INIT_NEXT_STEPS);
+    expect(INIT_NEXT_STEPS).toContain("created augmentworks.yaml, augmentworks.assessment.yaml, and starter references");
+    expect(initNextSteps("custom.yaml")).toContain(
+      "created custom.yaml, augmentworks.assessment.yaml, and starter references"
+    );
+    expect(initNextSteps("nested/custom.yaml", "nested/augmentworks.assessment.yaml")).toContain(
+      "created nested/custom.yaml, nested/augmentworks.assessment.yaml, and starter references"
+    );
   });
 });

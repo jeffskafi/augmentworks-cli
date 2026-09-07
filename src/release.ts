@@ -213,10 +213,17 @@ Doctor passed.`;
 export const HOSTED_TEST_KEEP_TERMINAL =
   "Keep this terminal open until the assessment finishes. There is no separate connect command.";
 
-export const INIT_NEXT_STEPS =
-  LOCAL_DISTRIBUTION === "npm"
-    ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created augmentworks.yaml, augmentworks.assessment.yaml, and starter references. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} and keeps this terminal open. npm --yes only skips the npm prompt; it is not a spending ceiling.`
-    : `Next: edit .env with isolated synthetic target values, then run doctor. This source build created augmentworks.yaml, augmentworks.assessment.yaml, and starter references. Published ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} does not generate those assessment files. npm --yes only skips the npm prompt; hosted spending consent is --max-credits N.`;
+export function initNextSteps(
+  configDisplay = "augmentworks.yaml",
+  assessmentDisplay = "augmentworks.assessment.yaml"
+): string {
+  const created = `${configDisplay}, ${assessmentDisplay}, and starter references`;
+  return LOCAL_DISTRIBUTION === "npm"
+    ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created ${created}. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} and keeps this terminal open. npm --yes only skips the npm prompt; it is not a spending ceiling.`
+    : `Next: edit .env with isolated synthetic target values, then run doctor. This source build created ${created}. Published ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} does not generate those assessment files. npm --yes only skips the npm prompt; hosted spending consent is --max-credits N.`;
+}
+
+export const INIT_NEXT_STEPS = initNextSteps();
 
 export const LOGIN_NEXT_STEPS = `Next: run doctor, then keep this terminal open for hosted test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits N --yes. There is no separate connect command. npm --yes is not a spending ceiling.`;
 
