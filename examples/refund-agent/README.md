@@ -39,7 +39,25 @@ directory, run the complete local assessment:
 ```bash
 npx --yes @augmentworks/cli@0.3.1 doctor \
   -c augmentworks.yaml
+```
 
+From a source 0.3.2 build, preview the production mapping against a synthetic
+fixture before the assessment. This does not call the target or consume
+credits:
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --operation send \
+  --fixture ./fixtures/send-response.json
+
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --operation observe \
+  --fixture ./fixtures/observe-response.json
+```
+
+```bash
 npx --yes @augmentworks/cli@0.3.1 test \
   --local \
   -c augmentworks.yaml \

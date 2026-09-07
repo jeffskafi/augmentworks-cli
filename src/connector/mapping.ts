@@ -69,7 +69,10 @@ function mapNode(template: JsonValue, input: unknown, depth: number): JsonValue 
 
 function parsePath(value: string, root: "$" | "$input", label: string): PathToken[] {
   if (!value.startsWith(root)) {
-    throw mappingError("INVALID_SELECTOR", `${label} must begin with ${root}.`);
+    throw mappingError("INVALID_SELECTOR", `${label} must begin with ${root}.`, {
+      selector: value,
+      offset: 0
+    });
   }
   let offset = root.length;
   const tokens: PathToken[] = [];
@@ -82,7 +85,11 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
       }
       const segment = value.slice(start, offset);
       if (!PROPERTY.test(segment)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid property segment.`);
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an invalid property segment at offset ${String(start)}.`,
+          { selector: value, offset: start }
+        );
       }
       assertSafeSegment(segment, label);
       tokens.push(segment);
@@ -91,21 +98,37 @@ function parsePath(value: string, root: "$" | "$input", label: string): PathToke
     if (marker === "[") {
       const closing = value.indexOf("]", offset + 1);
       if (closing === -1) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an unterminated array index.`);
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an unterminated array index at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       const indexText = value.slice(offset + 1, closing);
       if (!/^(0|[1-9][0-9]*)$/u.test(indexText)) {
-        throw mappingError("INVALID_SELECTOR", `${label} contains an invalid array index.`);
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} contains an invalid array index at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       const index = Number(indexText);
       if (!Number.isSafeInteger(index) || index >= LIMITS.maxArrayItems) {
-        throw mappingError("INVALID_SELECTOR", `${label} array index is outside the supported range.`);
+        throw mappingError(
+          "INVALID_SELECTOR",
+          `${label} array index is outside the supported range at offset ${String(offset)}.`,
+          { selector: value, offset }
+        );
       }
       tokens.push(index);
       offset = closing + 1;
       continue;
     }
-    throw mappingError("INVALID_SELECTOR", `${label} contains unsupported syntax.`);
+    throw mappingError(
+      "INVALID_SELECTOR",
+      `${label} contains unsupported syntax at offset ${String(offset)}.`,
+      { selector: value, offset }
+    );
   }
   return tokens;
 }
@@ -222,6 +245,15 @@ function redactNode(value: unknown, secrets: readonly string[], seen: WeakSet<ob
   return result;
 }
 
-function mappingError(code: string, message: string): AwError {
-  return new AwError({ code, category: "config", message });
+function mappingError(
+  code: string,
+  message: string,
+  details?: Readonly<Record<string, string | number | boolean>>
+): AwError {
+  return new AwError({
+    code,
+    category: "config",
+    message,
+    ...(details === undefined ? {} : { details })
+  });
 }

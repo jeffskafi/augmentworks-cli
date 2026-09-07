@@ -208,6 +208,10 @@ result files.
 - v0.2 supports authorized, isolated synthetic targets in test or staging
   environments and synthetic test data only.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
+- `preview-mapping` applies the same production mapping and redaction pipeline
+  to a caller-supplied synthetic JSON fixture. It reads only that fixture and
+  the selected config, makes no network call, and consumes no credit. It is
+  not a secret-detection guarantee.
 - Hosted `test` is the explicit action that starts a hosted assessment and
   keeps the connector online for that run. The dashboard can observe or request
   cancellation, but cannot start an assessment. There is no v0.2 `connect`
