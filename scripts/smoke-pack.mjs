@@ -549,7 +549,7 @@ async function main() {
         NO_COLOR: "1"
       },
       encoding: "utf8",
-      timeout: 180_000,
+      timeout: 240_000,
       windowsHide: true
     });
     if (fixture.error !== undefined) {

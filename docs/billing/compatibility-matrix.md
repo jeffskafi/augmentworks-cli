@@ -11,7 +11,7 @@
 | `run status` / `wait` | yes | no | no | Zero target/reservation calls |
 | `demo` / `--assessment` | yes | yes | `--assessment` only in 0.3.1; demo in 0.3.2 | Account-free local/demo stay off billing |
 | Website npx pin | Do not pin 0.3.3 | `@augmentworks/cli@0.3.2` | historical | Server must understand paid reservations before enabling new paid admission |
-| Unpublished tarball (this branch) | `augmentworks-cli-0.3.3.tgz` 31 files, SHA-256 `d6d37d9b5932f6197044b7719bf08be812fc23bff1fc62508d6c5264d76e8586` | n/a | n/a | Not on the registry. Packed HTTP fixture is not RLS proof |
+| Unpublished tarball (this branch) | `augmentworks-cli-0.3.3.tgz` 31 files, SHA-256 `af2421fdf958810a93b1219609fdb0cd7163db5f8e3311680edef091185d987f` | n/a | n/a | Not on the registry. Packed HTTP fixture is not RLS proof |
 
 ## Rollout order
 

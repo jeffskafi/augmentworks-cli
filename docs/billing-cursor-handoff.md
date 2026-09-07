@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI 3B baseline HEAD | `d584f474bc3c043c33c6a5c75ef40d838bebafcb` (`cursor/billing-stage-3b-91a7`) |
 | Working branch | `cursor/billing-stage-4b-91a7` |
-| Implementation | `82e0c3e615e90ab766a3f55d848e7a39644ce9b9` |
+| Implementation | `c9f079a3fe9b08ba743977115849e594462bbb3d` (packed journey); `7e213781a387292f634ea3df05800ef632e1f184` (rebuild stale packed dist) |
 | Vendored main commit | `49806f0f52377bbca0fbe02f160668723c589fa7` (`origin/main` Stage 4A merge) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
@@ -36,11 +36,17 @@ implementation.
   that installed binary. Secrets and development fixtures stay out of the
   pack.
 - `scripts/packed-billing-fixture.mjs` drives the packed binary over loopback
-  HTTP for auth, capabilities, usage, quote, quoted create, status, wait, and
-  billing navigation. This is **not** PostgreSQL/RLS proof.
+  HTTP for auth refresh, capabilities, usage, quote, dropped-create replay,
+  process restart after admission, one synthetic `/chat` target, pending
+  grading `run wait`, last-units `INSUFFICIENT_CREDITS`, usage 503,
+  pending-commerce fulfillment, and `UPDATE_REQUIRED` when `quote_v1` is
+  absent. This is **not** PostgreSQL/RLS proof.
 - `scripts/packed-billing-live.mjs` is the disposable main API/database gate.
   Missing credentials exit `2` (`not_run` / **BLOCKED**). Production API hosts
-  and non-flagged Supabase URLs are refused.
+  are refused. When a loopback API URL and connector token are supplied, the
+  packed binary runs usage, estimate, and `--max-credits 0`. Quoted create is
+  opt-in (`AW_BILLING_LIVE_ALLOW_CREATE=1`). Ledger/RLS inspection stays
+  `not_run` without a disposable migrated database observer.
 - Hosted `test --json` writes one structured error object on stdout for
   billing/admission rejection.
 
@@ -198,8 +204,8 @@ identity. Do not delete journals or blindly rerun while admission is unknown.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 362669 bytes |
-| SHA-256 | `d6d37d9b5932f6197044b7719bf08be812fc23bff1fc62508d6c5264d76e8586` |
+| Compressed size | 371282 bytes |
+| SHA-256 | `af2421fdf958810a93b1219609fdb0cd7163db5f8e3311680edef091185d987f` |
 
 Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
 starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
@@ -211,10 +217,10 @@ See `docs/billing/phase-4-completion.md` and
 
 Summary:
 
-- `npm run check` — pass (typecheck, vitest **49 files / 419 tests**, build,
+- `npm run check` — pass (typecheck, vitest **53 files / 468 tests**, build,
   discovery, billing-contract)
-- `npm run smoke:pack` — pass, including packed billing HTTP fixture
-  (`creates=1 quotes=4 targets=0`)
+- `npm run smoke:pack` — pass, including packed billing HTTP fixture through
+  the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)
 - `npm run test:packed-billing-live` — **BLOCKED** exit 2 (no disposable
   main API/token)
 

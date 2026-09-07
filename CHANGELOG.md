@@ -10,9 +10,14 @@ All notable changes to this project are documented here. The format follows
 
 - Source `0.3.3` Stage 4B packaged empty-directory starters
   (`response-quality` default and `workflow`), offline doctor wire-bound
-  checks, packed-tarball billing HTTP fixture, and prepaid-journey recovery
-  docs. Vendors `aw-billing/1` from main `49806f0f52377bbca0fbe02f160668723c589fa7`.
-  Not npm-published. Live sales remain disabled.
+  checks, packed-tarball billing HTTP fixture (target execution, token
+  refresh, dropped-create replay, pending grading wait), and prepaid-journey
+  recovery docs. Vendors `aw-billing/1` from main
+  `49806f0f52377bbca0fbe02f160668723c589fa7`. Not npm-published. Live sales
+  remain disabled.
+- CI/environment token refresh via `AUGMENTWORKS_REFRESH_TOKEN` without
+  writing the OS credential store. Token-only `AUGMENTWORKS_TOKEN` remains
+  static.
 - Packaged `augmentworks demo` command: isolated loopback refund target, real
   local runner/scorer, fail-then-pass policy story, `AW-DEMO-SUMMARY-1` JSON.
 - `contracts/discovery-manifest.json` generated from the existing release
@@ -42,6 +47,9 @@ All notable changes to this project are documented here. The format follows
   does not fail with `spawnSync npm.cmd EINVAL`.
 - Packed billing HTTP fixture uses async `spawn` so the in-process loopback
   server can accept CLI requests (`spawnSync` deadlocked the event loop).
+- Packed CLI tests rebuild `dist/index.js` when TypeScript sources are newer,
+  so `npm test` before `npm run build` still exercises current `run wait`
+  classification.
 - Hosted `test --json` writes one structured error object on stdout for
   billing/admission rejection, matching estimate/usage/billing.
 - `run wait` / `run status` no longer treat a successful status query of

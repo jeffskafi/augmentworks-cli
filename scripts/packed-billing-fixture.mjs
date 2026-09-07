@@ -3,8 +3,9 @@
 /**
  * Packed-binary HTTP fixture for Stage 4B.
  *
- * Exercises the installed CLI over loopback HTTP for auth, capabilities,
- * usage, quote, quoted create, status, and billing navigation.
+ * Exercises the installed CLI over loopback HTTP for auth refresh, capabilities,
+ * usage, quote, quoted create recovery, one synthetic target send, status, wait,
+ * and billing navigation.
  *
  * This is not proof of atomic PostgreSQL/RLS credit accounting. The live
  * disposable-database gate is scripts/packed-billing-live.mjs.
@@ -22,13 +23,18 @@ import { parsePackReport } from "./npm-pack-report.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const WORKSPACE = "11111111-1111-4111-8111-111111111111";
-const BILLING_ACCOUNT = "22222222-2222-4222-8222-222222222222";
 const RUN_ID = "66666666-6666-4666-8666-666666666666";
 const QUOTE_ID = "55555555-5555-4555-8555-555555555555";
 const SESSION_ID = "sess_packed_fixture_1";
 const PACKET_SHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const TOKEN = "packed-billing-fixture-token";
+const FRESH_TOKEN = "packed-billing-fixture-token-refreshed";
+const REFRESH_TOKEN = "packed-billing-fixture-refresh-token";
+const TARGET_KEY = "fixture-placeholder";
 const EXECUTION_UNITS = 30;
+const COMMAND_ID = "cmd-send-1";
+const ATTEMPT_ID = "attempt-packed-1";
+const TURN_ID = "turn-packed-1";
 
 class FixtureFailure extends Error {
   constructor(message) {
@@ -105,6 +111,7 @@ function readBody(request) {
 }
 
 function json(response, status, body) {
+  if (response.writableEnded || response.destroyed) return;
   const payload = JSON.stringify(body);
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -168,34 +175,78 @@ function createFixtureServer(fixtures) {
     create: 0,
     createAccepted: 0,
     createRejected: 0,
+    createDropped: 0,
     relayStatus: 0,
     billingStatus: 0,
     retryEvaluation: 0,
     target: 0,
+    poll: 0,
+    pollHeld: 0,
+    complete: 0,
+    token: 0,
     unauthorized: 0,
     other: 0
   };
   /** @type {string[]} */
   const requests = [];
   let exhausted = false;
+  let holdPoll = false;
+  let dropNextCreate = false;
+  let evaluationComplete = false;
+  let sendCompleted = false;
+  let requireFresh = false;
+  let usageUnavailable = false;
+  let omitQuoteCapability = false;
+  let lastUnitsRace = false;
+  let pendingCommerce = false;
+  let pendingFulfilled = false;
+  /** @type {Set<() => void>} */
+  const pollWaiters = new Set();
   /** @type {Map<string, { sha256: string, body: unknown }>} */
   const creates = new Map();
+  /** @type {{ packet?: { key?: string, version?: string }, config_sha256?: string }} */
+  let lastCreate = {};
   let lastQuoteId = QUOTE_ID;
 
   const usageBase = structuredClone(fixtures.fixtures.partially_consumed_trial.response);
   const exhaustedBase = structuredClone(fixtures.fixtures.exhausted_allowance.response);
+  const pendingBase = structuredClone(fixtures.fixtures.pending_pack_purchase.response);
   const insufficient = fixtures.fixtures.error_insufficient_credits;
+  const unavailable = fixtures.fixtures.error_service_unavailable;
+
+  function capabilitiesList() {
+    return omitQuoteCapability
+      ? ["usage_v1", "status_v1", "billing_portal_link_v1"]
+      : ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"];
+  }
 
   function usagePayload() {
+    if (pendingCommerce && !pendingFulfilled) {
+      return {
+        ...pendingBase,
+        asOf: new Date().toISOString(),
+        availableUnits: exhausted ? 0 : usageBase.availableUnits,
+        reservedUnits: exhausted ? 0 : usageBase.reservedUnits,
+        consumedUnits: exhausted ? exhaustedBase.consumedUnits : usageBase.consumedUnits,
+        ledgerRevision: usageBase.ledgerRevision,
+        grantBalances: exhausted ? exhaustedBase.grantBalances : usageBase.grantBalances,
+        billingPageUrl: `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`,
+        capabilities: capabilitiesList()
+      };
+    }
     const source = exhausted ? exhaustedBase : usageBase;
+    const extra = pendingFulfilled ? 300 : 0;
     return {
       ...source,
       asOf: new Date().toISOString(),
-      billingPageUrl: `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`
+      availableUnits: (exhausted ? 0 : source.availableUnits) + extra,
+      billingPageUrl: `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`,
+      capabilities: capabilitiesList()
     };
   }
 
   function quotePayload() {
+    const available = lastUnitsRace ? 5 : exhausted ? 0 : usageBase.availableUnits;
     return {
       schemaVersion: "aw-billing/1",
       quoteId: lastQuoteId,
@@ -204,13 +255,21 @@ function createFixtureServer(fixtures) {
       pricingVersion: "aw-pricing/execution-unit/1",
       executionUnits: EXECUTION_UNITS,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      availableUnitsAtQuote: exhausted ? 0 : 190,
+      availableUnitsAtQuote: available,
       estimateOnly: true,
       scenarioCount: 10,
       repetitions: 3,
-      remainingUnitsEstimate: exhausted ? 0 : 160,
+      remainingUnitsEstimate: lastUnitsRace || exhausted ? 0 : Math.max(0, available - EXECUTION_UNITS),
       retentionPolicyVersion: "aw-retention/pack-90d-v1",
       retainUntil: "2026-12-05T17:00:00.000Z"
+    };
+  }
+
+  function packetBinding(request) {
+    return {
+      key: request.packet?.key ?? lastCreate.packet?.key ?? "response-quality",
+      version: request.packet?.version ?? lastCreate.packet?.version ?? "0.1.0",
+      sha256: PACKET_SHA256
     };
   }
 
@@ -222,30 +281,68 @@ function createFixtureServer(fixtures) {
       create_disposition: disposition,
       run_id: RUN_ID,
       session_id: SESSION_ID,
-      packet: {
-        key: request.packet?.key ?? "response-quality",
-        version: request.packet?.version ?? "0.1.0",
-        sha256: PACKET_SHA256
-      },
+      packet: packetBinding(request),
       config_sha256: request.config_sha256,
       fencing_epoch: 1,
-      status: "completed",
+      status: "running",
       dashboard_url: `${origin}/portal/runs/${RUN_ID}`,
       run_expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      credit_state: "consumed",
+      credit_state: sendCompleted ? "consumed" : "reserved",
       poll_after_ms: 0
     };
   }
 
+  function sendCommand(origin) {
+    const issuedAt = new Date(Date.now() - 1_000).toISOString();
+    const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    const packet = packetBinding(lastCreate);
+    return {
+      protocol_version: "aw-relay/0.2",
+      command_id: COMMAND_ID,
+      session_id: SESSION_ID,
+      run_id: RUN_ID,
+      attempt_id: ATTEMPT_ID,
+      packet,
+      config_sha256: lastCreate.config_sha256,
+      sequence: 1,
+      fencing_epoch: 1,
+      idempotency_key: "idempotency-send-packed-1",
+      issued_at: issuedAt,
+      expires_at: expiresAt,
+      kind: "send",
+      input: {
+        protocol_version: "aw-target/0.1",
+        turn_id: TURN_ID,
+        idempotency_key: "idempotency-send-packed-1",
+        message: {
+          role: "user",
+          content: "What is the return window for unused items in the synthetic catalog?"
+        },
+        metadata: {}
+      }
+    };
+  }
+
   function relayStatus(origin) {
+    if (!sendCompleted) {
+      return {
+        protocol_version: "aw-relay/0.2",
+        run_id: RUN_ID,
+        status: "running",
+        dashboard_url: `${origin}/portal/runs/${RUN_ID}`,
+        credit_state: "reserved",
+        outcome: null,
+        evaluation_status: "pending"
+      };
+    }
     return {
       protocol_version: "aw-relay/0.2",
       run_id: RUN_ID,
       status: "completed",
       dashboard_url: `${origin}/portal/runs/${RUN_ID}`,
       credit_state: "consumed",
-      outcome: "failed",
-      evaluation_status: "complete"
+      outcome: evaluationComplete ? "failed" : null,
+      evaluation_status: evaluationComplete ? "complete" : "pending"
     };
   }
 
@@ -256,19 +353,40 @@ function createFixtureServer(fixtures) {
       runId: RUN_ID,
       originalRunId: RUN_ID,
       workspaceId: WORKSPACE,
-      executionStatus: "completed",
-      evaluationStatus: "complete",
-      outcome: "failed",
+      executionStatus: sendCompleted ? "completed" : "running",
+      evaluationStatus: evaluationComplete ? "complete" : "pending",
+      outcome: evaluationComplete ? "failed" : null,
       dashboardUrl: `${origin}/portal/runs/${RUN_ID}`,
       asOf: new Date().toISOString(),
       credit: {
-        reservedUnits: 0,
-        consumedUnits: EXECUTION_UNITS,
+        reservedUnits: sendCompleted ? 0 : EXECUTION_UNITS,
+        consumedUnits: sendCompleted ? EXECUTION_UNITS : 0,
         releasedUnits: 0,
         compensatedUnits: 0
       },
-      nextActions: ["inspect", "open_dashboard"]
+      nextActions: evaluationComplete ? ["inspect", "open_dashboard"] : ["wait", "inspect", "open_dashboard"]
     };
+  }
+
+  function waitForPollRelease(request) {
+    return new Promise((resolveWait) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        request.off("close", finish);
+        pollWaiters.delete(finish);
+        resolveWait();
+      };
+      request.on("close", finish);
+      pollWaiters.add(finish);
+    });
+  }
+
+  function releasePollHold() {
+    holdPoll = false;
+    for (const waiter of pollWaiters) waiter();
+    pollWaiters.clear();
   }
 
   const server = createServer(async (request, response) => {
@@ -278,22 +396,57 @@ function createFixtureServer(fixtures) {
       const path = url.pathname.replace(/\/+$/u, "") || "/";
       requests.push(`${request.method ?? "GET"} ${path}`);
       const authorization = request.headers.authorization ?? "";
-      if (!authorization.startsWith("Bearer ") || authorization.slice(7) !== TOKEN) {
-        counts.unauthorized += 1;
-        json(response, 401, {
-          schemaVersion: "aw-billing/1",
-          error: { code: "unauthenticated", message: "Missing or invalid connector credential.", retryable: false }
+      const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+
+      if (request.method === "POST" && path === "/api/v1/cli/auth/token") {
+        counts.token += 1;
+        const raw = await readBody(request);
+        const params = new URLSearchParams(raw.toString("utf8"));
+        if (params.get("grant_type") !== "refresh_token" || params.get("refresh_token") !== REFRESH_TOKEN) {
+          json(response, 400, { error: "invalid_grant" });
+          return;
+        }
+        json(response, 200, {
+          access_token: FRESH_TOKEN,
+          token_type: "Bearer",
+          refresh_token: REFRESH_TOKEN,
+          expires_in: 3600,
+          scope: "connector:identity connector:run",
+          workspace_id: WORKSPACE,
+          connector_id: "conn_packed_fixture"
         });
         return;
       }
 
-      if (path === "/chat" || path.includes("prepare") || path.includes("observe") || path.includes("cleanup")) {
+      if (path === "/chat") {
         counts.target += 1;
-        json(response, 500, { error: "target must not be contacted by this fixture" });
+        if (request.method !== "POST" || bearer !== TARGET_KEY) {
+          json(response, 401, { error: "unauthorized" });
+          return;
+        }
+        await readBody(request);
+        json(response, 200, {
+          answer: "Unused items in the synthetic catalog can be returned within 30 days.",
+          finished: true
+        });
+        return;
+      }
+
+      if (path.includes("prepare") || path.includes("observe") || path.includes("cleanup")) {
+        counts.target += 1;
+        json(response, 500, { error: "target must not be contacted for prepare/observe/cleanup in this fixture" });
         return;
       }
 
       if (request.method === "GET" && path === "/api/v1/cli/auth/me") {
+        if (bearer !== TOKEN && bearer !== FRESH_TOKEN) {
+          counts.unauthorized += 1;
+          json(response, 401, {
+            schemaVersion: "aw-billing/1",
+            error: { code: "unauthenticated", message: "Missing or invalid connector credential.", retryable: false }
+          });
+          return;
+        }
         counts.me += 1;
         json(response, 200, {
           subject: "user_packed_fixture",
@@ -305,19 +458,42 @@ function createFixtureServer(fixtures) {
         return;
       }
 
+      const isPoll = request.method === "POST" && path === `/v1/relay/sessions/${SESSION_ID}/commands:poll`;
+      if (isPoll && bearer === TOKEN && !requireFresh) {
+        requireFresh = true;
+        counts.unauthorized += 1;
+        json(response, 401, {
+          schemaVersion: "aw-billing/1",
+          error: { code: "unauthenticated", message: "Access token expired.", retryable: false }
+        });
+        return;
+      }
+      if (bearer !== TOKEN && bearer !== FRESH_TOKEN) {
+        counts.unauthorized += 1;
+        json(response, 401, {
+          schemaVersion: "aw-billing/1",
+          error: { code: "unauthenticated", message: "Missing or invalid connector credential.", retryable: false }
+        });
+        return;
+      }
+
       if (request.method === "GET" && (path === "/v1/billing/capabilities" || path === "/api/v1/billing/capabilities")) {
         counts.capabilities += 1;
         json(response, 200, {
           schemaVersion: "aw-billing/1",
           asOf: new Date().toISOString(),
           workspaceId: WORKSPACE,
-          capabilities: ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"]
+          capabilities: capabilitiesList()
         });
         return;
       }
 
       if (request.method === "GET" && (path === "/v1/billing/usage" || path === "/api/v1/billing/usage")) {
         counts.usage += 1;
+        if (usageUnavailable) {
+          json(response, unavailable.status, unavailable.response);
+          return;
+        }
         json(response, 200, usagePayload());
         return;
       }
@@ -351,6 +527,48 @@ function createFixtureServer(fixtures) {
         return;
       }
 
+      if (request.method === "POST" && path === `/v1/relay/commands/${COMMAND_ID}:complete`) {
+        counts.complete += 1;
+        await readBody(request);
+        sendCompleted = true;
+        json(response, 200, {
+          protocol_version: "aw-relay/0.2",
+          command_id: COMMAND_ID,
+          accepted: true
+        });
+        return;
+      }
+
+      if (request.method === "POST" && path === `/v1/relay/sessions/${SESSION_ID}/commands:poll`) {
+        counts.poll += 1;
+        await readBody(request);
+        if (holdPoll) {
+          counts.pollHeld += 1;
+          await waitForPollRelease(request);
+          if (request.destroyed || response.writableEnded) return;
+        }
+        if (sendCompleted) {
+          json(response, 200, {
+            protocol_version: "aw-relay/0.2",
+            run_id: RUN_ID,
+            session_id: SESSION_ID,
+            status: "completed",
+            command: null,
+            retry_after_ms: 0
+          });
+          return;
+        }
+        json(response, 200, {
+          protocol_version: "aw-relay/0.2",
+          run_id: RUN_ID,
+          session_id: SESSION_ID,
+          status: "running",
+          command: sendCommand(origin),
+          retry_after_ms: 0
+        });
+        return;
+      }
+
       if (request.method === "GET" && path.startsWith("/v1/relay/runs/")) {
         counts.relayStatus += 1;
         json(response, 200, relayStatus(origin));
@@ -362,7 +580,13 @@ function createFixtureServer(fixtures) {
         const raw = await readBody(request);
         const parsed = JSON.parse(raw.toString("utf8"));
         const requestSha256 = sha256(canonicalize(parsed));
-        if (exhausted) {
+        if (dropNextCreate) {
+          dropNextCreate = false;
+          counts.createDropped += 1;
+          response.destroy();
+          return;
+        }
+        if (exhausted || lastUnitsRace) {
           counts.createRejected += 1;
           json(response, insufficient.status, insufficient.response);
           return;
@@ -377,6 +601,7 @@ function createFixtureServer(fixtures) {
           usageBase.reservedUnits = 0;
           usageBase.ledgerRevision = 6;
         }
+        lastCreate = parsed;
         json(response, 200, createResponse(parsed, requestSha256, origin, disposition));
         return;
       }
@@ -396,6 +621,35 @@ function createFixtureServer(fixtures) {
     requests,
     exhaust() {
       exhausted = true;
+    },
+    holdNextPoll() {
+      holdPoll = true;
+    },
+    releasePoll() {
+      releasePollHold();
+    },
+    dropNextCreate() {
+      dropNextCreate = true;
+    },
+    completeEvaluation() {
+      evaluationComplete = true;
+    },
+    failUsage() {
+      usageUnavailable = true;
+    },
+    omitQuoteCapability() {
+      omitQuoteCapability = true;
+    },
+    enableLastUnitsRace() {
+      lastUnitsRace = true;
+    },
+    enablePendingCommerce() {
+      pendingCommerce = true;
+      pendingFulfilled = false;
+    },
+    fulfillPendingCommerce() {
+      pendingFulfilled = true;
+      pendingCommerce = false;
     }
   };
 }
@@ -410,56 +664,90 @@ function spawnEnv(env) {
   return isolated;
 }
 
+function startPacked(packedBin, args, env, cwd) {
+  const child = spawn(process.execPath, [packedBin, ...args], {
+    cwd,
+    env: spawnEnv(env),
+    windowsHide: true
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const closed = new Promise((resolveClose, reject) => {
+    child.once("error", (error) => {
+      reject(new FixtureFailure(`Could not run packed CLI ${args.join(" ")}: ${error.message}`));
+    });
+    child.once("close", (status, signal) => {
+      resolveClose({ status, stdout, stderr, signal });
+    });
+  });
+  return {
+    child,
+    closed,
+    kill() {
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // The process may already have exited.
+      }
+    }
+  };
+}
+
 /**
  * Run the packed CLI without spawnSync. spawnSync blocks this process's event
  * loop, so the in-process fixture HTTP server cannot accept the child's requests.
  */
 function runPacked(packedBin, args, env, cwd, expectStatus, fixture) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [packedBin, ...args], {
-      cwd,
-      env: spawnEnv(env),
-      windowsHide: true
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
+    const started = startPacked(packedBin, args, env, cwd);
     const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
+      started.kill();
     }, 120_000);
     timeout.unref();
-    child.once("error", (error) => {
-      clearTimeout(timeout);
-      reject(new FixtureFailure(`Could not run packed CLI ${args.join(" ")}: ${error.message}`));
-    });
-    child.once("close", (status, signal) => {
-      clearTimeout(timeout);
-      if (status !== expectStatus) {
-        reject(
-          new FixtureFailure(
-            [
-              `packed CLI ${args.join(" ")} exited ${String(status)}${signal ? ` signal=${signal}` : ""}, expected ${String(expectStatus)}`,
-              stdout.trim(),
-              stderr.trim(),
-              fixture === undefined ? "" : `fixture counts=${JSON.stringify(fixture.counts)}`,
-              fixture === undefined ? "" : `fixture requests=${fixture.requests.join(" | ")}`
-            ]
-              .filter(Boolean)
-              .join("\n")
-          )
-        );
-        return;
+    started.closed.then(
+      (result) => {
+        clearTimeout(timeout);
+        if (result.status !== expectStatus) {
+          reject(
+            new FixtureFailure(
+              [
+                `packed CLI ${args.join(" ")} exited ${String(result.status)}${result.signal ? ` signal=${result.signal}` : ""}, expected ${String(expectStatus)}`,
+                result.stdout.trim(),
+                result.stderr.trim(),
+                fixture === undefined ? "" : `fixture counts=${JSON.stringify(fixture.counts)}`,
+                fixture === undefined ? "" : `fixture requests=${fixture.requests.join(" | ")}`
+              ]
+                .filter(Boolean)
+                .join("\n")
+            )
+          );
+          return;
+        }
+        resolve(result);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
       }
-      resolve({ status, stdout, stderr, signal });
-    });
+    );
   });
+}
+
+async function waitUntil(predicate, timeoutMs, label) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (predicate()) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+  }
+  throw new FixtureFailure(`${label} timed out`);
 }
 
 function parseJsonStdout(stdout, label) {
@@ -474,6 +762,8 @@ function parseJsonStdout(stdout, label) {
 
 function assertNoSecrets(text, label) {
   assert(!text.includes(TOKEN), `${label} leaked the fixture token`);
+  assert(!text.includes(FRESH_TOKEN), `${label} leaked the refreshed fixture token`);
+  assert(!text.includes(REFRESH_TOKEN), `${label} leaked the refresh token`);
   assert(!/sk_live|sk_test|whsec_|rk_live/u.test(text), `${label} looks like a Stripe secret`);
 }
 
@@ -489,6 +779,7 @@ async function main() {
     await new Promise((resolveListen) => fixture.server.listen(0, "127.0.0.1", resolveListen));
     const port = fixture.server.address().port;
     const origin = `http://127.0.0.1:${port}/`;
+    const chatbotOrigin = `http://127.0.0.1:${port}`;
     const consumerDir = join(temporaryRoot, "empty-project");
     const isolatedHome = join(temporaryRoot, "home");
     await mkdir(consumerDir, { recursive: true });
@@ -505,10 +796,11 @@ async function main() {
       AUGMENTWORKS_STATE_DIR: join(isolatedHome, "aw-state"),
       AUGMENTWORKS_API_URL: origin,
       AUGMENTWORKS_TOKEN: TOKEN,
+      AUGMENTWORKS_REFRESH_TOKEN: REFRESH_TOKEN,
       AUGMENTWORKS_LIVE_TOKEN: "",
       AW_BILLING_LIVE_TOKEN: "",
-      CHATBOT_BASE_URL: "http://127.0.0.1:1",
-      CHATBOT_API_KEY: "fixture-placeholder",
+      CHATBOT_BASE_URL: chatbotOrigin,
+      CHATBOT_API_KEY: TARGET_KEY,
       CI: "1",
       NO_COLOR: "1",
       HTTP_PROXY: "",
@@ -554,7 +846,7 @@ async function main() {
     const overwrite = await runPacked(packedBin, ["init"], env, consumerDir, 2, fixture);
     assert(overwrite.stderr.includes("INIT_FILE_EXISTS") || overwrite.stdout.includes("INIT_FILE_EXISTS"), "second init must refuse overwrite");
 
-    process.stdout.write("[packed billing fixture] usage, estimate, ceiling, admit, status, billing\n");
+    process.stdout.write("[packed billing fixture] usage, estimate, ceiling, recover, target, wait, billing\n");
     const usageBefore = parseJsonStdout(
       (await runPacked(packedBin, ["usage", "--json"], env, consumerDir, 0, fixture)).stdout,
       "usage"
@@ -609,32 +901,37 @@ async function main() {
     assert(fixture.counts.create === createsBeforeEstimate, "rejected ceiling created a run");
     assert(fixture.counts.target === 0, "rejected ceiling contacted a target");
 
+    const hostedArgs = [
+      "test",
+      "--assessment",
+      "./augmentworks.assessment.yaml",
+      "--max-credits",
+      "30",
+      "--yes",
+      "--json"
+    ];
+    fixture.dropNextCreate();
+    fixture.holdNextPoll();
+    const interrupted = startPacked(packedBin, hostedArgs, env, consumerDir);
+    await waitUntil(() => fixture.counts.pollHeld >= 1, 20_000, "create+poll hold after dropped create");
+    assert(fixture.counts.createDropped >= 1, "packed create was not dropped once before replay");
+    assert(fixture.counts.createAccepted === 1, "dropped create did not replay into one accepted admission");
+    interrupted.kill();
+    await interrupted.closed;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    fixture.releasePoll();
+
     const admitted = parseJsonStdout(
-      (
-        await runPacked(
-          packedBin,
-          [
-            "test",
-            "--assessment",
-            "./augmentworks.assessment.yaml",
-            "--max-credits",
-            "30",
-            "--yes",
-            "--json"
-          ],
-          env,
-          consumerDir,
-          10,
-          fixture
-        )
-      ).stdout,
+      (await runPacked(packedBin, hostedArgs, env, consumerDir, 11, fixture)).stdout,
       "admit"
     );
     assert(admitted.run_id === RUN_ID, "admitted run id mismatch");
-    assert(admitted.status === "completed", "admitted run was not completed");
-    assert(admitted.outcome === "failed", "fixture should return a valid FAIL");
+    assert(admitted.status === "completed", "admitted run was not completed after target execution");
+    assert(admitted.evaluation_status === "pending", "admitted run must leave grading pending for run wait");
     assert(fixture.counts.createAccepted === 1, `expected one accepted create, got ${String(fixture.counts.createAccepted)}`);
-    assert(fixture.counts.target === 0, "admission contacted a target");
+    assert(fixture.counts.target >= 1, "admission did not execute the synthetic /chat target");
+    assert(fixture.counts.complete >= 1, "admission did not complete the relay send command");
+    assert(fixture.counts.token >= 1, "packed journey did not refresh the connector token");
 
     const usageAfter = parseJsonStdout(
       (await runPacked(packedBin, ["usage", "--json"], env, consumerDir, 0, fixture)).stdout,
@@ -642,12 +939,30 @@ async function main() {
     );
     assert(usageAfter.availableUnits === 160, `post-admit availableUnits ${String(usageAfter.availableUnits)}`);
 
-    const status = parseJsonStdout(
-      (await runPacked(packedBin, ["run", "status", RUN_ID, "--json"], env, consumerDir, 10, fixture)).stdout,
-      "run status"
+    const pendingStatus = parseJsonStdout(
+      (await runPacked(packedBin, ["run", "status", RUN_ID, "--json"], env, consumerDir, 11, fixture)).stdout,
+      "run status pending"
     );
-    assert(status.runId === RUN_ID, "run status runId mismatch");
-    assert(status.evaluationStatus === "complete", "run status evaluation was not complete");
+    assert(pendingStatus.runId === RUN_ID, "run status runId mismatch");
+    assert(pendingStatus.evaluationStatus === "pending", "run status evaluation was not pending");
+
+    const timedOutWait = parseJsonStdout(
+      (
+        await runPacked(
+          packedBin,
+          ["run", "wait", RUN_ID, "--json", "--timeout-ms", "200"],
+          env,
+          consumerDir,
+          11,
+          fixture
+        )
+      ).stdout,
+      "run wait timeout"
+    );
+    assert(timedOutWait.code === "EVALUATION_INCOMPLETE", `wait timeout code ${String(timedOutWait.code)}`);
+    assert(timedOutWait.ok === false, "timed-out wait must be a structured failure");
+
+    fixture.completeEvaluation();
     const wait = parseJsonStdout(
       (
         await runPacked(
@@ -662,8 +977,17 @@ async function main() {
       "run wait"
     );
     assert(wait.originalRunId === RUN_ID, "run wait did not keep the original run");
+    assert(wait.evaluationStatus === "complete", "run wait evaluation was not complete");
+    assert(wait.outcome === "failed", "fixture should return a valid FAIL after grading");
     assert(fixture.counts.retryEvaluation === 0, "status/wait retried evaluation");
-    assert(fixture.counts.target === 0, "status/wait contacted a target");
+
+    fixture.enableLastUnitsRace();
+    const lastUnits = parseJsonStdout(
+      (await runPacked(packedBin, hostedArgs, env, consumerDir, 13, fixture)).stdout,
+      "last units"
+    );
+    assert(lastUnits.code === "INSUFFICIENT_CREDITS", `last-units code ${String(lastUnits.code)}`);
+    assert(fixture.counts.createAccepted === 1, "last-units race created another run");
 
     fixture.exhaust();
     const exhaustedUsage = parseJsonStdout(
@@ -673,24 +997,7 @@ async function main() {
     assert(exhaustedUsage.availableUnits === 0, "exhausted usage must show 0 available");
 
     const insufficient = parseJsonStdout(
-      (
-        await runPacked(
-          packedBin,
-          [
-            "test",
-            "--assessment",
-            "./augmentworks.assessment.yaml",
-            "--max-credits",
-            "30",
-            "--yes",
-            "--json"
-          ],
-          env,
-          consumerDir,
-          13,
-          fixture
-        )
-      ).stdout,
+      (await runPacked(packedBin, hostedArgs, env, consumerDir, 13, fixture)).stdout,
       "insufficient"
     );
     assert(insufficient.code === "INSUFFICIENT_CREDITS", `insufficient code ${String(insufficient.code)}`);
@@ -705,17 +1012,64 @@ async function main() {
       printedUrl === `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`,
       `billing --print was ${printedUrl}`
     );
-    assert(!printed.stdout.includes(TOKEN) && !printed.stderr.includes(TOKEN), "billing printed a token");
     assertNoSecrets(`${printed.stdout}\n${printed.stderr}\n${insufficient.stdout}`, "packed billing outputs");
 
+    fixture.enablePendingCommerce();
+    const pendingUsage = parseJsonStdout(
+      (await runPacked(packedBin, ["usage", "--json"], env, consumerDir, 0, fixture)).stdout,
+      "pending commerce usage"
+    );
+    assert(pendingUsage.availableUnits === 0, "pending pack must not become spendable credit");
+    assert(pendingUsage.pendingCommerce?.state === "paid_unfulfilled", "pendingCommerce.state missing");
+    fixture.fulfillPendingCommerce();
+    const fulfilledUsage = parseJsonStdout(
+      (await runPacked(packedBin, ["usage", "--json"], env, consumerDir, 0, fixture)).stdout,
+      "fulfilled pack usage"
+    );
+    assert(fulfilledUsage.availableUnits === 300, `fulfilled pack availableUnits ${String(fulfilledUsage.availableUnits)}`);
+    assert(fulfilledUsage.pendingCommerce == null, "fulfilled usage still has pendingCommerce");
+
+    fixture.failUsage();
+    const usage503 = parseJsonStdout(
+      (await runPacked(packedBin, ["usage", "--json"], env, consumerDir, 13, fixture)).stdout,
+      "usage unavailable"
+    );
+    assert(usage503.code === "BILLING_UNAVAILABLE", `usage 503 code ${String(usage503.code)}`);
+
+    fixture.omitQuoteCapability();
+    const updateRequired = parseJsonStdout(
+      (
+        await runPacked(
+          packedBin,
+          [
+            "test",
+            "--assessment",
+            "./augmentworks.assessment.yaml",
+            "--max-credits",
+            "31",
+            "--yes",
+            "--json"
+          ],
+          env,
+          consumerDir,
+          13,
+          fixture
+        )
+      ).stdout,
+      "update required"
+    );
+    assert(updateRequired.code === "UPDATE_REQUIRED", `old-server code ${String(updateRequired.code)}`);
+    assert(fixture.counts.createAccepted === 1, "UPDATE_REQUIRED created another run");
+
     const transcript = JSON.stringify(fixture.counts);
-    assert(!transcript.includes(TOKEN), "fixture counters leaked the token");
+    assert(!transcript.includes(TOKEN) && !transcript.includes(FRESH_TOKEN), "fixture counters leaked a token");
 
     process.stdout.write(
-      `[packed billing fixture] passed creates=${String(fixture.counts.createAccepted)} quotes=${String(fixture.counts.quote)} targets=${String(fixture.counts.target)}${tarballDigest ? ` tarball_sha256=${tarballDigest}` : ""}\n`
+      `[packed billing fixture] passed creates=${String(fixture.counts.createAccepted)} quotes=${String(fixture.counts.quote)} targets=${String(fixture.counts.target)} polls=${String(fixture.counts.poll)} refreshes=${String(fixture.counts.token)}${tarballDigest ? ` tarball_sha256=${tarballDigest}` : ""}\n`
     );
   } finally {
     if (fixture !== undefined) {
+      fixture.releasePoll();
       await new Promise((resolveClose) => fixture.server.close(resolveClose));
     }
     if (process.env.AUGMENTWORKS_KEEP_SMOKE_TMP === "1") {
