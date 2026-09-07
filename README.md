@@ -620,13 +620,15 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Source 0.3.3 writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.3. Reads only the selected config and fixture. No target, cloud, or model call |
+| `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Source 0.3.3. Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.3 uses `aw-relay/0.3` quotes; published 0.3.2 uses `aw-relay/0.2`. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
+| `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Source 0.3.3. Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.3 |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; published in 0.3.2 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
-| `schema [--kind config\|local-packet\|local-result]` | Print a bundled v1 JSON Schema | None |
+| `schema [--kind config\|local-packet\|local-result\|customer-suite]` | Print a bundled v1 JSON Schema | None |
 
 ### Exit codes
 

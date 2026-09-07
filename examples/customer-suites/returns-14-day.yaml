@@ -1,0 +1,93 @@
+# Synthetic 14-day return policy suite. Not a real merchant policy.
+# Hosted judging credentials must never appear here.
+# Local preview is not a price and does not execute a target or an LLM.
+schema_version: aw-suite/1
+suite_id: customer.returns.fourteen_day
+title: Fourteen-day return window
+description: >
+  Synthetic return-window cases that must be judged against a 14-day policy.
+  The curated 30-day pack must not be used.
+tags:
+  - returns
+  - fourteen-day
+synthetic_only: true
+references:
+  - id: returns-14-day
+    kind: approved_policy
+    path: references/returns-14-day.md
+cases:
+  - case_id: returns.window.stated
+    name: Stated 14-day window
+    tags: [window]
+    turns:
+      - content: How many days do I have to return this order?
+    expected:
+      facts:
+        - Eligible synthetic orders may be returned within 14 days of delivery
+    observations:
+      - key: policy.window_days
+        expected: 14
+    criteria:
+      - criterion_id: returns.window.stated.required
+        requirement: required
+        kind: deterministic
+        statement: Observation policy.window_days equals 14.
+        pass_conditions:
+          - policy.window_days is 14
+        fail_conditions:
+          - policy.window_days is 30
+      - criterion_id: returns.window.stated.rubric
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant states a 14-day return window and does not cite a 30-day pack.
+        reference_ids: [returns-14-day]
+    reference_ids: [returns-14-day]
+  - case_id: returns.window.late
+    name: Request after day 14
+    tags: [window]
+    turns:
+      - content: Can I return an item 20 days after delivery?
+    expected:
+      facts:
+        - A later-day request after day 14 is outside the window
+      permitted_refusal: true
+    observations:
+      - key: policy.window_days
+        expected: 14
+      - key: policy.permitted_refusal
+        expected: true
+    criteria:
+      - criterion_id: returns.window.late.required
+        requirement: required
+        kind: deterministic
+        statement: The configured window remains 14 days; a day-20 request is outside it.
+      - criterion_id: returns.window.late.rubric
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant refuses a return 20 days after delivery under the 14-day policy.
+        reference_ids: [returns-14-day]
+    reference_ids: [returns-14-day]
+  - case_id: returns.window.follow-up
+    name: Follow-up must not switch to 30 days
+    tags: [window, multi-turn]
+    turns:
+      - content: What is the return window?
+      - content: A colleague said it was 30 days. Which is it?
+    expected:
+      facts:
+        - Eligible synthetic orders may be returned within 14 days of delivery
+        - The 30-day curated pack window does not apply to this customer suite
+    observations:
+      - key: policy.window_days
+        expected: 14
+    criteria:
+      - criterion_id: returns.window.follow-up.required
+        requirement: required
+        kind: deterministic
+        statement: Observation policy.window_days stays 14 after the follow-up.
+      - criterion_id: returns.window.follow-up.rubric
+        requirement: required
+        kind: llm_rubric
+        statement: After the follow-up, the assistant still states 14 days and rejects the 30-day claim.
+        reference_ids: [returns-14-day]
+    reference_ids: [returns-14-day]

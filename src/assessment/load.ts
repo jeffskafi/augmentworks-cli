@@ -8,6 +8,7 @@ import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { canonicalize, sha256 } from "../util/canonical.js";
 import { parseYamlStrict, StrictYamlError } from "../config/yaml.js";
 import type { Diagnostic } from "../config/types.js";
+import { looksLikeCustomerSuiteDocument } from "../suite/schema.js";
 import {
   ASSESSMENT_FILE_SCHEMA,
   AssessmentFileSchema,
@@ -89,6 +90,12 @@ export async function loadAssessmentFile(
     throw assessmentError("ASSESSMENT_YAML_INVALID", "The assessment file is not valid YAML.", error);
   }
   rejectCredentialMaterial(parsedYaml);
+  if (looksLikeCustomerSuiteDocument(parsedYaml)) {
+    throw assessmentError(
+      "ASSESSMENT_SUITE_FILE",
+      "This file is an aw-suite/1 customer suite, not an assessment file. Validate with `augmentworks suite validate` or run hosted with `augmentworks test --suite`."
+    );
+  }
   const parsed = AssessmentFileSchema.safeParse(parsedYaml);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

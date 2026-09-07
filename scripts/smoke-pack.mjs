@@ -124,6 +124,7 @@ function assertInventory(report) {
   for (const path of [
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
+    "schemas/v1/customer-suite.schema.json",
     "packets/support-refunds-starter/0.1.0/packet.json",
     "schemas/v1/cli-release.json",
     "assets/demo/packet.json",
@@ -139,6 +140,10 @@ function assertInventory(report) {
     "assets/starters/workflow/augmentworks.assessment.yaml",
     "assets/starters/workflow/.env.example",
     "assets/starters/workflow/references/refund-policy.md",
+    "assets/customer-suites/faq-non-commerce.yaml",
+    "assets/customer-suites/returns-14-day.yaml",
+    "assets/customer-suites/references/faq.md",
+    "assets/customer-suites/references/returns-14-day.md",
     "contracts/discovery-manifest.json",
     "contracts/discovery-manifest.schema.json",
     "contracts/aw-billing-v1.schema.json",
@@ -146,7 +151,8 @@ function assertInventory(report) {
     "contracts/aw-billing-v1.lock.json",
     "contracts/aw-run-report-v1.schema.json",
     "contracts/aw-run-report-v1.fixtures.json",
-    "contracts/aw-run-report-v1.lock.json"
+    "contracts/aw-run-report-v1.lock.json",
+    "contracts/aw-suite-v1.lock.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
@@ -343,7 +349,7 @@ async function main() {
     }
     assert(schema !== null && typeof schema === "object", "schema command returned a non-object");
     assert(schema.type === "object", "schema command returned an unexpected root schema");
-    for (const kind of ["local-packet", "local-result"]) {
+    for (const kind of ["local-packet", "local-result", "customer-suite"]) {
       const localSchema = JSON.parse(execCli(["schema", "--kind", kind, "--compact"]).stdout);
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
     }
@@ -470,6 +476,47 @@ async function main() {
       !previewRun.stdout.includes("ambient-secret-must-not-be-used"),
       "ambient target credential leaked into preview stdout"
     );
+
+    process.stdout.write("[pack smoke] checking offline customer suite validate/preview from packed CLI\n");
+    const suiteHelp = execCli(["suite", "--help"]);
+    assert(suiteHelp.stdout.includes("validate"), "packed CLI is missing suite validate");
+    assert(suiteHelp.stdout.includes("preview"), "packed CLI is missing suite preview");
+    const testHelp = execCli(["test", "--help"]);
+    assert(testHelp.stdout.includes("--suite"), "packed CLI is missing test --suite");
+    const packedSuites = join(installedRoot, "assets", "customer-suites");
+    for (const sample of ["faq-non-commerce.yaml", "returns-14-day.yaml"]) {
+      const suitePath = join(packedSuites, sample);
+      const validateRun = execCli(["suite", "validate", suitePath, "--json"], {
+        env: {
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      });
+      let validateReport;
+      try {
+        validateReport = JSON.parse(validateRun.stdout);
+      } catch (error) {
+        throw new SmokeFailure(
+          `packed suite validate --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${validateRun.stdout}`
+        );
+      }
+      assert(validateReport.ok === true, `packed suite validate failed for ${sample}`);
+      assert(validateReport.localPreview?.authoritativePrice === false, "suite validate claimed an authoritative price");
+      assert(validateReport.localPreview?.executesTarget === false, "suite validate claimed target execution");
+      assert(validateReport.localPreview?.callsLlm === false, "suite validate claimed an LLM call");
+      const previewSuite = execCli(["suite", "preview", suitePath], {
+        env: {
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      });
+      assert(previewSuite.stdout.includes("not a price"), `packed suite preview omitted the price disclaimer for ${sample}`);
+      assert(previewSuite.stdout.includes("executes_target: no"), `packed suite preview omitted executes_target for ${sample}`);
+      assert(
+        !validateRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+        "hosted credential leaked into suite validate stdout"
+      );
+    }
 
     process.stdout.write("[pack smoke] running bundled packet locally through packed CLI\n");
     const targetOrigin = "http://127.0.0.1:18473";

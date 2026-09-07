@@ -435,9 +435,24 @@ export const CreateRunAssessmentSchema = z
         knowledgeBoundary: z.string().max(4_000).nullable(),
         targetAlreadyConfigured: z.boolean()
       })
-      .strict()
+      .strict(),
+    suite_id: identifier.optional(),
+    suite_revision_id: z.string().min(1).max(128).optional(),
+    suite_content_hash: sha256.optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const hasSuiteId = value.suite_id !== undefined;
+    const hasRevision = value.suite_revision_id !== undefined;
+    const hasHash = value.suite_content_hash !== undefined;
+    if (hasSuiteId !== hasRevision || hasRevision !== hasHash) {
+      context.addIssue({
+        code: "custom",
+        message: "suite pin requires suite_id, suite_revision_id, and suite_content_hash together",
+        path: ["suite_id"]
+      });
+    }
+  });
 
 export const CreateRunRequestV1Schema = z
   .object({

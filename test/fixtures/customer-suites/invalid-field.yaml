@@ -1,0 +1,17 @@
+schema_version: aw-suite/1
+suite_id: customer.invalid.field
+title: Invalid field
+synthetic_only: true
+unexpected_widget: true
+cases:
+  - case_id: invalid.one
+    turns:
+      - content: Hello?
+    expected:
+      facts:
+        - A greeting
+    criteria:
+      - criterion_id: invalid.one.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant greets the user.

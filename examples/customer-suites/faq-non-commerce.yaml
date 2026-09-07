@@ -1,0 +1,99 @@
+# Synthetic non-commerce FAQ suite. Not a real customer knowledge base.
+# Hosted judging credentials must never appear here.
+# Local preview is not a price and does not execute a target or an LLM.
+schema_version: aw-suite/1
+suite_id: customer.faq.non_commerce
+title: Non-commerce FAQ
+description: >
+  Five synthetic FAQ cases for a status page, support hours, password reset,
+  data export, and accessibility contact. This suite does not use commerce or
+  return-window facts.
+tags:
+  - faq
+  - non-commerce
+synthetic_only: true
+references:
+  - id: faq-facts
+    kind: reference_facts
+    path: references/faq.md
+cases:
+  - case_id: faq.status-page
+    name: Status page URL
+    tags: [status]
+    turns:
+      - content: Where is the service status page?
+    expected:
+      facts:
+        - The status page is https://status.example.test
+    criteria:
+      - criterion_id: faq.status-page.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant names https://status.example.test as the status page.
+        reference_ids: [faq-facts]
+    reference_ids: [faq-facts]
+  - case_id: faq.support-hours
+    name: Support hours
+    tags: [hours]
+    turns:
+      - content: What hours is support available?
+    expected:
+      facts:
+        - Support hours are 09:00-17:00 UTC Monday through Friday
+    criteria:
+      - criterion_id: faq.support-hours.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant reports weekday support from 09:00 to 17:00 UTC.
+        reference_ids: [faq-facts]
+    reference_ids: [faq-facts]
+  - case_id: faq.password-reset
+    name: Password reset
+    tags: [account]
+    turns:
+      - content: How do I reset my password?
+    expected:
+      facts:
+        - Password reset uses the signed-in account email only
+    criteria:
+      - criterion_id: faq.password-reset.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant says password reset uses the signed-in account email.
+        reference_ids: [faq-facts]
+    reference_ids: [faq-facts]
+  - case_id: faq.data-export
+    name: Data export
+    tags: [privacy]
+    turns:
+      - content: How do I export my data?
+    expected:
+      facts:
+        - Data export is available from Settings > Privacy as a ZIP archive
+    criteria:
+      - criterion_id: faq.data-export.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant directs the user to Settings > Privacy for a ZIP export.
+        reference_ids: [faq-facts]
+    reference_ids: [faq-facts]
+  - case_id: faq.accessibility
+    name: Accessibility contact
+    tags: [accessibility]
+    turns:
+      - content: How do I contact accessibility support?
+    expected:
+      facts:
+        - Accessibility support is reached at accessibility@example.test
+    criteria:
+      - criterion_id: faq.accessibility.required
+        requirement: required
+        kind: llm_rubric
+        statement: The assistant gives accessibility@example.test as the contact.
+        reference_ids: [faq-facts]
+      - criterion_id: faq.accessibility.advisory
+        requirement: advisory
+        kind: llm_rubric
+        statement: The assistant does not invent a phone number.
+        reference_ids: [faq-facts]
+    reference_ids: [faq-facts]

@@ -51,6 +51,13 @@ All notable changes to this project are documented here. The format follows
   It uses the production extraction, allowlist, redaction, and
   `canonicalize` pipeline. No target, cloud, or model call. Not in published
   `0.3.2`.
+- Source `0.3.3` customer-owned hosted suites: `suite validate` /
+  `suite preview` parse `aw-suite/1` files offline (not a price, no target,
+  no LLM). `test --suite` pins an immutable server revision through the
+  existing quote / `--max-credits` / `--yes` path. Changing the file after
+  quote cannot silently alter admitted work. Samples live in
+  `examples/customer-suites/` and packed `assets/customer-suites/`. Not
+  npm-published.
 - Source `0.3.3` explicit session mode (`target.conversation.strategy:
   explicit_session_v1`). Hosted `multi_turn` is advertised only from that
   validated configuration, together with `aw-conversation-enforcement/1`.

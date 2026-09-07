@@ -8,6 +8,7 @@ import { createInitCommand } from "./commands/init.js";
 import { createLoginCommand } from "./commands/login.js";
 import { createLogoutCommand } from "./commands/logout.js";
 import { createSchemaCommand } from "./commands/schema.js";
+import { createSuiteCommand } from "./commands/suite.js";
 import { createTestCommand } from "./commands/test.js";
 import { createRunCommand } from "./commands/run.js";
 import { createUsageCommand } from "./commands/usage.js";
@@ -64,6 +65,7 @@ export function createCli(io: CliIo = {}): Command {
   program.addCommand(createPreviewMappingCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createDemoCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createTestCommand({ stdout, stderr, setExitCode: requestExitCode }));
+  program.addCommand(createSuiteCommand({ stdout }));
   program.addCommand(createRunCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createRecoverCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createSchemaCommand({ stdout }));

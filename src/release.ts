@@ -174,6 +174,27 @@ export const SOURCE_MAX_CREDITS_COMMAND = formatSourceCli([
 export const SOURCE_RUN_STATUS_COMMAND = formatSourceCli(["run", "status", "<run-id>"]);
 export const SOURCE_RUN_WAIT_COMMAND = formatSourceCli(["run", "wait", "<run-id>"]);
 export const SOURCE_RUN_REPORT_COMMAND = formatSourceCli(["run", "report", "<run-id>", "--json"]);
+export const SOURCE_SUITE_VALIDATE_COMMAND = formatSourceCli([
+  "suite",
+  "validate",
+  "examples/customer-suites/faq-non-commerce.yaml"
+]);
+export const SOURCE_SUITE_PREVIEW_COMMAND = formatSourceCli([
+  "suite",
+  "preview",
+  "examples/customer-suites/returns-14-day.yaml"
+]);
+export const SOURCE_SUITE_TEST_COMMAND = formatWrappedCommand("node dist/index.js", "test", [
+  "--suite examples/customer-suites/faq-non-commerce.yaml",
+  "--max-credits 30",
+  "--yes"
+]);
+export const SOURCE_SUITE_ESTIMATE_COMMAND = formatSourceCli([
+  "test",
+  "--suite",
+  "examples/customer-suites/faq-non-commerce.yaml",
+  "--estimate"
+]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
   doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [

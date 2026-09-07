@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -409,5 +410,15 @@ describe("local packet compatibility", () => {
     const report = inspectLocalPacketCompatibility(packet, config);
     expect(report.issues.map(({ code }) => code)).toContain("MULTI_TURN_REQUIRED");
     expect(() => assertLocalPacketCompatible(packet, config)).toThrowError(/explicit_session_v1/u);
+  });
+});
+
+describe("hosted suite files in local mode", () => {
+  it("rejects an aw-suite/1 file as a local packet", async () => {
+    await expect(
+      loadLocalPacket({
+        reference: resolve(fileURLToPath(new URL("../..", import.meta.url)), "examples/customer-suites/faq-non-commerce.yaml")
+      })
+    ).rejects.toMatchObject({ code: "HOSTED_SUITE_UNSUPPORTED_LOCAL" });
   });
 });

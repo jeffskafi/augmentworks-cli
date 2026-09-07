@@ -40,6 +40,7 @@ const documentedSurfaces = [
   "docs/protocol.md",
   "docs/security-model.md",
   "docs/troubleshooting.md",
+  "docs/customer-suites.md",
   "docs/discovery-handoff.md",
   "docs/distribution-runbook.md",
   "docs/stabilization-implementation.md",
@@ -129,7 +130,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "suite", "run", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

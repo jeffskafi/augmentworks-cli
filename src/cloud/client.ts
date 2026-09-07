@@ -46,6 +46,19 @@ import {
 } from "../billing/validate.js";
 import { BILLING_PRIMARY_PATHS } from "../billing/protocol.js";
 import type { BillingCapabilities, BillingQuote, BillingRunStatus, BillingUsage } from "../billing/protocol.js";
+import {
+  FEATURE_PACKAGE_VERSION,
+  SUITE_SCHEMA_VERSION
+} from "../suite/schema.js";
+import {
+  SuiteCreateRequestSchema,
+  SuiteCreateResponseSchema,
+  SuiteRevisionReadSchema,
+  normalizeSuiteIdentity,
+  parseFeaturePackageError,
+  type SuiteCreateResponse,
+  type SuiteRevisionRead
+} from "../suite/protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -346,6 +359,53 @@ export class CloudClient {
   async getBillingUsage(signal?: AbortSignal): Promise<BillingUsage> {
     const value = await this.#requestBilling("GET", BILLING_PRIMARY_PATHS.usage, undefined, signal);
     return parseBillingUsageResponse(value);
+  }
+
+  async createSuiteRevision(
+    request: {
+      readonly contentHash: string;
+      readonly document: unknown;
+    },
+    signal?: AbortSignal
+  ): Promise<SuiteCreateResponse> {
+    const body = {
+      schemaVersion: SUITE_SCHEMA_VERSION,
+      packageVersion: FEATURE_PACKAGE_VERSION,
+      contentHash: request.contentHash,
+      document: request.document
+    };
+    const validated = SuiteCreateRequestSchema.safeParse(body);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_SUITE_REQUEST",
+        category: "protocol",
+        message: "The customer suite create request does not match aw-suite/1."
+      });
+    }
+    const value = await this.#request("POST", "/v1/suites", validated.data, signal);
+    return parseResponse(
+      SuiteCreateResponseSchema,
+      normalizeSuiteIdentity(value),
+      "suite create response"
+    );
+  }
+
+  async getSuiteRevision(
+    suiteId: string,
+    revisionId: string,
+    signal?: AbortSignal
+  ): Promise<SuiteRevisionRead> {
+    const value = await this.#request(
+      "GET",
+      `/v1/suites/${segment(suiteId)}/revisions/${segment(revisionId)}`,
+      undefined,
+      signal
+    );
+    return parseResponse(
+      SuiteRevisionReadSchema,
+      normalizeSuiteIdentity(value),
+      "suite revision response"
+    );
   }
 
   async createBillingQuote(
@@ -778,7 +838,11 @@ function cloudHttpError(
         )
       : undefined;
   if (mapped !== undefined) return mapped;
-  const serverError = safeServerError(value);
+  const featureError = parseFeaturePackageError(value);
+  const serverError =
+    featureError === undefined
+      ? safeServerError(value)
+      : { code: featureError.code, message: featureError.message };
   const category = status === 401 || status === 403 ? "auth" : status === 409 || status === 410 ? "protocol" : "relay";
   const code =
     serverError?.code ??
