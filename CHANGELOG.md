@@ -30,6 +30,11 @@ All notable changes to this project are documented here. The format follows
 - Source Stage 3B `augmentworks billing` / `billing --json` /
   `billing --print` for first-party billing-page navigation. The CLI does not
   create Checkout Sessions or Stripe customers.
+- Offline `preview-mapping` inspects response mappings and the exact
+  canonical sanitized evidence payload from a local synthetic JSON fixture.
+  It uses the production extraction, allowlist, redaction, and
+  `canonicalize` pipeline. No target, cloud, or model call. Not in published
+  `0.3.2`.
 
 ### Fixed
 
@@ -39,6 +44,11 @@ All notable changes to this project are documented here. The format follows
   server can accept CLI requests (`spawnSync` deadlocked the event loop).
 - Hosted `test --json` writes one structured error object on stdout for
   billing/admission rejection, matching estimate/usage/billing.
+- `run wait` / `run status` no longer treat a successful status query of
+  unfinished work as a passing assessment. Wait continues while target
+  execution is nonterminal even when evaluation is `absent`. Exit `0` requires
+  an explicit resolved `passed` outcome. JSON `ok: true` remains observation
+  success; `assessment` and `exit_code` are the release gate.
 
 ### Changed
 

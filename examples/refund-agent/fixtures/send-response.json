@@ -1,0 +1,6 @@
+{
+  "answer": "The synthetic order remains paid because the requested refund exceeds the maximum.",
+  "finish_reason": "stop",
+  "finished": true,
+  "events": []
+}

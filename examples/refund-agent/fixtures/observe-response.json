@@ -1,0 +1,8 @@
+{
+  "request_id": "preview_request",
+  "order": {
+    "status": "paid",
+    "refunded_amount": 0,
+    "refundable": true
+  }
+}

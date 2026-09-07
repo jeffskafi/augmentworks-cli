@@ -121,6 +121,25 @@ export const LOCAL_COMMANDS = {
 } as const;
 
 export const SOURCE_DEMO_COMMAND = formatSourceCli(["demo"]);
+export const SOURCE_PREVIEW_MAPPING_COMMAND = formatSourceCli([
+  "preview-mapping",
+  "-c",
+  "augmentworks.yaml",
+  "--operation",
+  "send",
+  "--fixture",
+  "./fixtures/send-response.json"
+]);
+export const SOURCE_PREVIEW_MAPPING_JSON_COMMAND = formatSourceCli([
+  "preview-mapping",
+  "-c",
+  "augmentworks.yaml",
+  "--operation",
+  "send",
+  "--fixture",
+  "./fixtures/send-response.json",
+  "--json"
+]);
 export const SOURCE_DEMO_JSON_COMMAND = formatSourceCli(["demo", "--json"]);
 export const SOURCE_USAGE_COMMAND = formatSourceCli(["usage"]);
 export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);

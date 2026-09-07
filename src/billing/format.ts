@@ -1,4 +1,5 @@
 import { sanitizeTerminal } from "../errors.js";
+import { classifyBillingRunStatus } from "./classify.js";
 import {
   grantOriginKind,
   type BillingGrantBalance,
@@ -244,6 +245,7 @@ export function estimateSuccessJson(input: {
 }
 
 export function formatRunStatusHuman(status: BillingRunStatus): string {
+  const classification = classifyBillingRunStatus(status);
   const lines: string[] = [];
   lines.push(`Original run: ${sanitizeTerminal(status.originalRunId)}`);
   if (status.runId !== status.originalRunId) {
@@ -260,10 +262,21 @@ export function formatRunStatusHuman(status: BillingRunStatus): string {
   if (status.savedEvidence) {
     lines.push("Your test evidence is saved.");
   }
-  if (status.evaluationStatus === "pending" || status.evaluationStatus === "partial") {
+  if (classification.assessment !== "passed") {
     lines.push(
-      `Grading is pending on the original run. Wait with: augmentworks run wait ${status.originalRunId}`
+      "This snapshot is a successful status query, not a passing release assessment."
     );
+  }
+  if (!classification.waitTerminal) {
+    if (status.evaluationStatus === "pending" || status.evaluationStatus === "partial") {
+      lines.push(
+        `Grading is pending on the original run. Wait with: augmentworks run wait ${status.originalRunId}`
+      );
+    } else {
+      lines.push(
+        `Target work is still in progress on the original run. Wait with: augmentworks run wait ${status.originalRunId}`
+      );
+    }
     lines.push(`Inspect with: augmentworks run status ${status.originalRunId}`);
   }
   if (status.retryEligible) {
@@ -281,8 +294,13 @@ export function formatRunStatusHuman(status: BillingRunStatus): string {
 }
 
 export function runStatusSuccessJson(status: BillingRunStatus): string {
+  const classification = classifyBillingRunStatus(status);
   return `${JSON.stringify({
     ok: true,
+    observation: classification.observation,
+    work: classification.work,
+    assessment: classification.assessment,
+    exit_code: classification.exitCode,
     schemaVersion: status.schemaVersion,
     runId: status.runId,
     workspaceId: status.workspaceId,

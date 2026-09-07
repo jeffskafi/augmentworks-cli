@@ -99,6 +99,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   }
   diagnostics.push({
     level: "ok",
+    code: "MAPPING_PREVIEW_AVAILABLE",
+    message:
+      "Doctor does not inspect a response shape. Use preview-mapping --operation send --fixture <file.json> to see extracted fields and the exact evidence payload that would leave this machine."
+  });
+  diagnostics.push({
+    level: "ok",
     code: "OFFLINE_CHECK_COMPLETE",
     message: "No target hooks or cloud operations were invoked."
   });

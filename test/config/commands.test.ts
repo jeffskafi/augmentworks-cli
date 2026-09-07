@@ -88,6 +88,7 @@ describe("configuration commands", () => {
     expect(report.diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining([
         "OFFLINE_CHECK_COMPLETE",
+        "MAPPING_PREVIEW_AVAILABLE",
         "ASSESSMENT_FILE_VALID",
         "ASSESSMENT_WIRE_BOUNDS",
         "ASSESSMENT_CAPABILITY_MATCH"
@@ -120,7 +121,13 @@ describe("configuration commands", () => {
     });
     expect(report.ok).toBe(true);
     expect(report.resolvedConfig?.capabilities.level).toBe("stateful");
-    expect(report.diagnostics.map((item) => item.code)).toContain("ASSESSMENT_CAPABILITY_MATCH");
+    expect(report.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining([
+        "OFFLINE_CHECK_COMPLETE",
+        "MAPPING_PREVIEW_AVAILABLE",
+        "ASSESSMENT_CAPABILITY_MATCH"
+      ])
+    );
   });
 
   it("rejects an unknown starter", async () => {
@@ -158,7 +165,9 @@ target:
       }
     });
     expect(report.ok).toBe(true);
-    expect(report.diagnostics.map((item) => item.code)).toContain("ASSESSMENT_FILE_ABSENT");
+    expect(report.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining(["ASSESSMENT_FILE_ABSENT", "MAPPING_PREVIEW_AVAILABLE"])
+    );
   });
 
   it("prints a valid bundled schema", async () => {

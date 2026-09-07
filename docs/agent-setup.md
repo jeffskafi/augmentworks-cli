@@ -15,7 +15,7 @@ during unrelated coding.
 | Item | Value |
 | --- | --- |
 | Verified npm package | `@augmentworks/cli@0.3.2` |
-| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `test --estimate`, `--max-credits`, and `run status` live here) |
+| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`, and `run status` live here) |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |
@@ -106,11 +106,16 @@ insert credentials.
 9. Run `doctor -c augmentworks.yaml`. It makes no network request and reports
    missing local environment-variable names without opening or printing `.env`
    values.
-10. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
+10. Before an assessment, preview the production mapping against a synthetic
+    JSON fixture with source 0.3.2
+    `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`.
+    It does not call the target or consume credits. Do not pass production
+    transcripts.
+11. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
     add JavaScript, modules, shell instructions, remote URLs, or secret values.
     Validate its contract with
     `npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet`.
-11. Show the diff, explain which target operations will run, and stop for human
+12. Show the diff, explain which target operations will run, and stop for human
     approval before `test` unless that same scoped assessment was already
     authorized.
 
@@ -122,9 +127,11 @@ Local JSON uses `AW-LOCAL-RESULT-1`. Automation should:
   configuration/packet/output preflight, `3` as hosted authentication failure,
   `4` as hosted relay/protocol failure, `5` as target/evidence execution
   error, `6` as cleanup failure (takes precedence), `11` as pending hosted
-  judging (never a pass), `12` as hosted judging error, `13` as hosted
-  billing/usage rejection, and `130` as interrupt after cleanup drain.
-  Codes `3`, `4`, and `13` are unreachable from `--local`.
+  judging or unfinished original-run observation (never a pass), `12` as hosted
+  judging error, `13` as hosted billing/usage rejection, and `130` as interrupt
+  after cleanup drain. For `run status` / `run wait`, JSON `ok: true` means the
+  query succeeded; `exit_code` / `assessment` are the release gate. Codes `3`,
+  `4`, and `13` are unreachable from `--local`.
 - Parse `attempts[].assertions` where `passed` is false to locate failures.
 - Read `attempts[].observations` as values returned by the configured observer,
   not independent proof of production behavior.

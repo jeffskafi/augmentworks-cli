@@ -930,6 +930,7 @@ describe("run status wait and retry-evaluation", () => {
       throw new Error(`unexpected ${url.pathname}`);
     });
     const stdout: string[] = [];
+    let exitCode = 0;
     const command = createRunCommand({
       stdout: {
         write: (chunk) => {
@@ -939,7 +940,9 @@ describe("run status wait and retry-evaluation", () => {
       },
       stderr: { write: () => true },
       sleep: async () => undefined,
-      setExitCode: () => undefined,
+      setExitCode: (code) => {
+        exitCode = code;
+      },
       accessToken: async () => "token",
       identity: async () => identity(),
       apiOrigin: () => new URL("http://127.0.0.1:8787/"),
@@ -953,9 +956,87 @@ describe("run status wait and retry-evaluation", () => {
     const payload = JSON.parse(stdout.join("")) as {
       evaluationStatus: string;
       outcome?: string;
+      assessment?: string;
+      exit_code?: number;
+      ok?: boolean;
     };
     expect(payload.evaluationStatus).toBe("complete");
     expect(payload.outcome).toBe("failed");
+    expect(payload.ok).toBe(true);
+    expect(payload.assessment).toBe("failed");
+    expect(payload.exit_code).toBe(EXIT.ASSESSMENT_FAILED);
+    expect(exitCode).toBe(EXIT.ASSESSMENT_FAILED);
+  });
+
+  it("does not finish wait successfully for running/absent/0-of-10/null-outcome", async () => {
+    let nowMs = 0;
+    let billingStatus = 0;
+    let quote = 0;
+    let create = 0;
+    const pending = fixtures.fixtures["status_pending_grading"]?.response as Record<string, unknown>;
+    const runningAbsent = {
+      ...pending,
+      executionStatus: "running",
+      evaluationStatus: "absent",
+      outcome: null,
+      nextActions: ["wait", "inspect", "open_dashboard"],
+      progress: {
+        completedAttempts: 0,
+        plannedAttempts: 10,
+        completedJudgeJobs: 0,
+        plannedJudgeJobs: 0
+      }
+    };
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/billing/capabilities") {
+        return Response.json(fixtures.fixtures["eligible_trial"]?.response);
+      }
+      if (url.pathname === "/v1/billing/status") {
+        billingStatus += 1;
+        return Response.json(runningAbsent);
+      }
+      if (url.pathname === "/v1/billing/quote") {
+        quote += 1;
+        throw new Error("timeout wait must not quote");
+      }
+      if (url.pathname === "/v1/relay/runs") {
+        create += 1;
+        throw new Error("timeout wait must not create a run");
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const command = createRunCommand({
+      stdout: { write: () => true },
+      stderr: { write: () => true },
+      now: () => nowMs,
+      sleep: async () => {
+        nowMs = 10;
+      },
+      accessToken: async () => "token",
+      identity: async () => identity(),
+      apiOrigin: () => new URL("http://127.0.0.1:8787/"),
+      cloud: hostedCloud(fetchMock)
+    }).exitOverride();
+    await expect(
+      command.parseAsync(
+        [
+          "node",
+          "augmentworks",
+          "wait",
+          "66666666-6666-4666-8666-666666666666",
+          "--timeout-ms",
+          "5"
+        ],
+        { from: "node" }
+      )
+    ).rejects.toMatchObject({
+      code: "EVALUATION_INCOMPLETE",
+      message: expect.stringContaining("66666666-6666-4666-8666-666666666666")
+    });
+    expect(billingStatus).toBeGreaterThanOrEqual(1);
+    expect(quote).toBe(0);
+    expect(create).toBe(0);
   });
 
   it("retries evaluation without a new reservation or target call", async () => {

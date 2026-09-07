@@ -12,7 +12,9 @@ describe("account-free commands stay off the billing client", () => {
       "src/commands/doctor.ts",
       "src/commands/demo.ts",
       "src/commands/schema.ts",
-      "src/commands/local-test.ts"
+      "src/commands/local-test.ts",
+      "src/commands/preview-mapping.ts",
+      "src/connector/mapping-preview.ts"
     ]) {
       const source = await readFile(resolve(root, relative), "utf8");
       expect(source).not.toMatch(/billing/i);

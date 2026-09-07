@@ -155,6 +155,17 @@ export const BILLING_EVALUATION_STATUSES = [
   "unsupported"
 ] as const;
 
+/** Relay target-execution statuses accepted by GET /v1/relay/runs/{runId}. */
+export const BILLING_EXECUTION_STATUSES = [
+  "queued",
+  "connected",
+  "running",
+  "cancel_requested",
+  "cancelled",
+  "completed",
+  "failed"
+] as const;
+
 export const BILLING_STATUS_NEXT_ACTIONS = [
   "wait",
   "inspect",
@@ -164,6 +175,7 @@ export const BILLING_STATUS_NEXT_ACTIONS = [
 ] as const;
 
 export type BillingEvaluationStatus = (typeof BILLING_EVALUATION_STATUSES)[number];
+export type BillingExecutionStatus = (typeof BILLING_EXECUTION_STATUSES)[number];
 export type BillingStatusNextAction = (typeof BILLING_STATUS_NEXT_ACTIONS)[number];
 
 export type BillingRunStatus = {
@@ -220,6 +232,10 @@ export function isStableBillingCode(value: string): value is StableBillingCode {
 
 export function isBillingEvaluationStatus(value: string): value is BillingEvaluationStatus {
   return (BILLING_EVALUATION_STATUSES as readonly string[]).includes(value);
+}
+
+export function isBillingExecutionStatus(value: string): value is BillingExecutionStatus {
+  return (BILLING_EXECUTION_STATUSES as readonly string[]).includes(value);
 }
 
 export function capabilityIsAvailable(

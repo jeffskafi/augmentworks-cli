@@ -23,6 +23,8 @@ import {
   SOURCE_ESTIMATE_JSON_COMMAND,
   SOURCE_INIT_COMMAND,
   SOURCE_INIT_WORKFLOW_COMMAND,
+  SOURCE_PREVIEW_MAPPING_COMMAND,
+  SOURCE_PREVIEW_MAPPING_JSON_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -110,6 +112,8 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_INIT_COMMAND);
     expect(readme).toContain(SOURCE_INIT_WORKFLOW_COMMAND);
     expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.demo);
+    expect(readme).toContain(SOURCE_PREVIEW_MAPPING_COMMAND);
+    expect(readme).toContain(SOURCE_PREVIEW_MAPPING_JSON_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
@@ -119,7 +123,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "demo", "test", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "run", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

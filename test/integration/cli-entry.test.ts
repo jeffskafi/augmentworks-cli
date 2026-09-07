@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "demo", "test", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "run", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
@@ -55,6 +55,17 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("--print");
     expect(result.stdout).not.toContain("Checkout");
     expect(result.stdout).not.toContain("Stripe");
+  });
+
+  it("documents preview-mapping as an offline fixture inspector", async () => {
+    const result = await runSourceCli(["preview-mapping", "--help"], { cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Preview response mappings and the exact sanitized evidence payload");
+    expect(result.stdout).toContain("--fixture");
+    expect(result.stdout).toContain("--operation");
+    expect(result.stdout).toContain("--json");
+    expect(result.stdout).not.toContain("http://");
   });
 
   it("documents recover as inspect-only with mutually exclusive actions", async () => {
