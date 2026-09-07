@@ -18,7 +18,7 @@ is distinct from release acceptance under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `4a08ea0d352f2515e725cb9ca946807112422436` (merge of PR #28; includes merged AUG-24 PR #30) |
 | Working branch | `cursor/customer-owned-suites-70eb` |
-| Pull request | (filled after open) |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/31 |
 | AUG-24 (C05) | Merged PR #30. Handoff `docs/feature-readiness/c05-completion.md`. Hosted `multi_turn` comes from `target.conversation.strategy: explicit_session_v1`, not from a suite file. |
 | AUG-14 (G01) | Done. Billing contract remains vendored `aw-billing/1`. |
 | AUG-13 / AUG-14 feature package | `aw-feature/1` schema SHA-256 `4f026740a349c736e98af95599736a92cb81246bea3a1673b26e7fa94cadc870`; fixtures SHA-256 `8f481f4c30fd4db165c738c3333c529a72904c8cf8b00780b40b64e391495f23` |
@@ -83,9 +83,19 @@ C07-owned `examples/basic-chat/`, `examples/response-agent/`, `examples/refund-a
 
 ## Test evidence
 
-Focused pre-push: `npx vitest run test/suite test/local/packet.test.ts test/docs/copy-contract.test.ts test/config/commands.test.ts test/integration/cli-entry.test.ts test/assessment/cli-flags.test.ts test/billing/cli-quote.test.ts test/commands/conversation-admission.test.ts test/cloud/create-run.test.ts` → **11 files, 147 passed**.
+| Command | Outcome |
+| --- | --- |
+| `npm run typecheck` | Pass (`tsc --noEmit`) |
+| `npm test` | Pass. **67 files, 647 tests** (vitest 4.1.11) |
+| `npm run build` | Pass. `dist/index.js` 1.82 MB |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.3 (development)` |
+| `npm run check:billing-contract` | Pass. Untouched `aw-billing/1` hashes above |
+| `npm run check:run-report-contract` | Pass. Untouched `aw-run-report/1` hashes above |
+| `npm run check` | Pass (typecheck + test + build + the three contract checks) |
+| `npm run smoke:pack` | Pass. Packed tarball **41 files, 415927 compressed bytes**. Includes packed `suite --help`, `test --help --suite`, and offline validate/preview of both packed samples with a poisoned hosted token. Packed billing fixture: `creates=1 quotes=4 targets=1 polls=3 refreshes=1`. Packed report fixture: `requests=8`. |
+| Live hosted assessment / npm publish | **Not run** |
 
-Full `npm run check` / `npm run smoke:pack` results are recorded after the pre-testing revision is pushed.
+Focused suite/regression slice before the full check: `npx vitest run test/suite test/local/packet.test.ts test/docs/copy-contract.test.ts test/config/commands.test.ts test/integration/cli-entry.test.ts test/assessment/cli-flags.test.ts test/billing/cli-quote.test.ts test/commands/conversation-admission.test.ts test/cloud/create-run.test.ts` → **11 files, 147 passed**.
 
 Behavior covered (synthetic fixtures only):
 
@@ -108,7 +118,7 @@ Behavior covered (synthetic fixtures only):
 
 ## Remaining release requirements
 
-- Review/merge of this PR
+- Review/merge of https://github.com/jeffskafi/augmentworks-cli/pull/31
 - Byte-vendor of main schema files when a token with `jeffskafi/augmentworks` access is available; until then lock checksums stay Linear-published identities only
 - Live hosted admission against a workspace that accepts `POST /v1/suites` and the sentinel packet binding
 - npm publication of a version that contains `suite` / `test --suite` (not 0.3.2)
