@@ -72,8 +72,21 @@ and exposes `page.totalCriteria` from `totalInAttempt` for later count checks.
 
 ## Verification
 
-Recorded after the PR is opened. Source integration is distinct from release
-acceptance.
+| Command | Outcome |
+| --- | --- |
+| `npx vitest run test/report/criterion-wire.test.ts test/report/export-producer.test.ts test/report/export.test.ts test/report/cli-report.test.ts test/report/contract.test.ts` | Pass. 5 files, 40 tests |
+| `npm run check` | Pass. typecheck; 61 files / 581 tests; build; discovery; billing contract; run-report contract hashes unchanged (`7726ec27…` / `febd2626…`) |
+| `npm run smoke:pack` | Pass. Packed report fixture: `requests=4, source=producer aw-criterion-detail-read/1 @ 8068a90 + AW-QA-1 report` (GET `/me`, report, producer index, nested detail). Exit 10 complete failed assessment with retained fail evidence |
+| Live hosted assessment / npm publish | **Not run.** Release compatibility remains AUG-48 / AUG-58 |
+
+Behavior covered:
+
+- Producer one-page pass/fail and multi-page `nextCursor` / nested `document`+`inspection` export complete retained evidence with exit 0 / 10
+- Required `null` / `inconclusive` / `not_applicable` stay incomplete (exit 11), never pass
+- Missing/purged/truncated evidence kept exactly; unsupported verdicts and `createsBillableRun: true` fail closed
+- Wrong revision/hash/workspace identities that are present are rejected
+- Legacy AW-QA-1 `criteria`+`page` fixtures still parse
+- Packed tarball exercises the producer criterion wire without quoting, regrading, or POST
 
 ## Remaining
 
