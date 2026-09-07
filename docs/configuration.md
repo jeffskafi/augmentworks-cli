@@ -10,7 +10,8 @@ during a run. In local mode no relay or AugmentWorks service is contacted.
 ## File and environment resolution
 
 The default filename is `augmentworks.yaml`. Select another file with `-c` or
-`--config`.
+`--config`. `init -c` writes the connector to that path; companion assessment,
+reference, and environment files stay in the same directory.
 
 The CLI loads `.env` from the selected configuration file's directory before it
 resolves `${NAME}` references. Existing process environment values take

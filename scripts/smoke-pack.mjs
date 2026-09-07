@@ -386,6 +386,39 @@ async function main() {
       }
     });
 
+    process.stdout.write("[pack smoke] checking init --config custom filename\n");
+    const customDirectory = join(consumerDirectory, "custom-config");
+    await mkdir(customDirectory, { recursive: true });
+    await writeFile(join(customDirectory, "augmentworks.yaml"), "# sibling-default-must-remain\n", "utf8");
+    const customInit = execCli(["init", "-c", "custom.yaml", "--no-env"], { cwd: customDirectory });
+    assert(
+      customInit.stdout.includes("custom.yaml"),
+      "init --config must mention the requested filename"
+    );
+    assert(
+      !customInit.stdout.includes("created augmentworks.yaml, augmentworks.assessment.yaml"),
+      "init --config must not claim it created the default connector filename"
+    );
+    await Promise.all([
+      access(join(customDirectory, "custom.yaml"), fsConstants.R_OK),
+      access(join(customDirectory, "augmentworks.assessment.yaml"), fsConstants.R_OK),
+      access(join(customDirectory, "references", "faq.md"), fsConstants.R_OK),
+      access(join(customDirectory, ".env.example"), fsConstants.R_OK)
+    ]);
+    assert(
+      (await readFile(join(customDirectory, "augmentworks.yaml"), "utf8")) ===
+        "# sibling-default-must-remain\n",
+      "init --config must not replace a sibling default connector"
+    );
+    assert(!existsSync(join(customDirectory, ".env")), "init --no-env must not create .env");
+    execCli(["doctor", "-c", "custom.yaml", "--offline"], {
+      cwd: customDirectory,
+      env: {
+        CHATBOT_BASE_URL: "http://127.0.0.1:65535",
+        CHATBOT_API_KEY: "pack-smoke-placeholder"
+      }
+    });
+
     process.stdout.write("[pack smoke] checking offline preview-mapping from packed CLI\n");
     const previewHelp = execCli(["preview-mapping", "--help"]);
     assert(previewHelp.stdout.includes("--fixture"), "packed CLI is missing preview-mapping --fixture");

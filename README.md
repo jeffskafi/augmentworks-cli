@@ -99,7 +99,8 @@ node dist/index.js init
 node dist/index.js init --starter workflow
 ```
 
-`init` writes `augmentworks.yaml`, `augmentworks.assessment.yaml`, and the
+`init` writes `augmentworks.yaml` (or the path given to `-c` / `--config`),
+`augmentworks.assessment.yaml`, and the
 referenced starter files for the selected starter (`response-quality` default,
 or `workflow` for support-refunds hooks). It never overwrites an edited
 assessment or reference file unless you pass `--force`. `--force` still never
