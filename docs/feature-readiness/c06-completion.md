@@ -99,3 +99,15 @@ Behavior covered:
 - AUG-7 release-acceptance against the published tarball
 - C07 should call `previewMapping` rather than duplicating sanitization when it wires starter recipes / connection probe
 - Keep AUG-12 In Review until source review; do not mark Done from this record
+
+## Follow-up after #20 (this PR)
+
+[PR #20](https://github.com/jeffskafi/augmentworks-cli/pull/20) landed the
+shipped `previewMapping` implementation on `main`. This branch was the parallel
+C06 agent (`cursor/aug-12-end-to-end-ticket-c610`). After rebase it keeps that
+implementation and adds:
+
+- JSON parse errors report a numeric position only
+- Extra fixtures: unsafe/malformed selectors, send-only, stateful, prepare,
+  cleanup, and `examples/basic-chat/fixtures/send-preview.json`
+- Command tests for those fixtures and the chat example path

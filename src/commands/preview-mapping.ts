@@ -377,15 +377,26 @@ async function loadPreviewConfig(
   return validation.config;
 }
 
+function jsonPosition(error: unknown): number | undefined {
+  if (!(error instanceof SyntaxError)) return undefined;
+  const match = /position\s+(\d+)/u.exec(error.message);
+  if (match?.[1] === undefined) return undefined;
+  const position = Number(match[1]);
+  return Number.isSafeInteger(position) ? position : undefined;
+}
+
 async function loadPreviewFixture(path: string): Promise<JsonValue> {
   const source = await readBoundedRegularFile(path, LIMITS.targetResponseBytes, "fixture");
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
-  } catch {
+  } catch (error) {
+    const position = jsonPosition(error);
     throw new BoundedFileError(
       "FIXTURE_JSON_INVALID",
-      "The response fixture is not valid JSON.",
+      position === undefined
+        ? "The response fixture is not valid JSON."
+        : `The response fixture is not valid JSON (at position ${String(position)}).`,
       path
     );
   }

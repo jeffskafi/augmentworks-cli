@@ -1,0 +1,15 @@
+version: 1
+
+target:
+  name: chat-preview-unsafe
+  connector: http
+  base_url: http://127.0.0.1:9
+  operations:
+    send:
+      method: POST
+      path: /chat
+      response:
+        content: $.__proto__.x
+
+telemetry:
+  allow_tool_events: false
