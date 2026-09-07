@@ -51,18 +51,23 @@ not bypass `--max-credits`.
 
 ## Tests that actually passed
 
-Recorded after running:
+Commands run on this checkout after the copy-contract fix:
 
-```bash
-npm run typecheck
-npx vitest run test/billing/contract.test.ts test/billing/cli-subscription.test.ts test/billing/cli-usage.test.ts test/billing/cli-billing.test.ts test/billing/cli-quote.test.ts test/billing/isolation.test.ts test/billing/cli-run-wait.test.ts
-npm run check
-npm run smoke:pack
-npm run test:packed-billing-live
-```
+| Command | Outcome |
+| --- | --- |
+| `npm run typecheck` | pass |
+| `npm test` | pass, **54 files / 491 tests** |
+| `npm run build` | pass |
+| `npm run check:discovery` | pass, `@augmentworks/cli@0.3.3 (development)` |
+| `npm run check:billing-contract` | pass, main `650472d`, schema `3097c7aa…b645`, fixtures `a4b9234b…cb84` |
+| `npm run check` | pass (the above together) |
+| `npm run smoke:pack` | pass, 31 files, 377224 compressed bytes. Packed billing HTTP fixture `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
+| `npm run test:packed-billing-live` | **BLOCKED** exit 2 (`not_run`). Missing `AW_BILLING_LIVE_API_URL` / `AW_BILLING_LIVE_TOKEN` |
 
-Fill exact counts and hashes in the verification commit that follows this
-implementation.
+Unpublished tarball SHA-256: `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a`
+
+The HTTP fixture is not evidence of atomic monthly allocation or tenant RLS.
+Stripe Test Clocks belong to main. This CLI uses fixtures plus packed HTTP.
 
 ## External checks not run (BLOCKED, not passed)
 

@@ -16,7 +16,7 @@ handoff.
 | Vendored main commit | `650472d91442a6866a7b6ef18e6dacc23a2a9260` (`cursor/billing-stage-5a-91a7`) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
-| Stage | **5B code complete.** Live pack and Pro sales **not enabled**. Packed HTTP fixture is not PostgreSQL/RLS proof. Real Stripe test-mode and disposable main API remain **BLOCKED** without credentials. |
+| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording) |
 
 Exact CLI implementation commit is the git SHA that contains this file.
 
@@ -163,9 +163,30 @@ node dist/index.js run wait <run-id> --json --timeout-ms 60000
 CI: see README and `docs/examples/github-actions-hosted-source.yml`. Do **not**
 document an unpublished source `0.3.3` npm pin until independently verified.
 
+## Packed tarball (this checkout)
+
+| Item | Value |
+| --- | --- |
+| Filename | `augmentworks-cli-0.3.3.tgz` |
+| Files | 31 |
+| Compressed size | 377224 bytes |
+| SHA-256 | `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a` |
+
+Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
+starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
+
 ## Verification
 
 See `docs/billing/phase-5-completion.md`.
+
+Summary:
+
+- `npm run check` — pass (typecheck, vitest **54 files / 491 tests**, build,
+  discovery, billing-contract)
+- `npm run smoke:pack` — pass, including packed billing HTTP fixture through
+  the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)
+- `npm run test:packed-billing-live` — **BLOCKED** exit 2 (no disposable
+  main API/token)
 
 The HTTP fixture is not evidence of atomic monthly allocation or tenant RLS.
 Stripe Test Clocks belong to main. This CLI uses fixtures plus packed HTTP.
