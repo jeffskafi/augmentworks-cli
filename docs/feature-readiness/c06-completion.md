@@ -12,8 +12,11 @@ It is **not** npm-published. Source integration is distinct from release accepta
 | --- | --- |
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working branch | `cursor/preview-mapping-e212` |
+| Head | `fa6b664f2af5aab610d55f3ba6246f034a0bbc9e` |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/20 |
 | Consumed dependency commits | None. C06 has no blocking implementation PRs. Open CLI PRs at start: none. |
 | Schema versions | Unchanged. Config remains v1 (`CONFIG_VERSION = 1`). Relay evidence remains `aw-target/0.1`. Preview JSON is `AW-MAPPING-PREVIEW-1`. |
+| Billing contract (untouched) | `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400`; schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`; fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1` |
 | Migrations | None. This repository does not own SQL. |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified |
 
@@ -22,7 +25,7 @@ It is **not** npm-published. Source integration is distinct from release accepta
 | Gate | Status |
 | --- | --- |
 | Code completion (this repository) | **Complete.** Pure `previewMapping` plus offline `preview-mapping` command registered additively on the existing Commander program |
-| Deterministic verification | **Passed** in this checkout for typecheck, unit/integration tests, and packed-CLI smoke (commands below) |
+| Deterministic verification | **Passed** in this checkout. Commands and real outcomes below |
 | Live target / hosted run / npm publish | **Not run / not done.** Preview is fixture-only by design |
 | Release readiness | **Not ready.** No npm publish. Published `@augmentworks/cli@0.3.1` does not include this command |
 
@@ -67,7 +70,9 @@ Doctor remains offline validation and now emits `MAPPING_PREVIEW_AVAILABLE`.
 | --- | --- |
 | `npm run typecheck` | Pass |
 | `npm test` | Pass. 49 files, 399 tests |
-| Packed CLI `preview-mapping --help` and `--json` from `npm run smoke:pack` | Recorded after pack smoke |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2 (development)` |
+| `npm run check:billing-contract` | Pass. Untouched `aw-billing/1` hashes above |
+| `npm run smoke:pack` | Pass. Packed tarball **20 files, 362798 compressed bytes**; packed `preview-mapping --help` and `--json` from a clean install with poisoned `AUGMENTWORKS_TOKEN` / `CHATBOT_API_KEY` (neither leaked); existing doctor / local packet / demo still ran |
 | Live hosted assessment / npm publish | **Not run** |
 
 Behavior covered:
