@@ -7,6 +7,9 @@ import { resolveInstalledPackageRoot } from "../system/package-root.js";
 export const STARTER_IDS = ["response-quality", "workflow"] as const;
 export type StarterId = (typeof STARTER_IDS)[number];
 export const DEFAULT_STARTER: StarterId = "response-quality";
+export const STARTER_CONNECTOR_RELATIVE_PATH = "augmentworks.yaml";
+export const STARTER_ASSESSMENT_RELATIVE_PATH = "augmentworks.assessment.yaml";
+export const STARTER_ENV_EXAMPLE_RELATIVE_PATH = ".env.example";
 
 export interface StarterFile {
   readonly relativePath: string;
@@ -40,7 +43,11 @@ export async function loadStarterFiles(
       message: `The packaged ${starter} starter assets are missing from the installed CLI.`
     });
   }
-  const required = ["augmentworks.yaml", "augmentworks.assessment.yaml", ".env.example"];
+  const required = [
+    STARTER_CONNECTOR_RELATIVE_PATH,
+    STARTER_ASSESSMENT_RELATIVE_PATH,
+    STARTER_ENV_EXAMPLE_RELATIVE_PATH
+  ];
   for (const relativePath of required) {
     if (!files.some((file) => file.relativePath === relativePath)) {
       throw new AwError({

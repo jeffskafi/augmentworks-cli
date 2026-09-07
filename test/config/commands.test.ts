@@ -1,13 +1,19 @@
-import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { access, lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runDoctor } from "../../src/commands/doctor.js";
-import { runInit } from "../../src/commands/init.js";
+import { createInitCommand, runInit } from "../../src/commands/init.js";
 import { runSchema } from "../../src/commands/schema.js";
-import { HOSTED_COMMAND_PIN, LOCAL_DISTRIBUTION, SOURCE_PACKAGE_VERSION } from "../../src/release.js";
+import {
+  HOSTED_COMMAND_PIN,
+  initNextSteps,
+  LOCAL_DISTRIBUTION,
+  SOURCE_PACKAGE_VERSION
+} from "../../src/release.js";
 
 const directories: string[] = [];
 
@@ -168,6 +174,131 @@ target:
     expect(report.diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining(["ASSESSMENT_FILE_ABSENT", "MAPPING_PREVIEW_AVAILABLE"])
     );
+  });
+
+  it("writes the requested connector filename instead of augmentworks.yaml", async () => {
+    const directory = await temporaryDirectory();
+    const result = await runInit({ cwd: directory, config: "custom.yaml", env: false });
+    expect(result.created).toContain(resolve(directory, "custom.yaml"));
+    expect(result.created).toContain(resolve(directory, "augmentworks.assessment.yaml"));
+    expect(result.created).toContain(resolve(directory, "references/faq.md"));
+    expect(result.created).toContain(resolve(directory, ".env.example"));
+    expect(result.created).not.toContain(resolve(directory, "augmentworks.yaml"));
+    expect(result.created).not.toContain(resolve(directory, ".env"));
+    expect(result.created).not.toContain(resolve(directory, ".gitignore"));
+    await expect(access(resolve(directory, "augmentworks.yaml"), fsConstants.F_OK)).rejects.toMatchObject({
+      code: "ENOENT"
+    });
+    await expect(access(resolve(directory, ".env"), fsConstants.F_OK)).rejects.toMatchObject({ code: "ENOENT" });
+    const report = await runDoctor({
+      cwd: directory,
+      config: "custom.yaml",
+      processEnv: {
+        CHATBOT_BASE_URL: "http://localhost:8000",
+        CHATBOT_API_KEY: "local-test-value"
+      }
+    });
+    expect(report.ok).toBe(true);
+    expect(report.configPath).toBe(resolve(directory, "custom.yaml"));
+  });
+
+  it.each([
+    { starter: "response-quality" as const, config: "nested/custom.yaml" },
+    { starter: "workflow" as const, config: "nested/workflow.yaml" }
+  ])("honors a nested $config path for the $starter starter", async ({ starter, config }) => {
+    const directory = await temporaryDirectory();
+    const result = await runInit({ cwd: directory, config, starter, env: false });
+    const configPath = resolve(directory, config);
+    const configDirectory = dirname(configPath);
+    expect(result.starter).toBe(starter);
+    expect(result.created).toContain(configPath);
+    expect(result.created).toContain(resolve(configDirectory, "augmentworks.assessment.yaml"));
+    expect(result.created).not.toContain(resolve(directory, "augmentworks.yaml"));
+    expect(result.created).not.toContain(resolve(configDirectory, "augmentworks.yaml"));
+    await expect(access(resolve(directory, "augmentworks.yaml"), fsConstants.F_OK)).rejects.toMatchObject({
+      code: "ENOENT"
+    });
+    const report = await runDoctor({
+      cwd: directory,
+      config,
+      processEnv: {
+        CHATBOT_BASE_URL: "http://localhost:8000",
+        CHATBOT_API_KEY: "local-test-value"
+      }
+    });
+    expect(report.ok).toBe(true);
+    expect(report.configPath).toBe(configPath);
+  });
+
+  it("honors an absolute config path for the workflow starter", async () => {
+    const directory = await temporaryDirectory();
+    const configPath = resolve(directory, "absolute", "connector.yaml");
+    const result = await runInit({ cwd: directory, config: configPath, starter: "workflow", env: false });
+    expect(result.created).toContain(configPath);
+    expect(result.created).toContain(resolve(directory, "absolute", "augmentworks.assessment.yaml"));
+    expect(result.created).toContain(resolve(directory, "absolute", "references/refund-policy.md"));
+    expect(result.created).not.toContain(resolve(directory, "augmentworks.yaml"));
+    const report = await runDoctor({
+      cwd: directory,
+      config: configPath,
+      processEnv: {
+        CHATBOT_BASE_URL: "http://localhost:8000",
+        CHATBOT_API_KEY: "local-test-value"
+      }
+    });
+    expect(report.ok).toBe(true);
+    expect(report.resolvedConfig?.capabilities.level).toBe("stateful");
+  });
+
+  it("protects the requested file and does not replace a sibling default config", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(resolve(directory, "augmentworks.yaml"), "# keep-default\n", "utf8");
+    const created = await runInit({ cwd: directory, config: "custom.yaml", env: false });
+    expect(created.created).toContain(resolve(directory, "custom.yaml"));
+    expect(await readFile(resolve(directory, "augmentworks.yaml"), "utf8")).toBe("# keep-default\n");
+
+    await writeFile(resolve(directory, "custom.yaml"), "# keep-custom\n", "utf8");
+    await expect(runInit({ cwd: directory, config: "custom.yaml", env: false })).rejects.toMatchObject({
+      code: "INIT_FILE_EXISTS"
+    });
+    expect(await readFile(resolve(directory, "custom.yaml"), "utf8")).toBe("# keep-custom\n");
+    expect(await readFile(resolve(directory, "augmentworks.yaml"), "utf8")).toBe("# keep-default\n");
+
+    const forced = await runInit({ cwd: directory, config: "custom.yaml", env: false, force: true });
+    expect(forced.updated).toContain(resolve(directory, "custom.yaml"));
+    expect(forced.updated).not.toContain(resolve(directory, "augmentworks.yaml"));
+    expect(await readFile(resolve(directory, "augmentworks.yaml"), "utf8")).toBe("# keep-default\n");
+    expect(await readFile(resolve(directory, "custom.yaml"), "utf8")).toContain("version:");
+  });
+
+  it("mentions the selected config in agent instructions and next-step guidance", async () => {
+    const directory = await temporaryDirectory();
+    await runInit({ cwd: directory, config: "nested/custom.yaml", agent: true, env: false });
+    const agent = await readFile(resolve(directory, "nested/augmentworks.agent.md"), "utf8");
+    expect(agent).toContain(`npx --yes @augmentworks/cli@${HOSTED_COMMAND_PIN} doctor -c custom.yaml`);
+    expect(agent).toContain("`custom.yaml`");
+    expect(agent).not.toContain("doctor -c augmentworks.yaml");
+
+    const chunks: string[] = [];
+    const command = createInitCommand({
+      cwd: () => directory,
+      stdout: { write: (chunk) => {
+        chunks.push(String(chunk));
+        return true;
+      } }
+    });
+    await command.parseAsync(["-c", "other.yaml", "--no-env"], { from: "user" });
+    const output = chunks.join("");
+    expect(output).toContain(resolve(directory, "other.yaml"));
+    expect(output).toContain(initNextSteps("other.yaml"));
+    expect(output).not.toContain("created augmentworks.yaml, augmentworks.assessment.yaml");
+  });
+
+  it("refuses a requested config path that collides with another generated starter file", async () => {
+    const directory = await temporaryDirectory();
+    await expect(runInit({ cwd: directory, config: "augmentworks.assessment.yaml", env: false })).rejects.toMatchObject({
+      code: "INIT_CONFIG_PATH_COLLISION"
+    });
   });
 
   it("prints a valid bundled schema", async () => {
