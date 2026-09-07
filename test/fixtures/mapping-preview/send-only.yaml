@@ -1,0 +1,22 @@
+version: 1
+
+target:
+  name: chat-preview
+  connector: http
+  base_url: http://127.0.0.1:9
+  operations:
+    send:
+      method: POST
+      path: /chat
+      idempotent: false
+      request:
+        message: $input.message.content
+        turn_id: $input.turn_id
+      response:
+        content: $.answer
+        tool_events: $.events
+        finished: $.finished
+        metadata: $.metadata
+
+telemetry:
+  allow_tool_events: false

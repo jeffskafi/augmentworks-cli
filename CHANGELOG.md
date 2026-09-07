@@ -62,6 +62,8 @@ All notable changes to this project are documented here. The format follows
   execution is nonterminal even when evaluation is `absent`. Exit `0` requires
   an explicit resolved `passed` outcome. JSON `ok: true` remains observation
   success; `assessment` and `exit_code` are the release gate.
+- `preview-mapping` JSON parse failures report a numeric position only and
+  never echo fixture text.
 
 ### Changed
 

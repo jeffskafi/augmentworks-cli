@@ -145,7 +145,48 @@ describe("preview-mapping command", () => {
 
     expect(report.ok).toBe(false);
     expect(report.diagnostics.map((item) => item.code)).toContain("FIXTURE_JSON_INVALID");
+    expect(report.diagnostics.find((item) => item.code === "FIXTURE_JSON_INVALID")?.message).toMatch(
+      /at position \d+/u
+    );
     expect(JSON.stringify(report)).not.toContain("malformed-secret-must-not-leak");
+  });
+
+  it("explains an unsafe selector from YAML without starting a hosted run", async () => {
+    const report = await runPreviewMapping({
+      cwd: fixtureRoot,
+      config: "send-unsafe-selector.yaml",
+      fixture: "send-valid.json"
+    });
+
+    expect(report.ok).toBe(false);
+    expect(report.diagnostics.map((item) => item.code)).toContain("UNSAFE_SELECTOR");
+    expect(report.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "UNSAFE_SELECTOR",
+          path: "target.operations.send.response.content"
+        })
+      ])
+    );
+    expect(JSON.stringify(report)).not.toContain("The synthetic order is still paid.");
+  });
+
+  it("previews the basic-chat example fixture without a target call", async () => {
+    const exampleRoot = resolve(projectRoot, "examples/basic-chat");
+    const fetchMock = vi.fn(async () => new Response("nope"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await runPreviewMapping({
+      cwd: exampleRoot,
+      config: "augmentworks.yaml",
+      operation: "send",
+      fixture: "fixtures/send-preview.json"
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.offline).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(report.extracted.map((item) => item.field).sort()).toEqual(["content", "finished"]);
   });
 
   it("explains a malformed selector from YAML with a configuration path", async () => {
@@ -168,6 +209,26 @@ describe("preview-mapping command", () => {
       ])
     );
     expect(JSON.stringify(report)).not.toContain("selector-secret-must-not-leak");
+  });
+
+  it("explains a trailing-dot selector from the YAML fixture with a configuration path", async () => {
+    const report = await runPreviewMapping({
+      cwd: fixtureRoot,
+      config: "send-malformed-selector.yaml",
+      fixture: "send-valid.json"
+    });
+
+    expect(report.ok).toBe(false);
+    expect(report.diagnostics.map((item) => item.code)).toContain("RESPONSE_MAPPING_INVALID");
+    expect(report.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "RESPONSE_MAPPING_INVALID",
+          path: "target.operations.send.response.content"
+        })
+      ])
+    );
+    expect(JSON.stringify(report)).not.toContain("The synthetic order is still paid.");
   });
 
   it("previews observe and cleanup without requiring a send hook invocation", async () => {
