@@ -66,6 +66,16 @@ describe("assessment CLI flags", () => {
     expect(hostedExitCode(runStatus({ evaluation_status: "complete", outcome: "passed" }))).toBe(EXIT.OK);
     expect(hostedExitCode(runStatus({ status: "cancelled" }))).toBe(EXIT.INTERRUPTED);
     expect(hostedExitCode(runStatus())).toBe(EXIT.OK);
+    expect(hostedExitCode(runStatus({ outcome: null }))).toBe(EXIT.EVALUATION_INCOMPLETE);
+    expect(hostedExitCode(runStatus({ evaluation_status: "complete", outcome: null }))).toBe(
+      EXIT.EVALUATION_INCOMPLETE
+    );
+    expect(
+      hostedExitCode({
+        ...runStatus(),
+        evaluation_status: "unsupported"
+      } as unknown as RunStatusResponse)
+    ).toBe(EXIT.EVALUATION_INCOMPLETE);
     expect(
       exitCodeFor(
         new AwError({

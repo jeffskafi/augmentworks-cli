@@ -66,6 +66,8 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `POST /v1/relay/commands/{command_id}:complete` | Commit a normalized successful result |
 | `POST /v1/relay/commands/{command_id}:fail` | Commit a safe failure or indeterminate outcome |
 | `GET /v1/relay/runs/{run_id}` | Read terminal status/outcome |
+| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). Source 0.3.3. GET only; refuses off-origin links and redirects with the bearer |
+| `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria` | Criterion index/detail (`aw-criterion-detail-read/1`); `/api/v1` alias exists |
 | `POST /v1/relay/runs/{run_id}:cancel` | Request cancellation and fence new work |
 | `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |
 | `GET /v1/billing/usage` | Read the workspace execution-credit snapshot |

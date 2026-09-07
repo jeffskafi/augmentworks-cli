@@ -13,7 +13,8 @@ export interface StoredCredential {
   readonly connectorName?: string;
 }
 
-export type CredentialSource = "environment" | "native" | "file";
+export type CredentialSource = "environment" | "api_key" | "native" | "file";
+export type PrincipalKind = "user" | "machine";
 
 export interface ResolvedCredential {
   readonly credential: StoredCredential;
@@ -70,6 +71,10 @@ export interface AuthIdentity {
   readonly connectorId: string;
   readonly connectorName?: string;
   readonly scopes: readonly string[];
+  readonly principalKind?: PrincipalKind;
+  readonly credentialId?: string;
+  readonly actions?: readonly string[];
+  readonly expiresAt?: string;
 }
 
 export interface LoginResult {

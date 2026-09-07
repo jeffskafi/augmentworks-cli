@@ -1,7 +1,7 @@
 import { Command } from "commander";
 
+import { CloudAuthClient, remapAuthError } from "../auth/client.js";
 import { getApiOrigin } from "../auth/api-origin.js";
-import { CloudAuthClient } from "../auth/client.js";
 import {
   createAccessTokenManager,
   type CredentialRefreshLock
@@ -55,20 +55,21 @@ export async function runWhoami(
   try {
     identity = await client.me(accessToken);
   } catch (cause) {
+    const remapped = remapAuthError(cause, manager.source);
     if (
-      cause instanceof AwError &&
-      cause.code === "TOKEN_REVOKED" &&
-      manager.source !== "environment"
+      remapped instanceof AwError &&
+      remapped.code === "TOKEN_REVOKED" &&
+      (manager.source === "native" || manager.source === "file")
     ) {
       const replacement = await manager.getAccessToken({
         forceRefresh: true,
         rejectedAccessToken: accessToken
       });
-      if (replacement === accessToken) throw cause;
+      if (replacement === accessToken) throw remapped;
       accessToken = replacement;
       identity = await client.me(accessToken);
     } else {
-      throw cause;
+      throw remapped;
     }
   }
 
@@ -76,16 +77,25 @@ export async function runWhoami(
   if (options.json === true) {
     stdout(JSON.stringify({ source: result.source, identity: identityJson(identity) }));
   } else {
-    const connector = identity.connectorName ?? identity.connectorId;
-    const workspace = identity.workspaceName ?? identity.workspaceId;
-    stdout(`${sanitizeTerminal(connector)} — ${sanitizeTerminal(workspace)}`);
+    stdout(formatWhoami(identity));
   }
   return result;
 }
 
+function formatWhoami(identity: AuthIdentity): string {
+  const connector = identity.connectorName ?? identity.connectorId;
+  const workspace = identity.workspaceName ?? identity.workspaceId;
+  const kind = identity.principalKind === "machine" ? "machine credential" : "connector";
+  const credential =
+    identity.credentialId === undefined ? "" : ` ${sanitizeTerminal(identity.credentialId)}`;
+  const expiry =
+    identity.expiresAt === undefined ? "" : ` (expires ${sanitizeTerminal(identity.expiresAt)})`;
+  return `${sanitizeTerminal(kind)}${credential} — ${sanitizeTerminal(connector)} — ${sanitizeTerminal(workspace)}${expiry}`;
+}
+
 export function createWhoamiCommand(dependencies: WhoamiDependencies = {}): Command {
   return new Command("whoami")
-    .description("Show the authenticated AugmentWorks connector")
+    .description("Show the authenticated AugmentWorks workspace and credential metadata")
     .option("--json", "write the authenticated identity as JSON")
     .action(async (values: WhoamiOptions) => {
       await runWhoami(values, dependencies);

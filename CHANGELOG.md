@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Source `0.3.3` explicit `AUGMENTWORKS_API_KEY` mode, `run report <run-id> --json`
+  complete hosted export (`aw-run-report-export/1`), and conservative hosted
+  result exits shared by `test`, `run wait`/`status`, and `run report`. Exit `0`
+  requires a fully passed, graded, known-coverage result. A completed run with
+  a null outcome never passes. Vendors AW-QA-1 compatibility fixtures until
+  AUG-55 publishes canonical copies. Not npm-published.
 - Source `0.3.3` Stage 5B subscription usage display: recurring vs
   purchased vs trial lots, cancel-at-period-end, processing and failed
   renewal, expired monthly grants, and pack-only servers without

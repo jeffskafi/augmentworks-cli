@@ -20,7 +20,8 @@ AugmentWorks during unrelated coding.
    `node dist/index.js preview-mapping` before an assessment. Published npm
    `@augmentworks/cli@0.3.2` includes `demo` and hosted `--assessment`. It
    does not include `usage`, `billing`, `preview-mapping`, `test --estimate`,
-   `--max-credits`, `run status`/`run wait`, or init starter generation.
+   `--max-credits`, `run status`/`run wait`/`run report`,
+   `AUGMENTWORKS_API_KEY` mode, or init starter generation.
 3. Never substitute a hosted command when local testing was requested.
 4. Preserve already granted user authorization for the same scoped task.
 
@@ -43,7 +44,12 @@ building this repository: `node dist/index.js demo`, `node dist/index.js init`
 read-only `node dist/index.js usage` (no grant, reservation, checkout,
 subscribe, cancel, or target call), `node dist/index.js billing --print`
 (first-party billing URL only), `node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate`
-(quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>`.
+(quote only), and `node dist/index.js run status <run-id>` / `run wait <run-id>` /
+`node dist/index.js run report <run-id> --json`. Noninteractive report export
+uses `AUGMENTWORKS_API_KEY`; do not run `logout` from automation cleanup because
+it revokes reusable workspace keys. `CHATBOT_API_KEY` is the synthetic target
+secret, not the AugmentWorks platform key.
+
 Hosted assessment execution from this source requires `--max-credits N`; `--yes`
 is not an unlimited budget. npm `--yes` only skips the npm prompt. Monthly
 subscription status does not bypass that ceiling. If `subscriptions_v1` is

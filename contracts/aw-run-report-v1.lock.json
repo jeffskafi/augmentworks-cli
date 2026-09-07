@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "aw-run-report/1",
+  "algorithm": "sha256",
+  "source": {
+    "repository": "compatibility-local",
+    "producerIssue": "AUG-55",
+    "contract": "AW-QA-1",
+    "note": "Producer artifacts from jeffskafi/augmentworks are not yet published. CLI vendors these exact AW-QA-1 compatibility fixtures. Final integration compares canonical copies."
+  },
+  "files": {
+    "contracts/aw-run-report-v1.schema.json": "7726ec277d33e435d2832e8be0898baf9337631d779f073a10c7795fc7de38ff",
+    "contracts/aw-run-report-v1.fixtures.json": "febd2626c96672d0e79afc4706b3a5136598b61bbebbdeb0f8ec1bdbc44cd806"
+  },
+  "contract": {
+    "reportPath": "/v1/relay/runs/{runId}/report",
+    "criterionPath": "/v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria",
+    "criterionAlias": "/api/v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria",
+    "authMe": "/api/v1/cli/auth/me",
+    "exportSchemaVersion": "aw-run-report-export/1",
+    "criterionSchemaVersion": "aw-criterion-detail-read/1",
+    "requiredActions": [
+      "run:read",
+      "evaluation:read",
+      "criterion_detail:read"
+    ],
+    "reportPageDefault": 20,
+    "reportPageMax": 60,
+    "reportPageBytesMax": 524288,
+    "criterionPageDefault": 8,
+    "criterionPageMax": 16
+  }
+}

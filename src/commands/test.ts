@@ -13,6 +13,7 @@ import type { ResolvedConfig } from "../config/types.js";
 import { targetBoundarySha256 } from "../config/boundary.js";
 import { HttpConnector } from "../connector/http.js";
 import { AwError, EXIT, exitCodeFor, sanitizeTerminal } from "../errors.js";
+import { classifyHostedOutcome } from "../outcome/classify.js";
 import {
   loadAssessmentFile,
   type LoadedAssessment
@@ -779,15 +780,11 @@ export function parsePacketReference(value: string): {
 }
 
 export function hostedExitCode(run: RunStatusResponse): number {
-  if (run.status === "cancelled") return EXIT.INTERRUPTED;
-  if (run.evaluation_status === "pending" || run.evaluation_status === "partial") {
-    return EXIT.EVALUATION_INCOMPLETE;
-  }
-  if (run.evaluation_status === "error") return EXIT.EVALUATION_ERROR;
-  if (run.status === "failed" || (run.outcome != null && run.outcome !== "passed")) {
-    return EXIT.ASSESSMENT_FAILED;
-  }
-  return EXIT.OK;
+  return classifyHostedOutcome({
+    executionStatus: run.status,
+    evaluationStatus: run.evaluation_status,
+    outcome: run.outcome ?? null
+  }).exitCode;
 }
 
 function assertTestSelection(values: {

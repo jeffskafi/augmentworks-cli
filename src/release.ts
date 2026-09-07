@@ -173,6 +173,7 @@ export const SOURCE_MAX_CREDITS_COMMAND = formatSourceCli([
 ]);
 export const SOURCE_RUN_STATUS_COMMAND = formatSourceCli(["run", "status", "<run-id>"]);
 export const SOURCE_RUN_WAIT_COMMAND = formatSourceCli(["run", "wait", "<run-id>"]);
+export const SOURCE_RUN_REPORT_COMMAND = formatSourceCli(["run", "report", "<run-id>", "--json"]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
   doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [

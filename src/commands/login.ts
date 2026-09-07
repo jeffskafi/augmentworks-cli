@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-import { CloudAuthClient } from "../auth/client.js";
+import { CloudAuthClient, remapAuthError } from "../auth/client.js";
 import { getApiOrigin } from "../auth/api-origin.js";
 import {
   createCredentialStore,
@@ -48,11 +48,16 @@ export async function runLogin(
   const environmentCredential = credentialFromEnvironment(env);
 
   if (environmentCredential !== null) {
-    const identity = await client.me(environmentCredential.credential.accessToken);
+    let identity: AuthIdentity;
+    try {
+      identity = await client.me(environmentCredential.credential.accessToken);
+    } catch (cause) {
+      throw remapAuthError(cause, environmentCredential.source);
+    }
     const result = {
       credential: environmentCredential.credential,
       identity,
-      source: "environment" as const
+      source: environmentCredential.source
     };
     writeLoginResult(result, options.json === true, stdout, stderr);
     return result;
@@ -143,7 +148,7 @@ function credentialStoreOptions(
 }
 
 function writeLoginResult(
-  result: { readonly identity: AuthIdentity; readonly source: "environment" | "native" | "file" },
+  result: { readonly identity: AuthIdentity; readonly source: "environment" | "api_key" | "native" | "file" },
   json: boolean,
   stdout: (message: string) => void,
   stderr: (message: string) => void
@@ -172,6 +177,10 @@ export function identityJson(identity: AuthIdentity): Record<string, unknown> {
     ...(identity.workspaceName === undefined ? {} : { workspace_name: identity.workspaceName }),
     connector_id: identity.connectorId,
     ...(identity.connectorName === undefined ? {} : { connector_name: identity.connectorName }),
-    scopes: identity.scopes
+    scopes: identity.scopes,
+    ...(identity.principalKind === undefined ? {} : { principal_kind: identity.principalKind }),
+    ...(identity.credentialId === undefined ? {} : { credential_id: identity.credentialId }),
+    ...(identity.actions === undefined ? {} : { actions: identity.actions }),
+    ...(identity.expiresAt === undefined ? {} : { expires_at: identity.expiresAt })
   };
 }

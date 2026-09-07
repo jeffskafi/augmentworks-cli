@@ -4,7 +4,8 @@ import { getApiOrigin } from "../auth/api-origin.js";
 import { CloudAuthClient } from "../auth/client.js";
 import {
   createCredentialStore,
-  credentialFromEnvironment
+  credentialFromEnvironment,
+  inspectCredentialEnvironment
 } from "../auth/credential-store.js";
 import type { CredentialStore, LogoutResult, StoredCredential } from "../auth/types.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
@@ -32,8 +33,9 @@ export async function runLogout(
   const stderr = dependencies.stderr ?? console.error;
   const environmentCredential = credentialFromEnvironment(env);
   const warnings: string[] = [];
+  const apiKeyMode = inspectCredentialEnvironment(env).mode === "api_key";
   let store = dependencies.store;
-  if (store === undefined) {
+  if (!apiKeyMode && store === undefined) {
     try {
       store = await createCredentialStore({
         apiOrigin,
@@ -43,6 +45,12 @@ export async function runLogout(
     } catch (cause) {
       if (!(cause instanceof AwError) || cause.code !== "CREDENTIAL_STORE_UNAVAILABLE") throw cause;
     }
+  }
+  if (apiKeyMode) {
+    store = undefined;
+    warnings.push(
+      "AUGMENTWORKS_API_KEY is set; logout does not load the OS credential store. Routine automation cleanup should not run logout because it revokes reusable workspace API keys."
+    );
   }
 
   let storedCredential: StoredCredential | null = null;
@@ -67,7 +75,11 @@ export async function runLogout(
     removed = storedCredential !== null;
   }
   if (environmentCredential !== null) {
-    warnings.push("AUGMENTWORKS_TOKEN is still set in this process; unset it in your shell or CI secret manager.");
+    warnings.push(
+      apiKeyMode
+        ? "AUGMENTWORKS_API_KEY is still set in this process; unset it in your shell or CI secret manager."
+        : "AUGMENTWORKS_TOKEN is still set in this process; unset it in your shell or CI secret manager."
+    );
   }
 
   const result: LogoutResult = {
@@ -75,7 +87,7 @@ export async function runLogout(
       ? store === undefined
         ? {}
         : { source: store.kind }
-      : { source: "environment" }),
+      : { source: environmentCredential.source }),
     revoked,
     removed,
     warnings

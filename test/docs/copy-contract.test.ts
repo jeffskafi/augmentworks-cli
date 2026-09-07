@@ -25,6 +25,9 @@ import {
   SOURCE_INIT_WORKFLOW_COMMAND,
   SOURCE_PREVIEW_MAPPING_COMMAND,
   SOURCE_PREVIEW_MAPPING_JSON_COMMAND,
+  SOURCE_RUN_STATUS_COMMAND,
+  SOURCE_RUN_WAIT_COMMAND,
+  SOURCE_RUN_REPORT_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -57,11 +60,11 @@ describe("customer-facing CLI copy", () => {
       /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+connect\b/u
     );
     expect(content).not.toMatch(
-      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+run(?!\s+(?:status|wait|retry-evaluation)\b)/u
+      /\bnpx(?:\s+(?:--yes|-y))?\s+["']?@augmentworks\/cli(?:@[^\s"'\x60]+)?["']?\s+run(?!\s+(?:status|wait|retry-evaluation|report)\b)/u
     );
     expect(content).not.toMatch(/(?:^|\s)augmentworks\s+connect\b/u);
     expect(content).not.toMatch(
-      /(?:^|\s)augmentworks\s+run(?!\s+(?:status|wait|retry-evaluation)\b)/u
+      /(?:^|\s)augmentworks\s+run(?!\s+(?:status|wait|retry-evaluation|report)\b)/u
     );
   });
 
@@ -114,6 +117,9 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.demo);
     expect(readme).toContain(SOURCE_PREVIEW_MAPPING_COMMAND);
     expect(readme).toContain(SOURCE_PREVIEW_MAPPING_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_RUN_STATUS_COMMAND);
+    expect(readme).toContain(SOURCE_RUN_WAIT_COMMAND);
+    expect(readme).toContain(SOURCE_RUN_REPORT_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
@@ -137,6 +143,8 @@ describe("customer-facing CLI copy", () => {
       "That connector credential is used only for CLI-to-AugmentWorks API"
     );
     expect(authenticationCopy).toContain("Target authentication is configured independently");
+    expect(authenticationCopy).toContain("AUGMENTWORKS_API_KEY");
+    expect(authenticationCopy).toContain("CHATBOT_API_KEY");
     expect(readme).toContain("Target authentication is separate");
   });
 
