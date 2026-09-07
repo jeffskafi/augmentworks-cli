@@ -15,7 +15,7 @@ subscriptions.
 | --- | --- |
 | CLI 2B baseline | `a442527e3e95826c4a474cbe5b8769f66e4e1237` (`cursor/billing-stage-2b-91a7`; feature `901f82ea`, verification `77b17f05`) |
 | Working branch | `cursor/billing-stage-3b-91a7` |
-| Implementation | `4b0f06a49c158feaef152473cd78013a5d5064ef` |
+| Implementation | `7fef4e9463a7c7baaf5f2f5873c0a95b0f37a45c` (billing command `4b0f06a49c158feaef152473cd78013a5d5064ef`) |
 | Vendored main commit | `931838f29ee04fc018ef6359c22abd8d3e8da4c8` (`cursor/billing-stage-3a-91a7`) |
 | Main 3A feature commit (hashes frozen) | `926ae72f1e8bba959cd2d5e54c3996236960b8c6` |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified in this prompt |
@@ -24,7 +24,7 @@ subscriptions.
 
 | Gate | Status |
 | --- | --- |
-| Code completion (this repository) | **Complete.** Vendored Stage 3A schema/fixtures/lock, `billing` / `billing --json` / `billing --print`, strict first-party URL allowlist, insufficient-credit billing-page hint, `pendingCommerce` display |
+| Code completion (this repository) | **Complete.** Vendored Stage 3A schema/fixtures/lock, `billing` / `billing --json` / `billing --print`, strict first-party URL allowlist, post-usage identity confirmation, insufficient-credit billing-page hint, `pendingCommerce` display |
 | Deterministic verification | **Passed** in this checkout. Commands and outcomes below |
 | Live Stage 3A host / Stripe Checkout | **Not run.** Missing external credentials are blockers, not passes |
 | Release readiness | **Not ready.** No npm publish, no live sales, no real charges |
@@ -72,13 +72,20 @@ Advertised capabilities treated as available when present: `usage_v1`,
 - `billing` retrieves `GET /v1/billing/capabilities` and `GET /v1/billing/usage`
   only. Zero Checkout, Stripe customer, refund, grant, reserve, or create-run
   calls.
+- After the usage snapshot, `billing` re-authenticates. A changed workspace or
+  connector is `WORKSPACE_MISMATCH` and does not open a billing page.
+- Owner-like and member-like identities for the same workspace receive the
+  same first-party URL. The workspace id is a navigation hint, not a billing
+  role.
 - The opened/printed URL is the server `billingPageUrl` after the allowlist:
   trusted HTTPS first-party origin (or matching loopback API origin), path
   `/portal/billing`, query `workspace=<authenticated-uuid>` only. Userinfo,
   protocol-relative URLs, lookalike hosts, unexpected ports, fragments, and
   sensitive query parameters are rejected.
-- `--json` and `--print` never open a browser. GUI opener failure prints the
-  safe URL and does not invalidate credentials or claim a purchase.
+- `--json` and `--print` never open a browser. Default `billing` without those
+  flags is print-only in CI and when stderr is not a TTY. GUI opener failure
+  still prints the safe URL and does not invalidate credentials or claim a
+  purchase. The opener is given only the allowlisted URL; no token.
 - Missing `billing_portal_link_v1` is `UPDATE_REQUIRED` (exit 13), not a zero
   balance and not a CLI price list.
 - `pendingCommerce` is processing metadata. Fixture `pending_pack_purchase`
@@ -102,11 +109,12 @@ Working directory: `/Users/jeffskafi/Desktop/augmentworks-cli-billing-3b`.
 | --- | --- |
 | `node scripts/import-aw-billing-contract.mjs --from <3A worktree>` | Pass. Imported `931838f29ee04fc018ef6359c22abd8d3e8da4c8` |
 | `npm run check:billing-contract` | Pass. schema `e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a`; fixtures `3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a` |
-| `npx tsc --noEmit` | Pass |
-| `npx vitest run` | Pass. Vitest 4.1.11: **49 files, 409 tests** |
+| `npm run check` | Pass. typecheck, vitest, build, discovery, billing-contract |
+| `npx tsc --noEmit` | Pass (via `npm run check`) |
+| `npx vitest run` | Pass. Vitest 4.1.11: **49 files, 414 tests** |
 | `npm run build` | Pass. tsup ESM `dist/index.js` 1.64 MB |
 | `npx tsx scripts/check-discovery-manifest.mjs` | Pass. `@augmentworks/cli@0.3.2` (development) |
-| `node scripts/smoke-pack.mjs` | Pass. Packed tarball **20 files, 357858 compressed bytes** |
+| `node scripts/smoke-pack.mjs` | Pass. Packed tarball **20 files, 357981 compressed bytes** |
 
 Do not treat this file as evidence that live Stripe Checkout, webhook
 fulfillment, or a deployed Stage 3A host was exercised. Main 3A recorded

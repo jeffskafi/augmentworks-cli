@@ -13,7 +13,7 @@ handoff.
 | --- | --- |
 | CLI 2B baseline HEAD | `a442527e3e95826c4a474cbe5b8769f66e4e1237` (`cursor/billing-stage-2b-91a7`) |
 | Working branch | `cursor/billing-stage-3b-91a7` |
-| Implementation | `4b0f06a49c158feaef152473cd78013a5d5064ef` |
+| Implementation | `7fef4e9463a7c7baaf5f2f5873c0a95b0f37a45c` (billing command `4b0f06a49c158feaef152473cd78013a5d5064ef`) |
 | Vendored main commit | `931838f29ee04fc018ef6359c22abd8d3e8da4c8` (`cursor/billing-stage-3a-91a7`) |
 | Main 3A feature commit (hashes frozen) | `926ae72f1e8bba959cd2d5e54c3996236960b8c6` |
 | Stage | **3B code complete.** Deterministic verification is recorded in the phase-3 completion file. Not npm-published. Not production-verified against a live 3A host. Not live-sales ready. |
@@ -31,7 +31,9 @@ No Checkout, subscriptions, Stripe credentials, Clerk, pack purchase, order
 status API, or a competing route layout.
 
 The command retrieves `GET /v1/billing/capabilities` and `GET /v1/billing/usage`
-under `billing_portal_link_v1` and the current workspace identity. It opens or
+under `billing_portal_link_v1` and the current workspace identity. After usage
+it re-authenticates; a changed workspace or connector is `WORKSPACE_MISMATCH`.
+Owner-like and member-like identities share the same URL. It opens or
 prints the server `billingPageUrl`, for example:
 
 ```text
@@ -45,8 +47,11 @@ connector token is not billing-management permission. The workspace id is a
 navigation hint.
 
 `--json` writes one documented object on stdout. Human hints stay on stderr for
-`--print`. GUI opener failure prints the safe URL and does not invalidate
-credentials or claim a purchased pack.
+`--print`. `--print` is the agent/CI print-only option (do not add Commander
+`--no-open`; that would default `--open` to true). Default `billing` is
+print-only in CI and when stderr is not a TTY. GUI opener failure still
+prints the safe URL and does not invalidate credentials or claim a purchased
+pack. The opener receives only the allowlisted URL.
 
 ## Vendored contract
 
@@ -173,15 +178,14 @@ Do not document `npx @augmentworks/cli@0.3.2`. Published npm remains 0.3.1.
 ## Verification actually run
 
 ```bash
-npm run check:billing-contract
+npm run check
+# typecheck, vitest, build, discovery, billing-contract all pass
 # ok: aw-billing/1 from 931838f29ee04fc018ef6359c22abd8d3e8da4c8
 # schema=e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a
 # fixtures=3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a
+# vitest: 49 files, 414 tests pass
 
-npx tsc --noEmit           # pass
-npx vitest run             # 49 files, 409 tests pass
-npm run build              # pass
-node scripts/smoke-pack.mjs  # pass (20 files, 357858 compressed bytes)
+node scripts/smoke-pack.mjs  # pass (20 files, 357981 compressed bytes)
 ```
 
 Live billing/Checkout against a deployed Stage 3A host was **not run**. Stripe,
