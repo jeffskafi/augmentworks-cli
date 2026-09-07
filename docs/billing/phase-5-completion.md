@@ -21,6 +21,7 @@ Date: 2026-09-07
 | CLI 4B baseline | `7d8cb08170b162d8c2dc66343df9499986742779` |
 | Working branch | `cursor/billing-stage-5b-91a7` |
 | Verification evidence commit | `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4` |
+| Matrix/CI close-out commit | `4e5fc1c863a4122db9c505d504979c76ca846509` |
 | Vendored main 5A | `650472d91442a6866a7b6ef18e6dacc23a2a9260` |
 | Schema SHA-256 | `3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645` |
 | Fixtures SHA-256 | `a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84` |
