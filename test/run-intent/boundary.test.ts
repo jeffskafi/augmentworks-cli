@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SINGLE_TURN_CONVERSATION } from "../../src/config/conversation.js";
 import { targetBoundarySha256 } from "../../src/config/boundary.js";
 import type {
   AugmentWorksConfig,
@@ -44,6 +45,7 @@ function resolved(options: {
       cleanup: false,
       tool_events: false
     },
+    conversation: SINGLE_TURN_CONVERSATION,
     warnings: []
   };
 }

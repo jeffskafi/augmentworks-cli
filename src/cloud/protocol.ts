@@ -126,6 +126,7 @@ export const SendInputSchema = z
     protocol_version: z.literal(TARGET_PROTOCOL_VERSION).default(TARGET_PROTOCOL_VERSION),
     turn_id: identifier,
     idempotency_key: identifier,
+    conversation_id: identifier.optional(),
     message: z
       .object({
         role: z.literal("user"),
@@ -311,6 +312,14 @@ export const AssessmentProfileSchema = z.enum(["quick", "full", "combined", "cus
 export const EvaluationModeSchema = z.enum(["deterministic", "hybrid"]);
 export const EvaluationStatusSchema = z.enum(["pending", "complete", "partial", "error"]);
 
+export const CONVERSATION_CAPABILITY_VERSION = "aw-conversation-enforcement/1" as const;
+export const AdvertisedConversationSchema = z
+  .object({
+    version: z.literal(CONVERSATION_CAPABILITY_VERSION),
+    strategy: z.literal("explicit_session_v1")
+  })
+  .strict();
+
 export const TargetCapabilitiesSchema = z
   .object({
     prepare: z.boolean(),
@@ -318,6 +327,7 @@ export const TargetCapabilitiesSchema = z
     cleanup: z.boolean(),
     tool_events: z.boolean(),
     multi_turn: z.boolean().optional(),
+    conversation: AdvertisedConversationSchema.optional(),
     observation_keys: z.array(observationKey).max(LIMITS.maxObservations)
   })
   .strict()
@@ -345,6 +355,23 @@ export const TargetCapabilitiesSchema = z
         code: "custom",
         message: "observation_keys require the observation capability",
         path: ["observation_keys"]
+      });
+    }
+    if (value.multi_turn === true) {
+      if (value.conversation?.strategy !== "explicit_session_v1") {
+        context.addIssue({
+          code: "custom",
+          message:
+            "multi_turn requires advertised conversation.strategy explicit_session_v1; a boolean flag is not a session",
+          path: ["conversation"]
+        });
+      }
+    }
+    if (value.conversation !== undefined && value.multi_turn !== true) {
+      context.addIssue({
+        code: "custom",
+        message: "advertised conversation.explicit_session_v1 requires multi_turn: true",
+        path: ["multi_turn"]
       });
     }
   });

@@ -97,7 +97,8 @@ describe("configuration commands", () => {
         "MAPPING_PREVIEW_AVAILABLE",
         "ASSESSMENT_FILE_VALID",
         "ASSESSMENT_WIRE_BOUNDS",
-        "ASSESSMENT_CAPABILITY_MATCH"
+        "ASSESSMENT_CAPABILITY_MATCH",
+        "CONVERSATION_SINGLE_TURN"
       ])
     );
   });
@@ -131,7 +132,8 @@ describe("configuration commands", () => {
       expect.arrayContaining([
         "OFFLINE_CHECK_COMPLETE",
         "MAPPING_PREVIEW_AVAILABLE",
-        "ASSESSMENT_CAPABILITY_MATCH"
+        "ASSESSMENT_CAPABILITY_MATCH",
+        "CONVERSATION_SINGLE_TURN"
       ])
     );
   });
@@ -172,7 +174,7 @@ target:
     });
     expect(report.ok).toBe(true);
     expect(report.diagnostics.map((item) => item.code)).toEqual(
-      expect.arrayContaining(["ASSESSMENT_FILE_ABSENT", "MAPPING_PREVIEW_AVAILABLE"])
+      expect.arrayContaining(["ASSESSMENT_FILE_ABSENT", "MAPPING_PREVIEW_AVAILABLE", "CONVERSATION_SINGLE_TURN"])
     );
   });
 

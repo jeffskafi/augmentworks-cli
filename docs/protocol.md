@@ -105,6 +105,13 @@ Request:
 }
 ```
 
+Single-turn connectors omit `multi_turn` and `conversation`. A boolean
+`multi_turn: true` flag is not a session. The only advertised multi-turn mode
+is package `aw-conversation-enforcement/1` with
+`conversation.strategy: explicit_session_v1`. Estimate and execute send that
+same object. `conversation_id` on send input, when present, must equal
+`attempt_id`.
+
 The CLI persists `create_request_id` before sending this body and also sends it
 as the `Idempotency-Key` header. The response is bound to the complete canonical
 request:
@@ -282,7 +289,9 @@ The normalized result is `status: "ready"`, the matching `attempt_id`, optional
 ### `send`
 
 Carries `turn_id`, `idempotency_key`, one user `message` (`role` and `content`),
-and bounded `metadata`.
+and bounded `metadata`. Optional `conversation_id` is the attempt-scoped session
+key for `explicit_session_v1` and must equal `attempt_id`. The CLI injects it
+into the target request only when that strategy is configured.
 
 The normalized result contains the matching `turn_id`, one assistant `message`,
 bounded typed `events`, and `finished`. Event variants are:

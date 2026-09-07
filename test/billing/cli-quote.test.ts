@@ -1157,7 +1157,11 @@ describe("intent fingerprint", () => {
           cleanup: false,
           tool_events: false,
           observation_keys: [],
-          multi_turn: true
+          multi_turn: true,
+          conversation: {
+            version: "aw-conversation-enforcement/1" as const,
+            strategy: "explicit_session_v1" as const
+          }
         }
       },
       assessment: {

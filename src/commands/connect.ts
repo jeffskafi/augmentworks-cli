@@ -17,6 +17,7 @@ import {
 } from "../cloud/protocol.js";
 import type { ResolvedConfig } from "../config/types.js";
 import { targetBoundarySha256 } from "../config/boundary.js";
+import { advertisedTargetCapabilities } from "../config/conversation.js";
 import { HttpConnector } from "../connector/http.js";
 import { AwError, EXIT, sanitizeTerminal } from "../errors.js";
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
@@ -105,15 +106,7 @@ export async function runConnect(
     target: {
       name: report.resolvedConfig.config.target.name,
       boundary_sha256: targetBoundarySha256(report.resolvedConfig),
-      capabilities: {
-        prepare: report.resolvedConfig.capabilities.prepare,
-        observation: report.resolvedConfig.capabilities.observation,
-        cleanup: report.resolvedConfig.capabilities.cleanup,
-        tool_events: report.resolvedConfig.capabilities.tool_events,
-        observation_keys: report.resolvedConfig.capabilities.observation
-          ? [...(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
-          : []
-      }
+      capabilities: advertisedTargetCapabilities(report.resolvedConfig)
     }
   };
   const session = await cloud.createConnectorSession(request, options.signal);

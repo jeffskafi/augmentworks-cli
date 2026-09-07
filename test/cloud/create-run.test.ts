@@ -119,8 +119,7 @@ describe("idempotent run creation", () => {
         target: {
           ...createRequest.target,
           capabilities: {
-            ...createRequest.target.capabilities,
-            multi_turn: true
+            ...createRequest.target.capabilities
           }
         }
       }).success

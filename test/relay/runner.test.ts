@@ -539,4 +539,81 @@ describe("RelayRunner", () => {
     ).rejects.toMatchObject({ code: "STALE_FENCE" });
     expect(connector.execute).not.toHaveBeenCalled();
   });
+
+  it("adopts attempt_id as the conversation identifier and rejects a mismatched send", async () => {
+    const matched = relayCommand("send");
+    const contexts: Array<{ conversationId?: string; attemptId?: string }> = [];
+    const matchedCloud = new MockCloud([matched]);
+    const matchedConnector = {
+      execute: vi.fn(async (_kind, _input, context: { conversationId?: string; attemptId?: string }) => {
+        contexts.push(context);
+        return resultFor(matched);
+      })
+    };
+    await new RelayRunner({
+      cloud: asCloud(matchedCloud),
+      connector: matchedConnector,
+      binding: binding(),
+      stateDirectory: await temporaryDirectory(),
+      pollWaitMs: 0
+    }).run();
+    expect(contexts[0]).toMatchObject({ conversationId: "attempt-1", attemptId: "attempt-1" });
+
+    const mismatched = relayCommand("send", {
+      input: {
+        protocol_version: "aw-target/0.1",
+        turn_id: "turn-1",
+        idempotency_key: "idempotency-send-1",
+        conversation_id: "other-attempt",
+        message: { role: "user", content: "Refund the order" },
+        metadata: {}
+      }
+    });
+    const mismatchedCloud = new MockCloud([mismatched]);
+    const mismatchedConnector = { execute: vi.fn(async () => resultFor(mismatched)) };
+    await expect(
+      new RelayRunner({
+        cloud: asCloud(mismatchedCloud),
+        connector: mismatchedConnector,
+        binding: binding(),
+        stateDirectory: await temporaryDirectory(),
+        pollWaitMs: 0
+      }).run()
+    ).rejects.toMatchObject({ code: "CONVERSATION_IDENTITY_MISMATCH" });
+    expect(mismatchedConnector.execute).not.toHaveBeenCalled();
+  });
+
+  it("replays a completed send without executing again, preserving the original attempt identity", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const command = relayCommand("send", {
+      input: {
+        protocol_version: "aw-target/0.1",
+        turn_id: "turn-1",
+        idempotency_key: "idempotency-send-1",
+        conversation_id: "attempt-1",
+        message: { role: "user", content: "Refund the order" },
+        metadata: {}
+      }
+    });
+    const journal = await new RelayJournal({ runId: command.run_id, stateDirectory }).open();
+    await journal.accept(command);
+    await journal.markStarted(command.command_id);
+    await journal.recordSuccess(command.command_id, resultFor(command));
+    await journal.close();
+    const cloud = new MockCloud([command]);
+    const connector = { execute: vi.fn(async () => resultFor(command)), isIdempotent: () => true };
+    await new RelayRunner({
+      cloud: asCloud(cloud),
+      connector,
+      binding: binding(),
+      stateDirectory,
+      pollWaitMs: 0
+    }).run();
+    expect(connector.execute).not.toHaveBeenCalled();
+    expect(cloud.completions).toHaveLength(1);
+    expect(cloud.completions[0]?.command.attempt_id).toBe("attempt-1");
+    expect(cloud.completions[0]?.command.kind === "send" && cloud.completions[0].command.input.conversation_id).toBe(
+      "attempt-1"
+    );
+  });
 });

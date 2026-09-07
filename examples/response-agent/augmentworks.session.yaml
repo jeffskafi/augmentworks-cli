@@ -1,0 +1,29 @@
+version: 1
+
+target:
+  name: synthetic-session-agent
+  connector: http
+  base_url: ${CHATBOT_BASE_URL}
+
+  auth:
+    bearer_env: CHATBOT_API_KEY
+
+  conversation:
+    strategy: explicit_session_v1
+
+  operations:
+    send:
+      method: POST
+      path: /chat
+      idempotent: true
+      request:
+        message: $input.message.content
+        conversation_id: $input.conversation_id
+        turn_id: $input.turn_id
+      response:
+        content: $.answer
+        finished: $.finished
+
+telemetry:
+  allow_tool_events: false
+  allow_observations: []

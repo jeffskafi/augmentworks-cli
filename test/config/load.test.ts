@@ -59,6 +59,8 @@ describe("loadConfig", () => {
     expect(resolved.authHeaders["Authorization"]).toBe("Bearer process-secret");
     expect(resolved.secrets).toEqual(["process-secret"]);
     expect(resolved.capabilities.level).toBe("chat-only");
+    expect(resolved.conversation.strategy).toBe("single_turn");
+    expect(resolved.conversation.multiTurn).toBe(false);
   });
 
   it("produces the same unresolved digest across comments and key ordering", async () => {

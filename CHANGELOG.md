@@ -51,6 +51,12 @@ All notable changes to this project are documented here. The format follows
   It uses the production extraction, allowlist, redaction, and
   `canonicalize` pipeline. No target, cloud, or model call. Not in published
   `0.3.2`.
+- Source `0.3.3` explicit session mode (`target.conversation.strategy:
+  explicit_session_v1`). Hosted `multi_turn` is advertised only from that
+  validated configuration, together with `aw-conversation-enforcement/1`.
+  Single-turn omits `multi_turn`. Estimate and execute send the same
+  declaration. Unsupported multi-turn plans fail before quote. Not
+  npm-published.
 
 ### Fixed
 

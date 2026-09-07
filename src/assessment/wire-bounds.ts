@@ -45,11 +45,14 @@ export async function assessmentWireBoundDiagnostics(
       if (required.observation === true && !resolvedConfig.capabilities.observation) missing.push("observation");
       if (required.cleanup === true && !resolvedConfig.capabilities.cleanup) missing.push("cleanup");
       if (required.tool_events === true && !resolvedConfig.capabilities.tool_events) missing.push("tool_events");
+      if (required.multi_turn === true && !resolvedConfig.conversation.multiTurn) missing.push("multi_turn");
       if (missing.length > 0) {
         diagnostics.push({
           level: "error",
           code: "ASSESSMENT_CAPABILITY_MISMATCH",
-          message: `Assessment packet ${packet.key}@${packet.version} requires ${missing.join(", ")}, which augmentworks.yaml does not provide.`
+          message: missing.includes("multi_turn")
+            ? `Assessment packet ${packet.key}@${packet.version} requires multi-turn conversation, which this connector does not advertise. Configure target.conversation.strategy: explicit_session_v1 and map $input.conversation_id into the send request.`
+            : `Assessment packet ${packet.key}@${packet.version} requires ${missing.join(", ")}, which augmentworks.yaml does not provide.`
         });
       } else {
         diagnostics.push({
@@ -63,6 +66,11 @@ export async function assessmentWireBoundDiagnostics(
   return diagnostics;
 }
 
+export async function packetRequiresMultiTurn(key: string, version: string): Promise<boolean> {
+  const required = await readPacketRequiredCapabilities(key, version);
+  return required?.multi_turn === true;
+}
+
 async function readPacketRequiredCapabilities(
   key: string,
   version: string
@@ -72,6 +80,7 @@ async function readPacketRequiredCapabilities(
       readonly observation?: boolean;
       readonly cleanup?: boolean;
       readonly tool_events?: boolean;
+      readonly multi_turn?: boolean;
     }
   | undefined
 > {
@@ -86,7 +95,8 @@ async function readPacketRequiredCapabilities(
       prepare: required["prepare"] === true,
       observation: required["observation"] === true,
       cleanup: required["cleanup"] === true,
-      tool_events: required["tool_events"] === true
+      tool_events: required["tool_events"] === true,
+      multi_turn: required["multi_turn"] === true
     };
   } catch {
     return undefined;

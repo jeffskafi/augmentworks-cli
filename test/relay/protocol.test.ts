@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CreateRunRequestSchema,
   RunStatusResponseSchema,
+  SendCommandSchema,
   parseRelayCommand,
   parseRelayResult
 } from "../../src/cloud/protocol.js";
@@ -188,6 +189,10 @@ describe("aw-relay/0.1 protocol", () => {
             cleanup: false,
             tool_events: false,
             multi_turn: true,
+            conversation: {
+              version: "aw-conversation-enforcement/1",
+              strategy: "explicit_session_v1"
+            },
             observation_keys: []
           }
         },
@@ -233,6 +238,10 @@ describe("aw-relay/0.1 protocol", () => {
           cleanup: false,
           tool_events: false,
           multi_turn: true,
+          conversation: {
+            version: "aw-conversation-enforcement/1",
+            strategy: "explicit_session_v1"
+          },
           observation_keys: []
         }
       },
@@ -262,5 +271,94 @@ describe("aw-relay/0.1 protocol", () => {
       }).success
     ).toBe(false);
     expect(CreateRunRequestSchema.safeParse({ ...v3, quote_id: undefined }).success).toBe(false);
+  });
+
+  it("accepts omitted multi_turn for single-turn and requires explicit_session_v1 when advertised", () => {
+    const singleTurn = {
+      protocol_version: "aw-relay/0.2" as const,
+      create_request_id: `crq_${"a".repeat(32)}`,
+      packet: { key: "response-quality", version: "0.1.0" },
+      config_sha256: "b".repeat(64),
+      target: {
+        name: "chat",
+        boundary_sha256: "c".repeat(64),
+        capabilities: {
+          prepare: false,
+          observation: false,
+          cleanup: false,
+          tool_events: false,
+          observation_keys: []
+        }
+      }
+    };
+    expect(CreateRunRequestSchema.safeParse(singleTurn).success).toBe(true);
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...singleTurn,
+        target: {
+          ...singleTurn.target,
+          capabilities: {
+            ...singleTurn.target.capabilities,
+            multi_turn: true
+          }
+        }
+      }).success
+    ).toBe(false);
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...singleTurn,
+        target: {
+          ...singleTurn.target,
+          capabilities: {
+            ...singleTurn.target.capabilities,
+            conversation: {
+              version: "aw-conversation-enforcement/1",
+              strategy: "explicit_session_v1"
+            }
+          }
+        }
+      }).success
+    ).toBe(false);
+    expect(
+      CreateRunRequestSchema.safeParse({
+        ...singleTurn,
+        target: {
+          ...singleTurn.target,
+          capabilities: {
+            ...singleTurn.target.capabilities,
+            multi_turn: true,
+            conversation: {
+              version: "aw-conversation-enforcement/1",
+              strategy: "explicit_session_v1"
+            }
+          }
+        }
+      }).success
+    ).toBe(true);
+    expect(
+      SendCommandSchema.safeParse({
+        protocol_version: "aw-relay/0.1",
+        command_id: "command-send-1",
+        session_id: "session-1",
+        run_id: "run-1",
+        attempt_id: "attempt-1",
+        packet: { key: "response-quality", version: "0.1.0", sha256: "a".repeat(64) },
+        config_sha256: "b".repeat(64),
+        sequence: 1,
+        fencing_epoch: 1,
+        idempotency_key: "idem-1",
+        issued_at: "2099-01-01T00:00:00.000Z",
+        expires_at: "2099-01-01T00:05:00.000Z",
+        kind: "send",
+        input: {
+          protocol_version: "aw-target/0.1",
+          turn_id: "turn-1",
+          idempotency_key: "idem-1",
+          conversation_id: "attempt-1",
+          message: { role: "user", content: "hello" },
+          metadata: {}
+        }
+      }).success
+    ).toBe(true);
   });
 });
