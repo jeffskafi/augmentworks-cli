@@ -113,6 +113,7 @@ async function executeRunSubcommand(
   dependencies: RunCommandDependencies
 ): Promise<void> {
   const stdout = dependencies.stdout ?? process.stdout;
+  const stderr = dependencies.stderr ?? process.stderr;
   const json = values.json === true || action === "report";
   const setExitCode =
     dependencies.setExitCode ??
@@ -123,7 +124,7 @@ async function executeRunSubcommand(
     const id = parseRunId(runId);
     const session = await authenticateHostedSession(values, dependencies);
     if (action === "report") {
-      await executeRunReport(session, id, values, dependencies, stdout, setExitCode);
+      await executeRunReport(session, id, values, dependencies, stdout, stderr, setExitCode);
       return;
     }
     await assertStatusAvailable(session, values.signal);
@@ -175,6 +176,7 @@ async function executeRunSubcommand(
       const document = failureExport(awError);
       stdout.write(`${JSON.stringify(document)}\n`);
       const classified = classifyRunReportExport(document);
+      writeReportRecoveryGuidance(stderr, runId, document, classified.exitCode);
       if (classified.exitCode !== EXIT.OK) setExitCode(classified.exitCode);
       return;
     }
@@ -196,6 +198,7 @@ async function executeRunReport(
   values: RunCommandOptions,
   dependencies: RunCommandDependencies,
   stdout: Pick<NodeJS.WriteStream, "write">,
+  stderr: Pick<NodeJS.WriteStream, "write">,
   setExitCode: (code: number) => void
 ): Promise<void> {
   const exporter = dependencies.exportReport ?? exportHostedRunReport;
@@ -203,13 +206,30 @@ async function executeRunReport(
     apiOrigin: session.apiOrigin,
     accessTokenProvider: session.accessTokenProvider,
     credentialSource: session.source,
+    expectedWorkspaceId: session.identity.workspaceId,
     ...(values.signal === undefined ? {} : { signal: values.signal }),
     ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
     ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep })
   });
   stdout.write(`${JSON.stringify(document)}\n`);
   const classified = classifyRunReportExport(document);
+  writeReportRecoveryGuidance(stderr, runId, document, classified.exitCode);
   if (classified.exitCode !== EXIT.OK) setExitCode(classified.exitCode);
+}
+
+function writeReportRecoveryGuidance(
+  stderr: Pick<NodeJS.WriteStream, "write">,
+  runId: string,
+  document: RunReportExport,
+  exitCode: number
+): void {
+  if (document.retrieved && document.complete) return;
+  if (exitCode === EXIT.AUTH) return;
+  stderr.write(
+    `${sanitizeTerminal(
+      `Hosted report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --json. Inspect this original run; do not start another billed assessment.`
+    )}\n`
+  );
 }
 
 async function assertStatusAvailable(session: HostedAuthSession, signal?: AbortSignal): Promise<void> {

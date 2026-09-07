@@ -6,9 +6,13 @@ import { exportHostedRunReport, classifyRunReportExport } from "../../src/report
 import { listenLoopback, type ListeningServer } from "../util/http-server.js";
 import {
   CANONICAL_ORIGIN,
+  FIXTURE_WORKSPACE_ID,
+  OTHER_WORKSPACE_ID,
   REPORT_RUN_ID,
+  asRecord,
   fixtureIdentity,
   fixtureResponse,
+  mutatedFixtureResponse,
   rewriteOrigin
 } from "./fixtures.js";
 
@@ -46,13 +50,40 @@ async function startMock(
   return { server, paths };
 }
 
-async function exportFrom(server: ListeningServer): Promise<ReturnType<typeof exportHostedRunReport>> {
+async function exportFrom(
+  server: ListeningServer,
+  options: { expectedWorkspaceId?: string | null; signal?: AbortSignal } = {}
+): Promise<ReturnType<typeof exportHostedRunReport>> {
+  const expectedWorkspaceId =
+    options.expectedWorkspaceId === null
+      ? undefined
+      : (options.expectedWorkspaceId ?? FIXTURE_WORKSPACE_ID);
   return await exportHostedRunReport(REPORT_RUN_ID, {
     apiOrigin: new URL(server.baseUrl),
     credentialSource: "api_key",
     accessTokenProvider: async () => TOKEN,
-    sleep: async () => undefined
+    sleep: async () => undefined,
+    ...(expectedWorkspaceId === undefined ? {} : { expectedWorkspaceId }),
+    ...(options.signal === undefined ? {} : { signal: options.signal })
   });
+}
+
+function serveMutated(
+  response: ServerResponse,
+  name: string,
+  origin: string,
+  mutate: (body: Record<string, unknown>) => void
+): void {
+  const fixture = mutatedFixtureResponse(name, origin, mutate);
+  send(response, fixture.status, fixture.body, fixture.headers ?? {});
+}
+
+function pageRecord(body: Record<string, unknown>): Record<string, unknown> {
+  return asRecord(body["page"]);
+}
+
+function coverageRecord(body: Record<string, unknown>): Record<string, unknown> {
+  return asRecord(body["coverage"]);
 }
 
 function serveFixture(response: ServerResponse, name: string, origin: string): void {
@@ -349,5 +380,319 @@ describe("hosted report HTTP contract", () => {
     expect(rewritten).toEqual({ dashboardUrl: "http://127.0.0.1:9/portal/runs/x" });
     expect(fixtureIdentity("machine_report_only")["email"]).toBeUndefined();
     expect(fixtureIdentity("machine_report_only")["principal_kind"]).toBe("machine");
+  });
+});
+
+describe("hosted report retrieval completeness", () => {
+  it("rejects a terminal page that omits an attempt even when coverage counters agree (AUG-59)", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+          pageRecord(body)["totalAttempts"] = 2;
+          coverageRecord(body)["plannedAttempts"] = 2;
+          coverageRecord(body)["completedAttempts"] = 2;
+          coverageRecord(body)["requiredJudgmentsPlanned"] = 2;
+          coverageRecord(body)["requiredJudgmentsComplete"] = 2;
+          body["aggregate"] = { passed: 2, failed: 0, error: 0 };
+        });
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveFixture(response, "criterion_index_r01_pass", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(false);
+    expect(document.diagnostics.some((item) => item.code === "REPORT_TOTAL_BOUNDS")).toBe(true);
+    expect(document.diagnostics[0]?.message).toMatch(/do not start another billed assessment/i);
+    expect(JSON.stringify(document)).not.toContain(TOKEN);
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("rejects 1 of 2 criteria on a terminal criterion index", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveFixture(response, "report_all_pass_one_page", server.baseUrl);
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveMutated(response, "criterion_index_r01_pass", server.baseUrl, (body) => {
+          pageRecord(body)["totalCriteria"] = 2;
+        });
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(false);
+    expect(document.diagnostics.some((item) => item.code === "CRITERION_TOTAL_BOUNDS")).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("rejects contradictory totalAttempts across pages", async () => {
+    const { server } = await startMock((_request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        if (url.searchParams.get("cursor") === "page-2") {
+          serveMutated(response, "report_page_2", server.baseUrl, (body) => {
+            pageRecord(body)["totalAttempts"] = 3;
+          });
+          return true;
+        }
+        serveFixture(response, "report_page_1", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(false);
+    expect(document.diagnostics.some((item) => item.code === "REPORT_TOTAL_CONFLICT")).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("rejects duplicate attempt IDs and never exits 0", async () => {
+    const { server } = await startMock((_request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        if (url.searchParams.get("cursor") === "page-2") {
+          serveMutated(response, "report_page_2", server.baseUrl, (body) => {
+            const attempts = body["attempts"] as Array<Record<string, unknown>>;
+            attempts[0]!["attemptId"] = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+          });
+          return true;
+        }
+        serveFixture(response, "report_page_1", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.complete).toBe(false);
+    expect(document.retrieved === false || document.complete === false).toBe(true);
+    expect(document.error?.code === "REPORT_ATTEMPT_DUPLICATE" || document.complete === false).toBe(
+      true
+    );
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("does not treat unknown totalAttempts as zero or as a pass", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+          pageRecord(body)["totalAttempts"] = null;
+        });
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveFixture(response, "criterion_index_r01_pass", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(false);
+    expect(document.diagnostics.some((item) => item.code === "REPORT_TOTAL_UNKNOWN")).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("does not treat unknown coverage as a passing assessment", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+          coverageRecord(body)["plannedAttempts"] = null;
+          coverageRecord(body)["completedAttempts"] = null;
+        });
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveFixture(response, "criterion_index_r01_pass", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("does not treat pending grading as a pass", async () => {
+    const { server } = await startMock((_request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveFixture(response, "report_pending", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("does not treat evaluator error as a pass", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+          body["evaluationStatus"] = "error";
+          body["outcome"] = "error";
+        });
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveFixture(response, "criterion_index_r01_pass", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.EVALUATION_ERROR);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("marks truncated mappedResponse incomplete, not a pass", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+          const attempts = body["attempts"] as Array<Record<string, unknown>>;
+          asRecord(attempts[0]!["mappedResponse"])["truncated"] = true;
+        });
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveFixture(response, "criterion_index_r01_pass", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(false);
+    expect(document.diagnostics.some((item) => item.code === "MAPPED_RESPONSE_TRUNCATED")).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("maps an aborted report read to interrupted, never pass", async () => {
+    const { server } = await startMock((_request, response) => {
+      serveFixture(response, "report_all_pass_one_page", server.baseUrl);
+      return true;
+    });
+    const controller = new AbortController();
+    controller.abort();
+    const document = await exportFrom(server, { signal: controller.signal });
+    expect(document.retrieved).toBe(false);
+    expect(document.complete).toBe(false);
+    expect(document.error?.code).toBe("INTERRUPTED");
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.INTERRUPTED);
+  });
+});
+
+describe("hosted report workspace pinning", () => {
+  it("rejects a first report page from another workspace (AUG-59)", async () => {
+    const { server } = await startMock((_request, response) => {
+      serveMutated(response, "report_all_pass_one_page", server.baseUrl, (body) => {
+        body["workspaceId"] = OTHER_WORKSPACE_ID;
+      });
+      return true;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(false);
+    expect(document.complete).toBe(false);
+    expect(document.error?.code).toBe("REPORT_WORKSPACE_MISMATCH");
+    expect(document.error?.message).toMatch(/do not start another billed assessment/i);
+    expect(JSON.stringify(document)).not.toContain(TOKEN);
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.RELAY);
+  });
+
+  it("rejects a later report page from another workspace", async () => {
+    const { server } = await startMock((_request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        if (url.searchParams.get("cursor") === "page-2") {
+          serveMutated(response, "report_page_2", server.baseUrl, (body) => {
+            body["workspaceId"] = OTHER_WORKSPACE_ID;
+          });
+          return true;
+        }
+        serveFixture(response, "report_page_1", server.baseUrl);
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(false);
+    expect(document.error?.code).toBe("REPORT_WORKSPACE_MISMATCH");
+    expect(classifyRunReportExport(document).exitCode).not.toBe(EXIT.OK);
+  });
+
+  it("rejects a criterion index from another workspace", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveFixture(response, "report_all_pass_one_page", server.baseUrl);
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveMutated(response, "criterion_index_r01_pass", server.baseUrl, (body) => {
+          body["workspaceId"] = OTHER_WORKSPACE_ID;
+        });
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(false);
+    expect(document.error?.code).toBe("REPORT_WORKSPACE_MISMATCH");
+  });
+
+  it("rejects a criterion detail from another workspace", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveFixture(response, "report_all_pass_one_page", server.baseUrl);
+        return true;
+      }
+      if (url.pathname.endsWith("/criteria")) {
+        serveMutated(response, "criterion_index_r01_pass", server.baseUrl, (body) => {
+          const criteria = body["criteria"] as Array<Record<string, unknown>>;
+          delete criteria[0]!["evidence"];
+          criteria[0]!["detailUrl"] =
+            `${server.baseUrl}/v1/runs/${REPORT_RUN_ID}/evaluations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/attempts/cccccccc-cccc-4ccc-8ccc-cccccccccccc/criteria/dddddddd-dddd-4ddd-8ddd-dddddddddddd`;
+        });
+        return true;
+      }
+      if (url.pathname.endsWith("/dddddddd-dddd-4ddd-8ddd-dddddddddddd")) {
+        serveMutated(response, "criterion_detail_r01_pass", server.baseUrl, (body) => {
+          body["workspaceId"] = OTHER_WORKSPACE_ID;
+        });
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(false);
+    expect(document.error?.code).toBe("REPORT_WORKSPACE_MISMATCH");
+  });
+
+  it("accepts a criterion index that omits optional workspaceId", async () => {
+    const { server } = await startMock((request, response, url) => {
+      if (url.pathname === `/v1/relay/runs/${REPORT_RUN_ID}/report`) {
+        serveFixture(response, "report_all_pass_one_page", server.baseUrl);
+        return true;
+      }
+      if (url.pathname.includes("/criteria")) {
+        serveMutated(response, "criterion_index_r01_pass", server.baseUrl, (body) => {
+          delete body["workspaceId"];
+        });
+        return true;
+      }
+      return false;
+    });
+    const document = await exportFrom(server);
+    expect(document.retrieved).toBe(true);
+    expect(document.complete).toBe(true);
+    expect(classifyRunReportExport(document).exitCode).toBe(EXIT.OK);
   });
 });
