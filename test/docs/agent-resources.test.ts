@@ -20,7 +20,7 @@ describe("agent resources", () => {
     for (const wrapper of [skill, cursor, codex]) {
       expect(wrapper).toContain(guidance);
       expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@latest\b/u);
-      expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.2\b/u);
+      expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.3\b/u);
     }
     expect(skill.startsWith("---\nname: augmentworks\n")).toBe(true);
     expect(cursor).toContain("alwaysApply: false");

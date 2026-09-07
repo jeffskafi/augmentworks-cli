@@ -142,6 +142,8 @@ export type BillingQuote = {
   readonly scenarioCount?: number;
   readonly repetitions?: number;
   readonly remainingUnitsEstimate?: number;
+  readonly retentionPolicyVersion?: string;
+  readonly retainUntil?: string;
 };
 
 export const BILLING_EVALUATION_STATUSES = [

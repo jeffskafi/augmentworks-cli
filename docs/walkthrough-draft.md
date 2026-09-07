@@ -12,6 +12,7 @@ Do not publish this as an external case study or claim validation.
 7. State this is a deterministic loopback demo, not a production chatbot or
    accuracy benchmark, and not hosted evidence.
 8. Next: `init --agent` against the viewer’s isolated synthetic target using
-   pinned `@augmentworks/cli@0.3.1` until 0.3.2 is verified on npm.
+   pinned `@augmentworks/cli@0.3.2`. Source `0.3.3` `init` generates assessment
+   files; do not document unpublished `npx @0.3.3`.
 9. Optional screen recording: terminal + HTML report, no credentials, ~3
    minutes. Do not fabricate a recording.

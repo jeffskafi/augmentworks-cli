@@ -37,6 +37,11 @@
     "quoteLifetimeSecondsDefault": 600,
     "pricingVersion": "aw-pricing/execution-unit/1",
     "quotedCreateProtocol": "aw-relay/0.3",
+    "packSku": "test_pack_300_v1",
+    "packUnits": 300,
+    "packAmountCents": 4900,
+    "cliPublishedPin": "0.3.2",
+    "cli3bCounterpartUnpublished": true,
     "createRequestQuoteFields": {
       "quoteId": "quote_id",
       "maxCredits": "max_credits"
@@ -652,6 +657,22 @@
           "retryable": true,
           "billingCode": "BILLING_UNAVAILABLE"
         }
+      }
+    },
+    "quote_pack_retention": {
+      "description": "Additive optional retention fields on a pack-funded quote. Purchased credits do not expire; run-detail retention is 90 days.",
+      "response": {
+        "schemaVersion": "aw-billing/1",
+        "quoteId": "66666666-6666-4666-8666-666666666666",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "assessmentPlanHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "pricingVersion": "aw-pricing/execution-unit/1",
+        "executionUnits": 10,
+        "expiresAt": "2026-09-06T17:10:00.000Z",
+        "availableUnitsAtQuote": 300,
+        "estimateOnly": true,
+        "retentionPolicyVersion": "aw-retention/pack-90d-v1",
+        "retainUntil": "2026-12-05T17:00:00.000Z"
       }
     },
     "error_invalid_assessment": {

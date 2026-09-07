@@ -7,67 +7,7 @@ import { Command } from "commander";
 
 import { AwError } from "../errors.js";
 import { HOSTED_COMMAND_PIN, INIT_NEXT_STEPS, NPM_PACKAGE } from "../release.js";
-
-const CONFIG_TEMPLATE = `# yaml-language-server: $schema=https://augmentworks.ai/schemas/v1/augmentworks.schema.json
-version: 1
-
-target:
-  name: refunds-staging
-  connector: http
-  base_url: \${CHATBOT_BASE_URL}
-
-  auth:
-    bearer_env: CHATBOT_API_KEY
-
-  operations:
-    prepare:
-      method: POST
-      path: /__augmentworks/prepare
-      idempotent: true
-      request:
-        run_id: $input.run_id
-        attempt_id: $input.attempt_id
-        fixture: $input.fixture
-
-    send:
-      method: POST
-      path: /chat
-      idempotent: false
-      request:
-        message: $input.message.content
-        attempt_id: $input.attempt_id
-        turn_id: $input.turn_id
-      response:
-        content: $.answer
-        tool_events: $.events
-
-    observe:
-      method: POST
-      path: /__augmentworks/observe
-      idempotent: true
-      request:
-        attempt_id: $input.attempt_id
-        request_id: $input.request_id
-        probe_keys: $input.probe_keys
-      response:
-        order.status: $.order.status
-        order.refunded_amount: $.order.refunded_amount
-        order.refundable: $.order.refundable
-
-    cleanup:
-      method: POST
-      path: /__augmentworks/cleanup
-      idempotent: true
-      request:
-        attempt_id: $input.attempt_id
-
-telemetry:
-  allow_tool_events: true
-  allow_observations:
-    - order.status
-    - order.refunded_amount
-    - order.refundable
-`;
+import { loadStarterFiles, parseStarterId, type StarterId } from "../onboarding/starters.js";
 
 const ENV_TEMPLATE = `# Local target settings. Keep .env out of version control.
 CHATBOT_BASE_URL=http://localhost:8000
@@ -82,10 +22,11 @@ Use the pinned AugmentWorks CLI when working on this integration:
 npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c augmentworks.yaml
 \`\`\`
 
-- Read \`augmentworks.yaml\` and \`.env.example\`; never read, print, or commit \`.env\`.
+- Read \`augmentworks.yaml\`, \`augmentworks.assessment.yaml\`, and \`.env.example\`; never read, print, or commit \`.env\`.
 - Keep target paths and request/response mappings declarative. Do not add executable mappings.
 - Add only synthetic prepare, send, observe, and cleanup hooks required by the configured packet.
 - Show the diff and ask before starting an assessment or changing external systems.
+- Do not overwrite an edited assessment or reference file. Re-run init with --force only when replacing generated starters.
 `;
 
 export interface InitOptions {
@@ -94,9 +35,11 @@ export interface InitOptions {
   readonly force?: boolean;
   readonly agent?: boolean;
   readonly env?: boolean;
+  readonly starter?: string;
 }
 
 export interface InitResult {
+  readonly starter: StarterId;
   readonly created: readonly string[];
   readonly updated: readonly string[];
   readonly preserved: readonly string[];
@@ -168,6 +111,7 @@ async function ensureIgnored(gitignorePath: string): Promise<"created" | "update
 
 export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const cwd = resolve(options.cwd ?? process.cwd());
+  const starter = parseStarterId(options.starter);
   const configPath = resolve(cwd, options.config ?? "augmentworks.yaml");
   const configDirectory = dirname(configPath);
   const envExamplePath = resolve(configDirectory, ".env.example");
@@ -176,10 +120,13 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const agentPath = resolve(configDirectory, "augmentworks.agent.md");
   const force = options.force === true;
   const createEnvironment = options.env !== false;
-
-  const generated = [configPath, envExamplePath, ...(options.agent === true ? [agentPath] : [])];
+  const starterFiles = await loadStarterFiles(starter);
+  const generated = starterFiles.map((file) => resolve(configDirectory, file.relativePath));
+  if (options.agent === true) generated.push(agentPath);
   if (!force) {
-    const collision = (await Promise.all(generated.map(async (path) => ({ path, exists: await exists(path) })))).find((item) => item.exists);
+    const collision = (await Promise.all(generated.map(async (path) => ({ path, exists: await exists(path) })))).find(
+      (item) => item.exists
+    );
     if (collision !== undefined) {
       throw new AwError({
         code: "INIT_FILE_EXISTS",
@@ -193,11 +140,12 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   const created: string[] = [];
   const updated: string[] = [];
   const preserved: string[] = [];
-  for (const [path, content] of [
-    [configPath, CONFIG_TEMPLATE],
-    [envExamplePath, ENV_TEMPLATE],
-    ...(options.agent === true ? ([[agentPath, AGENT_TEMPLATE]] as Array<[string, string]>) : [])
-  ] as Array<[string, string]>) {
+  const writes: Array<[string, string]> = starterFiles.map((file) => [
+    resolve(configDirectory, file.relativePath),
+    file.content
+  ]);
+  if (options.agent === true) writes.push([agentPath, AGENT_TEMPLATE]);
+  for (const [path, content] of writes) {
     const alreadyExists = await exists(path);
     await atomicWrite(path, content, 0o644, alreadyExists && force);
     (alreadyExists ? updated : created).push(path);
@@ -206,7 +154,8 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
   if (createEnvironment) {
     if (await exists(envPath)) preserved.push(envPath);
     else {
-      await atomicWrite(envPath, ENV_TEMPLATE, 0o600, false);
+      const example = starterFiles.find((file) => file.relativePath === ".env.example");
+      await atomicWrite(envPath, example?.content ?? ENV_TEMPLATE, 0o600, false);
       created.push(envPath);
     }
     const ignoreResult = await ensureIgnored(gitignorePath);
@@ -215,28 +164,41 @@ export async function runInit(options: InitOptions = {}): Promise<InitResult> {
     else preserved.push(gitignorePath);
   }
 
-  return { created, updated, preserved };
+  return { starter, created, updated, preserved };
 }
 
 export function createInitCommand(dependencies: InitCommandDependencies = {}): Command {
   return new Command("init")
-    .description("Create a deterministic AugmentWorks connector configuration")
+    .description("Create a complete AugmentWorks connector, assessment, and starter references")
     .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
+    .option("--starter <name>", "response-quality (default) or workflow", DEFAULT_STARTER_OPTION)
     .option("--agent", "also create repository-local coding-agent instructions")
     .option("--force", "replace generated files, but never replace an existing .env")
     .option("--no-env", "do not create a local .env or update .gitignore")
-    .action(async (commandOptions: { config: string; agent?: boolean; force?: boolean; env: boolean }) => {
-      const result = await runInit({
-        config: commandOptions.config,
-        cwd: dependencies.cwd?.() ?? process.cwd(),
-        force: commandOptions.force === true,
-        agent: commandOptions.agent === true,
-        env: commandOptions.env
-      });
-      const output = dependencies.stdout ?? process.stdout;
-      for (const path of result.created) output.write(`created ${path}\n`);
-      for (const path of result.updated) output.write(`updated ${path}\n`);
-      for (const path of result.preserved) output.write(`preserved ${path}\n`);
-      output.write(`${INIT_NEXT_STEPS}\n`);
-    });
+    .action(
+      async (commandOptions: {
+        config: string;
+        starter?: string;
+        agent?: boolean;
+        force?: boolean;
+        env: boolean;
+      }) => {
+        const result = await runInit({
+          config: commandOptions.config,
+          cwd: dependencies.cwd?.() ?? process.cwd(),
+          force: commandOptions.force === true,
+          agent: commandOptions.agent === true,
+          env: commandOptions.env,
+          ...(commandOptions.starter === undefined ? {} : { starter: commandOptions.starter })
+        });
+        const output = dependencies.stdout ?? process.stdout;
+        output.write(`starter ${result.starter}\n`);
+        for (const path of result.created) output.write(`created ${path}\n`);
+        for (const path of result.updated) output.write(`updated ${path}\n`);
+        for (const path of result.preserved) output.write(`preserved ${path}\n`);
+        output.write(`${INIT_NEXT_STEPS}\n`);
+      }
+    );
 }
+
+const DEFAULT_STARTER_OPTION = "response-quality";

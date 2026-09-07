@@ -198,6 +198,14 @@ export function formatEstimateHuman(input: {
   );
   lines.push(`Quote expires: ${sanitizeTerminal(quote.expiresAt)}`);
   lines.push(`Pricing version: ${sanitizeTerminal(quote.pricingVersion)}`);
+  if (quote.retentionPolicyVersion !== undefined) {
+    lines.push(`Run retention policy: ${sanitizeTerminal(quote.retentionPolicyVersion)}`);
+  }
+  if (quote.retainUntil !== undefined) {
+    lines.push(
+      `Saved-report retain until: ${sanitizeTerminal(quote.retainUntil)} (report lifetime, not credit expiry)`
+    );
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -227,7 +235,11 @@ export function estimateSuccessJson(input: {
     ...(quote.repetitions === undefined ? {} : { repetitions: quote.repetitions }),
     ...(quote.remainingUnitsEstimate === undefined
       ? {}
-      : { remainingUnitsEstimate: quote.remainingUnitsEstimate })
+      : { remainingUnitsEstimate: quote.remainingUnitsEstimate }),
+    ...(quote.retentionPolicyVersion === undefined
+      ? {}
+      : { retentionPolicyVersion: quote.retentionPolicyVersion }),
+    ...(quote.retainUntil === undefined ? {} : { retainUntil: quote.retainUntil })
   })}\n`;
 }
 

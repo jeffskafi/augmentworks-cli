@@ -311,7 +311,12 @@
         "estimateOnly": { "const": true },
         "scenarioCount": { "type": "integer", "minimum": 0, "maximum": 20 },
         "repetitions": { "type": "integer", "minimum": 1, "maximum": 3 },
-        "remainingUnitsEstimate": { "$ref": "#/$defs/unitCount" }
+        "remainingUnitsEstimate": { "$ref": "#/$defs/unitCount" },
+        "retentionPolicyVersion": {
+          "type": "string",
+          "description": "Deterministic run-detail retention policy bound at quote time. Distinct from purchased-credit validity."
+        },
+        "retainUntil": { "$ref": "#/$defs/utcTimestamp" }
       }
     },
     "quotedCreateRequestFields": {

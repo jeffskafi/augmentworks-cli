@@ -36,12 +36,12 @@ describe("vendored aw-billing/1 contract", () => {
     expect(sha256(schema)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]);
     expect(sha256(fixtures)).toBe(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]);
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.schema.json"]).toBe(
-      "e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a"
+      "e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b"
     );
     expect(AW_BILLING_CONTRACT.files["contracts/aw-billing-v1.fixtures.json"]).toBe(
-      "3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a"
+      "42da35022b78954ab214fa4e2f9a1bcb903790056f4dfb57cf1dece5e632ec3c"
     );
-    expect(AW_BILLING_CONTRACT.source.commit).toBe("931838f29ee04fc018ef6359c22abd8d3e8da4c8");
+    expect(AW_BILLING_CONTRACT.source.commit).toBe("49806f0f52377bbca0fbe02f160668723c589fa7");
   });
 
   it("hashes a CRLF working-tree copy to the same locked LF digest", async () => {
@@ -49,7 +49,7 @@ describe("vendored aw-billing/1 contract", () => {
     const lf = schema.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
     const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
     expect(crlf.includes(0x0d)).toBe(true);
-    expect(sha256(crlf)).toBe("e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a");
+    expect(sha256(crlf)).toBe("e66d87fb48bd91ffbd125f1337b7978e4b60334be838fe46c40fce468cd8cc7b");
     expect(sha256(crlf)).toBe(sha256(schema));
   });
 
@@ -277,5 +277,23 @@ describe("vendored aw-billing/1 contract", () => {
     expect(human).toContain("paid_unfulfilled");
     expect(human).toContain("not spendable");
     expect(human).not.toContain("500");
+  });
+
+  it("tolerates additive pack-retention quote fields without treating them as credit expiry", async () => {
+    const document = (await readJson("contracts/aw-billing-v1.fixtures.json")) as {
+      fixtures: Record<string, { response: unknown }>;
+    };
+    const quote = parseBillingQuoteResponse(document.fixtures["quote_pack_retention"]?.response);
+    expect(quote.executionUnits).toBe(10);
+    expect(quote.estimateOnly).toBe(true);
+    expect(quote.retentionPolicyVersion).toBe("aw-retention/pack-90d-v1");
+    expect(quote.retainUntil).toBe("2026-12-05T17:00:00.000Z");
+    const human = formatEstimateHuman({
+      quote,
+      workspaceLabel: "Fixture workspace",
+      localPlanHash: "c".repeat(64)
+    });
+    expect(human).toContain("aw-retention/pack-90d-v1");
+    expect(human).toContain("report lifetime, not credit expiry");
   });
 });

@@ -6,7 +6,7 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-export const PUBLISHED_PACKAGE_VERSION: string = "0.3.1";
+export const PUBLISHED_PACKAGE_VERSION: string = "0.3.2";
 export const PUBLISHED_PACKAGE_VERIFIED = true;
 export const HOSTED_COMMAND_PIN: string = PUBLISHED_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
@@ -55,7 +55,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Source 0.3.2 adds the packaged `demo` command. Verified npm remains @augmentworks/cli@0.3.1, which includes hosted --assessment / --profile, recover, and test --local but does not include demo. Hosted npx commands pin 0.3.1. Do not document npx @0.3.2 until that tarball is independently verified."
+    "Source 0.3.3 adds packaged empty-directory starters (augmentworks.yaml, augmentworks.assessment.yaml, and references), packed billing HTTP fixture coverage, and Stage 4B prepaid-journey recovery docs. Verified npm remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5), which includes demo and hosted --assessment but does not include usage, billing, test --estimate, --max-credits, run status/wait, or init starter generation. Hosted npx commands pin 0.3.2. Do not document npx @0.3.3 until that tarball is independently verified on the registry."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -127,6 +127,8 @@ export const SOURCE_USAGE_JSON_COMMAND = formatSourceCli(["usage", "--json"]);
 export const SOURCE_BILLING_COMMAND = formatSourceCli(["billing"]);
 export const SOURCE_BILLING_JSON_COMMAND = formatSourceCli(["billing", "--json"]);
 export const SOURCE_BILLING_PRINT_COMMAND = formatSourceCli(["billing", "--print"]);
+export const SOURCE_INIT_COMMAND = formatSourceCli(["init"]);
+export const SOURCE_INIT_WORKFLOW_COMMAND = formatSourceCli(["init", "--starter", "workflow"]);
 export const SOURCE_ESTIMATE_COMMAND = formatSourceCli([
   "test",
   "--assessment",
@@ -162,23 +164,26 @@ export const PUBLISHED_LOCAL_COMMANDS = {
     "-c augmentworks.yaml",
     `--packet ${LOCAL_PACKET_REFERENCE}`,
     "--open"
-  ])
+  ]),
+  demo: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "demo", [])
 } as const;
 
 export const SOURCE_ASSESSMENT_COMMANDS = {
-  doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN}`, "doctor", [
+  doctor: formatWrappedCommand("node dist/index.js", "doctor", [
     "--assessment ./augmentworks.assessment.yaml",
     "--profile quick"
   ]),
-  testQuick: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN}`, "test", [
+  testQuick: formatWrappedCommand("node dist/index.js", "test", [
     "--assessment ./augmentworks.assessment.yaml",
     "--profile quick",
-    "--open"
+    "--max-credits 30",
+    "--yes"
   ]),
-  testFull: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN}`, "test", [
+  testFull: formatWrappedCommand("node dist/index.js", "test", [
     "--assessment ./augmentworks.assessment.yaml",
     "--profile full",
-    "--open"
+    "--max-credits 30",
+    "--yes"
   ])
 } as const;
 
@@ -190,10 +195,10 @@ export const HOSTED_TEST_KEEP_TERMINAL =
 
 export const INIT_NEXT_STEPS =
   LOCAL_DISTRIBUTION === "npm"
-    ? `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open.`
-    : `Next: edit .env with isolated synthetic target values, then run doctor. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} ${HOSTED_PACKET_REFERENCE} and keeps this terminal open. Packaged demo and unpublished local commands use source ${SOURCE_PACKAGE_VERSION} until that version is published.`;
+    ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created augmentworks.yaml, augmentworks.assessment.yaml, and starter references. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} and keeps this terminal open. npm --yes only skips the npm prompt; it is not a spending ceiling.`
+    : `Next: edit .env with isolated synthetic target values, then run doctor. This source build created augmentworks.yaml, augmentworks.assessment.yaml, and starter references. Published ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} does not generate those assessment files. npm --yes only skips the npm prompt; hosted spending consent is --max-credits N.`;
 
-export const LOGIN_NEXT_STEPS = `Next: run doctor, then keep this terminal open for hosted test --assessment ./augmentworks.assessment.yaml --profile quick --open. There is no separate connect command.`;
+export const LOGIN_NEXT_STEPS = `Next: run doctor, then keep this terminal open for hosted test --assessment ./augmentworks.assessment.yaml --profile quick --max-credits N --yes. There is no separate connect command. npm --yes is not a spending ceiling.`;
 
 export function allowedDocumentedNpxPins(): readonly string[] {
   const pins = new Set<string>([HOSTED_COMMAND_PIN]);

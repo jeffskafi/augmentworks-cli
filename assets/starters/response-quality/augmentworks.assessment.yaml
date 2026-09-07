@@ -1,0 +1,26 @@
+# Synthetic packaged response-quality starter. Not a real customer policy.
+# Hosted judging credentials must never appear here.
+schema_version: aw-assessment-file/1
+profile: quick
+evaluation_mode: hybrid
+packets:
+  - key: response-quality
+    version: 0.1.0
+knowledge_boundary: >
+  This synthetic FAQ is the complete knowledge scope for the packaged
+  response-quality starter. Facts not present here are unknowable for this test.
+target_already_configured: true
+references:
+  local:
+    - path: references/faq.md
+      id: faq-current-returns
+      kind: reference_facts
+    - path: references/restocking.md
+      id: faq-restocking-fee
+      kind: reference_facts
+    - path: references/warranty.md
+      id: faq-warranty
+      kind: reference_facts
+    - path: references/old-returns.md
+      id: faq-old-returns
+      kind: reference_facts

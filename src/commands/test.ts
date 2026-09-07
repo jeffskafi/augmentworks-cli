@@ -567,7 +567,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     )
     .option(
       "--assessment <path>",
-      "hosted assessment file (quoted aw-relay/0.3 on source 0.3.2; published 0.3.1 uses aw-relay/0.2)"
+      "hosted assessment file (quoted aw-relay/0.3 on source 0.3.3; published 0.3.2 uses aw-relay/0.2)"
     )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
@@ -689,29 +689,49 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           }
           return;
         }
-        const result = await runTest(
-          {
-            config: values.config,
-            ...(values.packet === undefined ? {} : { packet: values.packet }),
-            ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
-            ...(values.profile === undefined ? {} : { profile: values.profile }),
-            ...(values.open === undefined ? {} : { open: values.open }),
-            ...(values.json === undefined ? {} : { json: values.json }),
-            ...(values.maxCredits === undefined ? {} : { maxCredits: values.maxCredits }),
-            ...(values.yes === undefined ? {} : { yes: values.yes }),
-            ...(values.allowFileCredentials === undefined
-              ? {}
-              : { allowFileCredentials: values.allowFileCredentials })
-          },
-          dependencies
-        );
-        if (values.json === true) {
-          stdout.write(`${JSON.stringify(hostedJsonResult(result))}\n`);
-        } else {
-          writeHostedResult(stdout, result);
+        try {
+          const result = await runTest(
+            {
+              config: values.config,
+              ...(values.packet === undefined ? {} : { packet: values.packet }),
+              ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
+              ...(values.profile === undefined ? {} : { profile: values.profile }),
+              ...(values.open === undefined ? {} : { open: values.open }),
+              ...(values.json === undefined ? {} : { json: values.json }),
+              ...(values.maxCredits === undefined ? {} : { maxCredits: values.maxCredits }),
+              ...(values.yes === undefined ? {} : { yes: values.yes }),
+              ...(values.allowFileCredentials === undefined
+                ? {}
+                : { allowFileCredentials: values.allowFileCredentials })
+            },
+            dependencies
+          );
+          if (values.json === true) {
+            stdout.write(`${JSON.stringify(hostedJsonResult(result))}\n`);
+          } else {
+            writeHostedResult(stdout, result);
+          }
+          const exitCode = hostedExitCode(result.run);
+          if (exitCode !== EXIT.OK) setExitCode(exitCode);
+        } catch (error) {
+          if (values.json !== true) throw error;
+          const awError =
+            error instanceof AwError
+              ? error
+              : new AwError({
+                  code: "INTERNAL",
+                  category: "local",
+                  message: "The hosted test command could not be completed."
+                });
+          stdout.write(
+            `${JSON.stringify({
+              ok: false,
+              ...awError.toSafeJSON(),
+              exit_code: exitCodeFor(awError)
+            })}\n`
+          );
+          setExitCode(exitCodeFor(awError));
         }
-        const exitCode = hostedExitCode(result.run);
-        if (exitCode !== EXIT.OK) setExitCode(exitCode);
       }
     );
 }

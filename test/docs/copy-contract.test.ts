@@ -21,6 +21,8 @@ import {
   SOURCE_BILLING_PRINT_COMMAND,
   SOURCE_ESTIMATE_COMMAND,
   SOURCE_ESTIMATE_JSON_COMMAND,
+  SOURCE_INIT_COMMAND,
+  SOURCE_INIT_WORKFLOW_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -105,6 +107,9 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_BILLING_PRINT_COMMAND);
     expect(readme).toContain(SOURCE_ESTIMATE_COMMAND);
     expect(readme).toContain(SOURCE_ESTIMATE_JSON_COMMAND);
+    expect(readme).toContain(SOURCE_INIT_COMMAND);
+    expect(readme).toContain(SOURCE_INIT_WORKFLOW_COMMAND);
+    expect(readme).toContain(PUBLISHED_LOCAL_COMMANDS.demo);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);

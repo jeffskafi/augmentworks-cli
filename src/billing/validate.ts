@@ -116,7 +116,9 @@ const quoteConsumerSchema = z
     estimateOnly: z.literal(true),
     scenarioCount: z.number().int().min(0).max(20).optional(),
     repetitions: z.number().int().min(1).max(3).optional(),
-    remainingUnitsEstimate: unitCount.optional()
+    remainingUnitsEstimate: unitCount.optional(),
+    retentionPolicyVersion: z.string().min(1).max(80).optional(),
+    retainUntil: utcTimestamp.optional()
   })
   .passthrough();
 
@@ -280,7 +282,11 @@ export function parseBillingQuoteResponse(value: unknown): BillingQuote {
     ...(parsed.data.repetitions === undefined ? {} : { repetitions: parsed.data.repetitions }),
     ...(parsed.data.remainingUnitsEstimate === undefined
       ? {}
-      : { remainingUnitsEstimate: parsed.data.remainingUnitsEstimate })
+      : { remainingUnitsEstimate: parsed.data.remainingUnitsEstimate }),
+    ...(parsed.data.retentionPolicyVersion === undefined
+      ? {}
+      : { retentionPolicyVersion: parsed.data.retentionPolicyVersion }),
+    ...(parsed.data.retainUntil === undefined ? {} : { retainUntil: parsed.data.retainUntil })
   };
 }
 

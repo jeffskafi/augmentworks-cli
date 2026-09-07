@@ -27,10 +27,17 @@ describe("configuration commands", () => {
     const initial = await runInit({ cwd: directory, agent: true });
     expect(initial.created).toEqual(expect.arrayContaining([
       resolve(directory, "augmentworks.yaml"),
+      resolve(directory, "augmentworks.assessment.yaml"),
+      resolve(directory, "references/faq.md"),
       resolve(directory, ".env"),
       resolve(directory, ".env.example"),
       resolve(directory, "augmentworks.agent.md")
     ]));
+    expect(initial.starter).toBe("response-quality");
+    expect(await readFile(resolve(directory, "augmentworks.assessment.yaml"), "utf8")).toContain(
+      "response-quality"
+    );
+    expect(await readFile(resolve(directory, "references/faq.md"), "utf8")).toContain("30 days");
     if (process.platform !== "win32") {
       expect((await lstat(resolve(directory, ".env"))).mode & 0o077).toBe(0);
     }
@@ -76,8 +83,82 @@ describe("configuration commands", () => {
     });
     expect(report.ok).toBe(true);
     expect(report.offline).toBe(true);
+    expect(report.resolvedConfig?.capabilities.level).toBe("chat-only");
+    expect(report.assessment?.document.packets[0]?.key).toBe("response-quality");
+    expect(report.diagnostics.map((item) => item.code)).toEqual(
+      expect.arrayContaining([
+        "OFFLINE_CHECK_COMPLETE",
+        "ASSESSMENT_FILE_VALID",
+        "ASSESSMENT_WIRE_BOUNDS",
+        "ASSESSMENT_CAPABILITY_MATCH"
+      ])
+    );
+  });
+
+  it("refuses to overwrite an edited assessment without --force", async () => {
+    const directory = await temporaryDirectory();
+    await runInit({ cwd: directory });
+    await writeFile(resolve(directory, "augmentworks.assessment.yaml"), "# edited\n", "utf8");
+    await expect(runInit({ cwd: directory })).rejects.toMatchObject({ code: "INIT_FILE_EXISTS" });
+    expect(await readFile(resolve(directory, "augmentworks.assessment.yaml"), "utf8")).toBe("# edited\n");
+  });
+
+  it("writes matching workflow starter files", async () => {
+    const directory = await temporaryDirectory();
+    const result = await runInit({ cwd: directory, starter: "workflow" });
+    expect(result.starter).toBe("workflow");
+    expect(await readFile(resolve(directory, "augmentworks.yaml"), "utf8")).toContain("prepare:");
+    expect(await readFile(resolve(directory, "augmentworks.assessment.yaml"), "utf8")).toContain(
+      "support-refunds"
+    );
+    const report = await runDoctor({
+      cwd: directory,
+      processEnv: {
+        CHATBOT_BASE_URL: "http://localhost:8000",
+        CHATBOT_API_KEY: "local-test-value"
+      }
+    });
+    expect(report.ok).toBe(true);
     expect(report.resolvedConfig?.capabilities.level).toBe("stateful");
-    expect(report.diagnostics.map((item) => item.code)).toContain("OFFLINE_CHECK_COMPLETE");
+    expect(report.diagnostics.map((item) => item.code)).toContain("ASSESSMENT_CAPABILITY_MATCH");
+  });
+
+  it("rejects an unknown starter", async () => {
+    const directory = await temporaryDirectory();
+    await expect(runInit({ cwd: directory, starter: "enterprise" })).rejects.toMatchObject({
+      code: "INIT_STARTER_UNKNOWN"
+    });
+  });
+
+  it("warns when doctor runs against a config-only directory", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(
+      resolve(directory, "augmentworks.yaml"),
+      `version: 1
+target:
+  name: chat
+  connector: http
+  base_url: \${CHATBOT_BASE_URL}
+  operations:
+    send:
+      method: POST
+      path: /chat
+      request:
+        message: $input.message.content
+      response:
+        content: $.answer
+`,
+      "utf8"
+    );
+    const report = await runDoctor({
+      cwd: directory,
+      processEnv: {
+        CHATBOT_BASE_URL: "http://localhost:8000",
+        CHATBOT_API_KEY: "local-test-value"
+      }
+    });
+    expect(report.ok).toBe(true);
+    expect(report.diagnostics.map((item) => item.code)).toContain("ASSESSMENT_FILE_ABSENT");
   });
 
   it("prints a valid bundled schema", async () => {

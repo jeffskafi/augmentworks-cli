@@ -3,7 +3,7 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 doctor \
+npx --yes @augmentworks/cli@0.3.2 doctor \
   -c augmentworks.yaml
 ```
 
@@ -25,7 +25,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 doctor \
+npx --yes @augmentworks/cli@0.3.2 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -67,7 +67,7 @@ modules, symlinks, or executable instructions. Validate the expected data shape
 with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet
 ```
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
@@ -78,9 +78,10 @@ packet with `evaluation_mode: hybrid` or `llm_rubric` criteria fail with
 
 ### `--assessment` requires an assessment file
 
-Published `@augmentworks/cli@0.3.1` includes `--assessment`. Copy or write
-`augmentworks.assessment.yaml` first; `init` does not create it. See
-`examples/response-agent/`. `--assessment` cannot be combined with `--local`.
+Published `@augmentworks/cli@0.3.2` includes `--assessment`. Copy or write
+`augmentworks.assessment.yaml` first; published `init` does not create it.
+Source `0.3.3` `init` writes the packaged starter assessment and references.
+See `examples/response-agent/`. `--assessment` cannot be combined with `--local`.
 If hosted grading is pending after target work, the exit code is `11`, not `0`.
 
 ### `LOCAL_PACKET_INCOMPATIBLE`
@@ -177,8 +178,8 @@ There is no `--rerun` flag and no force-new option.
 Inspect the existing assessment without creating another run:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.1 recover
-npx --yes @augmentworks/cli@0.3.1 recover --json
+npx --yes @augmentworks/cli@0.3.2 recover
+npx --yes @augmentworks/cli@0.3.2 recover --json
 ```
 
 `--retire` retires a create only after the server proves it never became a run,
@@ -208,7 +209,7 @@ support before attempting another assessment.
 
 ### `usage` cannot read billing
 
-`usage` is implemented in source `0.3.2` and is not in published `0.3.1`.
+`usage` is implemented in source `0.3.3` and is not in published `0.3.2`.
 Build this repository and run `node dist/index.js usage` or
 `node dist/index.js usage --json`. The command uses the existing connector
 credential (`connector:identity`) and does not need target YAML.
@@ -220,7 +221,7 @@ profile points at the first-party `/portal` recovery page; the CLI does not
 create a replacement account. `--json` writes one structured error object on
 stdout; human hints stay on stderr.
 
-Hosted assessment quotes and admission (source `0.3.2`) use typed billing
+Hosted assessment quotes and admission (source `0.3.3`) use typed billing
 codes rather than HTTP status guessing. `INSUFFICIENT_CREDITS`,
 `QUOTE_EXPIRED`, `QUOTE_MISMATCH`, `BUDGET_EXCEEDED`, `UPDATE_REQUIRED`,
 `WORKSPACE_CLOSING`, and `BILLING_UNAVAILABLE` exit `13`.
@@ -230,7 +231,7 @@ not an unlimited budget. After target work finishes, pending grading is
 observed with `run wait <run-id>` / `run status <run-id>` on the original
 run. Do not re-run the test command to resume grading.
 
-`billing` (source `0.3.2`) prints or opens the first-party
+`billing` (source `0.3.3`) prints or opens the first-party
 `/portal/billing?workspace=` page. It does not create a Stripe Customer,
 Checkout Session, or refund. `--json` and `--print` do not open a browser.
 Insufficient credits keep the uncreated intent and point at that page; after
