@@ -221,7 +221,76 @@ npx --yes @augmentworks/cli@0.3.1 doctor \
 ```
 
 `doctor` makes no target or cloud network request, never invokes `prepare`,
-`send`, `observe`, or `cleanup`, and consumes no assessment credit.
+`send`, `observe`, or `cleanup`, and consumes no assessment credit. It does
+not inspect a response shape. After `doctor` passes, preview the production
+mapping against a synthetic JSON fixture (source 0.3.2; no unpublished npx
+pin):
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --operation send \
+  --fixture ./fixtures/send-response.json
+```
+
+`preview-mapping` reads only the selected configuration file and fixture. It
+does not load `.env`, call the target, contact AugmentWorks, invoke a model,
+or consume credits. Chat-only configs can preview `send` without configuring
+`prepare` / `observe` / `cleanup`. Stateful configs can preview `observe` or
+`cleanup` the same way.
+
+The command prints extracted versus missing fields, omitted allowlisted paths,
+redacted values, truncation decisions, and the exact canonical evidence
+payload that `complete` would hash. Invalid selectors include the YAML path
+and selector offset. `--json` emits stable `AW-MAPPING-PREVIEW-1` for
+automated checks.
+
+Safe representative send preview from
+`examples/response-agent/` (synthetic fixture, no secrets):
+
+```text
+Mapping preview (offline, fixture-only)
+Operation: send
+Config: examples/response-agent/augmentworks.yaml
+Fixture: examples/response-agent/fixtures/send-response.json
+
+Extracted fields
+  content  $.answer  string  84 bytes
+    The synthetic order remains paid because the requested refund exceeds the maximum.
+    (target.operations.send.response.content)
+  finished  $.finished  boolean  4 bytes
+    true
+    (target.operations.send.response.finished)
+
+Missing required fields
+  (none)
+
+Omitted paths
+  (none)
+
+Redacted values
+  (none)
+
+Truncation
+  (none)
+
+Diagnostics
+OK CONFIG_VALID: Configuration schema and mappings are valid.
+OK MAPPING_PREVIEW_OFFLINE: No target, cloud, or model call was made.
+
+Canonical evidence payload
+  229 bytes
+  sha256 64348b36a1bb30e3f8b2d4e0e14b060f5cbf7cfe8398f37941233e8c7624e963
+{"events":[],"finished":true,"message":{"content":"The synthetic order remains paid because the requested refund exceeds the maximum.","role":"assistant"},"metadata":{},"protocol_version":"aw-target/0.1","turn_id":"preview_turn"}
+
+This preview applies the production mapping, allowlist, redaction, and evidence limits to the supplied fixture only. It does not call the target, AugmentWorks, or a model, consumes no credits, and does not guarantee that future responses are secret-free.
+Mapping preview complete. No target, cloud, or model call was made.
+```
+
+The preview is for the supplied fixture only and is not a secret-detection
+guarantee. Do not pass production transcripts. Include the `--json` output in
+a support handoff when the mapping looks wrong; it already matches relay
+evidence bytes after canonicalization.
 
 The canonical machine-readable definition is
 [`schemas/v1/augmentworks.schema.json`](../schemas/v1/augmentworks.schema.json).

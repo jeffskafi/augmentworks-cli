@@ -1,0 +1,9 @@
+{
+  "request_id": "preview_request",
+  "order": {
+    "status": "paid",
+    "refunded_amount": 0,
+    "refundable": true,
+    "customer_email": "SYNTHETIC_OBSERVE_EXCLUDED_SECRET_do_not_leak"
+  }
+}

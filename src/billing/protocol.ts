@@ -142,6 +142,7 @@ export const BILLING_EVALUATION_STATUSES = [
   "unsupported"
 ] as const;
 
+/** Relay target-execution statuses accepted by GET /v1/relay/runs/{runId}. */
 export const BILLING_EXECUTION_STATUSES = [
   "queued",
   "connected",
@@ -151,17 +152,6 @@ export const BILLING_EXECUTION_STATUSES = [
   "completed",
   "failed"
 ] as const;
-
-export const BILLING_NONTERMINAL_EXECUTION_STATUSES = [
-  "queued",
-  "connected",
-  "running",
-  "cancel_requested"
-] as const;
-
-export const BILLING_TERMINAL_EXECUTION_STATUSES = ["cancelled", "completed", "failed"] as const;
-
-export const BILLING_ASSESSMENT_OUTCOMES = ["passed", "failed", "inconclusive", "error"] as const;
 
 export const BILLING_STATUS_NEXT_ACTIONS = [
   "wait",
@@ -173,7 +163,6 @@ export const BILLING_STATUS_NEXT_ACTIONS = [
 
 export type BillingEvaluationStatus = (typeof BILLING_EVALUATION_STATUSES)[number];
 export type BillingExecutionStatus = (typeof BILLING_EXECUTION_STATUSES)[number];
-export type BillingAssessmentOutcome = (typeof BILLING_ASSESSMENT_OUTCOMES)[number];
 export type BillingStatusNextAction = (typeof BILLING_STATUS_NEXT_ACTIONS)[number];
 
 export type BillingRunStatus = {
@@ -234,18 +223,6 @@ export function isBillingEvaluationStatus(value: string): value is BillingEvalua
 
 export function isBillingExecutionStatus(value: string): value is BillingExecutionStatus {
   return (BILLING_EXECUTION_STATUSES as readonly string[]).includes(value);
-}
-
-export function isBillingAssessmentOutcome(value: string): value is BillingAssessmentOutcome {
-  return (BILLING_ASSESSMENT_OUTCOMES as readonly string[]).includes(value);
-}
-
-export function isTerminalBillingExecutionStatus(value: string): boolean {
-  return (BILLING_TERMINAL_EXECUTION_STATUSES as readonly string[]).includes(value);
-}
-
-export function isNonterminalBillingExecutionStatus(value: string): boolean {
-  return (BILLING_NONTERMINAL_EXECUTION_STATUSES as readonly string[]).includes(value);
 }
 
 export function capabilityIsAvailable(

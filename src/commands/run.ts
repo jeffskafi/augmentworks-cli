@@ -6,12 +6,9 @@ import {
   retryEvaluationSuccessJson,
   runStatusSuccessJson
 } from "../billing/format.js";
+import { classifyBillingRunStatus } from "../billing/classify.js";
 import type { BillingRunStatus } from "../billing/protocol.js";
 import { assertStatusCapability, assertStatusWorkspace } from "../billing/validate.js";
-import {
-  billingStatusExitCode,
-  isWaitTerminal
-} from "../billing/status-classification.js";
 import { statusUnsupportedError } from "../billing/errors.js";
 import { STATUS_V1 } from "../billing/protocol.js";
 import { capabilityIsAvailable } from "../billing/protocol.js";
@@ -58,9 +55,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
     });
   run
     .command("wait")
-    .description(
-      "Wait until original-run target work and applicable grading are terminal, without calling the target"
-    )
+    .description("Wait for original-run target work and grading without calling the target")
     .argument("<run-id>", "original run ID")
     .option("--json", "write one machine-readable status object to stdout")
     .option("--timeout-ms <ms>", "maximum wait in milliseconds", String(DEFAULT_WAIT_MS))
@@ -202,40 +197,42 @@ async function waitForRunStatus(
   const sleep = dependencies.sleep ?? sleepWithSignal;
   const deadline = now() + timeoutMs;
   let delay = 1_000;
+  let last: BillingRunStatus | undefined;
   for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
-    const status = await readRunStatus(session, runId, values.signal);
-    if (isWaitTerminal(status)) return status;
+    last = await readRunStatus(session, runId, values.signal);
+    if (isWaitTerminal(last)) return last;
     const remaining = deadline - now();
     if (remaining <= 0) {
-      throw waitStillPendingError(runId, status);
+      throw waitIncompleteError(runId, last);
     }
     const jitter = Math.floor(delay * 0.2 * Math.random());
     await sleep(Math.min(delay + jitter, remaining), values.signal);
     delay = Math.min(delay * 2, 5_000);
   }
-  throw waitStillPendingError(runId);
+  throw waitIncompleteError(runId, last);
 }
 
-function waitStillPendingError(runId: string, status?: BillingRunStatus): AwError {
-  const originalRunId = status?.originalRunId ?? runId;
+function waitIncompleteError(runId: string, status: BillingRunStatus | undefined): AwError {
+  const gradingPending =
+    status !== undefined &&
+    (status.evaluationStatus === "pending" || status.evaluationStatus === "partial");
+  const reason = gradingPending
+    ? "Grading is still pending"
+    : "The original run is still in progress";
   return new AwError({
     code: "EVALUATION_INCOMPLETE",
     category: "relay",
-    message: `Original run ${originalRunId} is not a passing assessment yet. Evidence remains saved. This wait did not create a quote, reservation, target execution, or new run. Retry: augmentworks run wait ${originalRunId}`,
-    details: {
-      run_id: runId,
-      original_run_id: originalRunId,
-      ...(status === undefined
-        ? {}
-        : {
-            execution_status: status.executionStatus,
-            evaluation_status: status.evaluationStatus
-          })
-    }
+    message: `${reason} on original run ${runId}. Evidence remains saved. Retry: augmentworks run wait ${runId}`
   });
 }
 
-export { billingStatusExitCode, isWaitTerminal } from "../billing/status-classification.js";
+export function isWaitTerminal(status: BillingRunStatus): boolean {
+  return classifyBillingRunStatus(status).waitTerminal;
+}
+
+export function billingStatusExitCode(status: BillingRunStatus): number {
+  return classifyBillingRunStatus(status).exitCode;
+}
 
 function parseRunId(value: string): string {
   if (!RUN_ID.test(value)) {

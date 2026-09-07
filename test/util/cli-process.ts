@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
@@ -27,15 +28,8 @@ export async function runSourceCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  return await runCliProcess(
-    [
-      process.execPath,
-      "--disable-warning=DEP0205",
-      "--import",
-      tsxImportUrl,
-      sourceEntrypoint,
-      ...args
-    ],
+  return runNodeCli(
+    ["--disable-warning=DEP0205", "--import", tsxImportUrl, sourceEntrypoint, ...args],
     options
   );
 }
@@ -44,16 +38,43 @@ export async function runPackedCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  return await runCliProcess([process.execPath, packedEntrypoint, ...args], options);
+  await ensurePackedCliBuilt();
+  return runNodeCli([packedEntrypoint, ...args], options);
 }
 
-async function runCliProcess(
+let packedBuild: Promise<void> | undefined;
+
+export async function ensurePackedCliBuilt(): Promise<string> {
+  packedBuild ??= buildPackedCli();
+  await packedBuild;
+  return packedEntrypoint;
+}
+
+async function buildPackedCli(): Promise<void> {
+  // npm ci `prepare` and `npm run check` already produce dist/. Spawning `npm`
+  // here fails on Windows (Node 22+ spawn npm.cmd ENOENT/EINVAL). Build only
+  // when the artifact is missing, and invoke tsup through node.
+  if (existsSync(packedEntrypoint)) return;
+  const tsupCli = createRequire(import.meta.url).resolve("tsup/dist/cli-default.js");
+  const result = await runNodeCli([tsupCli], {
+    cwd: projectRoot,
+    timeoutMs: 120_000
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Could not build packed CLI (exit ${String(result.exitCode)}): ${result.stderr || result.stdout}`
+    );
+  }
+  if (!existsSync(packedEntrypoint)) {
+    throw new Error("Packed CLI build finished without dist/index.js");
+  }
+}
+
+async function runNodeCli(
   argv: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  const [executable, ...spawnArgs] = argv;
-  if (executable === undefined) throw new Error("CLI process argv is empty");
-  const child = spawn(executable, spawnArgs, {
+  const child = spawn(process.execPath, [...argv], {
     cwd: options.cwd,
     env: {
       ...process.env,

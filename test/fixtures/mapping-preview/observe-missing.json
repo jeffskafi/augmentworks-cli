@@ -1,0 +1,7 @@
+{
+  "request_id": "preview_request",
+  "order": {
+    "refundable": true,
+    "customer_email": "SYNTHETIC_OBSERVE_MISSING_SECRET_do_not_leak"
+  }
+}

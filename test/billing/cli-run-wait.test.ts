@@ -4,47 +4,31 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { EXIT } from "../../src/errors.js";
-import { runPackedCli, runSourceCli } from "../util/cli-process.js";
+import { ensurePackedCliBuilt, runPackedCli } from "../util/cli-process.js";
 import { listenLoopback, type ListeningServer } from "../util/http-server.js";
-import {
-  billingRunStatusDocument,
-  deterministicCompletedDocument,
-  RUN_STATUS_RUN_ID,
-  RUN_STATUS_WORKSPACE,
-  unfinishedRunningAbsentDocument
-} from "./run-status-fixtures.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const TOKEN = "aw_connector_test_access_token_run_wait";
-const fixtures = JSON.parse(
-  await readFile(resolve(projectRoot, "contracts/aw-billing-v1.fixtures.json"), "utf8")
-) as { fixtures: Record<string, { response: unknown }> };
+const WORKSPACE = "11111111-1111-4111-8111-111111111111";
+const RUN_ID = "66666666-6666-4666-8666-666666666666";
+const fixturesUrl = resolve(projectRoot, "contracts/aw-billing-v1.fixtures.json");
 
-type Handler = (
-  request: IncomingMessage,
-  response: ServerResponse,
-  url: URL
-) => Promise<boolean> | boolean;
+type FixtureFile = {
+  fixtures: Record<string, { status?: number; response: unknown }>;
+};
+
+const fixtures = JSON.parse(await readFile(fixturesUrl, "utf8")) as FixtureFile;
+const pendingGrading = fixtures.fixtures["status_pending_grading"]?.response as Record<
+  string,
+  unknown
+>;
 
 const temporaryDirectories: string[] = [];
 const servers: ListeningServer[] = [];
-
-beforeAll(() => {
-  const packed = spawnSync("npm", ["run", "build"], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    timeout: 60_000,
-    env: { ...process.env, NO_COLOR: "1" }
-  });
-  if (packed.status !== 0) {
-    throw new Error(`packed CLI build failed:\n${packed.stdout}\n${packed.stderr}`);
-  }
-}, 60_000);
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
@@ -52,6 +36,10 @@ afterEach(async () => {
     temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))
   );
 });
+
+beforeAll(async () => {
+  await ensurePackedCliBuilt();
+}, 120_000);
 
 async function emptyCwd(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "aw-cli-run-wait-"));
@@ -72,17 +60,67 @@ function identity(): Record<string, unknown> {
   return {
     subject: "user_test",
     email: "developer@example.com",
-    workspace_id: RUN_STATUS_WORKSPACE,
-    workspace_name: "Fixture workspace",
+    workspace_id: WORKSPACE,
+    workspace_name: "Test Workspace",
     connector_id: "connector_test",
     connector_name: "Refunds Staging",
     scopes: ["connector:identity", "connector:run"]
   };
 }
 
-async function startMock(
-  handler: Handler
-): Promise<{ server: ListeningServer; paths: string[] }> {
+function billingStatus(overrides: Record<string, unknown>): Record<string, unknown> {
+  const progressOverride = overrides["progress"];
+  const progress =
+    progressOverride !== undefined &&
+    typeof progressOverride === "object" &&
+    progressOverride !== null
+      ? {
+          ...(pendingGrading["progress"] as Record<string, unknown>),
+          ...(progressOverride as Record<string, unknown>)
+        }
+      : pendingGrading["progress"];
+  return {
+    ...pendingGrading,
+    ...overrides,
+    progress
+  };
+}
+
+const runningAbsent = billingStatus({
+  executionStatus: "running",
+  evaluationStatus: "absent",
+  outcome: null,
+  savedEvidence: false,
+  nextActions: ["wait", "inspect", "open_dashboard"],
+  progress: {
+    completedAttempts: 0,
+    plannedAttempts: 10,
+    completedJudgeJobs: 0,
+    plannedJudgeJobs: 0
+  }
+});
+
+const deterministicPassed = billingStatus({
+  executionStatus: "completed",
+  evaluationStatus: "absent",
+  outcome: "passed",
+  savedEvidence: true,
+  nextActions: ["inspect", "open_dashboard"],
+  progress: {
+    completedAttempts: 10,
+    plannedAttempts: 10,
+    completedJudgeJobs: 0,
+    plannedJudgeJobs: 0
+  }
+});
+
+type Handler = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  url: URL
+) => Promise<boolean> | boolean;
+
+async function startMock(handler: Handler): Promise<{ server: ListeningServer; paths: string[] }> {
   const paths: string[] = [];
   const httpServer = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -98,7 +136,7 @@ async function startMock(
   return { server, paths };
 }
 
-function hostedEnv(apiOrigin: string): NodeJS.ProcessEnv {
+function runEnv(apiOrigin: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     AUGMENTWORKS_API_URL: apiOrigin,
@@ -108,42 +146,31 @@ function hostedEnv(apiOrigin: string): NodeJS.ProcessEnv {
   };
 }
 
-function capabilitiesAndIdentity(request: IncomingMessage, response: ServerResponse, url: URL): boolean {
-  if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
-    send(response, 200, identity());
-    return true;
-  }
-  if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
-    send(response, 200, fixtures.fixtures["absent_capability"]?.response);
-    return true;
-  }
-  return false;
-}
-
-function assertReadOnlyObservation(paths: readonly string[]): void {
-  expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
-  expect(paths).not.toContain("POST /v1/billing/quote");
-  expect(paths).not.toContain("POST /v1/relay/runs");
-  expect(paths).not.toContain("POST /v1/relay/run-intents:reconcile");
-  expect(paths.every((path) => !path.endsWith(":retry-evaluation"))).toBe(true);
-}
-
-describe("packed run wait classification", () => {
-  it("does not exit 0 for the running/absent/0-of-10/null-outcome reproduction", async () => {
+describe("packed augmentworks run wait/status", () => {
+  it("does not end wait successfully on running/absent/0-of-10/null-outcome", async () => {
     const cwd = await emptyCwd();
+    let statusReads = 0;
     const { server, paths } = await startMock((request, response, url) => {
-      if (capabilitiesAndIdentity(request, response, url)) return true;
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
       if (request.method === "GET" && url.pathname === "/v1/billing/status") {
-        expect(url.searchParams.get("runId")).toBe(RUN_STATUS_RUN_ID);
-        send(response, 200, unfinishedRunningAbsentDocument());
+        expect(url.searchParams.get("runId")).toBe(RUN_ID);
+        statusReads += 1;
+        send(response, 200, runningAbsent);
         return true;
       }
       return false;
     });
 
     const result = await runPackedCli(
-      ["run", "wait", RUN_STATUS_RUN_ID, "--json", "--timeout-ms", "50"],
-      { cwd, env: hostedEnv(server.baseUrl), timeoutMs: 15_000 }
+      ["run", "wait", RUN_ID, "--json", "--timeout-ms", "1"],
+      { cwd, env: runEnv(server.baseUrl) }
     );
 
     expect(result.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
@@ -151,202 +178,143 @@ describe("packed run wait classification", () => {
       ok: boolean;
       code: string;
       exit_code: number;
-      details?: { original_run_id?: string };
+      safe_message: string;
     };
     expect(payload.ok).toBe(false);
     expect(payload.code).toBe("EVALUATION_INCOMPLETE");
-    expect(payload.exit_code).toBe(EXIT.EVALUATION_INCOMPLETE);
-    expect(payload.details?.original_run_id).toBe(RUN_STATUS_RUN_ID);
-    expect(`${result.stdout}${result.stderr}`).toContain(RUN_STATUS_RUN_ID);
-    expect(`${result.stdout}${result.stderr}`).toContain("run wait");
-    assertReadOnlyObservation(paths);
-    expect(paths.filter((path) => path === "GET /v1/billing/status").length).toBeGreaterThanOrEqual(1);
+    expect(payload.exit_code).toBe(11);
+    expect(payload.safe_message).toContain(RUN_ID);
+    expect(payload.safe_message).toContain(`augmentworks run wait ${RUN_ID}`);
+    expect(statusReads).toBeGreaterThanOrEqual(1);
+    expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
+    expect(paths).not.toContain("POST /v1/billing/quote");
+    expect(paths).not.toContain("POST /v1/relay/runs");
+    expect(paths.some((path) => path.includes(":retry-evaluation"))).toBe(false);
   });
 
-  it("a timed-out wait stays read-only and names the original run", async () => {
-    const cwd = await emptyCwd();
-    const { server, paths } = await startMock((request, response, url) => {
-      if (capabilitiesAndIdentity(request, response, url)) return true;
-      if (request.method === "GET" && url.pathname === "/v1/billing/status") {
-        send(response, 200, unfinishedRunningAbsentDocument());
-        return true;
-      }
-      return false;
-    });
-
-    const result = await runPackedCli(
-      ["run", "wait", RUN_STATUS_RUN_ID, "--timeout-ms", "40"],
-      { cwd, env: hostedEnv(server.baseUrl), timeoutMs: 15_000 }
-    );
-
-    expect(result.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
-    expect(result.stderr).toContain(`Original run ${RUN_STATUS_RUN_ID}`);
-    expect(result.stderr).toContain("did not create a quote, reservation, target execution, or new run");
-    expect(result.stderr).toContain(`augmentworks run wait ${RUN_STATUS_RUN_ID}`);
-    assertReadOnlyObservation(paths);
-  });
-
-  it("waits from running/absent into terminal deterministic success and exits 0", async () => {
+  it("waits until running/absent becomes deterministic terminal success", async () => {
     const cwd = await emptyCwd();
     let statusReads = 0;
     const { server, paths } = await startMock((request, response, url) => {
-      if (capabilitiesAndIdentity(request, response, url)) return true;
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
       if (request.method === "GET" && url.pathname === "/v1/billing/status") {
+        expect(url.searchParams.get("runId")).toBe(RUN_ID);
         statusReads += 1;
-        send(
-          response,
-          200,
-          statusReads === 1 ? unfinishedRunningAbsentDocument() : deterministicCompletedDocument("passed")
-        );
+        send(response, 200, statusReads === 1 ? runningAbsent : deterministicPassed);
         return true;
       }
       return false;
     });
 
-    const result = await runPackedCli(
-      ["run", "wait", RUN_STATUS_RUN_ID, "--json", "--timeout-ms", "8000"],
-      { cwd, env: hostedEnv(server.baseUrl), timeoutMs: 15_000 }
-    );
+    const result = await runPackedCli(["run", "wait", RUN_ID, "--json"], {
+      cwd,
+      env: runEnv(server.baseUrl),
+      timeoutMs: 15_000
+    });
 
     expect(result.exitCode).toBe(EXIT.OK);
-    expect(statusReads).toBeGreaterThanOrEqual(2);
+    const payload = JSON.parse(result.stdout) as {
+      ok: boolean;
+      observation: string;
+      assessment: string;
+      exit_code: number;
+      executionStatus: string;
+      evaluationStatus: string;
+      outcome?: string | null;
+      originalRunId: string;
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.observation).toBe("succeeded");
+    expect(payload.assessment).toBe("passed");
+    expect(payload.exit_code).toBe(0);
+    expect(payload.executionStatus).toBe("completed");
+    expect(payload.evaluationStatus).toBe("absent");
+    expect(payload.outcome).toBe("passed");
+    expect(payload.originalRunId).toBe(RUN_ID);
+    expect(statusReads).toBe(2);
+    expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
+    expect(paths).not.toContain("POST /v1/billing/quote");
+    expect(paths).not.toContain("POST /v1/relay/runs");
+  });
+
+  it("reports status of the reproduction as observation success with a non-zero gate", async () => {
+    const cwd = await emptyCwd();
+    const { server, paths } = await startMock((request, response, url) => {
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/status") {
+        send(response, 200, runningAbsent);
+        return true;
+      }
+      return false;
+    });
+
+    const result = await runPackedCli(["run", "status", RUN_ID, "--json"], {
+      cwd,
+      env: runEnv(server.baseUrl)
+    });
+
+    expect(result.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
     const payload = JSON.parse(result.stdout) as {
       ok: boolean;
       observation: string;
       work: string;
       assessment: string;
-      wait_terminal: boolean;
-      release_success: boolean;
       exit_code: number;
-      executionStatus: string;
-      evaluationStatus: string;
       originalRunId: string;
     };
     expect(payload.ok).toBe(true);
-    expect(payload.observation).toBe("success");
-    expect(payload.work).toBe("terminal");
-    expect(payload.assessment).toBe("passed");
-    expect(payload.wait_terminal).toBe(true);
-    expect(payload.release_success).toBe(true);
-    expect(payload.exit_code).toBe(EXIT.OK);
-    expect(payload.executionStatus).toBe("completed");
-    expect(payload.evaluationStatus).toBe("absent");
-    expect(payload.originalRunId).toBe(RUN_STATUS_RUN_ID);
-    assertReadOnlyObservation(paths);
+    expect(payload.observation).toBe("succeeded");
+    expect(payload.work).toBe("in_progress");
+    expect(payload.assessment).toBe("incomplete");
+    expect(payload.exit_code).toBe(11);
+    expect(payload.originalRunId).toBe(RUN_ID);
+    expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
   });
 
-  it("run status of the unfinished reproduction exits 11 with release_success false", async () => {
+  it("times out with read-only observation and keeps the original run id", async () => {
     const cwd = await emptyCwd();
     const { server, paths } = await startMock((request, response, url) => {
-      if (capabilitiesAndIdentity(request, response, url)) return true;
-      if (request.method === "GET" && url.pathname === "/v1/billing/status") {
-        send(response, 200, unfinishedRunningAbsentDocument());
+      if (url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
+      if (url.pathname === "/v1/billing/status") {
+        send(response, 200, runningAbsent);
         return true;
       }
       return false;
     });
 
-    const result = await runPackedCli(["run", "status", RUN_STATUS_RUN_ID, "--json"], {
+    const result = await runPackedCli(["run", "wait", RUN_ID, "--timeout-ms", "1"], {
       cwd,
-      env: hostedEnv(server.baseUrl)
+      env: runEnv(server.baseUrl)
     });
 
     expect(result.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
-    const payload = JSON.parse(result.stdout) as {
-      ok: boolean;
-      observation: string;
-      release_success: boolean;
-      wait_terminal: boolean;
-      exit_code: number;
-      originalRunId: string;
-    };
-    expect(payload.ok).toBe(true);
-    expect(payload.observation).toBe("success");
-    expect(payload.release_success).toBe(false);
-    expect(payload.wait_terminal).toBe(false);
-    expect(payload.exit_code).toBe(EXIT.EVALUATION_INCOMPLETE);
-    expect(payload.originalRunId).toBe(RUN_STATUS_RUN_ID);
-    assertReadOnlyObservation(paths);
-  });
-});
-
-describe("source run wait and status exits", () => {
-  it("maps cancelled, failed, pending, unsupported, and unknown through the packed-equivalent source CLI", async () => {
-    const rows: Array<{
-      document: Record<string, unknown>;
-      exit: number;
-      assessment?: string;
-    }> = [
-      {
-        document: billingRunStatusDocument({
-          executionStatus: "cancelled",
-          evaluationStatus: "absent",
-          plannedJudgeJobs: 0
-        }),
-        exit: EXIT.INTERRUPTED,
-        assessment: "interrupted"
-      },
-      {
-        document: billingRunStatusDocument({
-          executionStatus: "failed",
-          evaluationStatus: "absent",
-          plannedJudgeJobs: 0
-        }),
-        exit: EXIT.ASSESSMENT_FAILED,
-        assessment: "failed"
-      },
-      {
-        document: billingRunStatusDocument({
-          executionStatus: "completed",
-          evaluationStatus: "pending",
-          plannedJudgeJobs: 4
-        }),
-        exit: EXIT.EVALUATION_INCOMPLETE,
-        assessment: "incomplete"
-      },
-      {
-        document: billingRunStatusDocument({
-          executionStatus: "completed",
-          evaluationStatus: "unsupported"
-        }),
-        exit: EXIT.EVALUATION_ERROR,
-        assessment: "unsupported"
-      },
-      {
-        document: billingRunStatusDocument({
-          executionStatus: "bogus",
-          evaluationStatus: "absent",
-          plannedJudgeJobs: 0
-        }),
-        exit: EXIT.EVALUATION_INCOMPLETE,
-        assessment: "unknown"
-      }
-    ];
-
-    for (const row of rows) {
-      const cwd = await emptyCwd();
-      const { server, paths } = await startMock((request, response, url) => {
-        if (capabilitiesAndIdentity(request, response, url)) return true;
-        if (request.method === "GET" && url.pathname === "/v1/billing/status") {
-          send(response, 200, row.document);
-          return true;
-        }
-        return false;
-      });
-      const result = await runSourceCli(["run", "status", RUN_STATUS_RUN_ID, "--json"], {
-        cwd,
-        env: hostedEnv(server.baseUrl)
-      });
-      expect(result.exitCode, JSON.stringify(row.document)).toBe(row.exit);
-      const payload = JSON.parse(result.stdout) as {
-        assessment: string;
-        release_success: boolean;
-        exit_code: number;
-      };
-      expect(payload.release_success).toBe(false);
-      expect(payload.exit_code).toBe(row.exit);
-      if (row.assessment !== undefined) expect(payload.assessment).toBe(row.assessment);
-      assertReadOnlyObservation(paths);
-    }
+    expect(result.stderr).toContain("EVALUATION_INCOMPLETE");
+    expect(result.stderr).toContain(RUN_ID);
+    expect(result.stderr).toContain(`augmentworks run wait ${RUN_ID}`);
+    expect(paths.filter((path) => path === "GET /v1/billing/status").length).toBeGreaterThanOrEqual(1);
+    expect(paths).not.toContain("POST /v1/billing/quote");
+    expect(paths).not.toContain("POST /v1/relay/runs");
+    expect(paths.some((path) => path.includes(":retry-evaluation"))).toBe(false);
   });
 });

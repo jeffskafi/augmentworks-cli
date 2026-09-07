@@ -25,17 +25,21 @@ All notable changes to this project are documented here. The format follows
   `run retry-evaluation`. Vendors the Stage 2A contract from main
   `67749b22f04bbb8d94c0309acd36be3cb3144400`. Quotes do not reserve credits.
   Not npm-published. Live sales remain disabled.
+- Offline `preview-mapping` inspects response mappings and the exact
+  canonical sanitized evidence payload from a local synthetic JSON fixture.
+  It uses the production extraction, allowlist, redaction, and
+  `canonicalize` pipeline. No target, cloud, or model call. Not in published
+  `0.3.1`.
 
 ### Fixed
 
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
-- `run wait` / `run status` no longer treat a successful billing-status query
-  as a passing assessment. Wait continues while target execution is
-  nonterminal even when evaluation is `absent` (including running, 0-of-N
-  attempts, and a null outcome). Release success requires a classified
-  terminal pass; incomplete grading stays exit `11`, evaluator errors `12`,
-  failed assessments `10`, interruptions `130`, and billing rejections `13`.
+- `run wait` / `run status` no longer treat a successful status query of
+  unfinished work as a passing assessment. Wait continues while target
+  execution is nonterminal even when evaluation is `absent`. Exit `0` requires
+  an explicit resolved `passed` outcome. JSON `ok: true` remains observation
+  success; `assessment` and `exit_code` are the release gate.
 
 ### Changed
 

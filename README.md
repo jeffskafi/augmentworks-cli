@@ -141,6 +141,29 @@ offline `doctor`, and `schema` remain account-free and make no billing calls.
 Until source 0.3.2 is published, do not write an unpublished npx pin for
 `usage`.
 
+## Mapping preview (source 0.3.2)
+
+`preview-mapping` applies the production response extraction, allowlist,
+redaction, and evidence serialization to a local synthetic JSON fixture. It
+does not call the target, AugmentWorks, or a model, and it consumes no
+credits. `doctor` still validates configuration only; use this inspector
+before an assessment to see extracted versus missing fields and the exact
+canonical evidence payload that would leave the machine.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
+node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json --json
+```
+
+The preview is for the supplied fixture only. It does not guarantee that
+future responses are secret-free. Do not pass production transcripts or live
+target output.
+
+Until source 0.3.2 is published, do not write an unpublished npx pin for
+`preview-mapping`.
+
 ## Hosted estimate and spending consent (source 0.3.2)
 
 `test --estimate` compiles the same assessment that admission uses and calls
@@ -164,10 +187,13 @@ node dist/index.js run wait <run-id>
 ```
 
 If grading is pending after target work finishes, evidence is saved. Wait on
-the original run; do not re-run the test command. `run wait` / `run status`
-exit `0` only for a classified passing assessment, not because the status
-query succeeded. Account-free `demo`, `test --local`, offline `doctor`, and
-`schema` still make no billing calls.
+the original run; do not re-run the test command. `run wait` also continues
+while target execution is still `queued`, `connected`, `running`, or
+`cancel_requested`, including when grading is `absent`. Exit `0` means the
+assessment passed. A successful status query of unfinished work is not a
+pass (`ok: true` with `assessment: "incomplete"` and exit `11`). Account-free
+`demo`, `test --local`, offline `doctor`, and `schema` still make no billing
+calls.
 
 ## Local assessment (published 0.3.1)
 
@@ -450,9 +476,10 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, or checkout. Source 0.3.2, not published 0.3.1 |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
+| `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Source 0.3.2. Reads only the selected config and fixture. No target, cloud, or model call |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.2 uses `aw-relay/0.3` quotes; published 0.3.1 uses `aw-relay/0.2`. `--estimate` never reserves credits |
-| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait. Query success is not a pass: wait stays open while execution is running even if grading is `absent`. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
+| `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` | Inspect or wait on an original hosted run, or retry incomplete grading | Read-only status/wait; retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.2 |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; source 0.3.2, not published 0.3.1 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
@@ -531,7 +558,8 @@ authorized, isolated synthetic target in a test or staging environment:
 2. Map `prepare` / `send` / `observe` / `cleanup` in `augmentworks.yaml`.
 3. Put secret *names* in YAML and values only in local `.env`.
 4. `npx --yes @augmentworks/cli@0.3.1 doctor -c augmentworks.yaml`
-5. `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+5. `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json` (source 0.3.2)
+6. `npx --yes @augmentworks/cli@0.3.1 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 
 Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
 not provide. Hosted access remains an invited workspace at

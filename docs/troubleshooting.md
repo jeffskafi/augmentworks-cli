@@ -50,9 +50,20 @@ sending credentials over an untrusted network.
 ### A response mapping is missing
 
 Confirm that the target returns JSON and that selectors use the supported
-`$.field.nested` subset. `doctor` does not execute lifecycle hooks, so use the
-mock example or a separately approved synthetic run to inspect application
-behavior.
+`$.field.nested` subset. `doctor` does not execute lifecycle hooks. Preview
+the production mapping against a synthetic fixture without starting a run:
+
+```bash
+node dist/index.js preview-mapping \
+  -c augmentworks.yaml \
+  --operation send \
+  --fixture ./fixtures/send-response.json
+```
+
+The command reports missing selectors with their YAML path, omitted
+allowlisted fields, redactions, and truncation. It does not print unselected
+source objects. The preview is fixture-only and does not guarantee that future
+responses are secret-free.
 
 ### A local packet is not found or is refused
 
@@ -228,13 +239,12 @@ codes rather than HTTP status guessing. `INSUFFICIENT_CREDITS`,
 Noninteractive hosted `--assessment` requires `--max-credits N`; `--yes` is
 not an unlimited budget. After target work finishes, pending grading is
 observed with `run wait <run-id>` / `run status <run-id>` on the original
-run. Do not re-run the test command to resume grading. A successful status
-HTTP read is not a passing assessment: `run status --json` includes
-`observation`, `release_success`, and `exit_code`. Unattended release gates
-must use the process exit code (or `release_success`), not `ok: true`.
-`run wait` keeps polling while target execution is still running even if
-grading is `absent`. A timeout exits `11`, names the original run, and does
-not create another quote, reservation, target execution, or run.
+run. Do not re-run the test command to resume grading. `run wait` keeps
+polling while target execution is nonterminal even when evaluation is
+`absent`. A successful HTTP status query is not a passing assessment: wait
+and release gates must use process exit `0` only after an explicit resolved
+`passed` outcome. Timed-out waits stay read-only and never create another
+quote, reservation, or run. Retry guidance names the original run ID.
 
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.

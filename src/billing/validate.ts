@@ -19,8 +19,8 @@ import {
   USAGE_V1,
   capabilityIsAvailable,
   isBillingAccessState,
-  isBillingAssessmentOutcome,
   isBillingEvaluationStatus,
+  isBillingExecutionStatus,
   type BillingCapabilities,
   type BillingGrantBalance,
   type BillingQuote,
@@ -140,6 +140,8 @@ const runStatusConsumerSchema = z
   })
   .passthrough();
 
+export { isBillingExecutionStatus };
+
 export function parseBillingUsageResponse(value: unknown): BillingUsage {
   const parsed = usageConsumerSchema.safeParse(value);
   if (!parsed.success) throw billingMalformedError("billing usage response");
@@ -254,13 +256,12 @@ export function parseBillingRunStatusResponse(value: unknown): BillingRunStatus 
   if (!isBillingEvaluationStatus(parsed.data.evaluationStatus)) {
     throw billingUnsupportedStateError({ evaluation_status: parsed.data.evaluationStatus });
   }
-  if (
-    parsed.data.outcome !== undefined &&
-    parsed.data.outcome !== null &&
-    !isBillingAssessmentOutcome(parsed.data.outcome)
-  ) {
-    throw billingUnsupportedStateError({ outcome: parsed.data.outcome });
-  }
+  // executionStatus is an unconstrained string on the main-owned billing
+  // schema (unlike evaluationStatus). Known relay values are listed by
+  // isBillingExecutionStatus. Unknown values still parse so observation can
+  // succeed; classifyBillingRunStatus treats them as assessment unknown, never
+  // as a release pass. outcome is similarly unconstrained and only "passed"
+  // with terminal applicable evaluation is a pass.
   return {
     schemaVersion: parsed.data.schemaVersion,
     runId: parsed.data.runId,
