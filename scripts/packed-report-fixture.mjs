@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Packed-binary HTTP fixture for AUG-54 report export and API-key mode.
+ * Packed-binary HTTP fixture for AUG-54 report export and API-key mode,
+ * extended by AUG-64 to serve producer-shaped criterion index/detail bodies.
  *
  * Invokes the installed CLI in an isolated HOME/state directory against a
  * loopback report API. This is not proof that the hosted report endpoint is
  * deployed; it proves the packed binary's command registration, JSON-only
- * stdout, API-key mode without a keychain, and read-only GET export.
+ * stdout, API-key mode without a keychain, and read-only GET export against
+ * the actual producer criterion wire (items/nextCursor/document/inspection).
  */
 
 import { createServer } from "node:http";
@@ -49,6 +51,15 @@ async function loadFixtures() {
   );
 }
 
+async function loadProducerFixtures() {
+  return JSON.parse(
+    await readFile(
+      resolve(projectRoot, "contracts/aw-criterion-detail-read-v1.producer.fixtures.json"),
+      "utf8"
+    )
+  );
+}
+
 function fixtureNamed(fixtures, name, origin) {
   const entry = fixtures.fixtures[name];
   if (entry === undefined) throw new FixtureFailure(`missing fixture ${name}`);
@@ -67,7 +78,7 @@ function send(response, status, value) {
   response.end(body);
 }
 
-function startFixtureServer(fixtures) {
+function startFixtureServer(fixtures, producer) {
   const requests = [];
   const httpServer = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -87,8 +98,13 @@ function startFixtureServer(fixtures) {
       send(response, fixture.status, fixture.body);
       return;
     }
+    if (/\/criteria\/[^/]+$/u.test(url.pathname)) {
+      const fixture = fixtureNamed(producer, "producer_detail_fail", origin);
+      send(response, fixture.status, fixture.body);
+      return;
+    }
     if (url.pathname.includes("/criteria")) {
-      const fixture = fixtureNamed(fixtures, "criterion_index_r01_fail", origin);
+      const fixture = fixtureNamed(producer, "producer_index_one_page_fail", origin);
       send(response, fixture.status, fixture.body);
       return;
     }
@@ -180,7 +196,8 @@ function parseJsonStdout(stdout, label) {
 
 async function main() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "aw-packed-report-"));
-  const fixtures = await loadFixtures();
+    const fixtures = await loadFixtures();
+    const producer = await loadProducerFixtures();
   let httpServer;
   try {
     const packedBin = process.env.AUGMENTWORKS_PACKED_BIN;
@@ -190,7 +207,7 @@ async function main() {
     );
     await access(packedBin, fsConstants.R_OK);
 
-    const fixture = startFixtureServer(fixtures);
+    const fixture = startFixtureServer(fixtures, producer);
     httpServer = fixture.httpServer;
     await new Promise((resolveListen) => httpServer.listen(0, "127.0.0.1", resolveListen));
     const port = httpServer.address().port;
@@ -264,6 +281,12 @@ async function main() {
     assert(payload.retrieved === true, "failed report was not retrieved");
     assert(payload.complete === true, "failed report was incomplete");
     assert(payload.report?.outcome === "failed", "negative-control outcome was not failed");
+    assert(payload.criteria?.[0]?.verdict === "fail", "producer criterion verdict was not fail");
+    assert(
+      payload.criteria?.[0]?.evidence?.availability === "available",
+      "producer criterion evidence was not retained"
+    );
+    assert(payload.criteria?.[0]?.evidence?.text?.includes("365 days"), "producer fail evidence text was dropped");
     assert(failed.stdout.trim().startsWith("{"), "report stdout was not JSON-only object");
     assert(!failed.stdout.includes(API_KEY), "API key leaked into report stdout");
     assert(
@@ -275,6 +298,18 @@ async function main() {
       "packed report did not GET the hosted report"
     );
     assert(
+      fixture.requests.includes(
+        "GET /v1/runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/evaluations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/attempts/cccccccc-cccc-4ccc-8ccc-cccccccccccc/criteria"
+      ),
+      "packed report did not GET the producer criterion index"
+    );
+    assert(
+      fixture.requests.includes(
+        "GET /v1/runs/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/evaluations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/attempts/cccccccc-cccc-4ccc-8ccc-cccccccccccc/criteria/dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+      ),
+      "packed report did not GET the nested producer criterion detail"
+    );
+    assert(
       fixture.requests.every((item) => item.startsWith("GET ")),
       `packed report issued a non-GET: ${fixture.requests.join(" | ")}`
     );
@@ -282,7 +317,7 @@ async function main() {
     assert(!fixture.requests.some((item) => item.includes("retry-evaluation")), "packed report retried grading");
 
     process.stdout.write(
-      `[packed report fixture] passed (requests=${fixture.requests.length}, source=AW-QA-1 compatibility fixtures)\n`
+      `[packed report fixture] passed (requests=${fixture.requests.length}, source=producer aw-criterion-detail-read/1 @ 8068a90 + AW-QA-1 report)\n`
     );
   } finally {
     if (httpServer !== undefined) {
