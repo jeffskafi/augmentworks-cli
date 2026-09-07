@@ -121,9 +121,11 @@ Local JSON uses `AW-LOCAL-RESULT-1`. Automation should:
   configuration/packet/output preflight, `3` as hosted authentication failure,
   `4` as hosted relay/protocol failure, `5` as target/evidence execution
   error, `6` as cleanup failure (takes precedence), `11` as pending hosted
-  judging (never a pass), `12` as hosted judging error, `13` as hosted
-  billing/usage rejection, and `130` as interrupt after cleanup drain.
-  Codes `3`, `4`, and `13` are unreachable from `--local`.
+  judging or unfinished original-run observation (never a pass), `12` as hosted
+  judging error, `13` as hosted billing/usage rejection, and `130` as interrupt
+  after cleanup drain. For `run status` / `run wait`, JSON `ok: true` means the
+  query succeeded; `exit_code` / `assessment` are the release gate. Codes `3`,
+  `4`, and `13` are unreachable from `--local`.
 - Parse `attempts[].assertions` where `passed` is false to locate failures.
 - Read `attempts[].observations` as values returned by the configured observer,
   not independent proof of production behavior.

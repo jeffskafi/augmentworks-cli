@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const sourceEntrypoint = resolve(projectRoot, "src/index.ts");
+const packedEntrypoint = resolve(projectRoot, "dist/index.js");
 const tsxImportUrl = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 const maxCapturedBytes = 2 * 1024 * 1024;
 
@@ -26,10 +28,70 @@ export async function runSourceCli(
   args: readonly string[],
   options: CliProcessOptions
 ): Promise<CliProcessResult> {
-  const child = spawn(
-    process.execPath,
+  return runNodeCli(
     ["--disable-warning=DEP0205", "--import", tsxImportUrl, sourceEntrypoint, ...args],
-    {
+    options
+  );
+}
+
+export async function runPackedCli(
+  args: readonly string[],
+  options: CliProcessOptions
+): Promise<CliProcessResult> {
+  await ensurePackedCliBuilt();
+  return runNodeCli([packedEntrypoint, ...args], options);
+}
+
+let packedBuild: Promise<void> | undefined;
+
+export async function ensurePackedCliBuilt(): Promise<string> {
+  packedBuild ??= buildPackedCli();
+  await packedBuild;
+  return packedEntrypoint;
+}
+
+async function buildPackedCli(): Promise<void> {
+  const result = await new Promise<CliProcessResult>((fulfill, reject) => {
+    const child = spawn("npm", ["run", "build"], {
+      cwd: projectRoot,
+      env: { ...process.env, CI: "1", NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString("utf8");
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf8");
+    });
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 1_000).unref();
+    }, 120_000);
+    timeout.unref?.();
+    child.once("error", reject);
+    child.once("close", (exitCode, signal) => {
+      clearTimeout(timeout);
+      fulfill({ exitCode, signal, stdout, stderr });
+    });
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Could not build packed CLI (exit ${String(result.exitCode)}): ${result.stderr || result.stdout}`
+    );
+  }
+  if (!existsSync(packedEntrypoint)) {
+    throw new Error("Packed CLI build finished without dist/index.js");
+  }
+}
+
+async function runNodeCli(
+  argv: readonly string[],
+  options: CliProcessOptions
+): Promise<CliProcessResult> {
+  const child = spawn(process.execPath, [...argv], {
     cwd: options.cwd,
     env: {
       ...process.env,

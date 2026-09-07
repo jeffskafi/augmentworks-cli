@@ -228,7 +228,12 @@ codes rather than HTTP status guessing. `INSUFFICIENT_CREDITS`,
 Noninteractive hosted `--assessment` requires `--max-credits N`; `--yes` is
 not an unlimited budget. After target work finishes, pending grading is
 observed with `run wait <run-id>` / `run status <run-id>` on the original
-run. Do not re-run the test command to resume grading.
+run. Do not re-run the test command to resume grading. `run wait` keeps
+polling while target execution is nonterminal even when evaluation is
+`absent`. A successful HTTP status query is not a passing assessment: wait
+and release gates must use process exit `0` only after an explicit resolved
+`passed` outcome. Timed-out waits stay read-only and never create another
+quote, reservation, or run. Retry guidance names the original run ID.
 
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.
