@@ -64,6 +64,12 @@ All notable changes to this project are documented here. The format follows
   Single-turn omits `multi_turn`. Estimate and execute send the same
   declaration. Unsupported multi-turn plans fail before quote. Not
   npm-published.
+- Source `0.3.3` own-target starter recipes and an explicit bounded
+  `probe` command. One initializer still writes `response-quality`
+  (response-only JSON chat, including a five-question synthetic suite) or
+  `workflow` (stateful prepare/send/observe/cleanup). `probe` prints a
+  call plan; `--yes` executes it against the configured target only.
+  Doctor and init never probe. Not npm-published.
 
 ### Fixed
 

@@ -13,8 +13,9 @@ private hosted packet `support-refunds@0.1.0` and managed scoring.
 This directory is **not included in the npm tarball**. Clone the CLI repository
 for the example server. Published `@augmentworks/cli@0.3.2` supports `--local`,
 hosted `--assessment`, and packaged `demo` via npx. Source `0.3.3` adds
-`node dist/index.js init` starter generation plus `usage`/`billing`/`--estimate`.
-The refund-agent example directory is still not in the npm tarball.
+`node dist/index.js init --starter stateful` starter generation (including a
+packaged `server.mjs`) plus `usage`/`billing`/`preview-mapping`/`probe`/
+`--estimate`. The refund-agent example directory is still not in the npm tarball.
 
 ## Obtain the example
 
@@ -56,6 +57,9 @@ node dist/index.js preview-mapping \
   -c augmentworks.yaml \
   --operation observe \
   --fixture ./fixtures/observe-response.json
+
+node dist/index.js probe -c augmentworks.yaml
+node dist/index.js probe -c augmentworks.yaml --yes
 ```
 
 ```bash

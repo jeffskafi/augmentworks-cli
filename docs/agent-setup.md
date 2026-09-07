@@ -15,7 +15,7 @@ during unrelated coding.
 | Item | Value |
 | --- | --- |
 | Verified npm package | `@augmentworks/cli@0.3.2` |
-| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `preview-mapping`, `test --estimate`, `--max-credits`, `run status` / `run wait` / `run report`, and `AUGMENTWORKS_API_KEY` live here) |
+| Source package | `0.3.3` (unreleased starters, `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`, `--max-credits`, `run status` / `run wait` / `run report`, and `AUGMENTWORKS_API_KEY` live here) |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |
@@ -107,15 +107,20 @@ insert credentials.
    missing local environment-variable names without opening or printing `.env`
    values.
 10. Before an assessment, preview the production mapping against a synthetic
-    JSON fixture with source 0.3.2
+    JSON fixture with source 0.3.3
     `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`.
     It does not call the target or consume credits. Do not pass production
     transcripts.
-11. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
+11. Explicitly probe a safe synthetic target with source 0.3.3
+    `node dist/index.js probe -c augmentworks.yaml` (plan only) then
+    `node dist/index.js probe -c augmentworks.yaml --yes`. Doctor and init
+    never probe. Failures are integration diagnostics, not chatbot quality
+    verdicts.
+12. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
     add JavaScript, modules, shell instructions, remote URLs, or secret values.
     Validate its contract with
     `npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet`.
-12. Show the diff, explain which target operations will run, and stop for human
+13. Show the diff, explain which target operations will run, and stop for human
     approval before `test` unless that same scoped assessment was already
     authorized.
 

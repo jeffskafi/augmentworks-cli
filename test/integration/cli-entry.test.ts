@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "demo", "test", "suite", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
@@ -55,6 +55,16 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("--print");
     expect(result.stdout).not.toContain("Checkout");
     expect(result.stdout).not.toContain("Stripe");
+  });
+
+  it("documents probe as an explicit bounded target check", async () => {
+    const result = await runSourceCli(["probe", "--help"], { cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("bounded synthetic connection probe");
+    expect(result.stdout).toContain("--yes");
+    expect(result.stdout).toContain("--json");
+    expect(result.stdout).toContain("Never runs during doctor or init");
   });
 
   it("documents preview-mapping as an offline fixture inspector", async () => {

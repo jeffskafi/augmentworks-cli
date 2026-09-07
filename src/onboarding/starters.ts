@@ -10,6 +10,13 @@ export const DEFAULT_STARTER: StarterId = "response-quality";
 export const STARTER_CONNECTOR_RELATIVE_PATH = "augmentworks.yaml";
 export const STARTER_ASSESSMENT_RELATIVE_PATH = "augmentworks.assessment.yaml";
 export const STARTER_ENV_EXAMPLE_RELATIVE_PATH = ".env.example";
+export const STARTER_ALIASES: Readonly<Record<string, StarterId>> = {
+  "response-quality": "response-quality",
+  "response-only": "response-quality",
+  chat: "response-quality",
+  workflow: "workflow",
+  stateful: "workflow"
+};
 
 export interface StarterFile {
   readonly relativePath: string;
@@ -18,12 +25,13 @@ export interface StarterFile {
 
 export function parseStarterId(value: string | undefined): StarterId {
   const starter = value === undefined || value === "" ? DEFAULT_STARTER : value;
-  if ((STARTER_IDS as readonly string[]).includes(starter)) return starter as StarterId;
+  const resolved = STARTER_ALIASES[starter];
+  if (resolved !== undefined) return resolved;
   throw new AwError({
     code: "INIT_STARTER_UNKNOWN",
     category: "config",
     message:
-      "Unknown --starter. Use response-quality (hosted FAQ assessment) or workflow (support-refunds hooks).",
+      "Unknown --starter. Supported own-target patterns: response-quality (response-only JSON chat) or workflow (stateful prepare/send/observe/cleanup). Streaming, WebSocket, history-array, and connector marketplaces are not supported.",
     details: { starter }
   });
 }

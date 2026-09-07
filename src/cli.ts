@@ -4,6 +4,7 @@ import { createDemoCommand } from "./commands/demo.js";
 import { createRecoverCommand } from "./commands/recover.js";
 import { createDoctorCommand } from "./commands/doctor.js";
 import { createPreviewMappingCommand } from "./commands/preview-mapping.js";
+import { createProbeCommand } from "./commands/probe.js";
 import { createInitCommand } from "./commands/init.js";
 import { createLoginCommand } from "./commands/login.js";
 import { createLogoutCommand } from "./commands/logout.js";
@@ -63,6 +64,7 @@ export function createCli(io: CliIo = {}): Command {
   program.addCommand(createInitCommand({ stdout }));
   program.addCommand(createDoctorCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createPreviewMappingCommand({ stdout, setExitCode: requestExitCode }));
+  program.addCommand(createProbeCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createDemoCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createTestCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createSuiteCommand({ stdout }));

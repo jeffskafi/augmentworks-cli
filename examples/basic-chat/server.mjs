@@ -33,29 +33,40 @@ function colorFrom(text) {
   return match?.[1]?.toLowerCase();
 }
 
-function daysFrom(text) {
-  return /(\d+)\s*days/i.exec(text)?.[1];
-}
-
-function answerFor(session, message) {
+function faqAnswer(message) {
   if (/\[aw-connection-probe\].*probe-ack/i.test(message) || /^\[aw-connection-probe\] Reply with the token probe-ack/i.test(message)) {
     return "probe-ack";
   }
+  if (/warranty/i.test(message)) {
+    return "Warranty replacement is a separate process from a standard unused-item return.";
+  }
+  if (/restocking/i.test(message)) {
+    return "Unused synthetic returns incur a 10% restocking fee.";
+  }
+  if (/reset.*password|password.*reset/i.test(message)) {
+    return "Password resets are available from the synthetic account page.";
+  }
+  if (/shipping/i.test(message)) {
+    return "Synthetic shipments use ground service.";
+  }
+  if (/14\s*days/i.test(message) && /return/i.test(message)) {
+    return "The 14-day unused-return page is stale. The current unused-item return window is 30 days.";
+  }
+  if (/return window|how long.*return|unused-item return|returned within/i.test(message)) {
+    return "Orders placed in the synthetic catalog may be returned within 30 days when the item is unused.";
+  }
+  return undefined;
+}
+
+function sessionAnswer(session, message) {
+  const faq = faqAnswer(message);
+  if (faq !== undefined) return faq;
   if (/what color/i.test(message)) {
     for (let index = session.userMessages.length - 1; index >= 0; index -= 1) {
       const color = colorFrom(session.userMessages[index] ?? "");
       if (color !== undefined) return `You said the color was ${color}.`;
     }
     return "I don't remember a previous color.";
-  }
-  if (/how long|return window/i.test(message) && daysFrom(message) === undefined) {
-    let lastDays;
-    for (const previous of session.userMessages) {
-      const days = daysFrom(previous);
-      if (days !== undefined) lastDays = days;
-    }
-    if (lastDays !== undefined) return `The return window is ${lastDays} days.`;
-    return "I don't remember a return window.";
   }
   return `Noted: ${message}`;
 }
@@ -82,47 +93,50 @@ const server = createServer(async (request, response) => {
     }
 
     const body = await readJson(request);
-    const conversationId = body.conversation_id;
-    if (typeof conversationId !== "string" || conversationId === "") {
-      sendJson(response, 400, { error: "session_required" });
-      return;
-    }
     if (typeof body.message !== "string" || body.message === "") {
       sendJson(response, 400, { error: "message_required" });
       return;
     }
 
+    const conversationId = body.conversation_id;
     const turnId = typeof body.turn_id === "string" ? body.turn_id : "turn";
     const idempotencyKey = request.headers["aw-idempotency-key"];
-    let session = sessions.get(conversationId);
-    if (session === undefined) {
-      session = { userMessages: [], accepted: new Map() };
-      sessions.set(conversationId, session);
-    }
 
-    if (typeof idempotencyKey === "string") {
-      const key = replayKey(conversationId, turnId, idempotencyKey);
-      const cached = session.accepted.get(key);
-      if (cached !== undefined) {
-        sendJson(response, 200, cached);
+    if (typeof conversationId === "string" && conversationId !== "") {
+      let session = sessions.get(conversationId);
+      if (session === undefined) {
+        session = { userMessages: [], accepted: new Map() };
+        sessions.set(conversationId, session);
+      }
+      if (typeof idempotencyKey === "string") {
+        const key = replayKey(conversationId, turnId, idempotencyKey);
+        const cached = session.accepted.get(key);
+        if (cached !== undefined) {
+          sendJson(response, 200, cached);
+          return;
+        }
+        session.userMessages.push(body.message);
+        const payload = {
+          answer: sessionAnswer(session, body.message),
+          finished: true,
+          user_turn_count: session.userMessages.length
+        };
+        session.accepted.set(key, payload);
+        sendJson(response, 200, payload);
         return;
       }
       session.userMessages.push(body.message);
-      const payload = {
-        answer: answerFor(session, body.message),
+      sendJson(response, 200, {
+        answer: sessionAnswer(session, body.message),
         finished: true,
         user_turn_count: session.userMessages.length
-      };
-      session.accepted.set(key, payload);
-      sendJson(response, 200, payload);
+      });
       return;
     }
 
-    session.userMessages.push(body.message);
     sendJson(response, 200, {
-      answer: answerFor(session, body.message),
-      finished: true,
-      user_turn_count: session.userMessages.length
+      answer: faqAnswer(body.message) ?? "This synthetic FAQ does not contain that fact.",
+      finished: true
     });
   } catch (error) {
     const status = error instanceof Error && error.message === "request_too_large" ? 413 : 400;
@@ -131,7 +145,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(Number(baseUrl.port || 8000), baseUrl.hostname, () => {
-  console.log(`Session-agent mock listening on ${baseUrl.origin}`);
+  console.log(`Response-only mock listening on ${baseUrl.origin}`);
 });
 
 function shutdown() {

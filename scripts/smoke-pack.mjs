@@ -131,7 +131,14 @@ function assertInventory(report) {
     "assets/demo/augmentworks.yaml",
     "assets/starters/response-quality/augmentworks.yaml",
     "assets/starters/response-quality/augmentworks.assessment.yaml",
+    "assets/starters/response-quality/augmentworks.session.yaml",
+    "assets/starters/response-quality/own-chatbot.suite.yaml",
+    "assets/starters/response-quality/OWN-TARGET.md",
     "assets/starters/response-quality/.env.example",
+    "assets/starters/response-quality/server.mjs",
+    "assets/starters/response-quality/session-server.mjs",
+    "assets/starters/response-quality/fixtures/send-response.json",
+    "assets/starters/response-quality/fixtures/session-send-response.json",
     "assets/starters/response-quality/references/faq.md",
     "assets/starters/response-quality/references/restocking.md",
     "assets/starters/response-quality/references/warranty.md",
@@ -139,6 +146,11 @@ function assertInventory(report) {
     "assets/starters/workflow/augmentworks.yaml",
     "assets/starters/workflow/augmentworks.assessment.yaml",
     "assets/starters/workflow/.env.example",
+    "assets/starters/workflow/OWN-TARGET.md",
+    "assets/starters/workflow/server.mjs",
+    "assets/starters/workflow/fixtures/send-response.json",
+    "assets/starters/workflow/fixtures/observe-response.json",
+    "assets/starters/workflow/fixtures/prepare-response.json",
     "assets/starters/workflow/references/refund-policy.md",
     "assets/customer-suites/faq-non-commerce.yaml",
     "assets/customer-suites/returns-14-day.yaml",
@@ -332,6 +344,34 @@ async function main() {
     assert(recoverHelp.stdout.includes("--cancel"), "packed CLI is missing recover --cancel");
     assert(!recoverHelp.stdout.includes("--force-delete"), "packed CLI advertised --force-delete");
 
+    const packedHelp = execCli(["--help"]);
+    for (const command of [
+      "login",
+      "logout",
+      "whoami",
+      "usage",
+      "billing",
+      "init",
+      "doctor",
+      "preview-mapping",
+      "probe",
+      "demo",
+      "test",
+      "suite",
+      "run",
+      "recover",
+      "schema"
+    ]) {
+      assert(
+        new RegExp(`^  ${command}(?: \\[options\\])?`, "m").test(packedHelp.stdout),
+        `packed CLI --help is missing ${command}`
+      );
+    }
+    const probeHelp = execCli(["probe", "--help"]);
+    assert(probeHelp.stdout.includes("bounded synthetic connection probe"), "packed CLI is missing probe description");
+    assert(probeHelp.stdout.includes("--yes"), "packed CLI is missing probe --yes");
+    assert(probeHelp.stdout.includes("Never runs during doctor or init"), "packed probe help omitted doctor/init boundary");
+
     const runHelp = execCli(["run", "--help"]);
     assert(runHelp.stdout.includes("report"), "packed CLI is missing run report");
     const reportHelp = execCli(["run", "report", "--help"]);
@@ -360,7 +400,10 @@ async function main() {
       access(join(assessmentDirectory, "augmentworks.assessment.yaml"), fsConstants.R_OK),
       access(join(assessmentDirectory, "references", "refund-policy.md"), fsConstants.R_OK),
       access(join(assessmentDirectory, ".env.example"), fsConstants.R_OK),
-      access(join(assessmentDirectory, ".env"), fsConstants.R_OK)
+      access(join(assessmentDirectory, ".env"), fsConstants.R_OK),
+      access(join(assessmentDirectory, "server.mjs"), fsConstants.R_OK),
+      access(join(assessmentDirectory, "OWN-TARGET.md"), fsConstants.R_OK),
+      access(join(assessmentDirectory, "fixtures", "send-response.json"), fsConstants.R_OK)
     ]);
     assert(
       (await readFile(join(assessmentDirectory, "augmentworks.assessment.yaml"), "utf8")).includes(
@@ -384,13 +427,54 @@ async function main() {
       assert(environmentMode === 0o600, `init created .env with unsafe mode ${environmentMode.toString(8)}`);
     }
 
-    execCli(["doctor", "-c", "augmentworks.yaml", "--offline"], {
+    const doctorOffline = execCli(["doctor", "-c", "augmentworks.yaml", "--offline"], {
       cwd: assessmentDirectory,
       env: {
         CHATBOT_BASE_URL: "http://127.0.0.1:65535",
         CHATBOT_API_KEY: "pack-smoke-placeholder"
       }
     });
+    assert(
+      doctorOffline.stdout.includes("CONNECTION_PROBE_AVAILABLE"),
+      "packed doctor must advertise probe without calling the target"
+    );
+    assert(
+      doctorOffline.stdout.includes("OFFLINE_CHECK_COMPLETE"),
+      "packed doctor skipped the offline marker"
+    );
+
+    process.stdout.write("[pack smoke] checking probe preflight does not call the target\n");
+    const probePlan = execCli(["probe", "-c", "augmentworks.yaml", "--json"], {
+      cwd: assessmentDirectory,
+      env: {
+        CHATBOT_BASE_URL: "http://127.0.0.1:1",
+        CHATBOT_API_KEY: "pack-smoke-probe-secret",
+        AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+      }
+    });
+    let probePlanReport;
+    try {
+      probePlanReport = JSON.parse(probePlan.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `packed probe --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${probePlan.stdout}`
+      );
+    }
+    assert(probePlanReport.schema_version === "AW-CONNECTION-PROBE-1", "probe schema is wrong");
+    assert(probePlanReport.executed === false, "probe without --yes executed target calls");
+    assert(probePlanReport.ok === true, "probe preflight should succeed");
+    assert(probePlanReport.credits_consumed === 0, "probe preflight consumed credits");
+    assert(probePlanReport.hosted_contacted === false, "probe preflight contacted hosted API");
+    assert(probePlanReport.pattern === "stateful", "workflow probe pattern was not stateful");
+    assert(probePlanReport.preflight?.call_count === 4, "stateful probe plan should be 4 calls");
+    assert(
+      !probePlan.stdout.includes("pack-smoke-probe-secret"),
+      "target credential leaked into probe preflight stdout"
+    );
+    assert(
+      !probePlan.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into probe preflight stdout"
+    );
 
     process.stdout.write("[pack smoke] checking init --config custom filename\n");
     const customDirectory = join(consumerDirectory, "custom-config");
@@ -518,11 +602,11 @@ async function main() {
       );
     }
 
-    process.stdout.write("[pack smoke] running bundled packet locally through packed CLI\n");
+    process.stdout.write("[pack smoke] running generated workflow fixture through packed CLI\n");
     const targetOrigin = "http://127.0.0.1:18473";
     targetProcess = spawn(
       process.execPath,
-      [join(projectRoot, "examples", "refund-agent", "server.mjs")],
+      [join(assessmentDirectory, "server.mjs")],
       {
         cwd: assessmentDirectory,
         env: {
@@ -535,6 +619,35 @@ async function main() {
       }
     );
     await waitForTarget(targetOrigin, targetProcess);
+    const probeYes = execCli(["probe", "-c", "augmentworks.yaml", "--yes", "--json"], {
+      cwd: assessmentDirectory,
+      env: {
+        CHATBOT_BASE_URL: targetOrigin,
+        CHATBOT_API_KEY: "pack-smoke-target-key",
+        AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+        AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+      }
+    });
+    let probeYesReport;
+    try {
+      probeYesReport = JSON.parse(probeYes.stdout);
+    } catch (error) {
+      throw new SmokeFailure(
+        `packed probe --yes --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${probeYes.stdout}`
+      );
+    }
+    assert(probeYesReport.ok === true, "packed workflow probe --yes failed");
+    assert(probeYesReport.executed === true, "packed probe --yes did not execute");
+    assert(probeYesReport.credits_consumed === 0, "packed probe consumed credits");
+    assert(Array.isArray(probeYesReport.calls) && probeYesReport.calls.length === 4, "workflow probe did not make 4 calls");
+    assert(
+      (probeYesReport.calls ?? []).map((call) => call.phase).join(",") === "prepare,send,observe,cleanup",
+      "workflow probe phases were not prepare/send/observe/cleanup"
+    );
+    assert(
+      !probeYes.stdout.includes("pack-smoke-target-key"),
+      "target credential leaked into probe --yes stdout"
+    );
     const localOutput = join(assessmentDirectory, "packed-local-report");
     const localRun = execCli(
       [
@@ -571,6 +684,87 @@ async function main() {
       ["report.json", "junit.xml", "report.html"].map((name) =>
         access(join(localOutput, name), fsConstants.R_OK)
       )
+    );
+    await stopTarget(targetProcess);
+    targetProcess = undefined;
+
+    process.stdout.write("[pack smoke] checking packed response-only starter, suite, and probe\n");
+    const responseDirectory = join(consumerDirectory, "response-only");
+    await mkdir(responseDirectory, { recursive: true });
+    execCli(["init", "--starter", "response-only"], { cwd: responseDirectory });
+    const responseYaml = await readFile(join(responseDirectory, "augmentworks.yaml"), "utf8");
+    assert(!/^ {4}prepare:/m.test(responseYaml), "response-only starter must not generate unused prepare hooks");
+    assert(!/^ {4}observe:/m.test(responseYaml), "response-only starter must not generate unused observe hooks");
+    assert(!/^ {4}cleanup:/m.test(responseYaml), "response-only starter must not generate unused cleanup hooks");
+    await Promise.all([
+      access(join(responseDirectory, "server.mjs"), fsConstants.R_OK),
+      access(join(responseDirectory, "session-server.mjs"), fsConstants.R_OK),
+      access(join(responseDirectory, "own-chatbot.suite.yaml"), fsConstants.R_OK),
+      access(join(responseDirectory, "OWN-TARGET.md"), fsConstants.R_OK),
+      access(join(responseDirectory, "fixtures", "send-response.json"), fsConstants.R_OK)
+    ]);
+    const responseDoctor = execCli(["doctor", "-c", "augmentworks.yaml", "--offline"], {
+      cwd: responseDirectory,
+      env: {
+        CHATBOT_BASE_URL: "http://127.0.0.1:65535",
+        CHATBOT_API_KEY: "pack-smoke-response-key"
+      }
+    });
+    assert(
+      responseDoctor.stdout.includes("CONNECTION_PROBE_AVAILABLE"),
+      "response-only doctor must advertise probe without calling the target"
+    );
+    const suiteValidate = execCli(["suite", "validate", "own-chatbot.suite.yaml", "--json"], {
+      cwd: responseDirectory,
+      env: {
+        AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+        AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+      }
+    });
+    const suiteReport = JSON.parse(suiteValidate.stdout);
+    assert(suiteReport.ok === true, "packed own-chatbot suite validate failed");
+    assert(suiteReport.caseCount === 5, "own-chatbot suite must have five cases");
+    const responsePreview = execCli(
+      [
+        "preview-mapping",
+        "-c",
+        "augmentworks.yaml",
+        "--operation",
+        "send",
+        "--fixture",
+        "fixtures/send-response.json",
+        "--json"
+      ],
+      { cwd: responseDirectory }
+    );
+    const responsePreviewReport = JSON.parse(responsePreview.stdout);
+    assert(responsePreviewReport.ok === true, "packed response-only preview-mapping failed");
+    const responseOrigin = "http://127.0.0.1:18474";
+    targetProcess = spawn(process.execPath, [join(responseDirectory, "server.mjs")], {
+      cwd: responseDirectory,
+      env: {
+        ...process.env,
+        CHATBOT_BASE_URL: responseOrigin,
+        CHATBOT_API_KEY: "pack-smoke-response-key"
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+    await waitForTarget(responseOrigin, targetProcess);
+    const responseProbe = execCli(["probe", "-c", "augmentworks.yaml", "--yes", "--json"], {
+      cwd: responseDirectory,
+      env: {
+        CHATBOT_BASE_URL: responseOrigin,
+        CHATBOT_API_KEY: "pack-smoke-response-key"
+      }
+    });
+    const responseProbeReport = JSON.parse(responseProbe.stdout);
+    assert(responseProbeReport.ok === true, "packed response-only probe --yes failed");
+    assert(responseProbeReport.pattern === "response-only", "response-only probe pattern was wrong");
+    assert(responseProbeReport.calls?.length === 1, "response-only probe should make one send call");
+    assert(
+      !responseProbe.stdout.includes("pack-smoke-response-key"),
+      "target credential leaked into response-only probe stdout"
     );
     await stopTarget(targetProcess);
     targetProcess = undefined;
@@ -702,7 +896,7 @@ async function waitForTarget(origin, child) {
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
       const stderr = await streamText(child.stderr);
-      throw new SmokeFailure(`refund target exited before startup: ${stderr.trim()}`);
+      throw new SmokeFailure(`fixture server exited before startup: ${stderr.trim()}`);
     }
     try {
       const response = await fetch(`${origin}/health`, { signal: AbortSignal.timeout(500) });
@@ -712,7 +906,7 @@ async function waitForTarget(origin, child) {
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
-  throw new SmokeFailure("refund target did not become healthy within 10 seconds");
+  throw new SmokeFailure("fixture server did not become healthy within 10 seconds");
 }
 
 async function stopTarget(child) {

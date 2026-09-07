@@ -63,12 +63,15 @@ describe("CLI release metadata", () => {
 
   it("keeps default init next-steps copy and names a custom connector file", () => {
     expect(initNextSteps()).toBe(INIT_NEXT_STEPS);
-    expect(INIT_NEXT_STEPS).toContain("created augmentworks.yaml, augmentworks.assessment.yaml, and starter references");
+    expect(INIT_NEXT_STEPS).toContain(
+      "created augmentworks.yaml, augmentworks.assessment.yaml, starter references, and the packaged fixture server"
+    );
+    expect(INIT_NEXT_STEPS).toContain("probe");
     expect(initNextSteps("custom.yaml")).toContain(
-      "created custom.yaml, augmentworks.assessment.yaml, and starter references"
+      "created custom.yaml, augmentworks.assessment.yaml, starter references, and the packaged fixture server"
     );
     expect(initNextSteps("nested/custom.yaml", "nested/augmentworks.assessment.yaml")).toContain(
-      "created nested/custom.yaml, nested/augmentworks.assessment.yaml, and starter references"
+      "created nested/custom.yaml, nested/augmentworks.assessment.yaml, starter references, and the packaged fixture server"
     );
   });
 });

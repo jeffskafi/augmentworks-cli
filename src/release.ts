@@ -148,6 +148,9 @@ export const SOURCE_BILLING_JSON_COMMAND = formatSourceCli(["billing", "--json"]
 export const SOURCE_BILLING_PRINT_COMMAND = formatSourceCli(["billing", "--print"]);
 export const SOURCE_INIT_COMMAND = formatSourceCli(["init"]);
 export const SOURCE_INIT_WORKFLOW_COMMAND = formatSourceCli(["init", "--starter", "workflow"]);
+export const SOURCE_PROBE_COMMAND = formatSourceCli(["probe", "-c", "augmentworks.yaml"]);
+export const SOURCE_PROBE_JSON_COMMAND = formatSourceCli(["probe", "-c", "augmentworks.yaml", "--json"]);
+export const SOURCE_PROBE_YES_COMMAND = formatSourceCli(["probe", "-c", "augmentworks.yaml", "--yes"]);
 export const SOURCE_ESTIMATE_COMMAND = formatSourceCli([
   "test",
   "--assessment",
@@ -238,10 +241,23 @@ export function initNextSteps(
   configDisplay = "augmentworks.yaml",
   assessmentDisplay = "augmentworks.assessment.yaml"
 ): string {
-  const created = `${configDisplay}, ${assessmentDisplay}, and starter references`;
-  return LOCAL_DISTRIBUTION === "npm"
-    ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created ${created}. Hosted test uses ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} and keeps this terminal open. npm --yes only skips the npm prompt; it is not a spending ceiling.`
-    : `Next: edit .env with isolated synthetic target values, then run doctor. This source build created ${created}. Published ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} does not generate those assessment files. npm --yes only skips the npm prompt; hosted spending consent is --max-credits N.`;
+  const created = `${configDisplay}, ${assessmentDisplay}, starter references, and the packaged fixture server`;
+  const preview = formatSourceCli([
+    "preview-mapping",
+    "-c",
+    configDisplay,
+    "--operation",
+    "send",
+    "--fixture",
+    "./fixtures/send-response.json"
+  ]);
+  const probePlan = formatSourceCli(["probe", "-c", configDisplay]);
+  const probeYes = formatSourceCli(["probe", "-c", configDisplay, "--yes"]);
+  const prefix =
+    LOCAL_DISTRIBUTION === "npm"
+      ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created ${created}.`
+      : `Next: edit .env with isolated synthetic target values, then run doctor. This source build created ${created}. Published ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} does not generate those assessment files.`;
+  return `${prefix} Then ${preview}, ${probePlan} to read the bounded plan, and ${probeYes} only after that review. Hosted spending consent is --max-credits N; npm --yes is not a ceiling. Doctor and init never probe.`;
 }
 
 export const INIT_NEXT_STEPS = initNextSteps();

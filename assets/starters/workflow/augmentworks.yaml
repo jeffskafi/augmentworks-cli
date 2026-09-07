@@ -1,4 +1,5 @@
-# yaml-language-server: $schema=https://augmentworks.ai/schemas/v1/augmentworks.schema.json
+# yaml-language-server: $schema=[REDACTED]/schemas/v1/augmentworks.schema.json
+# Stateful tool workflow. prepare/send/observe/cleanup are required together.
 version: 1
 
 target:
@@ -8,6 +9,11 @@ target:
 
   auth:
     bearer_env: CHATBOT_API_KEY
+
+  limits:
+    request_bytes: 65536
+    response_bytes: 262144
+    operation_timeout_ms: 10000
 
   operations:
     prepare:

@@ -339,6 +339,41 @@ guarantee. Do not pass production transcripts. Include the `--json` output in
 a support handoff when the mapping looks wrong; it already matches relay
 evidence bytes after canonicalization.
 
+## Own-target patterns
+
+One initializer writes two supported JSON HTTP patterns:
+
+| `--starter` | Pattern | Generated hooks |
+| --- | --- | --- |
+| `response-quality` (`response-only`, `chat`) | Response-only JSON chat | `send` only, plus a five-question synthetic suite |
+| `workflow` (`stateful`) | Stateful tool workflow | `prepare`, `send`, `observe`, `cleanup` |
+
+Response-only setup must not add unused state hooks. Streaming, WebSocket,
+history-array multi-turn, and connector marketplaces are not supported. The
+only multi-turn mode is `explicit_session_v1` (see Conversation). Packaged
+fixture servers and `OWN-TARGET.md` are copied by `init`.
+
+## Connection probe
+
+`doctor` and `preview-mapping` stay offline. They do not prove network
+authentication, selector behavior against a live response, session
+continuity, or cleanup. Source 0.3.3 adds an explicit command:
+
+```bash
+node dist/index.js probe -c augmentworks.yaml
+node dist/index.js probe -c augmentworks.yaml --yes
+```
+
+Without `--yes` the command prints the planned operations, number of calls,
+time and byte limits, and possible synthetic side effects. `--yes` executes
+that plan against the configured target with synthetic correlation ids.
+Doctor and init never start a probe. The probe does not quote, reserve, or
+create a hosted run. If hosted work is required, use ordinary
+`test --estimate` / `--max-credits N --yes`. Failures name the phase
+(connection refusal, timeout, authentication, response selector,
+conversation/session, cleanup) and a corrective action. They are not chatbot
+quality verdicts and must not expose request secrets.
+
 The canonical machine-readable definition is
 [`schemas/v1/augmentworks.schema.json`](../schemas/v1/augmentworks.schema.json).
 

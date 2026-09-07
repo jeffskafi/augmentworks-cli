@@ -7,6 +7,16 @@ export {
   previewMapping
 } from "./mapping-preview.js";
 export {
+  CONNECTION_PROBE_DISCLAIMER,
+  CONNECTION_PROBE_SCHEMA_VERSION,
+  PROBE_ACK_MESSAGE,
+  formatConnectionProbeHuman,
+  formatConnectionProbeJson,
+  planConnectionProbe,
+  probeExitCode,
+  runConnectionProbe
+} from "./connection-probe.js";
+export {
   omittedMappedResponseReason,
   shouldOmitMappedResponseField
 } from "./normalize.js";
@@ -20,6 +30,13 @@ export type {
   MappingPreviewRequest,
   MappingPreviewTruncation
 } from "./mapping-preview.js";
+export type {
+  ConnectionProbeReport,
+  ProbeFailureClass,
+  ProbePattern,
+  ProbePhase,
+  ProbePreflight
+} from "./connection-probe.js";
 export type {
   AssistantMessage,
   CleanupConnectorResult,

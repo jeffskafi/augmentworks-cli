@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { AwError } from "../errors.js";
 import { HOSTED_COMMAND_PIN, initNextSteps, NPM_PACKAGE } from "../release.js";
 import {
+  DEFAULT_STARTER,
   loadStarterFiles,
   parseStarterId,
   STARTER_ASSESSMENT_RELATIVE_PATH,
@@ -76,7 +77,8 @@ npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c ${configDisplayPath}
 
 - Read \`${configDisplayPath}\`, \`${STARTER_ASSESSMENT_RELATIVE_PATH}\`, and \`${STARTER_ENV_EXAMPLE_RELATIVE_PATH}\`; never read, print, or commit \`.env\`.
 - Keep target paths and request/response mappings declarative. Do not add executable mappings.
-- Add only synthetic prepare, send, observe, and cleanup hooks required by the configured packet.
+- Add only synthetic prepare, send, observe, and cleanup hooks required by the selected pattern. Response-only JSON chat must not add unused state hooks.
+- Preview mappings with a synthetic JSON fixture before calling the target. Use \`probe\` to print the bounded plan, then \`probe --yes\` only after that review. Doctor and init never probe.
 - Show the diff and ask before starting an assessment or changing external systems.
 - Do not overwrite an edited assessment or reference file. Re-run init with --force only when replacing generated starters.
 `;
@@ -226,7 +228,11 @@ export function createInitCommand(dependencies: InitCommandDependencies = {}): C
   return new Command("init")
     .description("Create a complete AugmentWorks connector, assessment, and starter references")
     .option("-c, --config <path>", "configuration path", STARTER_CONNECTOR_RELATIVE_PATH)
-    .option("--starter <name>", "response-quality (default) or workflow", DEFAULT_STARTER_OPTION)
+    .option(
+      "--starter <name>",
+      "response-quality / response-only (default JSON chat) or workflow / stateful (tool lifecycle)",
+      DEFAULT_STARTER
+    )
     .option("--agent", "also create repository-local coding-agent instructions")
     .option("--force", "replace generated files, but never replace an existing .env")
     .option("--no-env", "do not create a local .env or update .gitignore")
@@ -263,5 +269,3 @@ export function createInitCommand(dependencies: InitCommandDependencies = {}): C
       }
     );
 }
-
-const DEFAULT_STARTER_OPTION = "response-quality";

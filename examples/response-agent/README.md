@@ -6,10 +6,11 @@ included in the npm tarball. Clone this repository for the example server.
 
 Published `@augmentworks/cli@0.3.2` includes `--assessment`. Copy or write
 `augmentworks.assessment.yaml`, then run hosted test against this isolated
-synthetic target only. Source `0.3.3` `init` can generate a packaged
-response-quality starter instead of copying this example.
+synthetic target only. Source `0.3.3` `init --starter response-only` writes a
+packaged copy of this fixture (including `server.mjs`) instead of copying
+this git-only example directory.
 
-From a source 0.3.2 build, preview the chat-only send mapping before an
+From a source 0.3.3 build, preview the chat-only send mapping before an
 assessment. This does not call the target or consume credits:
 
 ```bash
@@ -17,8 +18,10 @@ node dist/index.js preview-mapping \
   -c augmentworks.yaml \
   --operation send \
   --fixture ./fixtures/send-response.json
-```
 
+node dist/index.js probe -c augmentworks.yaml
+node dist/index.js probe -c augmentworks.yaml --yes
+```
 ```yaml
 # augmentworks.assessment.yaml is synthetic test data only.
 ```
@@ -58,8 +61,11 @@ conversation identifier, and `turn_id` cannot append a second accepted user
 message. This fixture does that; arbitrary endpoints are not assumed
 idempotent.
 
-From a source 0.3.3 build, validate the session mapping offline:
+From a source 0.3.3 build, validate the session mapping offline, then probe
+the session fixture. Doctor and init never probe:
 
 ```bash
 node dist/index.js doctor -c augmentworks.session.yaml --offline
+node dist/index.js probe -c augmentworks.session.yaml
+node dist/index.js probe -c augmentworks.session.yaml --yes
 ```
