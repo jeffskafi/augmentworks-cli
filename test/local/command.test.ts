@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { localExitCode, runLocalTest } from "../../src/commands/local-test.js";
 import { createTestCommand, type TestDependencies } from "../../src/commands/test.js";
+import { SINGLE_TURN_CONVERSATION } from "../../src/config/conversation.js";
 import type { ResolvedConfig } from "../../src/config/types.js";
 import type { ConnectorResult } from "../../src/connector/types.js";
 import { EXIT } from "../../src/errors.js";
@@ -92,6 +93,7 @@ function resolvedConfig(): ResolvedConfig {
       cleanup: false,
       tool_events: false
     },
+    conversation: SINGLE_TURN_CONVERSATION,
     warnings: []
   };
 }

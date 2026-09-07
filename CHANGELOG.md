@@ -51,6 +51,12 @@ All notable changes to this project are documented here. The format follows
   It uses the production extraction, allowlist, redaction, and
   `canonicalize` pipeline. No target, cloud, or model call. Not in published
   `0.3.2`.
+- Source `0.3.3` explicit session mode (`target.conversation.strategy:
+  explicit_session_v1`). Hosted `multi_turn` is advertised only from that
+  validated configuration, together with `aw-conversation-enforcement/1`.
+  Single-turn omits `multi_turn`. Estimate and execute send the same
+  declaration. Unsupported multi-turn plans fail before quote. Not
+  npm-published.
 
 ### Fixed
 
@@ -61,6 +67,11 @@ All notable changes to this project are documented here. The format follows
   Null totals stay unknown (never zero). Missing or mixed evidence stays
   `complete: false` with a bounded retry-the-original-run warning; the CLI
   never starts another billed assessment. Not npm-published.
+- Hosted `run report` parses the main producer's `aw-criterion-detail-read/1`
+  index (`items`, `nextCursor`, `totalInAttempt`) and nested
+  `document`/`inspection` details instead of rejecting them as
+  `CRITERION_SCHEMA_INVALID`. Producer-shaped fixtures are vendored separately
+  from the locked AW-QA-1 invented `criteria`/`page` documents. Not npm-published.
 - `init -c custom.yaml` writes the requested connector filename instead of
   always emitting `augmentworks.yaml`. Companion assessment, reference, and
   environment files stay in the selected config directory. `--force` replaces

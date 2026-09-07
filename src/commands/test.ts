@@ -9,6 +9,10 @@ import {
   type CreateRunResponse,
   type RunStatusResponse
 } from "../cloud/protocol.js";
+import {
+  advertisedTargetCapabilities,
+  assertConversationSupportsPacket
+} from "../config/conversation.js";
 import type { ResolvedConfig } from "../config/types.js";
 import { targetBoundarySha256 } from "../config/boundary.js";
 import { HttpConnector } from "../connector/http.js";
@@ -16,6 +20,7 @@ import { AwError, EXIT, exitCodeFor, sanitizeTerminal } from "../errors.js";
 import { classifyHostedOutcome } from "../outcome/classify.js";
 import {
   loadAssessmentFile,
+  packetRequiresMultiTurn,
   type LoadedAssessment
 } from "../assessment/index.js";
 import {
@@ -90,6 +95,7 @@ export interface EstimateResult {
   readonly quote: BillingQuote;
   readonly localPlanHash: string;
   readonly workspaceLabel: string;
+  readonly advertisedCapabilities: CreateRunRequest["target"]["capabilities"];
 }
 
 export interface SignalHost {
@@ -146,22 +152,9 @@ export async function runTest(
       ? parsePacketReference(requirePacket(options.packet))
       : primaryAssessmentPacket(assessment);
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
+  await assertHostedConversationAdmission(report.resolvedConfig, packet);
   const session = await authenticateHostedSession(options, dependencies);
-  const observationKeys = report.resolvedConfig.capabilities.observation
-    ? [...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
-    : [];
-  const target = {
-    name: report.resolvedConfig.config.target.name,
-    boundary_sha256: targetBoundarySha256(report.resolvedConfig),
-    capabilities: {
-      prepare: report.resolvedConfig.capabilities.prepare,
-      observation: report.resolvedConfig.capabilities.observation,
-      cleanup: report.resolvedConfig.capabilities.cleanup,
-      tool_events: report.resolvedConfig.capabilities.tool_events,
-      observation_keys: observationKeys,
-      ...(assessment === undefined ? {} : { multi_turn: true })
-    }
-  };
+  const target = hostedTargetBinding(report.resolvedConfig);
   const stderr = dependencies.stderr ?? process.stderr;
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
   const intentStore =
@@ -330,33 +323,23 @@ export async function runEstimate(
     cwd,
     ...(options.profile === undefined ? {} : { profile: options.profile })
   });
+  const packet = primaryAssessmentPacket(assessment);
+  await assertHostedConversationAdmission(report.resolvedConfig, packet);
   const session = await authenticateHostedSession(options, dependencies);
-  const observationKeys = report.resolvedConfig.capabilities.observation
-    ? [...new Set(report.resolvedConfig.config.telemetry?.allow_observations ?? [])].sort()
-    : [];
+  const target = hostedTargetBinding(report.resolvedConfig);
   const quote = await requestHostedQuote({
     session,
     assessment,
-    packet: primaryAssessmentPacket(assessment),
+    packet,
     configSha256: report.resolvedConfig.configDigest,
-    target: {
-      name: report.resolvedConfig.config.target.name,
-      boundary_sha256: targetBoundarySha256(report.resolvedConfig),
-      capabilities: {
-        prepare: report.resolvedConfig.capabilities.prepare,
-        observation: report.resolvedConfig.capabilities.observation,
-        cleanup: report.resolvedConfig.capabilities.cleanup,
-        tool_events: report.resolvedConfig.capabilities.tool_events,
-        observation_keys: observationKeys,
-        multi_turn: true
-      }
-    },
+    target,
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
   return {
     quote,
     localPlanHash: assessment.freezeSha256,
-    workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId
+    workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
+    advertisedCapabilities: target.capabilities
   };
 }
 
@@ -501,6 +484,26 @@ async function requestHostedQuote(options: {
   );
   assertQuoteWorkspace(quote, options.session.identity.workspaceId);
   return quote;
+}
+
+function hostedTargetBinding(resolved: ResolvedConfig): CreateRunRequest["target"] {
+  return {
+    name: resolved.config.target.name,
+    boundary_sha256: targetBoundarySha256(resolved),
+    capabilities: advertisedTargetCapabilities(resolved)
+  };
+}
+
+async function assertHostedConversationAdmission(
+  resolved: ResolvedConfig,
+  packet: { key: string; version: string }
+): Promise<void> {
+  const requiresMultiTurn = await packetRequiresMultiTurn(packet.key, packet.version);
+  assertConversationSupportsPacket({
+    resolved,
+    packetRequiresMultiTurn: requiresMultiTurn,
+    packetLabel: `${packet.key}@${packet.version}`
+  });
 }
 
 function writeConsentExplanation(
@@ -654,19 +657,21 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               dependencies
             );
             if (values.json === true) {
-              stdout.write(
+              const payload = JSON.parse(
                 estimateSuccessJson({
                   quote: estimate.quote,
                   localPlanHash: estimate.localPlanHash
                 })
-              );
+              ) as Record<string, unknown>;
+              payload["advertisedCapabilities"] = estimate.advertisedCapabilities;
+              stdout.write(`${JSON.stringify(payload)}\n`);
             } else {
               stdout.write(
-                formatEstimateHuman({
+                `${formatEstimateHuman({
                   quote: estimate.quote,
                   workspaceLabel: estimate.workspaceLabel,
                   localPlanHash: estimate.localPlanHash
-                })
+                }).trimEnd()}\n${formatAdvertisedConversation(estimate.advertisedCapabilities)}\n`
               );
             }
           } catch (error) {
@@ -884,6 +889,15 @@ function hostedJsonResult(result: TestResult): Record<string, unknown> {
       ? {}
       : { evaluation_status: result.run.evaluation_status })
   };
+}
+
+function formatAdvertisedConversation(
+  capabilities: CreateRunRequest["target"]["capabilities"]
+): string {
+  if (capabilities.multi_turn === true && capabilities.conversation?.strategy === "explicit_session_v1") {
+    return "Advertised conversation: explicit_session_v1 (multi_turn=true). Estimate and execute send this same declaration.";
+  }
+  return "Advertised conversation: single-turn (multi_turn omitted). Estimate and execute send this same declaration.";
 }
 
 function writeHostedResult(stdout: Pick<NodeJS.WriteStream, "write">, result: TestResult): void {

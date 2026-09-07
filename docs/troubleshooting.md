@@ -102,8 +102,37 @@ If hosted grading is pending after target work, the exit code is `11`, not `0`.
 The packet requires a lifecycle capability that the target configuration does
 not provide. Add only the required synthetic `prepare`, `observe`, or `cleanup`
 mapping, enable structured tool events if required, and add every requested
-observation alias to `telemetry.allow_observations`. Run `doctor` again before
-starting the assessment.
+observation alias to `telemetry.allow_observations`. A packet with
+`required_capabilities.multi_turn` also needs
+`target.conversation.strategy: explicit_session_v1` and
+`$input.conversation_id` mapped on send. Run `doctor` again before starting the
+assessment.
+
+### `CONVERSATION_CAPABILITY_INCOMPATIBLE`
+
+The selected packet requires multi-turn conversation, but this connector
+advertises single-turn. Configure:
+
+```yaml
+target:
+  conversation:
+    strategy: explicit_session_v1
+  operations:
+    send:
+      request:
+        conversation_id: $input.conversation_id
+```
+
+No quote, reservation, or run is created. Correlation IDs are not a session.
+`history_array_v1` is not implemented.
+
+### `SESSION_CONVERSATION_ID_UNMAPPED` / `SESSION_STRATEGY_UNSUPPORTED`
+
+`explicit_session_v1` requires an exact `$input.conversation_id` send mapping.
+Do not map `attempt_id` as a substitute. Unknown or reserved strategies
+(`history_array_v1`) are rejected. Mapping `conversation_id` without declaring
+the session strategy is also rejected so the CLI cannot silently invent a
+session field on an old target.
 
 ### `LOCAL_OUTPUT_EXISTS`
 

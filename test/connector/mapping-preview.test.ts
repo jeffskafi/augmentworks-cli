@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { SINGLE_TURN_CONVERSATION } from "../../src/config/conversation.js";
 import type { AugmentWorksConfig } from "../../src/config/types.js";
 import { HttpConnector } from "../../src/connector/http.js";
 import { previewMapping } from "../../src/connector/mapping-preview.js";
@@ -174,6 +175,7 @@ describe("mapping preview service", () => {
         cleanup: true,
         tool_events: true
       },
+      conversation: SINGLE_TURN_CONVERSATION,
       warnings: []
     };
     const connector = new HttpConnector(resolved, {

@@ -88,6 +88,19 @@
         }
       }
     },
+    "conversation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy"],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "single_turn (default when omitted) or explicit_session_v1. History-array mode is reserved and rejected. Correlation IDs are not a session."
+        }
+      }
+    },
     "limits": {
       "type": "object",
       "additionalProperties": false,
@@ -107,6 +120,7 @@
         "base_url": { "$ref": "#/$defs/baseUrl" },
         "allow_insecure_http": { "type": "boolean" },
         "auth": { "$ref": "#/$defs/auth" },
+        "conversation": { "$ref": "#/$defs/conversation" },
         "operations": {
           "type": "object",
           "additionalProperties": false,

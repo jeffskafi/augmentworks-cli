@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { AugmentWorksConfig, Diagnostic, JsonValue } from "./types.js";
+import { conversationValidationDiagnostics } from "./conversation.js";
 import { ENV_NAME_PATTERN, EXACT_ENV_REFERENCE_PATTERN } from "./environment.js";
 import { LIMITS } from "../util/limits.js";
 
@@ -102,6 +103,12 @@ const configSchema = z
             request_bytes: z.number().int().min(1024).max(1_048_576).optional(),
             response_bytes: z.number().int().min(1024).max(1_048_576).optional(),
             operation_timeout_ms: z.number().int().min(100).max(120_000).optional()
+          })
+          .strict()
+          .optional(),
+        conversation: z
+          .object({
+            strategy: z.string().trim().min(1).max(80)
           })
           .strict()
           .optional()
@@ -386,6 +393,7 @@ export function validateConfigObject(value: unknown): ValidationResult {
   }
 
   scanLiteralSecrets(config, "", diagnostics);
+  diagnostics.push(...conversationValidationDiagnostics(config));
   return { config, diagnostics };
 }
 

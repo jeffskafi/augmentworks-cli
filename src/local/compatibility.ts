@@ -8,7 +8,8 @@ export interface LocalPacketCompatibilityIssue {
     | "OBSERVATION_REQUIRED"
     | "CLEANUP_REQUIRED"
     | "TOOL_EVENTS_REQUIRED"
-    | "OBSERVATION_NOT_ALLOWED";
+    | "OBSERVATION_NOT_ALLOWED"
+    | "MULTI_TURN_REQUIRED";
   readonly message: string;
   readonly path: string;
 }
@@ -64,6 +65,14 @@ export function inspectLocalPacketCompatibility(
       message:
         "The packet uses structured target-event assertions, but tool-event evidence is not mapped and allowlisted.",
       path: "telemetry.allow_tool_events"
+    });
+  }
+  if (packet.required_capabilities.multi_turn && !resolved.conversation.multiTurn) {
+    issues.push({
+      code: "MULTI_TURN_REQUIRED",
+      message:
+        "The packet requires multi-turn conversation, but target.conversation.strategy is not explicit_session_v1 with $input.conversation_id mapped on send.",
+      path: "target.conversation.strategy"
     });
   }
 

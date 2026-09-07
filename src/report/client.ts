@@ -11,10 +11,16 @@ import type { AccessTokenProvider } from "../auth/types.js";
 import { remapAuthError } from "../auth/client.js";
 import type { CredentialSource } from "../auth/types.js";
 import {
+  parseCriterionWireDetail,
+  parseCriterionWirePage,
+  criterionWireVerdictDiagnostics,
+  type CriterionWireContext,
+  type CriterionWireFailure
+} from "./criterion-wire.js";
+import {
   CRITERION_DETAIL_SCHEMA_VERSION,
   CRITERION_MAX_PAGES,
   CriterionDetailSchema,
-  CriterionIndexSchema,
   REPORT_MAX_PAGES,
   REPORT_PAGE_BYTES_MAX,
   REPORT_RETRY_AFTER_CAP_MS,
@@ -463,7 +469,8 @@ class RunReportClient {
         report.runId,
         attempt.attemptId,
         binding,
-        diagnostics
+        diagnostics,
+        report.workspaceId
       );
       for (const detail of details) {
         const key = `${detail.attemptId}:${detail.criterionId}`;
@@ -487,29 +494,40 @@ class RunReportClient {
     runId: string,
     attemptId: string,
     binding: EvaluationBinding,
-    diagnostics: ExportDiagnostic[]
+    diagnostics: ExportDiagnostic[],
+    workspaceId?: string
   ): Promise<{ details: CriterionDetail[]; complete: boolean }> {
     const details: CriterionDetail[] = [];
     const seenCursors = new Set<string>();
     const criterionTotals = new ClaimedCount();
+    const wireContext: CriterionWireContext = {
+      runId,
+      attemptId,
+      binding,
+      indexUrl: startUrl,
+      ...(workspaceId === undefined ? {} : { workspaceId })
+    };
     let nextUrl: URL | undefined = startUrl;
     for (let pageIndex = 0; pageIndex < CRITERION_MAX_PAGES && nextUrl !== undefined; pageIndex += 1) {
       const payload = await this.#getJson(nextUrl);
-      const indexParsed = CriterionIndexSchema.safeParse(payload);
-      if (!indexParsed.success) {
-        const detailParsed = CriterionDetailSchema.safeParse(payload);
-        if (detailParsed.success) {
-          this.#assertCriterionBinding(detailParsed.data, runId, attemptId, binding);
-          details.push(detailParsed.data);
-          return { details, complete: true };
+      const indexParsed = parseCriterionWirePage(payload, wireContext);
+      if (!indexParsed.ok) {
+        if (indexParsed.fatal) {
+          this.#throwWireFailure(indexParsed, runId);
         }
-        diagnostics.push({
-          code: "CRITERION_SCHEMA_INVALID",
-          message: "A criterion page did not match aw-criterion-detail-read/1."
-        });
+        diagnostics.push(indexParsed.diagnostic);
         return { details, complete: false };
       }
-      const index = indexParsed.data;
+      if (indexParsed.kind === "detail") {
+        this.#assertCriterionBinding(indexParsed.detail, runId, attemptId, binding);
+        details.push(indexParsed.detail);
+        return this.#finishAttemptCriteria(details, diagnostics, {
+          runId,
+          claimedTotal: null,
+          requireClaimedTotal: false
+        });
+      }
+      const index = indexParsed.index;
       this.#assertCriterionIndexBinding(index, runId, attemptId, binding);
       if (criterionTotals.observe(index.page.totalCriteria) === "conflict") {
         diagnostics.push({
@@ -525,18 +543,20 @@ class RunReportClient {
         if (item.detailUrl !== null && item.detailUrl !== undefined && item.evidence === undefined) {
           const detailUrl = this.#requireSameOriginLink(item.detailUrl, "criterion detailUrl");
           const detailPayload = await this.#getJson(detailUrl);
-          const detail = CriterionDetailSchema.safeParse(detailPayload);
-          if (!detail.success) {
-            diagnostics.push({
-              code: "CRITERION_SCHEMA_INVALID",
-              message: "A criterion detail document did not match aw-criterion-detail-read/1."
-            });
+          const detail = parseCriterionWireDetail(detailPayload, wireContext);
+          if (!detail.ok) {
+            if (detail.fatal) {
+              this.#throwWireFailure(detail, runId);
+            }
+            diagnostics.push(detail.diagnostic);
             return { details, complete: false };
           }
-          this.#assertCriterionBinding(detail.data, runId, attemptId, binding);
-          details.push(detail.data);
+          this.#assertCriterionBinding(detail.detail, runId, attemptId, binding);
+          details.push(detail.detail);
           continue;
         }
+        const wireVerdict =
+          "wireVerdict" in item ? (item as { wireVerdict?: unknown }).wireVerdict : undefined;
         const embedded = CriterionDetailSchema.safeParse({
           schemaVersion: CRITERION_DETAIL_SCHEMA_VERSION,
           runId: index.runId,
@@ -554,7 +574,8 @@ class RunReportClient {
             text: null,
             sha256: null,
             truncated: false
-          }
+          },
+          ...(wireVerdict === undefined ? {} : { wireVerdict })
         });
         if (!embedded.success) {
           diagnostics.push({
@@ -594,6 +615,22 @@ class RunReportClient {
       });
       return { details, complete: false };
     }
+    return this.#finishAttemptCriteria(details, diagnostics, {
+      runId,
+      claimedTotal: criterionTotals.value,
+      requireClaimedTotal: true
+    });
+  }
+
+  #finishAttemptCriteria(
+    details: CriterionDetail[],
+    diagnostics: ExportDiagnostic[],
+    options: {
+      readonly runId: string;
+      readonly claimedTotal: number | null;
+      readonly requireClaimedTotal: boolean;
+    }
+  ): { details: CriterionDetail[]; complete: boolean } {
     const uniqueIds = new Set(details.map((item) => item.criterionId));
     if (uniqueIds.size !== details.length) {
       diagnostics.push({
@@ -602,29 +639,52 @@ class RunReportClient {
       });
       return { details, complete: false };
     }
-    const claimed = criterionTotals.value;
-    if (claimed !== null && uniqueIds.size !== claimed) {
-      diagnostics.push({
-        code: "CRITERION_TOTAL_BOUNDS",
-        message: retrievalRecoveryMessage(
-          runId,
-          `Collected ${String(uniqueIds.size)} distinct criteria; totalCriteria is ${String(claimed)}.`
-        )
-      });
-      return { details, complete: false };
+    if (options.requireClaimedTotal) {
+      const claimed = options.claimedTotal;
+      if (claimed !== null && uniqueIds.size !== claimed) {
+        diagnostics.push({
+          code: "CRITERION_TOTAL_BOUNDS",
+          message: retrievalRecoveryMessage(
+            options.runId,
+            `Collected ${String(uniqueIds.size)} distinct criteria; totalCriteria is ${String(claimed)}.`
+          )
+        });
+        return { details, complete: false };
+      }
+      if (claimed === null) {
+        diagnostics.push({
+          code: "CRITERION_TOTAL_UNKNOWN",
+          message: retrievalRecoveryMessage(
+            options.runId,
+            "totalCriteria is unknown; retrieved completeness cannot be proved."
+          ),
+          retryable: true
+        });
+        return { details, complete: false };
+      }
     }
-    if (claimed === null) {
-      diagnostics.push({
-        code: "CRITERION_TOTAL_UNKNOWN",
-        message: retrievalRecoveryMessage(
-          runId,
-          "totalCriteria is unknown; retrieved completeness cannot be proved."
-        ),
-        retryable: true
-      });
+    const verdictDiagnostics = criterionWireVerdictDiagnostics(details);
+    if (verdictDiagnostics.length > 0) {
+      diagnostics.push(...verdictDiagnostics);
       return { details, complete: false };
     }
     return { details, complete: true };
+  }
+
+  #throwWireFailure(failure: CriterionWireFailure, runId: string): never {
+    if (failure.mismatch === "workspace") {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: retrievalRecoveryMessage(
+          runId,
+          "A criterion document workspaceId did not match the authenticated workspace."
+        )
+      });
+    }
+    throw new ReportProtocolError({
+      code: failure.diagnostic.code,
+      message: failure.diagnostic.message
+    });
   }
 
   #assertCriterionIndexBinding(

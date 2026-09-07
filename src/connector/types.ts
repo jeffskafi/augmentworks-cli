@@ -23,6 +23,7 @@ export interface ConnectorExecutionContext {
   readonly attemptId?: string;
   readonly turnId?: string;
   readonly requestId?: string;
+  readonly conversationId?: string;
   readonly signal?: AbortSignal;
 }
 

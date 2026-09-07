@@ -441,6 +441,19 @@ export class RelayRunner {
         commandId: command.command_id
       });
     }
+    if (
+      command.kind === "send" &&
+      command.input.conversation_id !== undefined &&
+      command.input.conversation_id !== command.attempt_id
+    ) {
+      throw new AwError({
+        code: "CONVERSATION_IDENTITY_MISMATCH",
+        category: "protocol",
+        message: "explicit_session_v1 requires conversation_id to equal attempt_id.",
+        operation: command.kind,
+        commandId: command.command_id
+      });
+    }
   }
 
   #throwIfStopped(): void {
@@ -501,11 +514,16 @@ export class RelayRunner {
 }
 
 function connectorContext(command: RelayCommand, signal?: AbortSignal): ConnectorExecutionContext {
+  const sendConversationId =
+    command.kind === "send" && command.input.conversation_id !== undefined
+      ? command.input.conversation_id
+      : command.attempt_id;
   return {
     commandId: command.command_id,
     idempotencyKey: command.idempotency_key,
     runId: command.run_id,
     attemptId: command.attempt_id,
+    conversationId: sendConversationId,
     ...(command.kind === "send" ? { turnId: command.input.turn_id } : {}),
     ...(command.kind === "observe" ? { requestId: command.input.request_id } : {}),
     ...(signal === undefined ? {} : { signal })

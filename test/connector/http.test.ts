@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { CONVERSATION_STRATEGY_EXPLICIT_SESSION, resolveConversation } from "../../src/config/conversation.js";
 import type { AugmentWorksConfig, ResolvedConfig } from "../../src/config/types.js";
 import { HttpConnector } from "../../src/connector/index.js";
 import type { ConnectorExecutionContext } from "../../src/connector/types.js";
@@ -59,7 +60,34 @@ function resolved(
       cleanup: true,
       tool_events: telemetry?.allow_tool_events === true
     },
+    conversation: resolveConversation(config),
     warnings: []
+  };
+}
+
+function sessionResolved(): ResolvedConfig {
+  const base = resolved({
+    send: {
+      method: "POST",
+      path: "/chat",
+      request: {
+        message: "$input.message.content",
+        conversation_id: "$input.conversation_id"
+      },
+      response: { content: "$.answer" }
+    }
+  });
+  const config: AugmentWorksConfig = {
+    ...base.config,
+    target: {
+      ...base.config.target,
+      conversation: { strategy: CONVERSATION_STRATEGY_EXPLICIT_SESSION }
+    }
+  };
+  return {
+    ...base,
+    config,
+    conversation: resolveConversation(config)
   };
 }
 
@@ -442,5 +470,53 @@ describe("HttpConnector", () => {
       code: "TARGET_OUTCOME_INDETERMINATE",
       details: { reason_code: "INVALID_TARGET_EVENTS" }
     });
+  });
+
+  it("does not inject conversation_id into a single-turn mapping", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        message: "Refund it",
+        attempt_id: "attempt_1"
+      });
+      expect(JSON.parse(String(init?.body))).not.toHaveProperty("conversation_id");
+      return Response.json({ answer: "ok", events: [], metadata: {} });
+    });
+    const connector = new HttpConnector(resolved(), { fetch: fetchMock });
+    await connector.execute(
+      "send",
+      { message: { role: "user", content: "Refund it" } },
+      context({ turnId: "turn_1", conversationId: "attempt_1" })
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("maps attempt-scoped conversation_id only for explicit_session_v1", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+      expect(JSON.parse(String(init?.body))).toEqual({
+        message: "What color?",
+        conversation_id: "attempt_1"
+      });
+      return Response.json({ answer: "blue", events: [], metadata: {} });
+    });
+    const sessionConnector = new HttpConnector(sessionResolved(), { fetch: fetchMock });
+    await sessionConnector.execute(
+      "send",
+      { message: { role: "user", content: "What color?" } },
+      context({ turnId: "turn_1" })
+    );
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a conversation identifier that is not the attempt id", async () => {
+    const connector = new HttpConnector(sessionResolved(), {
+      fetch: vi.fn(async () => Response.json({ answer: "ok" }))
+    });
+    await expect(
+      connector.execute(
+        "send",
+        { message: { role: "user", content: "Hi" }, conversation_id: "other_attempt" },
+        context({ turnId: "turn_1" })
+      )
+    ).rejects.toMatchObject({ code: "CONVERSATION_IDENTITY_MISMATCH" });
   });
 });

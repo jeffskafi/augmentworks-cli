@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 
 import { canonicalize, sha256 } from "../util/canonical.js";
 import type { AugmentWorksConfig, Diagnostic, ResolvedConfig } from "./types.js";
+import { resolveConversation } from "./conversation.js";
 import { exactEnvironmentName } from "./environment.js";
 
 function ipv4Number(hostname: string): number | undefined {
@@ -184,6 +185,7 @@ export function resolveConfig(
         cleanup: operations.cleanup !== undefined,
         tool_events: toolEvents
       },
+      conversation: resolveConversation(config),
       warnings
     }
   };

@@ -21,6 +21,10 @@ export interface HttpAuthConfig {
   headers_env?: Record<string, string>;
 }
 
+export interface ConversationConfig {
+  strategy: string;
+}
+
 export interface AugmentWorksConfig {
   version: 1;
   target: {
@@ -29,6 +33,7 @@ export interface AugmentWorksConfig {
     base_url: string;
     allow_insecure_http?: boolean;
     auth?: HttpAuthConfig;
+    conversation?: ConversationConfig;
     operations: {
       prepare?: HttpOperationConfig;
       send: HttpOperationConfig;
@@ -47,6 +52,13 @@ export interface AugmentWorksConfig {
   };
 }
 
+export interface ResolvedConversation {
+  readonly version: "aw-conversation-enforcement/1";
+  readonly strategy: "single_turn" | "explicit_session_v1";
+  readonly multiTurn: boolean;
+  readonly mappedRequestFields: readonly string[];
+}
+
 export interface ResolvedConfig {
   readonly config: AugmentWorksConfig;
   readonly configPath: string;
@@ -62,6 +74,7 @@ export interface ResolvedConfig {
     cleanup: boolean;
     tool_events: boolean;
   };
+  readonly conversation: ResolvedConversation;
   readonly warnings: readonly string[];
 }
 

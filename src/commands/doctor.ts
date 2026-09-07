@@ -135,6 +135,8 @@ function formatJson(report: DoctorReport): string {
       config_path: report.configPath,
       offline: report.offline,
       capability_level: report.resolvedConfig?.capabilities.level ?? null,
+      conversation_strategy: report.resolvedConfig?.conversation.strategy ?? null,
+      multi_turn: report.resolvedConfig?.conversation.multiTurn ?? null,
       config_digest: report.resolvedConfig?.configDigest ?? null,
       assessment:
         report.assessment === undefined
