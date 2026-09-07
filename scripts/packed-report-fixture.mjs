@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Packed-binary HTTP fixture for AUG-54 report export and API-key mode.
+ * Packed-binary HTTP fixture for hosted report export completeness (AUG-54 / AUG-59).
  *
  * Invokes the installed CLI in an isolated HOME/state directory against a
  * loopback report API. This is not proof that the hosted report endpoint is
  * deployed; it proves the packed binary's command registration, JSON-only
- * stdout, API-key mode without a keychain, and read-only GET export.
+ * stdout, API-key mode without a keychain, read-only GET export, and fail-closed
+ * handling of omitted attempts and mixed-workspace pages.
  */
 
 import { createServer } from "node:http";
@@ -67,8 +68,16 @@ function send(response, status, value) {
   response.end(body);
 }
 
+function cloneMutate(fixtures, name, origin, mutate) {
+  const fixture = fixtureNamed(fixtures, name, origin);
+  const body = JSON.parse(JSON.stringify(fixture.body));
+  mutate(body);
+  return { status: fixture.status, body };
+}
+
 function startFixtureServer(fixtures) {
   const requests = [];
+  const state = { scenario: "fail" };
   const httpServer = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const origin = `http://127.0.0.1:${httpServer.address().port}`;
@@ -83,18 +92,38 @@ function startFixtureServer(fixtures) {
     }
     const runId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
     if (url.pathname === `/v1/relay/runs/${runId}/report`) {
+      if (state.scenario === "omitted") {
+        const fixture = cloneMutate(fixtures, "report_all_pass_one_page", origin, (body) => {
+          body.page.totalAttempts = 2;
+          body.coverage.plannedAttempts = 2;
+          body.coverage.completedAttempts = 2;
+          body.coverage.requiredJudgmentsPlanned = 2;
+          body.coverage.requiredJudgmentsComplete = 2;
+          body.aggregate = { passed: 2, failed: 0, error: 0 };
+        });
+        send(response, fixture.status, fixture.body);
+        return;
+      }
+      if (state.scenario === "mismatch") {
+        const fixture = cloneMutate(fixtures, "report_all_pass_one_page", origin, (body) => {
+          body.workspaceId = "22222222-2222-4222-8222-222222222222";
+        });
+        send(response, fixture.status, fixture.body);
+        return;
+      }
       const fixture = fixtureNamed(fixtures, "report_required_fail", origin);
       send(response, fixture.status, fixture.body);
       return;
     }
     if (url.pathname.includes("/criteria")) {
-      const fixture = fixtureNamed(fixtures, "criterion_index_r01_fail", origin);
+      const name = state.scenario === "fail" ? "criterion_index_r01_fail" : "criterion_index_r01_pass";
+      const fixture = fixtureNamed(fixtures, name, origin);
       send(response, fixture.status, fixture.body);
       return;
     }
     send(response, 404, { error: { code: "NOT_FOUND", message: "missing packed report fixture route" } });
   });
-  return { httpServer, requests };
+  return { httpServer, requests, state };
 }
 
 function startPacked(packedBin, args, env, cwd) {
@@ -280,6 +309,52 @@ async function main() {
     );
     assert(!fixture.requests.some((item) => item.includes("quote")), "packed report quoted billing");
     assert(!fixture.requests.some((item) => item.includes("retry-evaluation")), "packed report retried grading");
+
+    fixture.state.scenario = "omitted";
+    const omitted = await runPacked(
+      packedBin,
+      ["run", "report", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "--json"],
+      env,
+      cwd,
+      11
+    );
+    const omittedPayload = parseJsonStdout(omitted.stdout, "omitted attempt");
+    assert(omittedPayload.schemaVersion === "aw-run-report-export/1", "omitted export schema is wrong");
+    assert(omittedPayload.retrieved === true, "omitted report was not retrieved");
+    assert(omittedPayload.complete === false, "omitted attempt export was complete");
+    assert(
+      Array.isArray(omittedPayload.diagnostics) &&
+        omittedPayload.diagnostics.some((item) => item.code === "REPORT_TOTAL_BOUNDS"),
+      "omitted attempt lacked REPORT_TOTAL_BOUNDS"
+    );
+    assert(omitted.stdout.trim().startsWith("{"), "omitted stdout was not JSON-only object");
+    assert(!omitted.stdout.includes(API_KEY), "API key leaked into omitted stdout");
+    assert(
+      omitted.stderr.toLowerCase().includes("do not start another billed assessment"),
+      "omitted stderr omitted recovery guidance"
+    );
+    assert(!omitted.stderr.includes(API_KEY), "API key leaked into omitted stderr");
+
+    fixture.state.scenario = "mismatch";
+    const mismatched = await runPacked(
+      packedBin,
+      ["run", "report", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "--json"],
+      env,
+      cwd,
+      4
+    );
+    const mismatchPayload = parseJsonStdout(mismatched.stdout, "workspace mismatch");
+    assert(mismatchPayload.retrieved === false, "workspace mismatch retrieved true");
+    assert(mismatchPayload.complete === false, "workspace mismatch complete true");
+    assert(
+      mismatchPayload.error?.code === "REPORT_WORKSPACE_MISMATCH",
+      `workspace mismatch code was ${String(mismatchPayload.error?.code)}`
+    );
+    assert(!mismatched.stdout.includes(API_KEY), "API key leaked into mismatch stdout");
+    assert(
+      mismatched.stderr.toLowerCase().includes("do not start another billed assessment"),
+      "mismatch stderr omitted recovery guidance"
+    );
 
     process.stdout.write(
       `[packed report fixture] passed (requests=${fixture.requests.length}, source=AW-QA-1 compatibility fixtures)\n`

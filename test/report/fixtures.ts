@@ -15,6 +15,30 @@ export type ReportFixtureFile = {
 export const REPORT_FIXTURES = JSON.parse(readFileSync(fixturesPath, "utf8")) as ReportFixtureFile;
 export const REPORT_RUN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 export const CANONICAL_ORIGIN = "https://augmentworks.ai";
+export const FIXTURE_WORKSPACE_ID = "11111111-1111-4111-8111-111111111111";
+export const OTHER_WORKSPACE_ID = "22222222-2222-4222-8222-222222222222";
+
+export function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export function asRecord(value: unknown): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("expected a JSON object");
+  }
+  return value as Record<string, unknown>;
+}
+
+export function mutatedFixtureResponse(
+  name: string,
+  origin: string,
+  mutate: (body: Record<string, unknown>) => void
+): { status: number; headers?: Record<string, string>; body: unknown } {
+  const fixture = fixtureResponse(name, origin);
+  const body = cloneJson(asRecord(fixture.body));
+  mutate(body);
+  return { ...fixture, body };
+}
 
 export function rewriteOrigin(value: unknown, origin: string): unknown {
   if (typeof value === "string") return value.split(CANONICAL_ORIGIN).join(origin);

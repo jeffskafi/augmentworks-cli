@@ -54,6 +54,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Hosted `run report` no longer treats a terminal `hasMore: false` page as
+  complete when `totalAttempts` / `totalCriteria` disagree with retrieved
+  unique IDs, when pages contradict those totals, or when a page, criterion
+  index, or detail `workspaceId` does not match the authenticated session.
+  Null totals stay unknown (never zero). Missing or mixed evidence stays
+  `complete: false` with a bounded retry-the-original-run warning; the CLI
+  never starts another billed assessment. Not npm-published.
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
 - Packed billing HTTP fixture uses async `spawn` so the in-process loopback

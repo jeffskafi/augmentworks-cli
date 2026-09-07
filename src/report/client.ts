@@ -43,6 +43,8 @@ export interface RunReportClientOptions {
   readonly now?: () => number;
   readonly sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   readonly signal?: AbortSignal;
+  /** Authenticated workspace ID pinned from the existing session before the first request. */
+  readonly expectedWorkspaceId?: string;
 }
 
 export class ReportProtocolError extends AwError {
@@ -195,6 +197,8 @@ class RunReportClient {
   readonly #now: () => number;
   readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<void>;
   readonly #signal: AbortSignal | undefined;
+  readonly #expectedWorkspaceId: string | undefined;
+  #pinnedWorkspaceId: string | undefined;
   #retryBudgetMs: number;
 
   constructor(options: RunReportClientOptions) {
@@ -205,6 +209,7 @@ class RunReportClient {
     this.#now = options.now ?? Date.now;
     this.#sleep = options.sleep ?? defaultSleep;
     this.#signal = options.signal;
+    this.#expectedWorkspaceId = options.expectedWorkspaceId;
     this.#retryBudgetMs = REPORT_RETRY_BUDGET_MS;
   }
 
@@ -215,9 +220,11 @@ class RunReportClient {
     let nextUrl = this.#sameOriginUrl(reportPath(runId));
     let pinnedBinding: EvaluationBinding | null | undefined;
     let generationCursorBound = false;
+    const attemptTotals = new ClaimedCount();
 
     for (let pageIndex = 0; pageIndex < REPORT_MAX_PAGES; pageIndex += 1) {
       const page = await this.#getReportPage(nextUrl);
+      this.#assertReportWorkspace(page);
       if (pageIndex === 0) {
         if (page.runId !== runId) {
           throw new ReportProtocolError({
@@ -229,6 +236,17 @@ class RunReportClient {
         generationCursorBound = page.evaluationBinding === null;
       } else {
         this.#assertPinnedPage(page, runId, pinnedBinding, generationCursorBound);
+      }
+      if (attemptTotals.observe(page.page.totalAttempts) === "conflict") {
+        diagnostics.push({
+          code: "REPORT_TOTAL_CONFLICT",
+          message: retrievalRecoveryMessage(
+            runId,
+            "Report pages disagreed on totalAttempts."
+          )
+        });
+        pages.push(page);
+        return this.#assemble(pages, [], diagnostics, false);
       }
       pages.push(page);
       if (!page.page.hasMore) {
@@ -267,29 +285,56 @@ class RunReportClient {
     }
 
     const merged = this.#mergePages(pages);
-    const total = merged.page.totalAttempts;
-    if (total !== null && merged.attempts.length > total) {
+    const claimedTotal = attemptTotals.value;
+    const assembled: RunReport = {
+      ...merged,
+      page: {
+        ...merged.page,
+        totalAttempts: claimedTotal
+      }
+    };
+    const uniqueAttempts = assembled.attempts.length;
+    const last = pages[pages.length - 1];
+    const terminated = last !== undefined && last.page.hasMore === false;
+
+    if (claimedTotal !== null && uniqueAttempts > claimedTotal) {
       diagnostics.push({
         code: "REPORT_TOTAL_BOUNDS",
-        message: "Collected attempts exceed the reported totalAttempts bound."
+        message: retrievalRecoveryMessage(
+          runId,
+          `Collected ${String(uniqueAttempts)} distinct attempts; totalAttempts is ${String(claimedTotal)}.`
+        )
       });
-      return this.#assemble([merged], [], diagnostics, false);
+      return this.#assemble([assembled], [], diagnostics, false);
     }
-    if (total !== null && merged.attempts.length < total && merged.page.hasMore) {
+    if (claimedTotal !== null && uniqueAttempts !== claimedTotal && terminated) {
       diagnostics.push({
         code: "REPORT_TOTAL_BOUNDS",
-        message: "The report ended before collecting totalAttempts."
+        message: retrievalRecoveryMessage(
+          runId,
+          `Collected ${String(uniqueAttempts)} distinct attempts; totalAttempts is ${String(claimedTotal)}.`
+        )
       });
-      return this.#assemble([merged], [], diagnostics, false);
+      return this.#assemble([assembled], [], diagnostics, false);
+    }
+    if (claimedTotal === null && terminated) {
+      diagnostics.push({
+        code: "REPORT_TOTAL_UNKNOWN",
+        message: retrievalRecoveryMessage(
+          runId,
+          "totalAttempts is unknown; retrieved completeness cannot be proved."
+        ),
+        retryable: true
+      });
     }
 
     const { criteria, complete: criteriaComplete } = await this.#collectCriteria(
-      merged,
+      assembled,
       diagnostics
     );
-    const evidenceComplete = this.#evidenceComplete(merged, criteria, diagnostics);
+    const evidenceComplete = this.#evidenceComplete(assembled, criteria, diagnostics);
     const complete = criteriaComplete && evidenceComplete && diagnostics.length === 0;
-    return this.#assemble([merged], criteria, diagnostics, complete);
+    return this.#assemble([assembled], criteria, diagnostics, complete);
   }
 
   #assertPinnedPage(
@@ -327,6 +372,45 @@ class RunReportClient {
     }
   }
 
+  #assertReportWorkspace(page: RunReport): void {
+    if (this.#expectedWorkspaceId !== undefined && page.workspaceId !== this.#expectedWorkspaceId) {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: retrievalRecoveryMessage(
+          page.runId,
+          "A report page workspaceId did not match the authenticated workspace."
+        )
+      });
+    }
+    if (this.#pinnedWorkspaceId === undefined) {
+      this.#pinnedWorkspaceId = page.workspaceId;
+      return;
+    }
+    if (page.workspaceId !== this.#pinnedWorkspaceId) {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: retrievalRecoveryMessage(
+          page.runId,
+          "A later report page workspaceId did not match the first page."
+        )
+      });
+    }
+  }
+
+  #assertOptionalWorkspace(workspaceId: string | undefined, runId: string, label: string): void {
+    if (workspaceId === undefined) return;
+    const expected = this.#expectedWorkspaceId ?? this.#pinnedWorkspaceId;
+    if (expected !== undefined && workspaceId !== expected) {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: retrievalRecoveryMessage(
+          runId,
+          `A ${label} workspaceId did not match the authenticated workspace.`
+        )
+      });
+    }
+  }
+
   #mergePages(pages: readonly RunReport[], skipDuplicateAttempts = false): RunReport {
     const first = pages[0];
     if (first === undefined) {
@@ -350,14 +434,13 @@ class RunReportClient {
         attempts.push(attempt);
       }
     }
-    const last = pages[pages.length - 1] ?? first;
     return {
       ...first,
       attempts,
       page: {
         nextCursor: null,
         hasMore: false,
-        totalAttempts: last.page.totalAttempts ?? first.page.totalAttempts
+        totalAttempts: pinnedAttemptTotal(pages)
       }
     };
   }
@@ -408,6 +491,7 @@ class RunReportClient {
   ): Promise<{ details: CriterionDetail[]; complete: boolean }> {
     const details: CriterionDetail[] = [];
     const seenCursors = new Set<string>();
+    const criterionTotals = new ClaimedCount();
     let nextUrl: URL | undefined = startUrl;
     for (let pageIndex = 0; pageIndex < CRITERION_MAX_PAGES && nextUrl !== undefined; pageIndex += 1) {
       const payload = await this.#getJson(nextUrl);
@@ -427,6 +511,16 @@ class RunReportClient {
       }
       const index = indexParsed.data;
       this.#assertCriterionIndexBinding(index, runId, attemptId, binding);
+      if (criterionTotals.observe(index.page.totalCriteria) === "conflict") {
+        diagnostics.push({
+          code: "CRITERION_TOTAL_CONFLICT",
+          message: retrievalRecoveryMessage(
+            runId,
+            "Criterion index pages disagreed on totalCriteria."
+          )
+        });
+        return { details, complete: false };
+      }
       for (const item of index.criteria) {
         if (item.detailUrl !== null && item.detailUrl !== undefined && item.evidence === undefined) {
           const detailUrl = this.#requireSameOriginLink(item.detailUrl, "criterion detailUrl");
@@ -500,12 +594,43 @@ class RunReportClient {
       });
       return { details, complete: false };
     }
+    const uniqueIds = new Set(details.map((item) => item.criterionId));
+    if (uniqueIds.size !== details.length) {
+      diagnostics.push({
+        code: "CRITERION_DUPLICATE",
+        message: "A criterion detail was repeated across pages."
+      });
+      return { details, complete: false };
+    }
+    const claimed = criterionTotals.value;
+    if (claimed !== null && uniqueIds.size !== claimed) {
+      diagnostics.push({
+        code: "CRITERION_TOTAL_BOUNDS",
+        message: retrievalRecoveryMessage(
+          runId,
+          `Collected ${String(uniqueIds.size)} distinct criteria; totalCriteria is ${String(claimed)}.`
+        )
+      });
+      return { details, complete: false };
+    }
+    if (claimed === null) {
+      diagnostics.push({
+        code: "CRITERION_TOTAL_UNKNOWN",
+        message: retrievalRecoveryMessage(
+          runId,
+          "totalCriteria is unknown; retrieved completeness cannot be proved."
+        ),
+        retryable: true
+      });
+      return { details, complete: false };
+    }
     return { details, complete: true };
   }
 
   #assertCriterionIndexBinding(
     index: {
       runId: string;
+      workspaceId?: string | undefined;
       evaluationId: string;
       evaluationRevision: number;
       snapshotHash: string;
@@ -521,6 +646,7 @@ class RunReportClient {
         message: "A criterion index did not match the parent run or attempt."
       });
     }
+    this.#assertOptionalWorkspace(index.workspaceId, runId, "criterion index");
     if (
       index.evaluationId !== binding.evaluationId ||
       index.evaluationRevision !== binding.evaluationRevision ||
@@ -545,6 +671,7 @@ class RunReportClient {
         message: "A criterion detail did not match the parent run or attempt."
       });
     }
+    this.#assertOptionalWorkspace(detail.workspaceId, runId, "criterion detail");
     if (
       detail.evaluationId !== binding.evaluationId ||
       detail.evaluationRevision !== binding.evaluationRevision ||
@@ -605,6 +732,17 @@ class RunReportClient {
         diagnostics.push({
           code: "CRITERION_EVIDENCE_MISSING",
           message: `Required criterion ${criterion.criterionId} evidence is ${criterion.evidence.availability}.`
+        });
+        complete = false;
+      }
+      if (
+        criterion.evidence.text !== null &&
+        criterion.evidence.sha256 !== null &&
+        sha256Utf8(criterion.evidence.text) !== criterion.evidence.sha256
+      ) {
+        diagnostics.push({
+          code: "CRITERION_EVIDENCE_HASH_MISMATCH",
+          message: `Criterion ${criterion.criterionId} evidence sha256 does not match text.`
         });
         complete = false;
       }
@@ -864,6 +1002,38 @@ function sameBinding(left: EvaluationBinding, right: EvaluationBinding): boolean
     left.evaluationRevision === right.evaluationRevision &&
     left.snapshotHash === right.snapshotHash
   );
+}
+
+class ClaimedCount {
+  #value: number | null = null;
+
+  observe(incoming: number | null): "ok" | "conflict" {
+    if (incoming === null) return "ok";
+    if (this.#value === null) {
+      this.#value = incoming;
+      return "ok";
+    }
+    return this.#value === incoming ? "ok" : "conflict";
+  }
+
+  get value(): number | null {
+    return this.#value;
+  }
+}
+
+function pinnedAttemptTotal(pages: readonly RunReport[]): number | null {
+  const claimed = new ClaimedCount();
+  for (const page of pages) {
+    if (claimed.observe(page.page.totalAttempts) === "conflict") {
+      return claimed.value;
+    }
+  }
+  return claimed.value;
+}
+
+function retrievalRecoveryMessage(runId: string, detail: string): string {
+  const message = `${detail} Retry: augmentworks run report ${runId} --json. Do not start another billed assessment.`;
+  return message.length <= 500 ? message : message.slice(0, 500);
 }
 
 function sha256Utf8(value: string): string {
