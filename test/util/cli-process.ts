@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
@@ -50,11 +50,39 @@ export async function ensurePackedCliBuilt(): Promise<string> {
   return packedEntrypoint;
 }
 
+function newestTypescriptMtime(directory: string): number {
+  let newest = 0;
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      newest = Math.max(newest, newestTypescriptMtime(path));
+      continue;
+    }
+    if (entry.isFile() && entry.name.endsWith(".ts")) {
+      newest = Math.max(newest, statSync(path).mtimeMs);
+    }
+  }
+  return newest;
+}
+
+function packedCliIsCurrent(): boolean {
+  if (!existsSync(packedEntrypoint)) return false;
+  const distMtime = statSync(packedEntrypoint).mtimeMs;
+  const tsupConfig = resolve(projectRoot, "tsup.config.ts");
+  const sourceMtime = Math.max(
+    newestTypescriptMtime(resolve(projectRoot, "src")),
+    existsSync(tsupConfig) ? statSync(tsupConfig).mtimeMs : 0
+  );
+  return distMtime >= sourceMtime;
+}
+
 async function buildPackedCli(): Promise<void> {
   // npm ci `prepare` and `npm run check` already produce dist/. Spawning `npm`
-  // here fails on Windows (Node 22+ spawn npm.cmd ENOENT/EINVAL). Build only
-  // when the artifact is missing, and invoke tsup through node.
-  if (existsSync(packedEntrypoint)) return;
+  // here fails on Windows (Node 22+ spawn npm.cmd ENOENT/EINVAL). Rebuild when
+  // the artifact is missing or older than TypeScript sources — `npm run check`
+  // runs vitest before `npm run build`, so a leftover dist would otherwise
+  // hide packed `run wait` classification changes. Invoke tsup through node.
+  if (packedCliIsCurrent()) return;
   const tsupCli = createRequire(import.meta.url).resolve("tsup/dist/cli-default.js");
   const result = await runNodeCli([tsupCli], {
     cwd: projectRoot,

@@ -47,6 +47,9 @@ All notable changes to this project are documented here. The format follows
   does not fail with `spawnSync npm.cmd EINVAL`.
 - Packed billing HTTP fixture uses async `spawn` so the in-process loopback
   server can accept CLI requests (`spawnSync` deadlocked the event loop).
+- Packed CLI tests rebuild `dist/index.js` when TypeScript sources are newer,
+  so `npm test` before `npm run build` still exercises current `run wait`
+  classification.
 - Hosted `test --json` writes one structured error object on stdout for
   billing/admission rejection, matching estimate/usage/billing.
 - `run wait` / `run status` no longer treat a successful status query of
