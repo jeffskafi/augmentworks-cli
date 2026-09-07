@@ -153,7 +153,9 @@ const runStatusConsumerSchema = z
     nextActions: z.array(z.string().min(1).max(64)).max(8),
     dashboardUrl: z.string().min(1).max(2_048),
     asOf: utcTimestamp,
-    outcome: z.string().max(64).nullable().optional()
+    outcome: z.string().max(64).nullable().optional(),
+    retentionPolicyVersion: z.string().min(1).max(80).optional(),
+    retainUntil: utcTimestamp.optional()
   })
   .passthrough();
 
@@ -330,7 +332,11 @@ export function parseBillingRunStatusResponse(value: unknown): BillingRunStatus 
     nextActions: parsed.data.nextActions,
     dashboardUrl: parsed.data.dashboardUrl,
     asOf: parsed.data.asOf,
-    ...(parsed.data.outcome === undefined ? {} : { outcome: parsed.data.outcome })
+    ...(parsed.data.outcome === undefined ? {} : { outcome: parsed.data.outcome }),
+    ...(parsed.data.retentionPolicyVersion === undefined
+      ? {}
+      : { retentionPolicyVersion: parsed.data.retentionPolicyVersion }),
+    ...(parsed.data.retainUntil === undefined ? {} : { retainUntil: parsed.data.retainUntil })
   };
 }
 

@@ -255,7 +255,9 @@ Insufficient credits keep the uncreated intent and point at that page; after
 fulfillment, run `usage` then start a new test with `--max-credits`. Processing
 (`pendingCommerce`) is not spendable credit. A past-due monthly renewal does
 not erase independently purchased credits. Historical results follow retention,
-not credit expiry; do not subscribe from the CLI to recover them.
+If create returns no run id, run inspect-only `recover --json` before another
+admission. `run status` prints server retention timestamps when supplied and
+does not decide report deletion from the local clock.
 
 Hosted-only auth, relay, and billing codes `3`, `4`, and `13` are unreachable
 from `--local`.

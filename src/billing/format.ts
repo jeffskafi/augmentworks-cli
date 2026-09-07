@@ -252,7 +252,7 @@ export function formatBillingHuman(input: {
   lines.push(`Available credits: ${String(input.usage.availableUnits)}`);
   lines.push(`Billing page: ${sanitizeTerminal(input.billingPageUrl.toString())}`);
   lines.push(
-    "This is a first-party AugmentWorks page. Opening it does not authorize payment. Sign in in the browser; only a workspace owner or billing manager can change payment methods, buy a pack, or manage a subscription."
+    "This is a first-party AugmentWorks page. Opening it does not authorize payment. Sign in in the browser; only a workspace owner or billing manager can change payment methods, buy a pack, or manage a subscription. If you cannot change payment methods, contact a workspace owner."
   );
   lines.push(
     "A connector token is not billing-management permission. The workspace id in the URL is a navigation hint, not authorization."
@@ -418,12 +418,20 @@ export function formatRunStatusHuman(status: BillingRunStatus): string {
     lines.push(
       `Server-approved grading retry is available without another test credit. Use: augmentworks run retry-evaluation ${status.originalRunId}`
     );
-    if (status.retryReason !== null) {
-      lines.push(`Retry reason: ${sanitizeTerminal(status.retryReason)}`);
-    }
+  }
+  if (status.retryReason !== null) {
+    lines.push(`Retry reason: ${sanitizeTerminal(status.retryReason)}`);
   }
   lines.push(`Next actions: ${status.nextActions.map((action) => sanitizeTerminal(action)).join(", ")}`);
   lines.push(`Dashboard: ${sanitizeTerminal(status.dashboardUrl)}`);
+  if (status.retentionPolicyVersion !== undefined) {
+    lines.push(`Run retention policy: ${sanitizeTerminal(status.retentionPolicyVersion)}`);
+  }
+  if (status.retainUntil !== undefined) {
+    lines.push(
+      `Saved-report retain until: ${sanitizeTerminal(status.retainUntil)} (server timestamp). This CLI does not decide deletion from the local clock.`
+    );
+  }
   lines.push(`Snapshot at ${sanitizeTerminal(status.asOf)}`);
   return `${lines.join("\n")}\n`;
 }
@@ -450,7 +458,11 @@ export function runStatusSuccessJson(status: BillingRunStatus): string {
     nextActions: status.nextActions,
     dashboardUrl: status.dashboardUrl,
     asOf: status.asOf,
-    ...(status.outcome === undefined ? {} : { outcome: status.outcome })
+    ...(status.outcome === undefined ? {} : { outcome: status.outcome }),
+    ...(status.retentionPolicyVersion === undefined
+      ? {}
+      : { retentionPolicyVersion: status.retentionPolicyVersion }),
+    ...(status.retainUntil === undefined ? {} : { retainUntil: status.retainUntil })
   })}\n`;
 }
 

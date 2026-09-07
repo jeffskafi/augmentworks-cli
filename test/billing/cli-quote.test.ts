@@ -712,6 +712,39 @@ describe("hosted estimate and quoted admission", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "subscription_past_due_with_purchased",
+    "subscription_canceled_retained_results",
+    "subscription_expired_monthly_grant",
+    "no_subscription"
+  ] as const)("requires --max-credits for hosted tests when usage is %s", async (name) => {
+    const cwd = await projectDir();
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      throw new Error(`unexpected ${url.pathname} for ${name}`);
+    });
+    await expect(
+      runTest(
+        {
+          cwd,
+          assessment: "augmentworks.assessment.yaml",
+          yes: true
+        },
+        {
+          doctor: doctorFor(),
+          isInteractive: () => false,
+          accessToken: async () => "token",
+          identity: async () => identity(),
+          cloud: hostedCloud(fetchMock),
+          connector: () => {
+            throw new Error("target must not be constructed");
+          }
+        }
+      )
+    ).rejects.toMatchObject({ code: "MAX_CREDITS_REQUIRED", category: "config" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("packet-only hosted tests create without quoting", async () => {
     const cwd = await projectDir();
     const counts = { quote: 0, create: 0 };

@@ -16,9 +16,9 @@ handoff.
 | Vendored main commit | `650472d91442a6866a7b6ef18e6dacc23a2a9260` (`cursor/billing-stage-5a-91a7`) |
 | Source package | `0.3.3` (unpublished) |
 | Website / npx pin | published `@augmentworks/cli@0.3.2` (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`) |
-| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording); `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4` (verification evidence) |
+| Implementation | `4c46c41e944d18e1ae98d50e3724221b903675ca` (feature); `b92106de38e6207df5b5d001e84e94fbad0ae013` (copy-contract pin wording); `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4` (verification evidence); `4e5fc1c863a4122db9c505d504979c76ca846509` (CI recover, retention display, fixture matrix) |
 
-Verification evidence commit is `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4`. Feature code is `4c46c41e944d18e1ae98d50e3724221b903675ca`.
+Verification evidence commit is `ea1cbf35dd6a1432efa738cbbe2f11f7e0a9d4e4`. Feature code is `4c46c41e944d18e1ae98d50e3724221b903675ca`. Matrix/CI close-out is `4e5fc1c863a4122db9c505d504979c76ca846509`.
 
 ## What Stage 5B implemented
 
@@ -52,7 +52,10 @@ noninteractive CI and cancellation/renewal display. The CLI remains a
 - Reservations may finish after monthly expiry. Released units return to their
   original lot; expired lots are not reported as newly available.
 - Copy-pastable CI captures a run id, waits on that exact run if grading is
-  pending, and recovers an interrupted create before a new admission.
+  pending, and runs inspect-only `recover --json` before a new admission when
+  create returns no run id.
+- `run status` displays server `retainUntil` timestamps and retry reasons. It
+  does not decide report deletion from the local clock.
 
 No package publication. No live subscription activation.
 
@@ -169,8 +172,8 @@ document an unpublished source `0.3.3` npm pin until independently verified.
 | --- | --- |
 | Filename | `augmentworks-cli-0.3.3.tgz` |
 | Files | 31 |
-| Compressed size | 377224 bytes |
-| SHA-256 | `93cd64b84acf9acdc19b399e644a396f87aae72d6fbd5d3531109f59a81f256a` |
+| Compressed size | 377347 bytes |
+| SHA-256 | `f3ede5377af4d9de7b8abbf8d65943850bea6ced1a3a23dd6069b2abcb8d7afe` |
 
 Includes `dist/index.js`, packets, schemas, contracts, demo assets, and both
 starters. Excludes `examples/`, tests, `.env` secrets, and billing docs.
@@ -181,7 +184,7 @@ See `docs/billing/phase-5-completion.md`.
 
 Summary:
 
-- `npm run check` — pass (typecheck, vitest **54 files / 491 tests**, build,
+- `npm run check` — pass (typecheck, vitest **54 files / 513 tests**, build,
   discovery, billing-contract)
 - `npm run smoke:pack` — pass, including packed billing HTTP fixture through
   the installed binary (`creates=1 quotes=4 targets=1 polls=3 refreshes=1`)
