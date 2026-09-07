@@ -14,16 +14,19 @@ describe("connector mapping", () => {
         {
           message: "$input.turns[0].content",
           attempt: "$input.attempt_id",
+          conversation_id: "$input.conversation_id",
           literal: "prefix $input.message"
         },
         {
           attempt_id: "attempt_1",
+          conversation_id: "attempt_1",
           turns: [{ content: "Refund it" }]
         }
       )
     ).toEqual({
       message: "Refund it",
       attempt: "attempt_1",
+      conversation_id: "attempt_1",
       literal: "prefix $input.message"
     });
   });

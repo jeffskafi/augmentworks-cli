@@ -21,4 +21,5 @@ export {
   primaryPacket
 } from "./load.js";
 export { buildAssessmentReferencePayload } from "./bundle.js";
+export { packetRequiresMultiTurn } from "./wire-bounds.js";
 export type { LoadedAssessment, LoadedLocalReference, LoadAssessmentOptions } from "./load.js";

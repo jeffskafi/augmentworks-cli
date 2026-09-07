@@ -63,6 +63,7 @@ Unknown fields are rejected so a typo cannot silently weaken a boundary.
 | `base_url` | Yes | Target origin; public targets should use HTTPS, while loopback/private IP targets may use HTTP |
 | `allow_insecure_http` | For public plain HTTP | Explicit high-risk opt-in; loopback and private IP targets are allowed without it |
 | `auth` | No | Bearer or additional header environment-variable names |
+| `conversation` | No | Conversation mode. Omitted or `strategy: single_turn` is the default. The only supported multi-turn mode is `strategy: explicit_session_v1`. |
 | `operations` | Yes | Lifecycle mappings |
 | `limits` | No | Stricter per-target byte and timeout limits |
 
@@ -176,6 +177,51 @@ that guarantee explicitly.
 Set `idempotent: true` only when the target contract actually guarantees that
 repeating the same idempotency/attempt key cannot duplicate a consequence. The
 CLI treats every operation as non-idempotent when the field is absent.
+
+## Conversation
+
+Conversation defaults to **single-turn**. Hosted create/quote/estimate omit
+`multi_turn` and `conversation` in that case so older servers keep accepting
+genuinely single-turn plans. An assessment file does **not** advertise
+multi-turn. `run_id`, `attempt_id`, and `turn_id` are correlation identifiers,
+not proof that the target bound them to conversation memory.
+
+The only implemented multi-turn mode is `explicit_session_v1`:
+
+```yaml
+target:
+  conversation:
+    strategy: explicit_session_v1
+  operations:
+    send:
+      idempotent: true
+      request:
+        message: $input.message.content
+        conversation_id: $input.conversation_id
+```
+
+Rules:
+
+- The send request template must copy `$input.conversation_id` into a target
+  field the server uses as its isolated conversation key. Mapping
+  `$input.attempt_id` is correlation only.
+- At the attempt boundary the CLI sets `conversation_id` equal to `attempt_id`.
+  Ordered turns and resume keep that identifier. A new attempt or repetition
+  gets a fresh identifier.
+- The target owns and isolates server-side context for that identifier.
+  Declaring the mapping is not a claim that the chatbot remembered prior turns.
+- `history_array_v1` is reserved and rejected. The CLI does not infer memory.
+- Duplicate suppression of an already accepted user turn depends on the
+  target. Set `send.idempotent: true` only when repeating the same
+  `AW-Idempotency-Key`, conversation identifier, and `turn_id` cannot append a
+  second user message.
+- Estimate and execute send the same capability object. A packet that requires
+  multi-turn against a single-turn connector fails with
+  `CONVERSATION_CAPABILITY_INCOMPATIBLE` before quote or reservation.
+
+A migration example lives at `examples/response-agent/augmentworks.session.yaml`
+with `session-server.mjs`. Default `examples/response-agent/augmentworks.yaml`
+stays single-turn.
 
 ## Telemetry
 

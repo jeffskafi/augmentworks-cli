@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 
 import type { HttpOperationConfig, JsonValue, ResolvedConfig } from "../config/types.js";
+import { CONVERSATION_STRATEGY_EXPLICIT_SESSION } from "../config/conversation.js";
 import { AwError, type OperationKind } from "../errors.js";
 import { LIMITS } from "../util/limits.js";
 import { mapRequestTemplate, selectResponse } from "./mapping.js";
@@ -362,12 +363,15 @@ export class HttpConnector {
   #withContext(input: unknown, context: ConnectorExecutionContext): Record<string, unknown> {
     const object = jsonObject(input);
     const enriched: Record<string, unknown> = { ...object };
-    const correlations: ReadonlyArray<readonly [string, string | undefined]> = [
+    const correlations: Array<readonly [string, string | undefined]> = [
       ["run_id", context.runId],
       ["attempt_id", context.attemptId],
       ["turn_id", context.turnId],
       ["request_id", context.requestId]
     ];
+    if (this.#explicitSession()) {
+      correlations.push(["conversation_id", this.#conversationId(object, context)]);
+    }
     for (const [key, contextValue] of correlations) {
       const inputValue = object[key];
       if (inputValue !== undefined && typeof inputValue !== "string") {
@@ -379,6 +383,41 @@ export class HttpConnector {
       if (inputValue === undefined && contextValue !== undefined) enriched[key] = contextValue;
     }
     return enriched;
+  }
+
+  #explicitSession(): boolean {
+    return this.#resolved.conversation.strategy === CONVERSATION_STRATEGY_EXPLICIT_SESSION;
+  }
+
+  #conversationId(
+    input: Record<string, unknown>,
+    context: ConnectorExecutionContext
+  ): string {
+    const attemptId = context.attemptId;
+    if (attemptId === undefined || attemptId === "") {
+      throw configError(
+        "SESSION_CONVERSATION_ID_MISSING",
+        "explicit_session_v1 requires an attempt-scoped conversation identifier."
+      );
+    }
+    const fromContext = context.conversationId ?? attemptId;
+    const fromInput = input["conversation_id"];
+    if (fromInput !== undefined && typeof fromInput !== "string") {
+      throw configError("CORRELATION_INVALID", "conversation_id must be a string.");
+    }
+    if (fromContext !== attemptId) {
+      throw configError(
+        "CONVERSATION_IDENTITY_MISMATCH",
+        "explicit_session_v1 requires conversation_id to equal attempt_id."
+      );
+    }
+    if (fromInput !== undefined && fromInput !== attemptId) {
+      throw configError(
+        "CONVERSATION_IDENTITY_MISMATCH",
+        "explicit_session_v1 requires conversation_id to equal attempt_id."
+      );
+    }
+    return attemptId;
   }
 
   #permittedOutputObservations(kind: OperationKind, input: unknown): ReadonlySet<string> {

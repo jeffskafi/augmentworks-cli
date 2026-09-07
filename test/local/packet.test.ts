@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { SINGLE_TURN_CONVERSATION } from "../../src/config/conversation.js";
 import type { ResolvedConfig } from "../../src/config/types.js";
 import { canonicalJson, findingId, stableId } from "../../src/local/canonical.js";
 import {
@@ -79,6 +80,7 @@ function compatibleConfig(packet: PacketManifest): ResolvedConfig {
       cleanup: true,
       tool_events: true
     },
+    conversation: SINGLE_TURN_CONVERSATION,
     warnings: []
   };
 }
@@ -398,5 +400,14 @@ describe("local packet compatibility", () => {
     expect(() => assertLocalPacketCompatible(packet, config)).toThrowError(
       /6 compatibility issues found/u
     );
+  });
+
+  it("requires explicit_session_v1 before a multi-turn local packet is admitted", async () => {
+    const packet = structuredClone(await starterManifest());
+    packet.required_capabilities.multi_turn = true;
+    const config = compatibleConfig(packet);
+    const report = inspectLocalPacketCompatibility(packet, config);
+    expect(report.issues.map(({ code }) => code)).toContain("MULTI_TURN_REQUIRED");
+    expect(() => assertLocalPacketCompatible(packet, config)).toThrowError(/explicit_session_v1/u);
   });
 });
