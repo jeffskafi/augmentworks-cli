@@ -68,17 +68,70 @@ function startFixture(script: string, origin: string, token: string, cwd: string
       CHATBOT_BASE_URL: origin,
       CHATBOT_API_KEY: token
     },
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true
   });
   children.push(child);
   return child;
 }
 
-afterEach(async () => {
-  for (const child of children.splice(0)) {
-    if (child.exitCode === null) child.kill("SIGTERM");
+function childHasExited(child: ReturnType<typeof spawn>): boolean {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+async function waitForChildExit(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<void> {
+  if (childHasExited(child)) return;
+  await Promise.race([
+    new Promise<void>((fulfill) => {
+      const onExit = (): void => fulfill();
+      child.once("exit", onExit);
+      if (childHasExited(child)) {
+        child.off("exit", onExit);
+        fulfill();
+      }
+    }),
+    new Promise<void>((fulfill) => {
+      const timer = setTimeout(fulfill, timeoutMs);
+      timer.unref?.();
+    })
+  ]);
+}
+
+async function stopChild(child: ReturnType<typeof spawn>): Promise<void> {
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  if (childHasExited(child)) return;
+  child.kill("SIGTERM");
+  await waitForChildExit(child, 5_000);
+  if (childHasExited(child)) return;
+  child.kill("SIGKILL");
+  await waitForChildExit(child, 2_000);
+}
+
+function isRetryableRemoveError(error: unknown): boolean {
+  if (process.platform !== "win32" || typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
   }
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  const code = error.code;
+  return code === "EBUSY" || code === "EPERM" || code === "ENOTEMPTY";
+}
+
+async function removeDirectory(directory: string): Promise<void> {
+  const attempts = process.platform === "win32" ? 8 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await rm(directory, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!isRetryableRemoveError(error) || attempt === attempts - 1) throw error;
+      await new Promise((fulfill) => setTimeout(fulfill, 25 * 2 ** attempt));
+    }
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(children.splice(0).map((child) => stopChild(child)));
+  await Promise.all(directories.splice(0).map((directory) => removeDirectory(directory)));
 });
 
 describe("packaged own-target starters", () => {
