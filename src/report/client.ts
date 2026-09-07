@@ -11,10 +11,15 @@ import type { AccessTokenProvider } from "../auth/types.js";
 import { remapAuthError } from "../auth/client.js";
 import type { CredentialSource } from "../auth/types.js";
 import {
+  parseCriterionWireDetail,
+  parseCriterionWirePage,
+  criterionWireVerdictDiagnostics,
+  type CriterionWireContext
+} from "./criterion-wire.js";
+import {
   CRITERION_DETAIL_SCHEMA_VERSION,
   CRITERION_MAX_PAGES,
   CriterionDetailSchema,
-  CriterionIndexSchema,
   REPORT_MAX_PAGES,
   REPORT_PAGE_BYTES_MAX,
   REPORT_RETRY_AFTER_CAP_MS,
@@ -380,7 +385,8 @@ class RunReportClient {
         report.runId,
         attempt.attemptId,
         binding,
-        diagnostics
+        diagnostics,
+        report.workspaceId
       );
       for (const detail of details) {
         const key = `${detail.attemptId}:${detail.criterionId}`;
@@ -404,45 +410,60 @@ class RunReportClient {
     runId: string,
     attemptId: string,
     binding: EvaluationBinding,
-    diagnostics: ExportDiagnostic[]
+    diagnostics: ExportDiagnostic[],
+    workspaceId?: string
   ): Promise<{ details: CriterionDetail[]; complete: boolean }> {
     const details: CriterionDetail[] = [];
     const seenCursors = new Set<string>();
+    const wireContext: CriterionWireContext = {
+      runId,
+      attemptId,
+      binding,
+      indexUrl: startUrl,
+      ...(workspaceId === undefined ? {} : { workspaceId })
+    };
     let nextUrl: URL | undefined = startUrl;
     for (let pageIndex = 0; pageIndex < CRITERION_MAX_PAGES && nextUrl !== undefined; pageIndex += 1) {
       const payload = await this.#getJson(nextUrl);
-      const indexParsed = CriterionIndexSchema.safeParse(payload);
-      if (!indexParsed.success) {
-        const detailParsed = CriterionDetailSchema.safeParse(payload);
-        if (detailParsed.success) {
-          this.#assertCriterionBinding(detailParsed.data, runId, attemptId, binding);
-          details.push(detailParsed.data);
-          return { details, complete: true };
+      const indexParsed = parseCriterionWirePage(payload, wireContext);
+      if (!indexParsed.ok) {
+        if (indexParsed.fatal) {
+          throw new ReportProtocolError({
+            code: indexParsed.diagnostic.code,
+            message: indexParsed.diagnostic.message
+          });
         }
-        diagnostics.push({
-          code: "CRITERION_SCHEMA_INVALID",
-          message: "A criterion page did not match aw-criterion-detail-read/1."
-        });
+        diagnostics.push(indexParsed.diagnostic);
         return { details, complete: false };
       }
-      const index = indexParsed.data;
+      if (indexParsed.kind === "detail") {
+        this.#assertCriterionBinding(indexParsed.detail, runId, attemptId, binding);
+        details.push(indexParsed.detail);
+        return this.#finishAttemptCriteria(details, diagnostics);
+      }
+      const index = indexParsed.index;
       this.#assertCriterionIndexBinding(index, runId, attemptId, binding);
       for (const item of index.criteria) {
         if (item.detailUrl !== null && item.detailUrl !== undefined && item.evidence === undefined) {
           const detailUrl = this.#requireSameOriginLink(item.detailUrl, "criterion detailUrl");
           const detailPayload = await this.#getJson(detailUrl);
-          const detail = CriterionDetailSchema.safeParse(detailPayload);
-          if (!detail.success) {
-            diagnostics.push({
-              code: "CRITERION_SCHEMA_INVALID",
-              message: "A criterion detail document did not match aw-criterion-detail-read/1."
-            });
+          const detail = parseCriterionWireDetail(detailPayload, wireContext);
+          if (!detail.ok) {
+            if (detail.fatal) {
+              throw new ReportProtocolError({
+                code: detail.diagnostic.code,
+                message: detail.diagnostic.message
+              });
+            }
+            diagnostics.push(detail.diagnostic);
             return { details, complete: false };
           }
-          this.#assertCriterionBinding(detail.data, runId, attemptId, binding);
-          details.push(detail.data);
+          this.#assertCriterionBinding(detail.detail, runId, attemptId, binding);
+          details.push(detail.detail);
           continue;
         }
+        const wireVerdict =
+          "wireVerdict" in item ? (item as { wireVerdict?: unknown }).wireVerdict : undefined;
         const embedded = CriterionDetailSchema.safeParse({
           schemaVersion: CRITERION_DETAIL_SCHEMA_VERSION,
           runId: index.runId,
@@ -460,7 +481,8 @@ class RunReportClient {
             text: null,
             sha256: null,
             truncated: false
-          }
+          },
+          ...(wireVerdict === undefined ? {} : { wireVerdict })
         });
         if (!embedded.success) {
           diagnostics.push({
@@ -498,6 +520,18 @@ class RunReportClient {
         code: "CRITERION_PAGE_LIMIT",
         message: "Criterion pagination exceeded the bounded page limit without completing."
       });
+      return { details, complete: false };
+    }
+    return this.#finishAttemptCriteria(details, diagnostics);
+  }
+
+  #finishAttemptCriteria(
+    details: CriterionDetail[],
+    diagnostics: ExportDiagnostic[]
+  ): { details: CriterionDetail[]; complete: boolean } {
+    const verdictDiagnostics = criterionWireVerdictDiagnostics(details);
+    if (verdictDiagnostics.length > 0) {
+      diagnostics.push(...verdictDiagnostics);
       return { details, complete: false };
     }
     return { details, complete: true };

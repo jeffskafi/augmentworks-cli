@@ -54,6 +54,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Hosted `run report` parses the main producer's `aw-criterion-detail-read/1`
+  index (`items`, `nextCursor`, `totalInAttempt`) and nested
+  `document`/`inspection` details instead of rejecting them as
+  `CRITERION_SCHEMA_INVALID`. Producer-shaped fixtures are vendored separately
+  from the locked AW-QA-1 invented `criteria`/`page` documents. Not npm-published.
 - `init -c custom.yaml` writes the requested connector filename instead of
   always emitting `augmentworks.yaml`. Companion assessment, reference, and
   environment files stay in the selected config directory. `--force` replaces
