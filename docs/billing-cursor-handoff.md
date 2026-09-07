@@ -161,7 +161,7 @@ node dist/index.js run wait <run-id> --json --timeout-ms 60000
 ```
 
 CI: see README and `docs/examples/github-actions-hosted-source.yml`. Do **not**
-document `npx @augmentworks/cli@0.3.3` until independently verified.
+document an unpublished source `0.3.3` npm pin until independently verified.
 
 ## Verification
 

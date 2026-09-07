@@ -1,8 +1,8 @@
 # Customer GitHub Actions example for source 0.3.3 hosted CI
 
 # This is not a published npm 0.3.2 workflow. Quoted `--max-credits` and
-# `run wait` exist only in source 0.3.3. Do not pin
-# `npx @augmentworks/cli@0.3.3` until that tarball is on the registry.
+# `run wait` exist only in source 0.3.3. Do not pin an unpublished npm
+# version until that tarball is on the registry.
 # No browser. npm `--yes` is not a spending ceiling. Billing rejection is
 # exit 13; chatbot assertion failure is exit 10; incomplete grading is 11.
 # Recover an interrupted create before starting another admission.

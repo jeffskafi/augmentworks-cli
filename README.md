@@ -312,8 +312,8 @@ fi
 exit "$code"
 ```
 
-Do not document `npx @augmentworks/cli@0.3.3` until that tarball is published
-and independently verified. Website examples stay on **0.3.2**.
+Do not document an unpublished source `0.3.3` npm pin until that tarball is
+published and independently verified. Website examples stay on **0.3.2**.
 
 ## Local assessment (published 0.3.2)
 
