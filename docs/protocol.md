@@ -70,9 +70,11 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |
 | `GET /v1/billing/usage` | Read the workspace execution-credit snapshot |
 
-`usage` is a GET of those billing paths only. It never calls create, reserve,
-grant, quote, or the target. Server aliases under `/api/v1/billing/*` exist;
-this CLI uses the primary `/v1/billing/*` paths.
+`usage` and `billing` GET those billing paths only. They never call create,
+reserve, grant, quote, Checkout, or the target. `billing` prints or opens the
+server `billingPageUrl` after `billing_portal_link_v1` is advertised. Server
+aliases under `/api/v1/billing/*` exist; this CLI uses the primary
+`/v1/billing/*` paths.
 
 The corresponding authentication endpoints are documented in
 [authentication.md](authentication.md).

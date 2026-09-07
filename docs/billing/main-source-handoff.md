@@ -1,6 +1,6 @@
-# Billing Stage 2A → CLI Stage 2B handoff
+# Billing Stage 3A → CLI Stage 3B handoff
 
-Owned by `jeffskafi/augmentworks`. Do not implement Stage 2B in this
+Owned by `jeffskafi/augmentworks`. Do not implement Stage 3B in this
 repository. The CLI counterpart must vendor this contract as published here.
 
 ## Identity
@@ -8,32 +8,35 @@ repository. The CLI counterpart must vendor this contract as published here.
 | Item | Value |
 | --- | --- |
 | Docs/contracts research baseline | `bc1bac16ee88aeece7cd7c58793abc0d611aa4bc` (`origin/main`) |
-| Stage 1A implementation HEAD | `e037958ba3c9f38a436b6065cddb5fb8ee3943fa` (`cursor/billing-stage-1a-91a7`) |
-| CLI Stage 1B implementation | `3d2bdfa32a727ac35c1b0ea49a9dfd376151b895` (`cursor/billing-stage-1b-91a7`) |
-| Working branch | `cursor/billing-stage-2a-91a7` |
-| Feature commit | `3e81b35f3d96cbfdcc763f26bbcf27de309b07de` |
-| Verification record | `f560aa3f1978411638f001f55a22bc920afba89d` |
-| Vendor pin | Tip of `cursor/billing-stage-2a-91a7` (hashes frozen since `3e81b35`) |
-| Pull request | https://github.com/jeffskafi/augmentworks/pull/28 (base `cursor/billing-stage-1a-91a7`) |
-| Stage | **2A code complete.** Deterministic unit/integration/Postgres/RLS checks in this checkout **passed**. Live OpenAI calibration **UNVERIFIED**. Not live-sales ready. |
+| Stage 2A vendor pin | `67749b22f04bbb8d94c0309acd36be3cb3144400` (`cursor/billing-stage-2a-91a7`) |
+| CLI Stage 2B counterpart | `901f82ea11a69a136364ea9c604629886c1cf878` (`cursor/billing-stage-2b-91a7`) |
+| Working branch | `cursor/billing-stage-3a-91a7` |
+| Feature commit | `926ae72f1e8bba959cd2d5e54c3996236960b8c6` |
+| Vendor pin | Tip of `cursor/billing-stage-3a-91a7` (hashes frozen since `926ae72`) |
+| Pull request | https://github.com/jeffskafi/augmentworks/pull/29 (base `cursor/billing-stage-2a-91a7`) |
+| Stage | **3A code complete.** Deterministic unit/integration/Postgres/RLS checks in this checkout **passed**. Real Stripe test-mode **BLOCKED** (missing credentials). Live purchases **not enabled**. |
 
-## What Stage 2B may do
+## What Stage 3B may do
 
-Quotes, spending ceilings, quoted create (`aw-relay/0.3`), run-specific
-status/wait, and explicit evaluation-only retry.
+Add `augmentworks billing` (human, `--json`, and print-only) that opens or
+prints the first-party billing page advertised by `billing_portal_link_v1`.
+Integrate insufficient-credit errors with that URL. Re-import usage/quote
+fixtures. After a fulfilled pack, `usage` shows the new purchased lot; the
+user must start the next test explicitly.
 
-Do not add Checkout, subscriptions, Stripe credentials, Clerk, pack purchase,
-or a competing route layout. Use the aliases below. Transport today is
-`src/cloud/client.ts`.
+Do **not** create a Stripe Customer, Checkout Session, purchase, refund,
+subscription, or auto-recharge rule. Do **not** invent a CLI order-status
+endpoint; purchase history is browser-only. Do not append tokens, customer
+IDs, or Checkout Session IDs to the billing URL. Do not wait for a purchase
+and silently restart a billable run.
 
-Do **not** send `quote_id` / `max_credits` through an unchanged `aw-relay/0.1`
-or `aw-relay/0.2` strict object. Those versions remain strict. Older clients
-attempting new paid work after cutover receive `UPDATE_REQUIRED` without
-reservation or execution. Authorized read/status access is preserved.
+Keep **`EXIT.BILLING = 13`**. Keep evaluation-incomplete **11**,
+evaluation-error **12**, and interrupted **130**.
 
-CLI Stage 1B already assigned **`EXIT.BILLING = 13`**. Keep 13. Do not collide
-with evaluation-incomplete **11**, evaluation-error **12**, or interrupted
-**130**.
+Quote, `--max-credits`, quoted `aw-relay/0.3` create, and
+`run status` / `wait` / `retry-evaluation` remain as Stage 2B implemented
+them. Do **not** send `quote_id` / `max_credits` through unchanged
+`aw-relay/0.1` or `0.2`. Transport today is `src/cloud/client.ts`.
 
 ## Wire contract
 
@@ -42,9 +45,9 @@ with evaluation-incomplete **11**, evaluation-error **12**, or interrupted
 SHA-256:
 
 - `docs/contracts/aw-billing-v1.schema.json` =
-  `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`
+  `e08fd3ee7766e615b64024f416d72ac012fb829610a3a9f5efcdd1ec4b3c0f6a`
 - `docs/contracts/aw-billing-v1.fixtures.json` =
-  `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1`
+  `3513887cc25d404d695ce1ca4e5f5b6cc60b138438ccfb24b9f9a3d0f5e4794a`
 
 Canonical files:
 
@@ -52,10 +55,12 @@ Canonical files:
 - `docs/contracts/aw-billing-v1.fixtures.json`
 - `docs/contracts/aw-billing-v1.checksums.json`
 
-Stage 1 usage fields are unchanged. Additive quote/status objects and error
-codes are in the same schema. Consumers still tolerate a later non-null
+Stage 1 usage fields are unchanged. Additive quote/status objects, error
+codes, optional `pendingCommerce`, and optional `frozenUnits` on grant
+balances are in the same schema. Consumers still tolerate a later non-null
 `subscription` object. Unknown capability strings are ignored. Unknown
-financial/access states fail closed.
+financial/access states fail closed. A pending pack purchase is **not**
+spendable credit.
 
 ### Routes and aliases
 
@@ -79,9 +84,40 @@ Workspace is always resolved from the validated connector. Query
 
 ### Capabilities
 
-Advertised now: `["usage_v1", "quote_v1", "status_v1"]`.
+Advertised now: `["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"]`.
 
-Reserved, **do not advertise**: `billing_portal_link_v1`, `subscriptions_v1`.
+Reserved, **do not advertise**: `subscriptions_v1`.
+
+### Billing page URL (`billing_portal_link_v1`)
+
+`billingPageUrl` is a first-party navigation hint only:
+
+```text
+https://augmentworks.ai/portal/billing?workspace=<workspace-uuid>
+```
+
+Local/dev may use the configured `NEXT_PUBLIC_SITE_URL` origin with the same
+path and query. The URL contains **no** access token, refresh token, device
+code, Stripe customer ID, or Checkout Session ID. Opening it does not
+authorize payment. The browser session must sign in and the server must
+verify membership; only owner/admin billing role can start Checkout.
+
+Rejection cases for CLI URL handling: userinfo, non-https in production,
+protocol-relative URLs, lookalike hosts, off-origin redirects, unexpected
+ports, injected fragments, and sensitive query parameters.
+
+There is **no** CLI order-status API in Stage 3A. Order state is on
+`/portal/billing/orders/<orderId>` after browser auth. Usage may include
+optional additive `pendingCommerce: { orderId, state, skuCode }` while a
+non-terminal pack exists. Treat it as processing metadata. **Do not** add
+those units to `availableUnits`.
+
+Safe example (fulfilled trial + no pending purchase): availableUnits stays
+the ledger snapshot. Fixture `pending_pack_purchase` has availableUnits 200
+with `pendingCommerce.state = paid_unfulfilled`.
+
+Catalog prices are server-owned. If the CLI only has the billing-page link
+and usage, omit CLI price marketing and let the website display the offer.
 
 ### Quote
 
@@ -252,8 +288,9 @@ grading cost budget. Private budgets never debit an extra customer unit.
 ### Usage payload
 
 Unchanged from Stage 1, with advertised capabilities now including
-`quote_v1` and `status_v1`. Optional additive totals:
-`grossConsumedUnits`, `compensatedUnits`, `releasedUnits`.
+`quote_v1`, `status_v1`, and `billing_portal_link_v1`. Optional additive
+totals: `grossConsumedUnits`, `compensatedUnits`, `releasedUnits`.
+Optional additive `pendingCommerce` is processing metadata, not a balance.
 
 Invariant: `available = usable granted − net consumed − outstanding reserved`.
 
@@ -261,21 +298,36 @@ Invariant: `available = usable granted − net consumed − outstanding reserved
 
 See `docs/contracts/aw-billing-v1.fixtures.json`. Stage 1 cases remain.
 Stage 2 adds quote success (including insufficient balance), pending-grading
-status, and structured quote/admission errors.
+status, and structured quote/admission errors. Stage 3 adds
+`pending_pack_purchase` (availableUnits unchanged until fulfillment) and
+advertises `billing_portal_link_v1` on producer usage fixtures.
 
 ## Migrations
 
-Forward only. Stage 1 order, then:
+Forward only. Stage 1–2 order, then:
 
-4. `20260907140001_billing_quotes_and_quoted_admission.sql`
-5. `20260907140002_provider_cost_ledger_and_dispatch.sql`
-6. `20260907140003_hydration_finalization_compensation.sql`
+7. `20260908120001_billing_prepaid_checkout.sql`
+8. `20260908120002_billing_pi_records_payment_only.sql`
 
 Cutover marker is still `aw-billing/1-cutover`. After cutover, self-service
 chargeable creates require `aw-relay/0.3`. Pre-cutover and managed paths are
 documented in `docs/billing/admission-inventory.md`.
 
-## Copyable CLI 2B examples
+## Copyable CLI 3B examples
+
+Billing page (no secrets):
+
+```text
+https://augmentworks.ai/portal/billing?workspace=11111111-1111-4111-8111-111111111111
+```
+
+Insufficient credits should keep the uncreated intent, report required vs
+available units when the server supplied them, and point at that URL. After
+the customer pays, they run `usage` and then explicitly start a new test
+with `--max-credits`. Fulfillment may still be processing after Checkout
+returns; `pendingCommerce` is not a grant.
+
+## Copyable CLI 2B examples (still valid)
 
 Estimate (no reservation):
 
@@ -337,8 +389,8 @@ use `billing_compensate_consumption`.
 
 ## Commands and verification
 
-Recorded 2026-09-06 from `/Users/jeffskafi/Desktop/augmentworks-billing-2a`.
-Exact outcomes are in `docs/billing/phase-2-completion.md`.
+Recorded 2026-09-06 from `/Users/jeffskafi/Desktop/augmentworks-billing-3a`.
+Exact outcomes are in `docs/billing/phase-3-completion.md`.
 
 ```bash
 pnpm billing:contract-hashes
@@ -350,33 +402,36 @@ SKIP_ENV_VALIDATION=true NEXT_PUBLIC_SITE_URL=https://augmentworks.ai pnpm build
 pnpm exec supabase start
 pnpm exec supabase migration up
 pnpm test:billing-db
+pnpm test:stripe
 ```
 
-Passed in this checkout: typecheck, lint (0 errors), 573 unit tests, 92
+Passed in this checkout: typecheck, lint (0 errors), 604 unit tests, 95
 integration tests, production build, and `pnpm test:billing-db` against local
-Postgres/PostgREST after applying the three Stage 2A migrations.
+Postgres/PostgREST after applying `20260908120001` and `20260908120002`.
 
-`pnpm test:billing-db` exit **2** means Postgres/Supabase/psql is missing —
-blocked external prerequisite, not a passing test. Do not treat this file as
-evidence that live OpenAI calibration ran.
+`pnpm test:stripe` exit **2** means Stripe test credentials are missing —
+blocked external prerequisite, not a passing test. Do not treat the local
+simulator as Stripe proof.
 
 ## Unresolved limitations
 
-- Live OpenAI calibration and measured grading cost: **UNVERIFIED** without
-  credentials and a bounded budget. Human review of calibration labels is
-  required; generated labels stay `provisional`.
-- Quote compile still requires judge configuration at **create** time
-  (`requireJudgeConfiguration: true`); quote itself compiles with
-  `requireJudgeConfiguration: false`.
-- JS `canonicalize` and SQL `canonicalize_runner_jsonb` are not interchangeable
-  as proof. The server stores and binds the SQL digest.
-- Purchases, packs ($49 / 300), subscriptions ($149 / 1,000), Stripe, and
-  Clerk are not implemented and must not be advertised.
-- Published CLI 0.3.2 cannot send `aw-relay/0.3`. After cutover, that package
-  receives `UPDATE_REQUIRED` for new billed work.
+- Live OpenAI calibration and measured grading cost: **UNVERIFIED**.
+- Real Stripe test-mode Checkout/webhook/3DS: **BLOCKED** until
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and
+  `STRIPE_PRICE_TEST_PACK_300_V1` are supplied.
+- Automatic tax: flag exists; fulfillment currently matches catalog
+  principal. Enable tax only after the accepted tax policy is configured.
+- Subscriptions (`pro_monthly_1000_v1`, `subscriptions_v1`) are reserved and
+  not sold.
+- Published CLI 0.3.2 cannot send `aw-relay/0.3` or open `billing`. After
+  cutover, that package receives `UPDATE_REQUIRED` for new billed work.
 
 ## Live activation
 
-Not enabled. No production deploy, no live sales, no real charges, no paid
-inference activation from this prompt. Dispatch remains gated by
-`AW_JUDGE_DISPATCH_ENABLED` and hosted judge configuration.
+Not enabled. No production deploy, no live sales, no real charges/refunds,
+no customer messages, no npm publish. Kill switch
+`AW_BILLING_PURCHASES_ENABLED` defaults off. Live sales additionally require
+`AW_BILLING_LIVE_PURCHASES_ENABLED=true` after merchant/tax review.
+
+Disabling new Checkout must preserve webhook fulfillment, refunds, event
+processing, and access to existing paid results.

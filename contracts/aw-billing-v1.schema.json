@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://augmentworks.ai/contracts/aw-billing-v1.schema.json",
   "title": "AugmentWorks billing contract",
-  "description": "Canonical aw-billing/1 wire contract owned by jeffskafi/augmentworks. Stage 2 advertises usage_v1, quote_v1, and status_v1. Request validation is strict. Response consumers must tolerate documented additive optional fields and ignore unknown capability strings. Consumers must tolerate a later non-null subscription object by ignoring unsupported optional details. Unknown financial/access states must never be guessed active or safe.",
+  "description": "Canonical aw-billing/1 wire contract owned by jeffskafi/augmentworks. Stage 3 advertises usage_v1, quote_v1, status_v1, and billing_portal_link_v1. Request validation is strict. Response consumers must tolerate documented additive optional fields and ignore unknown capability strings. Consumers must tolerate a later non-null subscription object by ignoring unsupported optional details. Unknown financial/access states must never be guessed active or safe. A pending pack purchase is optional additive metadata and is never spendable credit.",
   "type": "object",
   "$defs": {
     "schemaVersion": {
@@ -63,11 +63,11 @@
     },
     "advertisedCapability": {
       "type": "string",
-      "enum": ["usage_v1", "quote_v1", "status_v1"]
+      "enum": ["usage_v1", "quote_v1", "status_v1", "billing_portal_link_v1"]
     },
     "reservedCapability": {
       "type": "string",
-      "enum": ["billing_portal_link_v1", "subscriptions_v1"],
+      "enum": ["subscriptions_v1"],
       "description": "Reserved names. They must not appear in advertised capabilities until implemented."
     },
     "capability": {
@@ -103,7 +103,8 @@
         },
         "grantedAt": { "$ref": "#/$defs/utcTimestamp" },
         "policyVersion": { "type": "string", "maxLength": 64 },
-        "forfeitedUnits": { "$ref": "#/$defs/unitCount" }
+        "forfeitedUnits": { "$ref": "#/$defs/unitCount" },
+        "frozenUnits": { "$ref": "#/$defs/unitCount" }
       }
     },
     "subscription": {
@@ -168,7 +169,23 @@
         "grossConsumedUnits": { "$ref": "#/$defs/unitCount" },
         "compensatedUnits": { "$ref": "#/$defs/unitCount" },
         "releasedUnits": { "$ref": "#/$defs/unitCount" },
-        "cutoverVersion": { "type": ["string", "null"] }
+        "cutoverVersion": { "type": ["string", "null"] },
+        "pendingCommerce": {
+          "description": "Optional additive snapshot of a non-terminal pack order. It is not spendable credit. Absent or null means no pending purchase. CLI Stage 3B may ignore this field.",
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["orderId", "state", "skuCode"],
+              "properties": {
+                "orderId": { "$ref": "#/$defs/uuid" },
+                "state": { "type": "string" },
+                "skuCode": { "type": "string" }
+              }
+            }
+          ]
+        }
       }
     },
     "capabilitiesResponse": {

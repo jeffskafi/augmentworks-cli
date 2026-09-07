@@ -1,5 +1,12 @@
 import { sanitizeTerminal } from "../errors.js";
-import { grantOriginKind, type BillingGrantBalance, type BillingQuote, type BillingRunStatus, type BillingUsage } from "./protocol.js";
+import {
+  grantOriginKind,
+  type BillingGrantBalance,
+  type BillingPendingCommerce,
+  type BillingQuote,
+  type BillingRunStatus,
+  type BillingUsage
+} from "./protocol.js";
 import { assertSafeBillingPageUrl } from "./validate.js";
 
 const ORIGIN_LABEL: Record<ReturnType<typeof grantOriginKind>, string> = {
@@ -46,16 +53,31 @@ export function formatUsageHuman(input: {
   if (usage.accessState !== "active") {
     lines.push("New hosted tests are rejected in this access state. This snapshot remains readable.");
   }
+  appendPendingCommerce(lines, usage.pendingCommerce);
   lines.push(
     "This command is read-only. It does not grant credits, reserve units, open checkout, or manage billing. Billing changes require a signed-in browser session with billing permission."
   );
   try {
-    const billingUrl = assertSafeBillingPageUrl(usage.billingPageUrl, apiOrigin);
+    const billingUrl = assertSafeBillingPageUrl(usage.billingPageUrl, apiOrigin, usage.workspaceId);
     lines.push(`Billing page: ${sanitizeTerminal(billingUrl.toString())}`);
   } catch {
     lines.push("Billing page: (omitted; the server URL was not a trusted first-party billing path.)");
   }
   return `${lines.join("\n")}\n`;
+}
+
+function appendPendingCommerce(
+  lines: string[],
+  pending: BillingPendingCommerce | null | undefined
+): void {
+  if (pending === undefined || pending === null) return;
+  lines.push("");
+  lines.push(
+    `Purchase processing: ${sanitizeTerminal(pending.state)} for ${sanitizeTerminal(pending.skuCode)}.`
+  );
+  lines.push(
+    "Processing is not spendable credit. Available credits above are the ledger snapshot only. Check usage later; do not treat a closed payment tab as success or failure."
+  );
 }
 
 function formatGrantLot(lot: BillingGrantBalance): string {
@@ -83,7 +105,67 @@ export function usageSuccessJson(usage: BillingUsage): string {
     capabilities: usage.capabilities,
     ...(usage.grossConsumedUnits === undefined ? {} : { grossConsumedUnits: usage.grossConsumedUnits }),
     ...(usage.compensatedUnits === undefined ? {} : { compensatedUnits: usage.compensatedUnits }),
-    ...(usage.cutoverVersion === undefined ? {} : { cutoverVersion: usage.cutoverVersion })
+    ...(usage.releasedUnits === undefined ? {} : { releasedUnits: usage.releasedUnits }),
+    ...(usage.cutoverVersion === undefined ? {} : { cutoverVersion: usage.cutoverVersion }),
+    ...(usage.pendingCommerce === undefined ? {} : { pendingCommerce: usage.pendingCommerce })
+  })}\n`;
+}
+
+export function formatBillingHuman(input: {
+  readonly usage: BillingUsage;
+  readonly workspaceLabel: string;
+  readonly billingPageUrl: URL;
+  readonly openedBrowser: boolean;
+}): string {
+  const lines: string[] = [];
+  lines.push(`Workspace: ${sanitizeTerminal(input.workspaceLabel)}`);
+  lines.push(`Available credits: ${String(input.usage.availableUnits)}`);
+  lines.push(`Billing page: ${sanitizeTerminal(input.billingPageUrl.toString())}`);
+  lines.push(
+    "This is a first-party AugmentWorks page. Opening it does not authorize payment. Sign in in the browser; only a workspace owner or billing manager can change payment methods or buy a pack."
+  );
+  lines.push(
+    "A connector token is not billing-management permission. The workspace id in the URL is a navigation hint, not authorization."
+  );
+  lines.push(
+    "A standard credit is one scenario attempt against one target. Pack prices and catalog terms are shown on the website, not by this CLI."
+  );
+  lines.push(
+    "Purchasing is optional. Account-free local testing and demo do not need a pack and make no billing calls."
+  );
+  appendPendingCommerce(lines, input.usage.pendingCommerce);
+  if (input.openedBrowser) {
+    lines.push("Opened the billing page in a browser.");
+  } else {
+    lines.push("Printed the billing URL without opening a browser.");
+  }
+  lines.push(
+    "After fulfillment, run usage, then start a new hosted test explicitly with --max-credits. Do not wait here for a purchase."
+  );
+  return `${lines.join("\n")}\n`;
+}
+
+export function billingSuccessJson(input: {
+  readonly usage: BillingUsage;
+  readonly billingPageUrl: URL;
+  readonly openedBrowser: boolean;
+}): string {
+  const { usage } = input;
+  return `${JSON.stringify({
+    ok: true,
+    schemaVersion: usage.schemaVersion,
+    workspaceId: usage.workspaceId,
+    billingAccountId: usage.billingAccountId,
+    billingPageUrl: input.billingPageUrl.toString(),
+    availableUnits: usage.availableUnits,
+    reservedUnits: usage.reservedUnits,
+    consumedUnits: usage.consumedUnits,
+    accessState: usage.accessState,
+    asOf: usage.asOf,
+    ledgerRevision: usage.ledgerRevision,
+    capabilities: usage.capabilities,
+    openedBrowser: input.openedBrowser,
+    ...(usage.pendingCommerce === undefined ? {} : { pendingCommerce: usage.pendingCommerce })
   })}\n`;
 }
 

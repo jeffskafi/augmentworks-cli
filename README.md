@@ -38,7 +38,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo`, `usage`, `test --estimate`, `--max-credits`, or `run status` / `run wait`. Clone this repository and build source `0.3.2` for those commands. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.1**. That published tarball includes hosted `--assessment` / `--profile`, `aw-relay/0.2`, `recover`, `test --local`, and the bundled starter packet. It omits `examples/` and does **not** include `demo`, `usage`, `billing`, `test --estimate`, `--max-credits`, or `run status` / `run wait`. Clone this repository and build source `0.3.2` for those commands. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (source 0.3.2, not in npm 0.3.1)
 
@@ -140,6 +140,32 @@ offline `doctor`, and `schema` remain account-free and make no billing calls.
 
 Until source 0.3.2 is published, do not write an unpublished npx pin for
 `usage`.
+
+## Browser billing (source 0.3.2)
+
+`billing` retrieves the authenticated first-party billing page advertised by
+`billing_portal_link_v1` and prints or opens that URL. It does not create a
+Stripe Customer, Checkout Session, purchase, refund, or subscription. The
+workspace id in the URL is a navigation hint. Payment changes require a
+signed-in browser session with owner/billing permission.
+
+After `npm ci && npm run build`:
+
+```bash
+node dist/index.js billing
+node dist/index.js billing --json
+node dist/index.js billing --print
+```
+
+`--json` and `--print` never open a browser. A failed GUI opener still prints
+the safe URL and does not change credentials. If a hosted test is rejected for
+insufficient credits, the CLI reports required vs available units when the
+server supplied them, keeps the uncreated intent, and points at this page. Do
+not wait in the terminal for a purchase. After fulfillment, run `usage`, then
+start a new test explicitly with `--max-credits`. `pendingCommerce` on a usage
+snapshot is processing metadata, not spendable credit. Pack prices belong to
+the website catalog; this CLI does not market the $49 pack or the future $149
+plan.
 
 ## Hosted estimate and spending consent (source 0.3.2)
 
@@ -446,6 +472,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material |
 | `whoami` | Show the current workspace identity | Reads cloud identity; may refresh and update the local connector credential |
 | `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, or checkout. Source 0.3.2, not published 0.3.1 |
+| `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, or reservation. Source 0.3.2 |
 | `init [-c path] [--agent] [--force]` | Generate config and setup guidance | Does not overwrite files unless `--force` is explicit |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, and optional assessment files | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |

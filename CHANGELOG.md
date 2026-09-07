@@ -25,6 +25,11 @@ All notable changes to this project are documented here. The format follows
   `run retry-evaluation`. Vendors the Stage 2A contract from main
   `67749b22f04bbb8d94c0309acd36be3cb3144400`. Quotes do not reserve credits.
   Not npm-published. Live sales remain disabled.
+- Source `0.3.2` Stage 3B `augmentworks billing` / `billing --json` /
+  `billing --print` for first-party billing-page navigation. Vendors the
+  Stage 3A contract from main `931838f29ee04fc018ef6359c22abd8d3e8da4c8`.
+  The CLI does not create Checkout Sessions or Stripe customers. Not
+  npm-published. Live sales remain disabled.
 
 ### Fixed
 

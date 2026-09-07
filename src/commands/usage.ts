@@ -63,7 +63,7 @@ export async function runUsage(
     throw remapProfileRecovery(error, session.apiOrigin);
   }
   assertUsageWorkspace(usage, session.identity.workspaceId);
-  assertSafeBillingPageUrl(usage.billingPageUrl, session.apiOrigin);
+  assertSafeBillingPageUrl(usage.billingPageUrl, session.apiOrigin, session.identity.workspaceId);
   return { identity: session.identity, usage, apiOrigin: session.apiOrigin };
 }
 

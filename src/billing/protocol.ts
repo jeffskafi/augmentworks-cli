@@ -11,6 +11,8 @@ export const QUOTED_CREATE_PROTOCOL = AW_BILLING_CONTRACT.contract.quotedCreateP
 export const USAGE_V1 = "usage_v1" as const;
 export const QUOTE_V1 = "quote_v1" as const;
 export const STATUS_V1 = "status_v1" as const;
+export const BILLING_PORTAL_LINK_V1 = "billing_portal_link_v1" as const;
+export const SUBSCRIPTIONS_V1 = "subscriptions_v1" as const;
 
 export const BILLING_PRIMARY_PATHS = AW_BILLING_CONTRACT.contract.primaryPaths;
 export const BILLING_ALIAS_PATHS = AW_BILLING_CONTRACT.contract.aliases;
@@ -80,6 +82,13 @@ export type BillingGrantBalance = {
   readonly grantedAt: string;
   readonly policyVersion?: string;
   readonly forfeitedUnits?: number;
+  readonly frozenUnits?: number;
+};
+
+export type BillingPendingCommerce = {
+  readonly orderId: string;
+  readonly state: string;
+  readonly skuCode: string;
 };
 
 export type BillingUsage = {
@@ -98,7 +107,9 @@ export type BillingUsage = {
   readonly capabilities: readonly string[];
   readonly grossConsumedUnits?: number;
   readonly compensatedUnits?: number;
+  readonly releasedUnits?: number;
   readonly cutoverVersion?: string | null;
+  readonly pendingCommerce?: BillingPendingCommerce | null;
 };
 
 export type BillingCapabilities = {
