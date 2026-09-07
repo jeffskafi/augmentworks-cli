@@ -1,5 +1,6 @@
 import { sanitizeTerminal } from "../errors.js";
 import { grantOriginKind, type BillingGrantBalance, type BillingQuote, type BillingRunStatus, type BillingUsage } from "./protocol.js";
+import { classifyBillingRunStatus } from "./status-classification.js";
 import { assertSafeBillingPageUrl } from "./validate.js";
 
 const ORIGIN_LABEL: Record<ReturnType<typeof grantOriginKind>, string> = {
@@ -150,6 +151,7 @@ export function estimateSuccessJson(input: {
 }
 
 export function formatRunStatusHuman(status: BillingRunStatus): string {
+  const classified = classifyBillingRunStatus(status);
   const lines: string[] = [];
   lines.push(`Original run: ${sanitizeTerminal(status.originalRunId)}`);
   if (status.runId !== status.originalRunId) {
@@ -163,14 +165,27 @@ export function formatRunStatusHuman(status: BillingRunStatus): string {
   lines.push(
     `Progress: ${String(status.progress.completedAttempts)}/${String(status.progress.plannedAttempts)} attempts, ${String(status.progress.completedJudgeJobs)}/${String(status.progress.plannedJudgeJobs)} grading jobs`
   );
+  if (status.outcome !== undefined && status.outcome !== null) {
+    lines.push(`Outcome: ${sanitizeTerminal(status.outcome)}`);
+  }
   if (status.savedEvidence) {
     lines.push("Your test evidence is saved.");
   }
-  if (status.evaluationStatus === "pending" || status.evaluationStatus === "partial") {
+  lines.push(
+    classified.releaseSuccess
+      ? "Assessment: passed. This is a release-success classification."
+      : "This status read succeeded. It is not a passing assessment unless release_success is true and the process exits 0."
+  );
+  if (!classified.waitTerminal) {
     lines.push(
-      `Grading is pending on the original run. Wait with: augmentworks run wait ${status.originalRunId}`
+      `Target work or grading is not terminal on the original run. Wait with: augmentworks run wait ${status.originalRunId}`
     );
     lines.push(`Inspect with: augmentworks run status ${status.originalRunId}`);
+  }
+  if (classified.assessment === "error" || classified.assessment === "unsupported") {
+    lines.push(
+      `Grading did not produce an applicable pass. Inspect the original run: augmentworks run status ${status.originalRunId}`
+    );
   }
   if (status.retryEligible) {
     lines.push(
@@ -187,8 +202,15 @@ export function formatRunStatusHuman(status: BillingRunStatus): string {
 }
 
 export function runStatusSuccessJson(status: BillingRunStatus): string {
+  const classified = classifyBillingRunStatus(status);
   return `${JSON.stringify({
     ok: true,
+    observation: classified.observation,
+    work: classified.work,
+    assessment: classified.assessment,
+    wait_terminal: classified.waitTerminal,
+    release_success: classified.releaseSuccess,
+    exit_code: classified.exitCode,
     schemaVersion: status.schemaVersion,
     runId: status.runId,
     workspaceId: status.workspaceId,

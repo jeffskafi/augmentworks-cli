@@ -17,6 +17,11 @@ export {
   parseBillingUsageResponse
 } from "./validate.js";
 export {
+  billingStatusExitCode,
+  classifyBillingRunStatus,
+  isWaitTerminal
+} from "./status-classification.js";
+export {
   estimateSuccessJson,
   formatEstimateHuman,
   formatRunStatusHuman,

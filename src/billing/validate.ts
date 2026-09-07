@@ -19,6 +19,7 @@ import {
   USAGE_V1,
   capabilityIsAvailable,
   isBillingAccessState,
+  isBillingAssessmentOutcome,
   isBillingEvaluationStatus,
   type BillingCapabilities,
   type BillingGrantBalance,
@@ -252,6 +253,13 @@ export function parseBillingRunStatusResponse(value: unknown): BillingRunStatus 
   if (!parsed.success) throw billingMalformedError("billing run status response");
   if (!isBillingEvaluationStatus(parsed.data.evaluationStatus)) {
     throw billingUnsupportedStateError({ evaluation_status: parsed.data.evaluationStatus });
+  }
+  if (
+    parsed.data.outcome !== undefined &&
+    parsed.data.outcome !== null &&
+    !isBillingAssessmentOutcome(parsed.data.outcome)
+  ) {
+    throw billingUnsupportedStateError({ outcome: parsed.data.outcome });
   }
   return {
     schemaVersion: parsed.data.schemaVersion,
