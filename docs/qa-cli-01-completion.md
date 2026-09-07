@@ -15,6 +15,7 @@ combined release gate ([AUG-58](https://linear.app/augmentworks/issue/AUG-58/mai
 | Default main at start | `3db54a6` (merge of billing Stage 5B) |
 | Audited CLI SHA in the ticket | `197bbf7689b120fbe5d190b575429e1de8128495` (older than current main) |
 | Working branch | `cursor/aug-54-api-key-report-3f6d` |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/26 |
 | Source package | `0.3.3` (not a published npm version) |
 | Verified published npm | `@augmentworks/cli@0.3.2` |
 | Contract | AW-QA-1 hosted authentication and report contract |
@@ -82,16 +83,25 @@ returns `0`. Retrieval success is not grading success.
 
 ## Tests run
 
-Recorded after verification on this branch. Source tests do not call a live
-AugmentWorks API.
+Recorded on branch `cursor/aug-54-api-key-report-3f6d` after source
+implementation. Source tests do not call a live AugmentWorks API. Exact
+package version under test: **0.3.3** (unpublished).
 
 | Command | Result |
 | --- | --- |
 | `npx tsc --noEmit` | Pass |
 | `npx vitest run` | Pass. **59 files, 554 tests** |
-| `node scripts/check-aw-run-report-contract.mjs` | Pass. schema `7726ec277d33e435d2832e8be0898baf9337631d779f073a10c7795fc7de38ff`, fixtures `febd2626c96672d0e79afc4706b3a5136598b61bbebbdeb0f8ec1bdbc44cd806` |
-| `npm run check` | recorded after the verification commit |
-| `npm run smoke:pack` | recorded after the verification commit |
+| `node scripts/check-aw-run-report-contract.mjs` | Pass. schema `7726ec277d33e435d2832e8be0898baf9337631d779f073a10c7795fc7de38ff`, fixtures `febd2626c96672d0e79afc4706b3a5136598b61bbebbdeb0f8ec1bdbc44cd806`, source `AW-QA-1` |
+| `npm run check` | Pass (typecheck, vitest 59/554, tsup, discovery, billing contract, run-report contract) |
+| `npm run smoke:pack` | Pass. Packed tarball **34 files**, 393327 compressed bytes. Installed binary `@augmentworks/cli@0.3.3`. Packed billing fixture: `creates=1 quotes=4 targets=1 polls=3 refreshes=1`. Packed report fixture: `requests=3`, GET-only, JSON-only stdout, isolated HOME/state, empty D-Bus, `AUGMENTWORKS_API_KEY`, env-conflict exit `3`, negative-control exit `10`, no quote/create/retry-evaluation |
+| GitHub Actions CI | Pass. Node 20/22/24 × ubuntu/macos/windows (`34097472114`) |
+
+Sanitized packed-report fixture line (no secrets):
+
+```text
+[packed report fixture] passed (requests=3, source=AW-QA-1 compatibility fixtures)
+[pack smoke] passed (34 files, 393327 compressed bytes)
+```
 
 Skipped / blocked:
 
