@@ -71,7 +71,21 @@ Optional producer change (not done here): emit `outcome` on billing status when 
 
 ## Tests and verification
 
-See the PR description for commands and real outcomes recorded in this checkout.
+Working directory: this checkout. Base `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027`. Head recorded after the implementation commits.
+
+| Command | Outcome |
+| --- | --- |
+| `npm run typecheck` | Pass |
+| `npm test` | Pass. Vitest 4.1.11: **49 files, 408 tests** |
+| `npm run build` | Pass. tsup ESM `dist/index.js` 1.63 MB |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.2` (development) |
+| `npm run check:billing-contract` | Pass. `aw-billing/1` from `67749b22f04bbb8d94c0309acd36be3cb3144400`; schema `4816444925c39629d41fc6993b0206fa5db25641ce40aafc13af6fe1a89ef901`; fixtures `cb26b6d36bf01d7c1957354f8982f20a6cfd8c8c47859f46e37d5270b75dd4a1` |
+| `npm run check` | Pass (typecheck + test + build + discovery + billing contract) |
+| `npm run smoke:pack` | Pass. Packed tarball **20 files, 356344 compressed bytes** |
+| Packed `run wait` against running/absent fixture | Process exit **11**, original run id in output, zero POST quote/create/retry/target |
+| Packed `run wait` running/absent → completed/absent/passed | Process exit **0** after a later status poll; still zero billable writes |
+
+Not run: live Stage 2A host, npm publish, paid target calls. Those remain blocked external prerequisites, not passes.
 
 ## Remaining release requirements
 
