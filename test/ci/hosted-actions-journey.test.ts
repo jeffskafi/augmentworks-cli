@@ -225,7 +225,8 @@ describe("hosted GitHub Actions recipe", () => {
     expect(recipe).toContain("if: ${{ always() }}");
     expect(recipe).toContain("own_target.ci_result_recorded");
     expect(recipe).toContain("/v1/release-gates/evaluate");
-    expect(recipe).not.toContain("pull_request_target");
+    expect(recipe).toMatch(/Do not use[\s#]{1,20}pull_request_target/);
+    expect(recipe).not.toMatch(/(?:^|\n)\s+pull_request_target:/u);
     expect(recipe).not.toMatch(/(?:^|\n)\s+logout\b/u);
     expect(recipe).not.toContain("baseline promote");
     expect(recipe).not.toContain("npx @augmentworks/cli@latest");
