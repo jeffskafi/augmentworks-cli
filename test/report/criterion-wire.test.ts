@@ -80,7 +80,14 @@ describe("producer criterion-wire adapter", () => {
     expect(parsed.detail.evidence.availability).toBe("available");
     expect(parsed.detail.evidence.text).toContain("30 days");
     expect(parsed.detail.evidence.truncated).toBe(false);
-    expect(JSON.stringify(parsed.detail)).not.toContain("not_claimed");
+    expect(JSON.stringify(parsed.detail.evidence)).not.toContain("not_claimed");
+    expect(
+      (parsed.detail as { document?: { schemaVersion?: string; criterionId?: string } }).document
+        ?.schemaVersion
+    ).toBe("aw-criterion-detail/1");
+    expect(
+      (parsed.detail as { document?: { criterionId?: string } }).document?.criterionId
+    ).toBe(PRODUCER_CRITERION_ID);
   });
 
   it("maps producer requirement/verdict/evidence on an embedded index item", () => {

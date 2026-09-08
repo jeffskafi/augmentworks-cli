@@ -506,7 +506,8 @@ function convertProducerDetail(
     required: requirement.required ?? true,
     verdict: verdictResult.verdict,
     evidence: evidenceResult.evidence,
-    wireVerdict: verdictResult.wireVerdict
+    wireVerdict: verdictResult.wireVerdict,
+    document: parsed.data.document
   };
   const internal = CriterionDetailSchema.safeParse(converted);
   if (!internal.success) {
