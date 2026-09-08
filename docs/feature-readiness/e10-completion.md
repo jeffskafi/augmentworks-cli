@@ -113,7 +113,7 @@ from a clean `npm pack` extract.
 | `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.3 (development)` |
 | `npm run check:billing-contract` | Pass. Untouched `aw-billing/1` hashes above |
 | `npm run check:run-report-contract` | Pass. Untouched `aw-run-report/1` hashes above |
-| `npm run check` | Pass |
+| `npm run check` | Pass locally. GitHub Actions: Ubuntu and macOS Node 20/22/24 **passed**. Windows Node 20/22/24 **failed** on raw-byte SHA-256 of `contracts/aw-release-policy-v1.fixtures.json` (CRLF working tree `db12c3cd…` vs locked LF `dcc76898…`). Packed gate tests passed on those Windows jobs. Follow-up: LF-lock those files in `.gitattributes` and hash canonical LF bytes. |
 | `npm run smoke:pack` | Pass. Packed tarball **55 files, 440048 compressed bytes**. Includes packed `compare` / `gate` / `baseline` help and lock/fixture inventory. Packed billing fixture: `creates=1 quotes=4 targets=1 polls=3 refreshes=1`. Packed report fixture: `requests=8`. |
 | Live hosted assessment / npm publish | **Not run** |
 
@@ -122,7 +122,7 @@ Injected Cloud Agent `AUGMENTWORKS_API_KEY` plus a test `AUGMENTWORKS_TOKEN` is
 unset, matching previous CLI completion records. Packed gate tests also clear
 `AUGMENTWORKS_API_KEY` in the child environment.
 
-Focused slice: `npx vitest run test/baseline test/integration/cli-entry.test.ts test/docs/copy-contract.test.ts` → **5 files, 86 passed**.
+Focused slice after the Windows checksum follow-up: `npx vitest run test/baseline/classify.test.ts` → **9 passed** (includes CRLF digest case). Packed gate behavior tests still pass.
 
 Behavior covered (synthetic fixtures only):
 

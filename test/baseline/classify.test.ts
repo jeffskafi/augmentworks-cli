@@ -15,6 +15,14 @@ const fixtures = JSON.parse(await readFile(fixturesPath, "utf8")) as {
   fixtures: Record<string, { response: unknown }>;
 };
 
+function canonicalLfBytes(buffer: Buffer): Buffer {
+  return Buffer.from(buffer.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n"), "utf8");
+}
+
+function sha256Lf(buffer: Buffer): string {
+  return createHash("sha256").update(canonicalLfBytes(buffer)).digest("hex");
+}
+
 const expected = {
   candidateRunId: fixtures.identities.candidateRunId,
   baselineId: fixtures.identities.baselineId
@@ -32,10 +40,22 @@ describe("release-policy classifier", () => {
       await readFile(resolve(fileURLToPath(new URL("../../contracts/aw-release-policy-v1.lock.json", import.meta.url))), "utf8")
     ) as { cli: { consumerFixturesChecksum: string }; source: { schemaChecksum: string } };
     const bytes = await readFile(fixturesPath);
-    expect(createHash("sha256").update(bytes).digest("hex")).toBe(lock.cli.consumerFixturesChecksum);
+    expect(sha256Lf(bytes)).toBe(lock.cli.consumerFixturesChecksum);
+    expect(lock.cli.consumerFixturesChecksum).toBe(
+      "dcc76898c8e89bf4e2e18c68f6882e7c9643f0fe2a612a88eae1167d5224c65f"
+    );
     expect(lock.source.schemaChecksum).toBe(
       "4f026740a349c736e98af95599736a92cb81246bea3a1673b26e7fa94cadc870"
     );
+  });
+
+  it("hashes a CRLF working-tree copy of the consumer fixtures to the locked LF digest", async () => {
+    const bytes = await readFile(fixturesPath);
+    const lf = bytes.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
+    const crlf = Buffer.from(lf.replace(/\n/gu, "\r\n"), "utf8");
+    expect(crlf.includes(0x0d)).toBe(true);
+    expect(sha256Lf(crlf)).toBe("dcc76898c8e89bf4e2e18c68f6882e7c9643f0fe2a612a88eae1167d5224c65f");
+    expect(sha256Lf(crlf)).toBe(sha256Lf(bytes));
   });
   it("blocks a new required regression when aggregate pass rates match", () => {
     const { document, classification } = classify("blocked_equal_pass_rate");

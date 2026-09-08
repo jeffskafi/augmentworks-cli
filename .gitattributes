@@ -1,5 +1,5 @@
-# Vendored billing contracts are SHA-256 locked as LF bytes from the main
-# repository. Windows checkout must not convert them to CRLF.
+# SHA-256-locked contract JSON is stored as LF bytes. Windows checkout must
+# not convert these files to CRLF.
 contracts/aw-billing-v1.schema.json text eol=lf
 contracts/aw-billing-v1.fixtures.json text eol=lf
 contracts/aw-billing-v1.lock.json text eol=lf
@@ -8,3 +8,5 @@ contracts/aw-run-report-v1.schema.json text eol=lf
 contracts/aw-run-report-v1.fixtures.json text eol=lf
 contracts/aw-run-report-v1.lock.json text eol=lf
 src/report/contract.ts text eol=lf
+contracts/aw-release-policy-v1.fixtures.json text eol=lf
+contracts/aw-release-policy-v1.lock.json text eol=lf
