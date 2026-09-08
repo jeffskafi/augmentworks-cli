@@ -25,3 +25,8 @@ See `../walkthrough-draft.md`. Do not fabricate a recording.
 for this source build. It is not a published `0.3.2` pin and must not be
 advertised as an unpublished npm version until that tarball is verified on
 the registry.
+
+`github-actions-hosted-gate.yml` adds a read-only `gate` after quoted
+execution and `run wait` on the original run ID. It requires an explicit
+`AUGMENTWORKS_BASELINE_ID`. It does not issue machine credentials, create
+GitHub secrets, auto-promote a pin, or start a second billed assessment.

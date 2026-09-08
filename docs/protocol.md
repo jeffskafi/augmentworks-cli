@@ -71,12 +71,22 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `POST /v1/relay/runs/{run_id}:cancel` | Request cancellation and fence new work |
 | `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |
 | `GET /v1/billing/usage` | Read the workspace execution-credit snapshot |
+| `GET /v1/applications` | List application/environment/baseline identities. Observation only; `createsBillableRun` must be false |
+| `POST /v1/comparisons/evaluate` | Authoritative semantic comparison over an explicit candidate run and baseline pin (`aw-comparison/1` request) |
+| `POST /v1/release-gates/evaluate` | Versioned release-policy decision (`aw-release-policy/1`). HTTP success is not a pass |
+| `POST /v1/baselines/{baselineId}/promote` | Explicit authorized baseline promotion with `expectedPromotionRevision`. Never automatic |
 
 `usage` and `billing` GET those billing paths only. They never call create,
 reserve, grant, quote, Checkout, or the target. `billing` prints or opens the
 server `billingPageUrl` after `billing_portal_link_v1` is advertised. Server
 aliases under `/api/v1/billing/*` exist; this CLI uses the primary
 `/v1/billing/*` paths.
+
+`compare`, `gate`, and `baseline status` POST/GET the comparison and
+application paths only. They never call `POST /v1/relay/runs`, quote,
+reservation, or retry-evaluation. `--json` writes one object on stdout;
+diagnostics stay on stderr. Process exit follows the server `decision`, not
+transport success. Unknown or unsupported policy states exit `11`, never `0`.
 
 The corresponding authentication endpoints are documented in
 [authentication.md](authentication.md).

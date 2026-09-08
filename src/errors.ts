@@ -71,6 +71,7 @@ export function exitCodeFor(error: unknown): number {
   if (!(error instanceof AwError)) return EXIT.INTERNAL;
   if (error.code === "EVALUATION_INCOMPLETE") return EXIT.EVALUATION_INCOMPLETE;
   if (error.code === "EVALUATION_ERROR") return EXIT.EVALUATION_ERROR;
+  if (error.code === "ASSESSMENT_FAILED") return EXIT.ASSESSMENT_FAILED;
   switch (error.category) {
     case "config":
       return EXIT.CONFIG;

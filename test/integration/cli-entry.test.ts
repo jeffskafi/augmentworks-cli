@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "compare", "gate", "baseline", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
@@ -55,6 +55,25 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toContain("--print");
     expect(result.stdout).not.toContain("Checkout");
     expect(result.stdout).not.toContain("Stripe");
+  });
+
+  it("documents compare, gate, and baseline help", async () => {
+    const compare = await runSourceCli(["compare", "--help"], { cwd: projectRoot });
+    expect(compare.exitCode).toBe(0);
+    expect(compare.stdout).toContain("--run");
+    expect(compare.stdout).toContain("--baseline");
+    expect(compare.stdout).toContain("--json");
+    expect(compare.stdout).toContain("without starting a");
+
+    const gate = await runSourceCli(["gate", "--help"], { cwd: projectRoot });
+    expect(gate.exitCode).toBe(0);
+    expect(gate.stdout).toContain("--wait");
+    expect(gate.stdout).toContain("--timeout-ms");
+
+    const baseline = await runSourceCli(["baseline", "--help"], { cwd: projectRoot });
+    expect(baseline.exitCode).toBe(0);
+    expect(baseline.stdout).toContain("status");
+    expect(baseline.stdout).toContain("promote");
   });
 
   it("documents probe as an explicit bounded target check", async () => {

@@ -1,0 +1,93 @@
+# Customer GitHub Actions example for source 0.3.3 hosted CI with a
+# read-only semantic release gate.
+#
+# This is not a published npm 0.3.2 workflow. Quoted `--max-credits`,
+# `run wait`, and `gate` exist only in source 0.3.3. Do not pin an
+# unpublished npm version until that tarball is on the registry.
+# No browser. npm `--yes` is not a spending ceiling. Billing rejection is
+# exit 13; a new required semantic regression is exit 10 even when
+# aggregate pass rates match; incomplete grading or an incomplete gate is
+# 11; evaluator error is 12. Recover an interrupted create before starting
+# another admission. Comparison and gate do not start, reserve, or charge
+# a run. Do not auto-promote a baseline. Machine credential issuance and
+# GitHub secret setup belong to AUG-45.
+
+name: AugmentWorks hosted assessment with release gate (source)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hosted-gate:
+    name: Quoted hosted assessment then read-only gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+
+      - name: Build source CLI
+        run: |
+          npm ci
+          npm run build
+
+      - name: Estimate, run with an explicit ceiling, wait, then gate
+        env:
+          AUGMENTWORKS_API_URL: ${{ secrets.AUGMENTWORKS_API_URL }}
+          AUGMENTWORKS_TOKEN: ${{ secrets.AUGMENTWORKS_TOKEN }}
+          AUGMENTWORKS_BASELINE_ID: ${{ secrets.AUGMENTWORKS_BASELINE_ID }}
+          CHATBOT_BASE_URL: http://127.0.0.1:8000
+          CHATBOT_API_KEY: ci-synthetic-placeholder
+        run: |
+          if [ -z "$AUGMENTWORKS_BASELINE_ID" ]; then
+            echo "Set AUGMENTWORKS_BASELINE_ID to an explicit pin. The CLI will not invent or promote one." >&2
+            exit 2
+          fi
+          node dist/index.js test \
+            --assessment ./augmentworks.assessment.yaml \
+            --estimate \
+            --json
+          set +e
+          json=$(node dist/index.js test \
+            --assessment ./augmentworks.assessment.yaml \
+            --max-credits 30 \
+            --yes \
+            --json)
+          code=$?
+          set -e
+          printf '%s\n' "$json"
+          run_id=$(printf '%s\n' "$json" | node -e "
+            let s = '';
+            process.stdin.on('data', (d) => { s += d; });
+            process.stdin.on('end', () => {
+              const parsed = JSON.parse(s);
+              process.stdout.write(String(parsed.run_id ?? parsed.runId ?? ''));
+            });
+          ")
+          if [ -z "$run_id" ]; then
+            echo "No run id. Inspect recover before starting another hosted test." >&2
+            set +e
+            node dist/index.js recover --json
+            set -e
+            exit "$code"
+          fi
+          set +e
+          node dist/index.js run wait "$run_id" --json --timeout-ms 60000
+          wait_code=$?
+          set -e
+          if [ "$wait_code" -ne 0 ] && [ "$wait_code" -ne 10 ]; then
+            echo "Wait did not finish for original run $run_id. Re-query that ID. Do not start another billed assessment." >&2
+            exit "$wait_code"
+          fi
+          node dist/index.js gate \
+            --run "$run_id" \
+            --baseline "$AUGMENTWORKS_BASELINE_ID" \
+            --json

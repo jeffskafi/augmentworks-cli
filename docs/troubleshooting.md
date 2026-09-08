@@ -306,6 +306,16 @@ completed run with a null outcome exits `11`, never `0`. Timed-out waits stay
 read-only and never create another quote, reservation, or run. Retry guidance
 names the original run ID.
 
+`compare` / `gate` (source `0.3.3`) POST `/v1/comparisons/evaluate` or
+`/v1/release-gates/evaluate` for an explicit `--run` and `--baseline`.
+They never quote, create, or retry a run. HTTP 200 with `decision: block`
+exits `10` even when aggregate pass rates match. Pending judging, missing
+coverage, and unknown server decisions exit `11`. Evaluator error exits
+`12`. A missing pin exits `2`. Auth failures exit `3`. `--json` keeps
+diagnostics on stderr. After an interrupt, re-query the original run ID;
+do not substitute a newer run or auto-promote. `baseline promote` requires
+`--expected-revision` and `baseline:promote`; a stale pin exits `4`.
+
 `run report <run-id> --json` (source `0.3.3`) exports one
 `aw-run-report-export/1` document: `retrieved`, `complete`, `report`,
 `criteria`, and `diagnostics`. Retrieval success is not grading success. An
