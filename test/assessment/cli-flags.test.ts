@@ -26,6 +26,7 @@ describe("assessment CLI flags", () => {
     expect(testHelp.stdout).toContain("--assessment");
     expect(testHelp.stdout).toContain("--profile");
     expect(testHelp.stdout).toContain("--suite");
+    expect(testHelp.stdout).toContain("--investigation");
     expect(testHelp.stdout).toContain("--local");
     expect(doctorHelp.exitCode).toBe(0);
     expect(doctorHelp.stdout).toContain("--assessment");

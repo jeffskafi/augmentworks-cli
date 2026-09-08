@@ -9,13 +9,19 @@ export interface SchemaCommandDependencies {
   readonly stdout?: Pick<NodeJS.WriteStream, "write">;
 }
 
-export type BundledSchemaKind = "config" | "local-packet" | "local-result" | "customer-suite";
+export type BundledSchemaKind =
+  | "config"
+  | "local-packet"
+  | "local-result"
+  | "customer-suite"
+  | "investigation-export";
 
 const SCHEMA_FILES: Readonly<Record<BundledSchemaKind, string>> = {
   config: "augmentworks.schema.json",
   "local-packet": "local-packet.schema.json",
   "local-result": "local-result.schema.json",
-  "customer-suite": "customer-suite.schema.json"
+  "customer-suite": "customer-suite.schema.json",
+  "investigation-export": "investigation-export.schema.json"
 };
 
 async function schemaPath(kind: BundledSchemaKind): Promise<string> {
@@ -39,12 +45,12 @@ export async function readBundledSchema(
   kind: BundledSchemaKind = "config"
 ): Promise<Record<string, unknown>> {
   const schema = JSON.parse(await readFile(await schemaPath(kind), "utf8")) as Record<string, unknown>;
-  if (kind === "customer-suite") {
+  if (kind === "customer-suite" || kind === "investigation-export") {
     const config = JSON.parse(await readFile(await schemaPath("config"), "utf8")) as Record<string, unknown>;
     const configId = typeof config["$id"] === "string" ? config["$id"] : "";
     const prefix = configId.replace(/augmentworks\.schema\.json$/u, "");
     if (prefix !== "" && prefix !== configId) {
-      schema["$id"] = `${prefix}customer-suite.schema.json`;
+      schema["$id"] = `${prefix}${SCHEMA_FILES[kind]}`;
     }
   }
   return schema;
@@ -62,7 +68,7 @@ export function createSchemaCommand(dependencies: SchemaCommandDependencies = {}
     .description("Print a bundled AugmentWorks v1 JSON Schema")
     .option(
       "--kind <kind>",
-      "schema kind: config, local-packet, local-result, or customer-suite",
+      "schema kind: config, local-packet, local-result, customer-suite, or investigation-export",
       "config"
     )
     .option("--compact", "print compact JSON")
@@ -71,7 +77,8 @@ export function createSchemaCommand(dependencies: SchemaCommandDependencies = {}
         throw new AwError({
           code: "SCHEMA_KIND_INVALID",
           category: "config",
-          message: "Schema kind must be config, local-packet, local-result, or customer-suite."
+          message:
+            "Schema kind must be config, local-packet, local-result, customer-suite, or investigation-export."
         });
       }
       (dependencies.stdout ?? process.stdout).write(

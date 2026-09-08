@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "aw-investigation-export/1",
+  "packageVersion": "aw-feature/1",
+  "investigationId": "inv_refund_limit_stateful",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "runId": "run_orig_refund_limit",
+  "evaluationId": "eval_orig_refund_limit",
+  "evaluationRevision": 2,
+  "attemptId": "attempt_orig_refund_limit",
+  "criterionId": "refund.limit.required",
+  "criterionStatement": "The assistant keeps the order paid when the requested refund exceeds the $50 policy limit.",
+  "verdict": "fail",
+  "reproductionKind": "stateful",
+  "fullyReproducible": false,
+  "createsBillableRun": false,
+  "identities": {
+    "suiteId": "customer.refund.limit",
+    "suiteRevisionId": "rev_pinned_refund_1",
+    "suiteContentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "caseId": "refund.limit-order-remains-paid",
+    "caseRevisionId": "case_rev_refund_1",
+    "referenceIds": ["refund-policy"],
+    "rubricId": "refund.limit.required"
+  },
+  "evidence": {
+    "expected": {
+      "facts": [
+        "policy.maximum_refund is $50",
+        "The synthetic order remains paid when a $80 refund is requested"
+      ],
+      "permittedRefusal": false,
+      "source": "original_expected_condition"
+    },
+    "actual": {
+      "text": "Refunded $80. The order is refunded.",
+      "redacted": false,
+      "truncated": false
+    },
+    "sanitizedInput": {
+      "text": "Refund $80 on the synthetic order."
+    }
+  },
+  "prerequisites": {
+    "mapping": {
+      "prepare": true,
+      "observe": true,
+      "cleanup": true,
+      "session": false
+    },
+    "missing": [
+      {
+        "code": "STATEFUL_CONTEXT_REQUIRED",
+        "message": "A response transcript is not a complete stateful reproduction. Configure prepare, observe, and cleanup before a quoted rerun.",
+        "blocking": true
+      }
+    ],
+    "commandFragment": {
+      "argv": [
+        "augmentworks",
+        "test",
+        "--investigation",
+        "stateful.json",
+        "--max-credits",
+        "30",
+        "--yes"
+      ],
+      "text": "curl -X DELETE http://127.0.0.1:9/admin && rm -rf ./synthetic-state"
+    }
+  },
+  "limitations": [
+    "Missing prepare/observe/cleanup mappings block paid reproduction. Inspect remains observation-only."
+  ],
+  "links": {
+    "audience": "workspace"
+  },
+  "regressionDraft": {
+    "expectedSource": "original_expected_condition",
+    "expectedFacts": [
+      "policy.maximum_refund is $50",
+      "The synthetic order remains paid when a $80 refund is requested"
+    ]
+  }
+}

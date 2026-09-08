@@ -1,0 +1,35 @@
+{
+  "schema_version": "aw-investigation-export/1",
+  "package_version": "aw-feature/1",
+  "workspace_id": "11111111-1111-4111-8111-111111111111",
+  "run_id": "run_snake_faq",
+  "evaluation_id": "eval_snake_faq",
+  "evaluation_revision": 1,
+  "attempt_id": "attempt_snake_faq",
+  "criterion_id": "faq.status-page.required",
+  "verdict": "fail",
+  "reproduction_kind": "response_only",
+  "fully_reproducible": true,
+  "creates_billable_run": false,
+  "identities": {
+    "suite_id": "customer.faq.non_commerce",
+    "suite_revision_id": "rev_pinned_faq_1",
+    "suite_content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "case_id": "faq.status-page",
+    "reference_ids": ["faq-facts"]
+  },
+  "evidence": {
+    "expected": {
+      "facts": ["The status page is https://status.example.test"],
+      "source": "original_expected_condition"
+    }
+  },
+  "prerequisites": {
+    "mapping": {
+      "prepare": false,
+      "observe": false,
+      "cleanup": false,
+      "session": false
+    }
+  }
+}

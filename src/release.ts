@@ -248,6 +248,42 @@ export const SOURCE_SUITE_ESTIMATE_COMMAND = formatSourceCli([
   "examples/customer-suites/faq-non-commerce.yaml",
   "--estimate"
 ]);
+export const SOURCE_INVESTIGATION_INSPECT_COMMAND = formatSourceCli([
+  "investigation",
+  "inspect",
+  "examples/investigations/response-only.json"
+]);
+export const SOURCE_INVESTIGATION_INSPECT_JSON_COMMAND = formatSourceCli([
+  "investigation",
+  "inspect",
+  "examples/investigations/stateful.json",
+  "--json"
+]);
+export const SOURCE_INVESTIGATION_FETCH_COMMAND = formatSourceCli([
+  "investigation",
+  "fetch",
+  "--run",
+  "<run-id>",
+  "--evaluation",
+  "<evaluation-id>",
+  "--attempt",
+  "<attempt-id>",
+  "--criterion",
+  "<criterion-id>",
+  "--json"
+]);
+export const SOURCE_INVESTIGATION_EXPORT_COMMAND = formatSourceCli([
+  "investigation",
+  "export-regression",
+  "examples/investigations/response-only.json",
+  "--out",
+  "regression.yaml"
+]);
+export const SOURCE_INVESTIGATION_TEST_COMMAND = formatWrappedCommand("node dist/index.js", "test", [
+  "--investigation examples/investigations/response-only.json",
+  "--max-credits 30",
+  "--yes"
+]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
   doctor: formatWrappedCommand(`npx --yes ${NPM_PACKAGE}@${PUBLISHED_PACKAGE_VERSION}`, "doctor", [

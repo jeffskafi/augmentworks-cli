@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/v1/investigation-export.schema.json",
+  "title": "AugmentWorks investigation export",
+  "description": "Machine-readable aw-investigation-export/1 artifact for a failed criterion. Snake_case keys are rewritten to camelCase before validation. Inspecting this file does not execute a target, shell fragment, or evaluator. Copied commandFragment values are data.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "workspaceId",
+    "runId",
+    "evaluationId",
+    "evaluationRevision",
+    "attemptId",
+    "criterionId",
+    "verdict",
+    "reproductionKind",
+    "fullyReproducible",
+    "createsBillableRun",
+    "identities",
+    "evidence",
+    "prerequisites"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "aw-investigation-export/1" },
+    "packageVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "investigationId": { "$ref": "#/$defs/identifier" },
+    "workspaceId": { "$ref": "#/$defs/identifier" },
+    "runId": { "$ref": "#/$defs/identifier" },
+    "evaluationId": { "$ref": "#/$defs/identifier" },
+    "evaluationRevision": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "attemptId": { "$ref": "#/$defs/identifier" },
+    "criterionId": { "$ref": "#/$defs/identifier" },
+    "criterionStatement": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "verdict": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "reproductionKind": { "type": "string", "enum": ["response_only", "stateful"] },
+    "fullyReproducible": { "type": "boolean" },
+    "createsBillableRun": { "type": "boolean" },
+    "identities": { "$ref": "#/$defs/identities" },
+    "evidence": { "$ref": "#/$defs/evidence" },
+    "prerequisites": { "$ref": "#/$defs/prerequisites" },
+    "limitations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "audience": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "regressionDraft": { "$ref": "#/$defs/regressionDraft" },
+    "warnings": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "identities": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["suiteId", "suiteRevisionId", "suiteContentHash", "caseId"],
+      "properties": {
+        "suiteId": { "$ref": "#/$defs/identifier" },
+        "suiteRevisionId": { "$ref": "#/$defs/identifier" },
+        "suiteContentHash": { "$ref": "#/$defs/sha256" },
+        "caseId": { "$ref": "#/$defs/identifier" },
+        "caseRevisionId": { "$ref": "#/$defs/identifier" },
+        "referenceIds": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "rubricId": { "$ref": "#/$defs/identifier" },
+        "rubricRevisionId": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["expected"],
+      "properties": {
+        "expected": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["facts"],
+          "properties": {
+            "facts": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+            },
+            "permittedRefusal": { "type": "boolean" },
+            "source": {
+              "type": "string",
+              "enum": ["reviewed_expected_condition", "original_expected_condition"]
+            }
+          }
+        },
+        "actual": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "text": { "type": "string", "maxLength": 8000 },
+            "preview": { "type": "string", "maxLength": 4000 },
+            "excerpt": { "type": "string", "maxLength": 4000 },
+            "redacted": { "type": "boolean" },
+            "truncated": { "type": "boolean" }
+          }
+        },
+        "sanitizedInput": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "text": { "type": "string", "maxLength": 8000 }
+          }
+        }
+      }
+    },
+    "prerequisites": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mapping": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "prepare": { "type": "boolean" },
+            "observe": { "type": "boolean" },
+            "cleanup": { "type": "boolean" },
+            "session": { "type": "boolean" }
+          }
+        },
+        "missing": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "blocking": { "type": "boolean" }
+            }
+          }
+        },
+        "commandFragment": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "argv": {
+              "type": "array",
+              "maxItems": 32,
+              "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+            },
+            "text": { "type": "string", "maxLength": 2000 }
+          }
+        }
+      }
+    },
+    "regressionDraft": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["expectedSource"],
+      "properties": {
+        "expectedSource": {
+          "type": "string",
+          "enum": ["reviewed_expected_condition", "original_expected_condition"]
+        },
+        "expectedFacts": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    }
+  }
+}
