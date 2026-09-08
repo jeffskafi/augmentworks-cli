@@ -1,9 +1,9 @@
-# Customer GitHub Actions example for source 0.3.3 hosted CI with a
+# Customer GitHub Actions example for this 0.3.4 package hosted CI with a
 # read-only semantic release gate.
 #
-# This is not a published npm 0.3.2 workflow. Quoted `--max-credits`,
-# `run wait`, and `gate` exist only in source 0.3.3. Do not pin an
-# unpublished npm version until that tarball is on the registry.
+# Quoted `--max-credits`, `run wait`, and `gate` are in this 0.3.4 package.
+# Do not advertise immutable npm 0.3.3. Website adoption waits for registry
+# evidence.
 # No browser. npm `--yes` is not a spending ceiling. Billing rejection is
 # exit 13; a new required semantic regression is exit 10 even when
 # aggregate pass rates match; incomplete grading or an incomplete gate is

@@ -6,26 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-09-07
+
+Candidate first-dollar customer-owned assessment package. Executable npx pins
+match this tarball. Registry verification is recorded in
+`docs/feature-readiness/first-dollar-registry-acceptance.json` and is not
+implied by this changelog entry.
+
 ### Added
 
-- Source `0.3.3` explicit `AUGMENTWORKS_API_KEY` mode, `run report <run-id> --json`
+- Explicit `AUGMENTWORKS_API_KEY` mode, `run report <run-id> --json`
   complete hosted export (`aw-run-report-export/1`), and conservative hosted
   result exits shared by `test`, `run wait`/`status`, and `run report`. Exit `0`
   requires a fully passed, graded, known-coverage result. A completed run with
   a null outcome never passes. Vendors AW-QA-1 compatibility fixtures until
-  AUG-55 publishes canonical copies. Not npm-published.
-- Source `0.3.3` Stage 5B subscription usage display: recurring vs
+  AUG-55 publishes canonical copies.
+- Stage 5B subscription usage display: recurring vs
   purchased vs trial lots, cancel-at-period-end, processing and failed
   renewal, expired monthly grants, and pack-only servers without
   `subscriptions_v1`. Vendors `aw-billing/1` from main
   `650472d91442a6866a7b6ef18e6dacc23a2a9260`. The CLI remains a read-only
-  billing client. Live $149 sales stay gated. Not npm-published.
-- Source `0.3.3` Stage 4B packaged empty-directory starters
+  billing client. Live $149 sales stay gated.
+- Stage 4B packaged empty-directory starters
   (`response-quality` default and `workflow`), offline doctor wire-bound
   checks, packed-tarball billing HTTP fixture (target execution, token
   refresh, dropped-create replay, pending grading wait), and prepaid-journey
   recovery docs. Initially vendored 4A `49806f0`; Stage 5B re-imported 5A
-  `650472d`. Not npm-published. Live sales remain disabled.
+  `650472d`. Live sales remain disabled.
 - CI/environment token refresh via `AUGMENTWORKS_REFRESH_TOKEN` without
   writing the OS credential store. Token-only `AUGMENTWORKS_TOKEN` remains
   static.
@@ -34,49 +41,45 @@ All notable changes to this project are documented here. The format follows
 - `contracts/discovery-manifest.json` generated from the existing release
   machinery (`schemaVersion: 1`, source `development` until npm verification).
 - Opt-in `agent-resources/` wrappers generated from one canonical guidance
-  file. `init --agent` behavior is unchanged.
+  file. `init --agent` pins this package version rather than 0.3.2.
 - Copyable GitHub Actions example and synthetic sample reports under
   `docs/examples/`.
 - Authenticated `augmentworks usage` / `usage --json` for Stage 1B billing
-  snapshots. Exit `13` is the billing category. Does not publish npm or enable
-  live sales.
-- Source Stage 2B hosted `test --estimate`, `--max-credits`, quoted
+  snapshots. Exit `13` is the billing category. Does not enable live sales.
+- Hosted `test --estimate`, `--max-credits`, quoted
   `aw-relay/0.3` create, and `run status` / `run wait` /
   `run retry-evaluation`. Quotes do not reserve credits.
-- Source Stage 3B `augmentworks billing` / `billing --json` /
+- `augmentworks billing` / `billing --json` /
   `billing --print` for first-party billing-page navigation. The CLI does not
   create Checkout Sessions or Stripe customers.
 - Offline `preview-mapping` inspects response mappings and the exact
   canonical sanitized evidence payload from a local synthetic JSON fixture.
   It uses the production extraction, allowlist, redaction, and
-  `canonicalize` pipeline. No target, cloud, or model call. Not in published
-  `0.3.2`.
-- Source `0.3.3` customer-owned hosted suites: `suite validate` /
+  `canonicalize` pipeline. No target, cloud, or model call.
+- Customer-owned hosted suites: `suite validate` /
   `suite preview` parse `aw-suite/1` files offline (not a price, no target,
   no LLM). `test --suite` pins an immutable server revision through the
   existing quote / `--max-credits` / `--yes` path. Changing the file after
   quote cannot silently alter admitted work. Samples live in
-  `examples/customer-suites/` and packed `assets/customer-suites/`. Not
-  npm-published.
-- Source `0.3.3` explicit session mode (`target.conversation.strategy:
+  `examples/customer-suites/` and packed `assets/customer-suites/`.
+- Explicit session mode (`target.conversation.strategy:
   explicit_session_v1`). Hosted `multi_turn` is advertised only from that
   validated configuration, together with `aw-conversation-enforcement/1`.
   Single-turn omits `multi_turn`. Estimate and execute send the same
-  declaration. Unsupported multi-turn plans fail before quote. Not
-  npm-published.
-- Source `0.3.3` own-target starter recipes and an explicit bounded
+  declaration. Unsupported multi-turn plans fail before quote.
+- Own-target starter recipes and an explicit bounded
   `probe` command. One initializer still writes `response-quality`
   (response-only JSON chat, including a five-question synthetic suite) or
   `workflow` (stateful prepare/send/observe/cleanup). `probe` prints a
   call plan; `--yes` executes it against the configured target only.
-  Doctor and init never probe. Not npm-published.
-- Source `0.3.3` hosted release gate: `compare`, `gate`, and
+  Doctor and init never probe.
+- Hosted release gate: `compare`, `gate`, and
   `baseline status` / `baseline promote` consume `aw-release-policy/1`.
   A new required semantic regression exits `10` even when aggregate pass
   rates match and the HTTP request succeeded. Pending judging, evaluator
   error, incompatible scope, and missing coverage cannot exit `0`.
   Observation commands do not start, reserve, or charge a run. Promotion
-  is explicit and never automatic. Not npm-published.
+  is explicit and never automatic.
 
 ### Fixed
 
@@ -86,16 +89,16 @@ All notable changes to this project are documented here. The format follows
   index, or detail `workspaceId` does not match the authenticated session.
   Null totals stay unknown (never zero). Missing or mixed evidence stays
   `complete: false` with a bounded retry-the-original-run warning; the CLI
-  never starts another billed assessment. Not npm-published.
+  never starts another billed assessment.
 - Hosted `run report` parses the main producer's `aw-criterion-detail-read/1`
   index (`items`, `nextCursor`, `totalInAttempt`) and nested
   `document`/`inspection` details instead of rejecting them as
   `CRITERION_SCHEMA_INVALID`. Producer-shaped fixtures are vendored separately
-  from the locked AW-QA-1 invented `criteria`/`page` documents. Not npm-published.
+  from the locked AW-QA-1 invented `criteria`/`page` documents.
 - `init -c custom.yaml` writes the requested connector filename instead of
   always emitting `augmentworks.yaml`. Companion assessment, reference, and
   environment files stay in the selected config directory. `--force` replaces
-  only the selected generated files. Not npm-published.
+  only the selected generated files.
 - Packed-tarball smoke invokes npm/npx as `node *-cli.js` so Windows Node 22
   does not fail with `spawnSync npm.cmd EINVAL`.
 - Packed billing HTTP fixture uses async `spawn` so the in-process loopback
@@ -115,10 +118,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Source package version is `0.3.3`. Verified npm remains `0.3.2`
-  (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`). Hosted npx examples
-  pin `@augmentworks/cli@0.3.2`. Do not document unpublished npx pins.
-  `npm --yes` is not a spending ceiling; hosted consent is `--max-credits N`.
+- Package version is `0.3.4`. Generated and documented npx commands pin
+  `@augmentworks/cli@0.3.4`. Last independently verified npm remains `0.3.2`
+  (`gitHead` `d36ec8590b005445dba940d2df3abcb53971cea5`). Immutable npm `0.3.3`
+  (`gitHead` `4a08ea0d352f2515e725cb9ca946807112422436`) is not overwritten or
+  relabeled. `published_package_verified` stays false until registry evidence
+  is recorded. `npm --yes` is not a spending ceiling; hosted consent is
+  `--max-credits N`.
+
+## [0.3.3] - 2026-09-07
+
+npm registry contains `@augmentworks/cli@0.3.3` (published 2026-09-07T16:21:14Z,
+`gitHead` `4a08ea0d352f2515e725cb9ca946807112422436`). That tarball is
+immutable and is **not** this customer-owned assessment release. It lacks
+`suite validate`/`preview`, `test --suite`, and own-target starter/`probe`.
+This repository does not overwrite or relabel 0.3.3.
 
 ## [0.3.1] - 2026-09-05
 
@@ -227,6 +241,8 @@ All notable changes to this project are documented here. The format follows
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.3.4]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.4
+[0.3.3]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.3
 [0.3.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.1
 [0.3.0]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.0
 [0.2.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.2.1

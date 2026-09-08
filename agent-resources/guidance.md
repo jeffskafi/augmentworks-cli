@@ -9,37 +9,36 @@ AugmentWorks during unrelated coding.
 
 1. Inspect existing tests, applicable repository instructions, actual target
    capabilities, and the desired test scope.
-2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.2 demo`,
-   or `node dist/index.js demo` on source 0.3.3) or non-networked `doctor`
-   for a first look. Preview mappings with
+2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.4 demo`,
+   or `node dist/index.js demo` from a clone after `npm ci && npm run build`)
+   or non-networked `doctor` for a first look. Preview mappings with
    `node dist/index.js preview-mapping` before an assessment. Explicitly probe
    a safe synthetic target with `node dist/index.js probe` (plan) then
-   `node dist/index.js probe --yes`. Doctor and init never probe. Published npm
-   `@augmentworks/cli@0.3.2` includes `demo` and hosted `--assessment`. It
-   does not include `usage`, `billing`, `preview-mapping`, `probe`,
-   `test --estimate`,
+   `node dist/index.js probe --yes`. Doctor and init never probe. This
+   `@augmentworks/cli@0.3.4` package includes `demo`, hosted `--assessment`,
+   `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`,
    `--max-credits`, `run status`/`run wait`/`run report`,
-   `AUGMENTWORKS_API_KEY` mode, or init starter generation.
+   `AUGMENTWORKS_API_KEY` mode, and init starter generation.
 3. Never substitute a hosted command when local testing was requested.
 4. Preserve already granted user authorization for the same scoped task.
 
 ## Commands (version-pinned)
 
-Verified published package only:
+This 0.3.4 package:
 
-- `npx --yes @augmentworks/cli@0.3.2 init --agent`
-- `npx --yes @augmentworks/cli@0.3.2 doctor -c augmentworks.yaml`
-- `npx --yes @augmentworks/cli@0.3.2 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
-- `npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet`
+- `npx --yes @augmentworks/cli@0.3.4 init --agent`
+- `npx --yes @augmentworks/cli@0.3.4 doctor -c augmentworks.yaml`
+- `npx --yes @augmentworks/cli@0.3.4 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+- `npx --yes @augmentworks/cli@0.3.4 schema --kind local-packet`
 
-Source 0.3.3 after building this repository:
+From a clone after `npm ci && npm run build`:
 
 - `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
 - `node dist/index.js probe -c augmentworks.yaml`
 - `node dist/index.js probe -c augmentworks.yaml --yes`
 
-Do not use `@latest` or unpublished `0.3.3` npx pins. Development-only after
-building this repository: `node dist/index.js demo`, `node dist/index.js init`
+Do not use `@latest` or immutable npm `0.3.3` npx pins. After building this
+repository you may also use: `node dist/index.js demo`, `node dist/index.js init`
 (writes `augmentworks.yaml`, `augmentworks.assessment.yaml`, and references),
 read-only `node dist/index.js usage` (no grant, reservation, checkout,
 subscribe, cancel, or target call), `node dist/index.js billing --print`

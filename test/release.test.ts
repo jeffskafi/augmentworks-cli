@@ -7,9 +7,12 @@ import {
   HOSTED_COMMAND_PIN,
   HOSTED_COMMANDS,
   INIT_NEXT_STEPS,
+  LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION,
   LOCAL_COMMANDS,
   LOCAL_DISTRIBUTION,
+  PUBLISHED_PACKAGE_VERIFIED,
   PUBLISHED_PACKAGE_VERSION,
+  REGISTRY_0_3_3_GIT_HEAD,
   SOURCE_PACKAGE_VERSION,
   allowedDocumentedNpxPins,
   formatNpx,
@@ -30,15 +33,29 @@ describe("CLI release metadata", () => {
     expect(CLI_RELEASE).toEqual(fixture);
   });
 
-  it("pins hosted npx commands to the verified published package", () => {
-    expect(CLI_RELEASE.published_package_verified).toBe(true);
-    expect(HOSTED_COMMAND_PIN).toBe(PUBLISHED_PACKAGE_VERSION);
-    expect(allowedDocumentedNpxPins()).toContain(HOSTED_COMMAND_PIN);
+  it("pins hosted npx commands to this package version, not 0.3.2 or 0.3.3", () => {
+    expect(SOURCE_PACKAGE_VERSION).toBe("0.3.4");
+    expect(PUBLISHED_PACKAGE_VERSION).toBe("0.3.4");
+    expect(HOSTED_COMMAND_PIN).toBe(SOURCE_PACKAGE_VERSION);
+    expect(HOSTED_COMMAND_PIN).not.toBe("0.3.2");
+    expect(HOSTED_COMMAND_PIN).not.toBe("0.3.3");
+    expect(allowedDocumentedNpxPins()).toEqual(["0.3.4"]);
     expect(HOSTED_COMMANDS.login).toBe(formatNpx(HOSTED_COMMAND_PIN, ["login"]));
+    expect(HOSTED_COMMANDS.initAgent).toBe(formatNpx(HOSTED_COMMAND_PIN, ["init", "--agent"]));
     expect(HOSTED_COMMANDS.recover).toBe(formatNpx(HOSTED_COMMAND_PIN, ["recover"]));
     expect(HOSTED_COMMANDS.test).toContain(`@augmentworks/cli@${HOSTED_COMMAND_PIN}`);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
     expect(HOSTED_COMMANDS.test).not.toContain("--local");
+    expect(INIT_NEXT_STEPS).not.toContain("Published @augmentworks/cli@0.3.2 does not generate");
+  });
+
+  it("separates candidate 0.3.4 metadata from last verified registry evidence", () => {
+    expect(PUBLISHED_PACKAGE_VERIFIED).toBe(false);
+    expect(CLI_RELEASE.published_package_verified).toBe(false);
+    expect(LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION).toBe("0.3.2");
+    expect(REGISTRY_0_3_3_GIT_HEAD).toBe("4a08ea0d352f2515e725cb9ca946807112422436");
+    expect(CLI_RELEASE.notes).toContain("4a08ea0d352f2515e725cb9ca946807112422436");
+    expect(CLI_RELEASE.notes).toContain("first-dollar-registry-acceptance.json");
   });
 
   it("does not advertise unpublished local npx pins", () => {

@@ -6,8 +6,8 @@ typed; transport messages cannot contain target URLs, HTTP methods, headers,
 environment-variable names, files, modules, or shell instructions.
 
 This document is the v0.1 contract implemented by the CLI and relay service
-code, plus the `aw-relay/0.2` create-run assessment extension and source
-`0.3.3` quoted `aw-relay/0.3` create.
+code, plus the `aw-relay/0.2` create-run assessment extension and this
+package's quoted `aw-relay/0.3` create.
 Repository integration tests exercise the same envelope and binding rules
 against local services.
 
@@ -24,7 +24,7 @@ mode. Hybrid local packets are refused before any target call.
   runs such as `support-refunds@0.1.0`.
 - Source 0.3.2 hosted `--assessment` / hybrid / expanded plans use
   `aw-relay/0.2`. Command sequence 101–512 is accepted only on 0.2.
-- Source 0.3.3 quoted hosted `--assessment` uses `aw-relay/0.3` create with
+- This 0.3.4 package's quoted hosted `--assessment` uses `aw-relay/0.3` create with
   `quote_id` and optional `max_credits`. Command polling stays on 0.1/0.2.
   Do not send those fields through an unchanged 0.1/0.2 object.
 - Normalized target operation inputs and results use
@@ -66,7 +66,7 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `POST /v1/relay/commands/{command_id}:complete` | Commit a normalized successful result |
 | `POST /v1/relay/commands/{command_id}:fail` | Commit a safe failure or indeterminate outcome |
 | `GET /v1/relay/runs/{run_id}` | Read terminal status/outcome |
-| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). Source 0.3.3. GET only; refuses off-origin links and redirects with the bearer |
+| `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). GET only; refuses off-origin links and redirects with the bearer |
 | `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria` | Criterion index/detail (`aw-criterion-detail-read/1`); `/api/v1` alias exists |
 | `POST /v1/relay/runs/{run_id}:cancel` | Request cancellation and fence new work |
 | `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |

@@ -95,10 +95,12 @@ describe("discovery manifest", () => {
     }
   });
 
-  it("does not treat a source-only version bump as npm publication", () => {
+  it("keeps candidate 0.3.4 development-status until a registry tarball is inspected", () => {
     const source = sourceDiscoveryManifest();
-    expect(source.package.version).not.toBe("0.3.2");
+    expect(source.package.version).toBe("0.3.4");
     expect(source.package.releaseStatus).toBe("development");
+    expect(source.provenance.verifiedAt).toBeNull();
+    expect(source.provenance.sourceCommit).toBeNull();
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.2");
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(true);
     expect(source.capabilities.localDemo).toBe(true);

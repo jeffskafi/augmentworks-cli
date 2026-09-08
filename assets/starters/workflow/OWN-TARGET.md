@@ -7,10 +7,9 @@ Response-only JSON chat is the other supported pattern (`--starter
 response-quality`). Streaming, WebSocket, history-array multi-turn, and
 connector marketplaces are not supported.
 
-Published `@augmentworks/cli@0.3.2` does not generate these files or include
-`probe`. Source `0.3.3` does. Do not document an unpublished npx `0.3.3` pin.
-If you built this repository, substitute `node dist/index.js` for
-`augmentworks` below.
+This 0.3.4 package generates these files and includes `probe`. Do not pin
+immutable npm `0.3.3`. If you built this repository, substitute
+`node dist/index.js` for `augmentworks` below.
 
 ## Files
 

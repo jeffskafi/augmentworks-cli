@@ -134,8 +134,8 @@ the configured endpoint.
 - A POSIX file fallback requires explicit `--allow-file-credentials`, emits a
   warning, refuses symlinks, and enforces mode `0600`. Plaintext fallback is
   disabled on Windows because POSIX modes do not establish Windows ACL safety.
-- `AUGMENTWORKS_API_KEY` is explicit noninteractive workspace-key mode (source
-  `0.3.3`). It never loads a native keychain, file store, browser/device login,
+- `AUGMENTWORKS_API_KEY` is explicit noninteractive workspace-key mode.
+  It never loads a native keychain, file store, browser/device login,
   or refresh token, and it does not persist credentials. Differing nonempty
   `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail before network
   access.

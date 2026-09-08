@@ -11,11 +11,10 @@ demonstration, not a realistic support agent or a substitute for AugmentWorks'
 private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
-for the example server. Published `@augmentworks/cli@0.3.2` supports `--local`,
-hosted `--assessment`, and packaged `demo` via npx. Source `0.3.3` adds
-`node dist/index.js init --starter stateful` starter generation (including a
-packaged `server.mjs`) plus `usage`/`billing`/`preview-mapping`/`probe`/
-`--estimate`. The refund-agent example directory is still not in the npm tarball.
+for the example server. This `@augmentworks/cli@0.3.4` package supports `--local`,
+hosted `--assessment`, packaged `demo`, `init --starter stateful`, `usage`,
+`billing`, `preview-mapping`, `probe`, and `--estimate` via npx. The refund-agent
+example directory is still not in the npm tarball.
 
 ## Obtain the example
 
@@ -39,11 +38,11 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 doctor \
+npx --yes @augmentworks/cli@0.3.4 doctor \
   -c augmentworks.yaml
 ```
 
-From a source 0.3.3 build, preview the production mapping against a synthetic
+From a clone after `npm ci && npm run build`, preview the production mapping against a synthetic
 fixture before the assessment. This does not call the target or consume
 credits:
 
@@ -63,7 +62,7 @@ node dist/index.js probe -c augmentworks.yaml --yes
 ```
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -89,9 +88,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 login
+npx --yes @augmentworks/cli@0.3.4 login
 
-npx --yes @augmentworks/cli@0.3.2 test \
+npx --yes @augmentworks/cli@0.3.4 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

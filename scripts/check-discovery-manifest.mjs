@@ -30,7 +30,14 @@ if (!LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo) {
   throw new Error("The last verified published 0.3.2 snapshot must advertise localDemo.");
 }
 if (LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version !== "0.3.2") {
-  throw new Error("The last verified published snapshot must remain 0.3.2 until a later tarball is inspected.");
+  throw new Error(
+    "The last independently verified published snapshot must remain 0.3.2 until a later registry tarball is inspected. Do not relabel 0.3.2 or 0.3.3 provenance."
+  );
+}
+if (committed.package.version === "0.3.4" && committed.package.releaseStatus !== "development") {
+  throw new Error(
+    "Candidate 0.3.4 must stay development-status in the committed discovery manifest until registry verification."
+  );
 }
 process.stdout.write(
   `CLI discovery contract ok: ${committed.package.name}@${committed.package.version} (${committed.package.releaseStatus})\n`

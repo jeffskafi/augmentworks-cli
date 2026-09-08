@@ -263,15 +263,14 @@ test environment matches production.
 Use offline validation while editing:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 doctor \
+npx --yes @augmentworks/cli@0.3.4 doctor \
   -c augmentworks.yaml
 ```
 
 `doctor` makes no target or cloud network request, never invokes `prepare`,
 `send`, `observe`, or `cleanup`, and consumes no assessment credit. It does
 not inspect a response shape. After `doctor` passes, preview the production
-mapping against a synthetic JSON fixture (source 0.3.2; no unpublished npx
-pin):
+mapping against a synthetic JSON fixture:
 
 ```bash
 node dist/index.js preview-mapping \
@@ -357,7 +356,7 @@ fixture servers and `OWN-TARGET.md` are copied by `init`.
 
 `doctor` and `preview-mapping` stay offline. They do not prove network
 authentication, selector behavior against a live response, session
-continuity, or cleanup. Source 0.3.3 adds an explicit command:
+continuity, or cleanup. This package adds an explicit command:
 
 ```bash
 node dist/index.js probe -c augmentworks.yaml
@@ -380,9 +379,9 @@ The canonical machine-readable definition is
 Print any bundled schema with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.2 schema --kind config
-npx --yes @augmentworks/cli@0.3.2 schema --kind local-packet
-npx --yes @augmentworks/cli@0.3.2 schema --kind local-result
+npx --yes @augmentworks/cli@0.3.4 schema --kind config
+npx --yes @augmentworks/cli@0.3.4 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.4 schema --kind local-result
 ```
 
 Local assessment packets are separate strict JSON documents with
@@ -392,7 +391,7 @@ the YAML boundary. A local path may identify a JSON file or a directory whose
 not accepted. `aw-packet/0.2` and hybrid/`llm_rubric` packets are refused in
 `--local` before any target call.
 
-Source 0.3.3 can validate a hosted assessment file without running tests:
+This package can validate a hosted assessment file without running tests:
 
 ```bash
 node dist/index.js doctor \
