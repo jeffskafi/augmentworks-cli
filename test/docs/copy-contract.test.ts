@@ -31,6 +31,10 @@ import {
   SOURCE_RUN_STATUS_COMMAND,
   SOURCE_RUN_WAIT_COMMAND,
   SOURCE_RUN_REPORT_COMMAND,
+  SOURCE_COMPARE_COMMAND,
+  SOURCE_GATE_COMMAND,
+  SOURCE_GATE_WAIT_COMMAND,
+  SOURCE_BASELINE_STATUS_COMMAND,
   allowedDocumentedNpxPins
 } from "../../src/release.js";
 
@@ -129,6 +133,10 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain(SOURCE_RUN_STATUS_COMMAND);
     expect(readme).toContain(SOURCE_RUN_WAIT_COMMAND);
     expect(readme).toContain(SOURCE_RUN_REPORT_COMMAND);
+    expect(readme).toContain(SOURCE_COMPARE_COMMAND);
+    expect(readme).toContain(SOURCE_GATE_COMMAND);
+    expect(readme).toContain(SOURCE_GATE_WAIT_COMMAND);
+    expect(readme).toContain(SOURCE_BASELINE_STATUS_COMMAND);
     expect(HOSTED_COMMANDS.test).toContain("--assessment");
 
     const demoAt = readme.indexOf(LOCAL_COMMANDS.demo);
@@ -138,7 +146,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "compare", "gate", "baseline", "recover", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

@@ -273,6 +273,10 @@ node dist/index.js test --assessment ./augmentworks.assessment.yaml --profile qu
 node dist/index.js run status <run-id>
 node dist/index.js run wait <run-id>
 node dist/index.js run report <run-id> --json
+node dist/index.js compare --run <run-id> --baseline <baseline-id> --json
+node dist/index.js gate --run <run-id> --baseline <baseline-id> --json
+node dist/index.js gate --run <run-id> --baseline <baseline-id> --wait --timeout-ms 60000 --json
+node dist/index.js baseline status --json
 ```
 
 Source assessment doctor and quoted hosted execution:
@@ -306,10 +310,22 @@ required grading and known coverage. A successful status query of unfinished
 work is not a pass (`ok: true` with `assessment: "incomplete"` and exit `11`).
 A completed run with a null outcome never exits `0`. An expected failing
 negative-control report exits `10` and still includes mapped responses and
-criterion documents. Billing rejection is exit `13` and is not a chatbot
+criterion documents. A new required semantic regression also exits `10` even
+when aggregate pass rates match and the comparison HTTP request succeeded.
+Pending judging, evaluator error, incompatible scope, and missing required
+coverage cannot exit `0`. Billing rejection is exit `13` and is not a chatbot
 assertion failure. Account-free `demo`, `test --local`, offline `doctor`, and
 `schema` still make no billing calls. `doctor` is offline validation only; it
 does not check AugmentWorks authentication or fetch a hosted report.
+
+`compare`, `gate`, and `baseline status` consume the hosted
+`aw-release-policy/1` decision. They do not create a run, reserve credits,
+call the target, or promote a pin. `gate --wait` re-queries the original run
+ID through `run wait` semantics, then evaluates that same ID. Promotion is an
+explicit `baseline promote --expected-revision` and is never automatic.
+Machine credentials typically cannot promote. Fixture-based CI:
+`docs/examples/github-actions-hosted-gate.yml` (source 0.3.3; machine
+credentials remain AUG-45).
 
 Copy-pastable noninteractive CI (source 0.3.3 after `npm ci && npm run build`;
 no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
@@ -347,6 +363,15 @@ fi
 # Read-only complete export. Do not run logout in automation cleanup;
 # logout revokes reusable workspace API keys.
 node dist/index.js run report "$run_id" --json
+# Read-only semantic gate. Does not start, reserve, or charge a run.
+# Set AUGMENTWORKS_BASELINE_ID to an explicit pin; do not auto-promote.
+if [ -n "${AUGMENTWORKS_BASELINE_ID:-}" ]; then
+  node dist/index.js gate \
+    --run "$run_id" \
+    --baseline "$AUGMENTWORKS_BASELINE_ID" \
+    --json
+  code=$?
+fi
 exit "$code"
 ```
 
@@ -650,6 +675,9 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Source 0.3.3 uses `aw-relay/0.3` quotes; published 0.3.2 uses `aw-relay/0.2`. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
 | `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Source 0.3.3. Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target. Source 0.3.3 |
+| `compare --run <run-id> --baseline <baseline-id> [--json]` | Compare a candidate run against an explicit pinned baseline | Source 0.3.3. Read-only. Does not start a test, reserve credits, or consume credits. Rejects missing identities; does not invent a pin |
+| `gate --run <run-id> --baseline <baseline-id> [--wait] [--timeout-ms n] [--json]` | Evaluate the hosted `aw-release-policy/1` release decision | Source 0.3.3. Transport success is not a pass. `--wait` re-queries the original run ID only. See `docs/examples/github-actions-hosted-gate.yml` |
+| `baseline status [--json]` / `baseline promote --run <run-id> --baseline <id> --expected-revision <n> [--json]` | List pins, or explicitly promote a candidate onto a pin | Source 0.3.3. Status is read-only. Promote is never automatic, requires `--expected-revision`, and stays off the machine allowlist unless the server grants `baseline:promote` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command; published in 0.3.2 |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
@@ -659,15 +687,15 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Assessment passed. For `demo` (default `--mode full`), the fail-then-pass story and cleanup succeeded. |
+| `0` | Assessment passed, or a compatible release gate returned policy pass. For `demo` (default `--mode full`), the fail-then-pass story and cleanup succeeded. |
 | `1` | Internal or report-generation failure, or a demo whose faulty run unexpectedly passed |
-| `2` | Configuration, packet, capability, or output preflight failure |
+| `2` | Configuration, packet, capability, output preflight, incompatible comparison scope, or a missing required baseline pin |
 | `3` | Hosted authentication failure; unreachable from `--local` |
-| `4` | Hosted relay/protocol failure; unreachable from `--local` |
+| `4` | Hosted relay/protocol failure, including an authorized baseline promotion conflict; unreachable from `--local` |
 | `5` | Target, protocol-evidence, or indeterminate execution error |
 | `6` | Cleanup failure; takes precedence over assessment status |
-| `10` | Assertions failed or the assessment was inconclusive |
-| `11` | Hosted grading is pending, partial, unknown, unsupported, or a report export is incomplete |
+| `10` | Assertions failed, the assessment was inconclusive, or the release policy blocked (including a new required semantic regression while aggregate pass rates match) |
+| `11` | Hosted grading is pending, partial, unknown, unsupported, a report export is incomplete, or the release gate is incomplete |
 | `12` | Required hosted evaluation did not complete because of an operational judging error |
 | `13` | Hosted billing/usage rejection; unreachable from `--local` |
 | `130` | Interrupted after cleanup was drained; a second interrupt exits immediately |

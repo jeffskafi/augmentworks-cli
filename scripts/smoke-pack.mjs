@@ -164,7 +164,9 @@ function assertInventory(report) {
     "contracts/aw-run-report-v1.schema.json",
     "contracts/aw-run-report-v1.fixtures.json",
     "contracts/aw-run-report-v1.lock.json",
-    "contracts/aw-suite-v1.lock.json"
+    "contracts/aw-suite-v1.lock.json",
+    "contracts/aw-release-policy-v1.lock.json",
+    "contracts/aw-release-policy-v1.fixtures.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
@@ -359,6 +361,9 @@ async function main() {
       "test",
       "suite",
       "run",
+      "compare",
+      "gate",
+      "baseline",
       "recover",
       "schema"
     ]) {
@@ -376,6 +381,17 @@ async function main() {
     assert(runHelp.stdout.includes("report"), "packed CLI is missing run report");
     const reportHelp = execCli(["run", "report", "--help"]);
     assert(reportHelp.stdout.includes("--json"), "packed CLI is missing run report --json");
+
+    const compareHelp = execCli(["compare", "--help"]);
+    assert(compareHelp.stdout.includes("--run"), "packed CLI is missing compare --run");
+    assert(compareHelp.stdout.includes("--baseline"), "packed CLI is missing compare --baseline");
+    assert(compareHelp.stdout.includes("--json"), "packed CLI is missing compare --json");
+    const gateHelp = execCli(["gate", "--help"]);
+    assert(gateHelp.stdout.includes("--wait"), "packed CLI is missing gate --wait");
+    assert(gateHelp.stdout.includes("--timeout-ms"), "packed CLI is missing gate --timeout-ms");
+    const baselineHelp = execCli(["baseline", "--help"]);
+    assert(baselineHelp.stdout.includes("status"), "packed CLI is missing baseline status");
+    assert(baselineHelp.stdout.includes("promote"), "packed CLI is missing baseline promote");
 
     process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
     const schemaResult = execCli(["schema"]);

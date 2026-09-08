@@ -59,6 +59,16 @@ import {
   type SuiteCreateResponse,
   type SuiteRevisionRead
 } from "../suite/protocol.js";
+import { mapReleasePolicyError } from "../baseline/errors.js";
+import { RELEASE_POLICY_PATHS } from "../baseline/schema.js";
+import {
+  EvaluateComparisonRequestSchema,
+  EvaluateReleaseRequestSchema,
+  PromoteBaselineRequestSchema,
+  type EvaluateComparisonRequest,
+  type EvaluateReleaseRequest,
+  type PromoteBaselineRequest
+} from "../baseline/protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -406,6 +416,87 @@ export class CloudClient {
       normalizeSuiteIdentity(value),
       "suite revision response"
     );
+  }
+
+  async listApplications(signal?: AbortSignal): Promise<unknown> {
+    try {
+      return await this.#request("GET", RELEASE_POLICY_PATHS.applications, undefined, signal);
+    } catch (error) {
+      throw mapReleasePolicyError(error);
+    }
+  }
+
+  async evaluateComparison(
+    request: EvaluateComparisonRequest,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const validated = EvaluateComparisonRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_COMPARISON_REQUEST",
+        category: "config",
+        message: "The comparison request does not match aw-comparison/1."
+      });
+    }
+    try {
+      return await this.#request(
+        "POST",
+        RELEASE_POLICY_PATHS.comparisonEvaluate,
+        validated.data,
+        signal
+      );
+    } catch (error) {
+      throw mapReleasePolicyError(error);
+    }
+  }
+
+  async evaluateReleaseGate(
+    request: EvaluateReleaseRequest,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const validated = EvaluateReleaseRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_COMPARISON_REQUEST",
+        category: "config",
+        message: "The release-gate request does not match aw-release-policy/1."
+      });
+    }
+    try {
+      return await this.#request(
+        "POST",
+        RELEASE_POLICY_PATHS.releaseGateEvaluate,
+        validated.data,
+        signal
+      );
+    } catch (error) {
+      throw mapReleasePolicyError(error);
+    }
+  }
+
+  async promoteBaseline(
+    baselineId: string,
+    request: PromoteBaselineRequest,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const validated = PromoteBaselineRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_COMPARISON_REQUEST",
+        category: "config",
+        message: "The baseline promotion request does not match aw-release-policy/1."
+      });
+    }
+    try {
+      return await this.#request(
+        "POST",
+        RELEASE_POLICY_PATHS.baselinePromote.replace("{baselineId}", segment(baselineId)),
+        validated.data,
+        signal
+      );
+    } catch (error) {
+      throw mapReleasePolicyError(error);
+    }
   }
 
   async createBillingQuote(
