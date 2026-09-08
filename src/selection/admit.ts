@@ -112,7 +112,12 @@ export function assertShardWithinPerRunLimits(
   }
 }
 
-export function shardCreateFields(shard: ShardManifest): {
+export function shardCreateFields(
+  shard: ShardManifest,
+  extras: {
+    readonly referenceBundle?: CreateRunAssessment["reference_bundle"];
+  } = {}
+): {
   readonly packet: { readonly key: string; readonly version: string };
   readonly assessment: CreateRunAssessment;
 } {
@@ -134,7 +139,14 @@ export function shardCreateFields(shard: ShardManifest): {
       packet_bindings: shard.packetBindings.map((entry) => ({
         key: entry.key,
         version: entry.version
-      }))
+      })),
+      reference_bundle: extras.referenceBundle ?? {
+        bundleId: `bundle_${shard.planHash.slice(0, 12)}`,
+        entries: [],
+        refundPolicy: null,
+        knowledgeBoundary: null,
+        targetAlreadyConfigured: true
+      }
     }
   };
 }

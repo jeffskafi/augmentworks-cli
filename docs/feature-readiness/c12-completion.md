@@ -19,7 +19,7 @@ from release acceptance under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `303fc38d3168814ef6f698e75da0dcbcb4ec2a25` (merge of CLI PR #38 / AUG-45) |
 | Working branch | `cursor/catalog-selection-shards-950b` |
-| Pull request | *filled after open* |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/40 |
 | AUG-24 (C05) | Merged CLI#30. Explicit session mode remains config-advertised; compile sends `single_turn` or `explicit_session_v1`. |
 | AUG-25 (C08) | Main#74 merge `71fc0d4`; head cited `0288c5ed12eeb5563d144ae61521cf686e9a2c2b`. Schema `aw-coverage-catalog/1`. Live catalog checksum `75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566` (`catalogVersion` `1.0.0`). Consumer fixtures SHA-256 `d6b5803007218cfeb0a6c918122d2a32c42e4e9c29b603bf8284411f4d210ea9`. |
 | AUG-31 (C11) | Main cited commit `2ac0e80b13277414c61d04f8899e0ba78a46325c`. Schema `aw-suite-selection/1` SHA-256 `73520f60369feaa74799aacd3da4473a2bf0006cac6d54bc69c3f019f26f83d0`; producer fixtures SHA-256 `45231e40cf88f040b49d4bb72ac1d3b3a3ed350c81b7bfa547962a81de71c26b`. Consumer fixtures SHA-256 `d7cb44cb8a776fcd60b816b391525c61721a95561be29ab70e1f37dd6fb481c5`. |

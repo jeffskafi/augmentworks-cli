@@ -23,6 +23,7 @@ import {
   packetRequiresMultiTurn,
   type LoadedAssessment
 } from "../assessment/index.js";
+import { buildAssessmentReferencePayload } from "../assessment/bundle.js";
 import {
   loadCustomerSuiteFile,
   assertSuiteUnchanged,
@@ -430,16 +431,26 @@ async function resolveCompiledManifest(
     context.selection.assessment,
     conversationModeFromConfig(context.report.resolvedConfig)
   );
+  const suiteVersion = context.selection.assessment.document.selection.suite_version;
   return compileHostedSelection({
     request,
     session: context.session,
-    suiteVersion: context.selection.assessment.document.selection.suite_version,
+    ...(suiteVersion === undefined ? {} : { suiteVersion }),
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
 }
 
-function shardHostedSelection(shard: ShardManifest): HostedSelection {
-  const created = shardCreateFields(shard);
+function shardSelectionForContext(shard: ShardManifest, selection: HostedSelection): HostedSelection {
+  return selection.kind === "assessment"
+    ? shardHostedSelection(shard, selection.assessment)
+    : shardHostedSelection(shard);
+}
+
+function shardHostedSelection(shard: ShardManifest, assessment?: LoadedAssessment): HostedSelection {
+  const created =
+    assessment === undefined
+      ? shardCreateFields(shard)
+      : shardCreateFields(shard, { referenceBundle: buildAssessmentReferencePayload(assessment) });
   return {
     kind: "shard",
     packet: created.packet,
@@ -476,7 +487,7 @@ async function runCompiledSelectionEstimate(
   const stderr = dependencies.stderr ?? process.stderr;
   writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
   const shard = selectShard(manifest, options.shard);
-  const hosted = shardHostedSelection(shard);
+  const hosted = shardSelectionForContext(shard, context.selection);
   const prepared = await prepareQuotedAssessment({
     selection: hosted,
     session,
@@ -568,7 +579,7 @@ async function runCompiledSelectionTest(
       const shardCeiling = String(progress.remainingCredits);
       try {
         last = await executeHostedSelection(
-          shardHostedSelection(shard),
+          shardSelectionForContext(shard, context.selection),
           { ...options, maxCredits: shardCeiling, allShards: false, shard: shard.shardId },
           dependencies,
           context
@@ -619,7 +630,7 @@ async function runCompiledSelectionTest(
 
   const shard = selectShard(manifest, options.shard);
   const result = await executeHostedSelection(
-    shardHostedSelection(shard),
+    shardSelectionForContext(shard, context.selection),
     options,
     dependencies,
     context
@@ -1021,10 +1032,18 @@ async function resolveHostedCreateRequest(options: {
               assessment: options.selection.shardAssessment,
               localPlanHash: options.selection.localPlanHash
             }
-          : {
-              assessment: assessmentFields!,
-              localPlanHash: options.selection.assessment.freezeSha256
-            };
+          : options.selection.kind === "assessment"
+            ? {
+                assessment: assessmentFields!,
+                localPlanHash: options.selection.assessment.freezeSha256
+              }
+            : (() => {
+                throw new AwError({
+                  code: "ESTIMATE_REQUIRES_ASSESSMENT",
+                  category: "config",
+                  message: "Quoted hosted tests require --assessment, --suite, --investigation, or a compiled shard."
+                });
+              })();
 
   const quote = await requestHostedQuote({
     session: options.session,

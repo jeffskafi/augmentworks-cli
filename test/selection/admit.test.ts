@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EXIT } from "../../src/errors.js";
+import { EXIT, AwError } from "../../src/errors.js";
 import { classifyManifestReleasePolicy } from "../../src/selection/classify.js";
 import {
   requireExecutableManifest,
@@ -34,6 +34,17 @@ function gate(name: string): ManifestReleasePolicyResult {
   return fixtures.fixtures[name]?.response as ManifestReleasePolicyResult;
 }
 
+function expectCode(run: () => void, code: string): void {
+  try {
+    run();
+  } catch (error) {
+    expect(error).toBeInstanceOf(AwError);
+    expect((error as AwError).code).toBe(code);
+    return;
+  }
+  throw new Error(`expected ${code}`);
+}
+
 describe("suite selection contracts", () => {
   it("keeps consumer fixture checksums aligned with lock files", async () => {
     const catalogLock = JSON.parse(
@@ -55,20 +66,23 @@ describe("suite selection contracts", () => {
 
 describe("suite selection admit and gate mapping", () => {
   it("refuses an empty selection before quote", () => {
-    expect(() => requireExecutableManifest(manifest("compile_empty"))).toThrow(/SELECTION_EMPTY/);
+    expectCode(() => requireExecutableManifest(manifest("compile_empty")), "SELECTION_EMPTY");
   });
 
   it("surfaces incompatible session capability instead of hiding it", () => {
     const compiled = manifest("compile_incompatible_session");
     expect(compiled.incompatible.some((row) => row.reasonCode === "capability_multi_turn")).toBe(true);
-    expect(() => requireExecutableManifest(compiled)).toThrow(/SELECTION_UNEXECUTABLE/);
+    expectCode(() => requireExecutableManifest(compiled), "SELECTION_UNEXECUTABLE");
   });
 
   it("refuses a shard that exceeds frozen per-run limits", () => {
     const compiled = manifest("compile_per_run_expanded_limit");
     const shard = compiled.shards[0];
     expect(shard).toBeDefined();
-    expect(() => assertShardWithinPerRunLimits(compiled, shard!)).toThrow(/PER_RUN_EXPANDED_LIMIT/);
+    expectCode(
+      () => assertShardWithinPerRunLimits(compiled, shard!),
+      "PER_RUN_EXPANDED_LIMIT"
+    );
   });
 
   it("selects a single shard and keeps server packet bindings", () => {
@@ -98,7 +112,7 @@ describe("suite selection admit and gate mapping", () => {
       stoppedReason: "SIGINT"
     });
     expect(nextRunnableShard(progress)?.shardId).toBe("shard-000");
-    expect(() => assertResumeSameShard(progress, "shard-001")).toThrow(/SHARD_PROGRESS_BLOCKED/);
+    expectCode(() => assertResumeSameShard(progress, "shard-001"), "SHARD_PROGRESS_BLOCKED");
     const artifact = artifactFromProgress(compiled, progress);
     expect(artifact.createsBillableRun).toBe(false);
     expect(artifact.declaredShards[0]?.runId).toBe("run-1");

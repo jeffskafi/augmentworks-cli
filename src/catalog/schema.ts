@@ -100,8 +100,8 @@ export const CatalogProfileSchema = z
       .max(4)
       .optional(),
     selectedCaseIds: z.array(identifier).max(48).optional(),
-    repetitions: z.number().int().min(1).max(8).optional(),
-    informativeExecutionCount: z.number().int().min(0).max(10_000).optional(),
+    repetitions: z.number().int().min(1).max(8).nullable().optional(),
+    informativeExecutionCount: z.number().int().min(0).max(10_000).nullable().optional(),
     compiled: z.unknown().nullable().optional(),
     requires: z.unknown().optional(),
     operatorGuidance: z.unknown().optional()

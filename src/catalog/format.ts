@@ -69,7 +69,7 @@ export function formatCatalogListHuman(
   lines.push("", "Profiles:");
   for (const profile of catalog.profiles) {
     const count =
-      profile.informativeExecutionCount === undefined
+      profile.informativeExecutionCount == null
         ? "n/a"
         : String(profile.informativeExecutionCount);
     lines.push(
@@ -152,7 +152,7 @@ export function formatCatalogProfileHuman(profile: CatalogProfile): string {
     sanitizeTerminal(profile.label),
     sanitizeTerminal(profile.description),
     `Assessment profile: ${sanitizeTerminal(profile.assessmentProfile ?? "n/a")}`,
-    `Informative executions: ${profile.informativeExecutionCount === undefined ? "n/a" : String(profile.informativeExecutionCount)}`,
+    `Informative executions: ${profile.informativeExecutionCount == null ? "n/a" : String(profile.informativeExecutionCount)}`,
     `Selected cases: ${(profile.selectedCaseIds ?? []).join(", ") || "none"}`,
     `Compile exclusions: ${exclusions.length === 0 ? "none" : String(exclusions.length)}`,
     "Informative counts match the compiler only when required hooks and session mode are present."

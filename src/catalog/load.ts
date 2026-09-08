@@ -62,7 +62,7 @@ export async function loadCoverageCatalog(options: CatalogLoadOptions = {}): Pro
       requestedVersion,
       fetchImpl: options.fetch ?? globalThis.fetch,
       now: now(),
-      signal: options.signal
+      ...(options.signal === undefined ? {} : { signal: options.signal })
     });
   } catch (error) {
     if (
