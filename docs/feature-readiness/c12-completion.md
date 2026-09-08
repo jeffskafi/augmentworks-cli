@@ -19,6 +19,7 @@ from release acceptance under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `303fc38d3168814ef6f698e75da0dcbcb4ec2a25` (merge of CLI PR #38 / AUG-45) |
 | Working branch | `cursor/catalog-selection-shards-950b` |
+| Implementation commits | `8869c5bdcf06a7a30f5e4ff0715bc159ce903ede` (feature), `d199d90b34423d99021d8680b0494283dff1916c` (schema/create-run/admit fixes), plus this evidence commit |
 | Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/40 |
 | AUG-24 (C05) | Merged CLI#30. Explicit session mode remains config-advertised; compile sends `single_turn` or `explicit_session_v1`. |
 | AUG-25 (C08) | Main#74 merge `71fc0d4`; head cited `0288c5ed12eeb5563d144ae61521cf686e9a2c2b`. Schema `aw-coverage-catalog/1`. Live catalog checksum `75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566` (`catalogVersion` `1.0.0`). Consumer fixtures SHA-256 `d6b5803007218cfeb0a6c918122d2a32c42e4e9c29b603bf8284411f4d210ea9`. |
@@ -39,7 +40,7 @@ from release acceptance under AUG-7.
 | Gate | Status |
 | --- | --- |
 | Code completion (this repository) | **Complete.** Catalog listing, selection compile, bounded shard execution, and manifest gate mapping. |
-| Deterministic verification | *Filled after `npm test` / `smoke:pack` on this branch.* |
+| Deterministic verification | **Passed** in this checkout. Commands and real outcomes below. |
 | Live hosted assessment / npm publish | **Not run / not done.** |
 | Release readiness | **Not ready.** Published npm remains `@augmentworks/cli@0.3.4` candidate; this source change is not a registry publish. |
 
@@ -113,9 +114,33 @@ selection:
 
 ## Test evidence
 
-*Filled after running the repository scripts on this branch.* Targeted cases:
-stale catalog, empty selection, incompatible session, per-run expanded limit,
-incomplete shard set, interrupted retry, packed help/dispatch.
+Injected Cloud Agent `AUGMENTWORKS_API_KEY` is `AUTH_ENV_CONFLICT` (exit 3) if
+left in the environment. The suite was run with API key/token unset.
+
+| Command | Outcome |
+| --- | --- |
+| `npx tsc --noEmit` | Pass |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN npx vitest run test/catalog/cli.test.ts test/selection/admit.test.ts test/selection/cli.test.ts test/assessment/load.test.ts test/assessment/cli-flags.test.ts test/integration/cli-entry.test.ts test/docs/copy-contract.test.ts test/release.test.ts` | Pass. **8 files, 104 tests** |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN npm test` | Pass. **82 files, 765 tests** (vitest 4.1.11) |
+| `npm run build` | Pass. `dist/index.js` 2.03 MB / 2.1M on disk |
+| `npm run check:discovery` | Pass. `@augmentworks/cli@0.3.4 (development)` |
+| `npm run check:billing-contract` | Pass. Untouched `aw-billing/1` hashes above |
+| `npm run check:run-report-contract` | Pass. Untouched `aw-run-report/1` hashes above |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN -u AUGMENTWORKS_API_URL npm run smoke:pack` | Pass. Packed tarball **64 files, 479660 compressed bytes**. Packed `--help` lists `catalog` and `selection`. Packed `catalog` help includes list/show; `selection` help includes compile; `test` help includes `--manifest` / `--all-shards`; `gate` help includes `--manifest-file`. Packed billing fixture: `creates=1 quotes=4 targets=1 polls=3 refreshes=1`. Packed report fixture: `requests=8`. |
+| Live hosted assessment / npm publish | **Not run / not done** |
+| GitHub Actions on this branch | Recorded on the PR after push; not claimed here |
+
+Behavior covered (synthetic fixtures only; no quote/create on these paths unless a shard is explicitly consented):
+
+- Stale catalog `?catalogVersion=0.0.1` → exit 2 `CATALOG_STALE`; catalog GET sends no `Authorization`. Fresh cache skips a second fetch; expired max-age revalidates with `If-None-Match` → 304.
+- Empty compile (`compile_empty`) → prints `includedCaseCount: 0`, exit 2 `SELECTION_EMPTY`, no `POST /v1/billing/quote` or `POST /v1/relay/runs`.
+- Incompatible session (`capability_multi_turn`) → exit 2 `SELECTION_UNEXECUTABLE`; incompatible rows remain visible; no quote.
+- Per-run expanded limit → exit 2 `PER_RUN_EXPANDED_LIMIT`; caps stay 20/60/512; no quote.
+- `--local` with catalog/compile/manifest → exit 2 `HOSTED_SELECTION_UNSUPPORTED_LOCAL`.
+- Executable compile writes the immutable manifest (`createsBillableRun: false`, packet key `aw-customer-suite`) without quoting.
+- `gate --manifest-file` with empty declared shards maps server `incomplete` / `missing_shard` to exit 11; JSON keeps `coverageComplete: false`. Complete declared set maps server `pass` to exit 0. Neither path creates a run.
+- Interrupted shard progress resumes the same shard; starting a different shard is `SHARD_PROGRESS_BLOCKED`. Exhausted aggregate budget skips remaining pending shards; artifact `createsBillableRun` stays false.
+- Additive Commander registry still lists login, whoami, catalog, selection, test, suite, investigation, run, compare, gate, baseline, recover.
 
 ## Compatibility
 
@@ -131,8 +156,9 @@ incomplete shard set, interrupted retry, packed help/dispatch.
 
 ## Remaining release requirements
 
-- Review/integration on this PR. Keep Linear **In Review**.
+- Review/merge of PR https://github.com/jeffskafi/augmentworks-cli/pull/40.
+- Keep Linear **In Review**. Do not mark Done from source integration.
 - Do not npm-publish or activate live billing.
-- Dedicated AUG-7 / release-acceptance tickets verify published artifacts.
+- Dedicated AUG-7 / AUG-48 / release-acceptance tickets verify published artifacts.
 - Website/CLI identical authoritative counts require the already merged
   main compiler; this CLI only renders server results.
