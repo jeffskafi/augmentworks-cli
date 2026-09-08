@@ -68,6 +68,8 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `GET /v1/relay/runs/{run_id}` | Read terminal status/outcome |
 | `GET /v1/relay/runs/{runId}/report` | Read the pinned hosted report (`aw-run-report/1`). GET only; refuses off-origin links and redirects with the bearer |
 | `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria` | Criterion index/detail (`aw-criterion-detail-read/1`); `/api/v1` alias exists |
+| `GET /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria/{criterionId}/investigation` | Read a saved investigation (`aw-investigation-export/1`). Observation only; `createsBillableRun` must be false |
+| `POST /v1/runs/{runId}/evaluations/{evaluationId}/attempts/{attemptId}/criteria/{criterionId}/investigation` | Export the same investigation for the exact run/evaluation/attempt/criterion. Does not start a run |
 | `POST /v1/relay/runs/{run_id}:cancel` | Request cancellation and fence new work |
 | `GET /v1/billing/capabilities` | Discover implemented billing read capabilities |
 | `GET /v1/billing/usage` | Read the workspace execution-credit snapshot |
@@ -87,6 +89,12 @@ application paths only. They never call `POST /v1/relay/runs`, quote,
 reservation, or retry-evaluation. `--json` writes one object on stdout;
 diagnostics stay on stderr. Process exit follows the server `decision`, not
 transport success. Unknown or unsupported policy states exit `11`, never `0`.
+
+`investigation inspect` and `investigation fetch` validate
+`aw-investigation-export/1` without quoting or executing a target. Copied
+command fragments are data. `test --investigation` GETs the pinned suite
+revision, then uses a new quote and `--max-credits` consent. It never selects
+`/revisions/latest` or reuses a consumed quote.
 
 The corresponding authentication endpoints are documented in
 [authentication.md](authentication.md).

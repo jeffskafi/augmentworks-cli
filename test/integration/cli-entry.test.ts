@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "run", "compare", "gate", "baseline", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "investigation", "run", "compare", "gate", "baseline", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
@@ -57,7 +57,7 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).not.toContain("Stripe");
   });
 
-  it("documents compare, gate, and baseline help", async () => {
+  it("documents compare, gate, baseline, and investigation help", async () => {
     const compare = await runSourceCli(["compare", "--help"], { cwd: projectRoot });
     expect(compare.exitCode).toBe(0);
     expect(compare.stdout).toContain("--run");
@@ -74,6 +74,12 @@ describe("CLI entrypoint", () => {
     expect(baseline.exitCode).toBe(0);
     expect(baseline.stdout).toContain("status");
     expect(baseline.stdout).toContain("promote");
+
+    const investigation = await runSourceCli(["investigation", "--help"], { cwd: projectRoot });
+    expect(investigation.exitCode).toBe(0);
+    expect(investigation.stdout).toContain("inspect");
+    expect(investigation.stdout).toContain("fetch");
+    expect(investigation.stdout).toContain("export-regression");
   });
 
   it("documents probe as an explicit bounded target check", async () => {

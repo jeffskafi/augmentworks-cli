@@ -40,7 +40,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.4**, the version of this package. That candidate includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `suite validate` / `preview`, `test --suite`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. Registry verification of 0.3.4 is recorded in `docs/feature-readiness/first-dollar-registry-acceptance.json` and is not implied by this candidate metadata. Do not overwrite or relabel npm 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.4**, the version of this package. That candidate includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `suite validate` / `preview`, `test --suite`, `investigation inspect` / `fetch` / `export-regression`, `test --investigation`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. Registry verification of 0.3.4 is recorded in `docs/feature-readiness/first-dollar-registry-acceptance.json` and is not implied by this candidate metadata. Do not overwrite or relabel npm 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (this 0.3.4 package)
 
@@ -280,6 +280,20 @@ node dist/index.js compare --run <run-id> --baseline <baseline-id> --json
 node dist/index.js gate --run <run-id> --baseline <baseline-id> --json
 node dist/index.js gate --run <run-id> --baseline <baseline-id> --wait --timeout-ms 60000 --json
 node dist/index.js baseline status --json
+node dist/index.js investigation inspect examples/investigations/response-only.json
+node dist/index.js investigation inspect examples/investigations/stateful.json --json
+node dist/index.js investigation fetch --run <run-id> --evaluation <evaluation-id> --attempt <attempt-id> --criterion <criterion-id> --json
+node dist/index.js investigation export-regression examples/investigations/response-only.json --out regression.yaml
+```
+
+Inspecting an investigation does not quote, execute a target, or consume
+credits. Reproducing the pinned case is a new quoted run:
+
+```bash
+node dist/index.js test \
+  --investigation examples/investigations/response-only.json \
+  --max-credits 30 \
+  --yes
 ```
 
 Source assessment doctor and quoted hosted execution:
@@ -678,6 +692,8 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
 | `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
+| `investigation inspect <file> [--json]` / `investigation fetch --run id --evaluation id --attempt id --criterion id [--out path] [--json]` / `investigation export-regression <file> --out path [--json]` | Inspect or download a safe failure investigation, or export a reviewed `aw-suite/1` regression draft | Observation only. Does not execute a target, shell fragment, evaluator, or quote. Copied commands are data. See `docs/investigation.md` |
+| `test [-c path] --investigation path [--estimate] [--max-credits n] [--yes] [--open]` | Reproduce the exact pinned case from an investigation file | New quote and consent every time. Never selects `latest` or reuses a consumed quote. Cannot be combined with `--local`, `--suite`, `--assessment`, or `--packet` |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target |
 | `compare --run <run-id> --baseline <baseline-id> [--json]` | Compare a candidate run against an explicit pinned baseline | Read-only. Does not start a test, reserve credits, or consume credits. Rejects missing identities; does not invent a pin |
 | `gate --run <run-id> --baseline <baseline-id> [--wait] [--timeout-ms n] [--json]` | Evaluate the hosted `aw-release-policy/1` release decision | Transport success is not a pass. `--wait` re-queries the original run ID only. See `docs/examples/github-actions-hosted-gate.yml` |
@@ -685,7 +701,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command |
 | `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
-| `schema [--kind config\|local-packet\|local-result\|customer-suite]` | Print a bundled v1 JSON Schema | None |
+| `schema [--kind config\|local-packet\|local-result\|customer-suite\|investigation-export]` | Print a bundled v1 JSON Schema | None |
 
 ### Exit codes
 

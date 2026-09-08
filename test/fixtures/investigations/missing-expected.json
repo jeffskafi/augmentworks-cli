@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "aw-investigation-export/1",
+  "packageVersion": "aw-feature/1",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "runId": "run_unreviewed",
+  "evaluationId": "eval_unreviewed",
+  "evaluationRevision": 1,
+  "attemptId": "attempt_unreviewed",
+  "criterionId": "faq.status-page.required",
+  "verdict": "fail",
+  "reproductionKind": "response_only",
+  "fullyReproducible": true,
+  "createsBillableRun": false,
+  "identities": {
+    "suiteId": "customer.faq.non_commerce",
+    "suiteRevisionId": "rev_pinned_faq_1",
+    "suiteContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "caseId": "faq.status-page"
+  },
+  "evidence": {
+    "expected": { "facts": [] },
+    "actual": { "text": "You can check our marketing site for updates." }
+  },
+  "prerequisites": {},
+  "regressionDraft": {
+    "expectedSource": "original_expected_condition",
+    "expectedFacts": []
+  }
+}

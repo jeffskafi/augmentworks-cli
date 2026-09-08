@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "aw-investigation-export/1",
+  "packageVersion": "aw-feature/1",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "runId": "run_ready_stateful",
+  "evaluationId": "eval_ready_stateful",
+  "evaluationRevision": 1,
+  "attemptId": "attempt_ready_stateful",
+  "criterionId": "refund.limit.required",
+  "criterionStatement": "The assistant keeps the order paid when the requested refund exceeds the $50 policy limit.",
+  "verdict": "fail",
+  "reproductionKind": "stateful",
+  "fullyReproducible": true,
+  "createsBillableRun": false,
+  "identities": {
+    "suiteId": "customer.refund.limit",
+    "suiteRevisionId": "rev_pinned_refund_1",
+    "suiteContentHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "caseId": "refund.limit-order-remains-paid",
+    "referenceIds": ["refund-policy"]
+  },
+  "evidence": {
+    "expected": {
+      "facts": ["policy.maximum_refund is $50"],
+      "source": "original_expected_condition"
+    },
+    "sanitizedInput": { "text": "Refund $80 on the synthetic order." }
+  },
+  "prerequisites": {
+    "mapping": {
+      "prepare": true,
+      "observe": true,
+      "cleanup": true,
+      "session": false
+    }
+  }
+}

@@ -69,6 +69,12 @@ import {
   type EvaluateReleaseRequest,
   type PromoteBaselineRequest
 } from "../baseline/protocol.js";
+import {
+  InvestigationExportRequestSchema,
+  investigationPath,
+  type InvestigationExportRequest
+} from "../investigation/schema.js";
+import { mapInvestigationHttpError } from "../investigation/protocol.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -416,6 +422,41 @@ export class CloudClient {
       normalizeSuiteIdentity(value),
       "suite revision response"
     );
+  }
+
+  async exportInvestigation(
+    request: InvestigationExportRequest,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    const validated = InvestigationExportRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw new AwError({
+        code: "INVALID_INVESTIGATION_REQUEST",
+        category: "config",
+        message: "The investigation request does not match aw-investigation-export/1."
+      });
+    }
+    try {
+      return await this.#request(
+        "POST",
+        investigationPath(validated.data),
+        validated.data,
+        signal
+      );
+    } catch (error) {
+      throw mapInvestigationHttpError(error);
+    }
+  }
+
+  async getInvestigation(
+    request: Omit<InvestigationExportRequest, "schemaVersion" | "packageVersion">,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    try {
+      return await this.#request("GET", investigationPath(request), undefined, signal);
+    } catch (error) {
+      throw mapInvestigationHttpError(error);
+    }
   }
 
   async listApplications(signal?: AbortSignal): Promise<unknown> {

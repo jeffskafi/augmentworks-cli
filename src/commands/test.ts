@@ -32,6 +32,13 @@ import { suiteCreateFields, suitePacketBinding, type SuiteRevisionPin } from "..
 import { suiteError } from "../suite/errors.js";
 import { suiteRequiresMultiTurn, suiteRequiresObservation } from "../suite/schema.js";
 import {
+  loadInvestigationFile,
+  type LoadedInvestigation
+} from "../investigation/load.js";
+import { evaluateInvestigationPrerequisites } from "../investigation/prerequisites.js";
+import { missingReproductionPrerequisitesError, crossWorkspaceInvestigationError } from "../investigation/errors.js";
+import { resolvePinnedInvestigationSelection } from "../investigation/pin.js";
+import {
   assertCeilingCoversQuote,
   confirmSpending,
   parseMaxCreditsFlag,
@@ -81,6 +88,7 @@ export interface TestOptions {
   readonly packet?: string;
   readonly assessment?: string;
   readonly suite?: string;
+  readonly investigation?: string;
   readonly profile?: string;
   readonly open?: boolean;
   readonly json?: boolean;
@@ -151,7 +159,11 @@ export async function runTest(
   const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
   const interactive = (dependencies.isInteractive ?? defaultInteractive)();
-  if (selection.kind === "suite" && maxCredits === undefined && (options.yes === true || !interactive)) {
+  if (
+    (selection.kind === "suite" || selection.kind === "investigation") &&
+    maxCredits === undefined &&
+    (options.yes === true || !interactive)
+  ) {
     throw new AwError({
       code: "MAX_CREDITS_REQUIRED",
       category: "config",
@@ -306,11 +318,11 @@ export async function runEstimate(
   options: TestOptions,
   dependencies: TestDependencies = {}
 ): Promise<EstimateResult> {
-  if (options.assessment === undefined && options.suite === undefined) {
+  if (options.assessment === undefined && options.suite === undefined && options.investigation === undefined) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment or --suite. Packet-only hosted tests do not use quotes."
+      message: "test --estimate requires --assessment, --suite, or --investigation. Packet-only hosted tests do not use quotes."
     });
   }
   const cwd = resolve(options.cwd ?? process.cwd());
@@ -357,18 +369,28 @@ type HostedSelection =
       readonly packet: { key: string; version: string };
       readonly assessment?: undefined;
       readonly suite?: undefined;
+      readonly investigation?: undefined;
     }
   | {
       readonly kind: "assessment";
       readonly packet: { key: string; version: string };
       readonly assessment: LoadedAssessment;
       readonly suite?: undefined;
+      readonly investigation?: undefined;
     }
   | {
       readonly kind: "suite";
       readonly packet: { key: string; version: string };
       readonly assessment?: undefined;
       readonly suite: LoadedCustomerSuite;
+      readonly investigation?: undefined;
+    }
+  | {
+      readonly kind: "investigation";
+      readonly packet: { key: string; version: string };
+      readonly assessment?: undefined;
+      readonly suite?: undefined;
+      readonly investigation: LoadedInvestigation;
     };
 
 async function loadHostedSelection(
@@ -376,6 +398,20 @@ async function loadHostedSelection(
   cwd: string,
   resolved: ResolvedConfig
 ): Promise<HostedSelection> {
+  if (options.investigation !== undefined) {
+    const investigation = await loadInvestigationFile(options.investigation, cwd);
+    const prerequisites = evaluateInvestigationPrerequisites(investigation.document, resolved);
+    if (!prerequisites.readyForPaidExecution) {
+      throw missingReproductionPrerequisitesError(prerequisites.blocking.map((finding) => finding.message));
+    }
+    const sessionRequired = investigation.document.prerequisites.mapping?.session === true;
+    assertConversationSupportsPacket({
+      resolved,
+      packetRequiresMultiTurn: sessionRequired,
+      packetLabel: `investigation case ${investigation.document.identities.caseId}`
+    });
+    return { kind: "investigation", packet: suitePacketBinding(), investigation };
+  }
   if (options.suite !== undefined) {
     const suite = await loadCustomerSuiteFile(options.suite, cwd);
     assertConversationSupportsPacket({
@@ -444,6 +480,30 @@ async function pinCustomerSuite(options: {
   };
 }
 
+async function pinInvestigationCase(options: {
+  readonly investigation: LoadedInvestigation;
+  readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
+  readonly cwd: string;
+  readonly signal?: AbortSignal;
+}): Promise<{
+  assessment: import("../cloud/protocol.js").CreateRunAssessment;
+  localPlanHash: string;
+}> {
+  if (options.investigation.document.workspaceId !== options.session.identity.workspaceId) {
+    throw crossWorkspaceInvestigationError();
+  }
+  const pinned = await resolvePinnedInvestigationSelection({
+    document: options.investigation.document,
+    cloud: options.session.cloud,
+    cwd: options.cwd,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+  return {
+    assessment: pinned.assessment,
+    localPlanHash: options.investigation.document.identities.suiteContentHash
+  };
+}
+
 async function prepareQuotedAssessment(options: {
   readonly selection: HostedSelection;
   readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
@@ -459,11 +519,19 @@ async function prepareQuotedAssessment(options: {
       localPlanHash: options.selection.assessment.freezeSha256
     };
   }
+  if (options.selection.kind === "investigation") {
+    return pinInvestigationCase({
+      investigation: options.selection.investigation,
+      session: options.session,
+      cwd: options.cwd,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+  }
   if (options.selection.kind !== "suite") {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "Quoted hosted tests require --assessment or --suite."
+      message: "Quoted hosted tests require --assessment, --suite, or --investigation."
     });
   }
   const pinned = await pinCustomerSuite({
@@ -538,10 +606,17 @@ async function resolveHostedCreateRequest(options: {
           cwd: options.cwd,
           ...(options.signal === undefined ? {} : { signal: options.signal })
         })
-      : {
-          assessment: assessmentFields!,
-          localPlanHash: options.selection.assessment.freezeSha256
-        };
+      : options.selection.kind === "investigation"
+        ? await pinInvestigationCase({
+            investigation: options.selection.investigation,
+            session: options.session,
+            cwd: options.cwd,
+            ...(options.signal === undefined ? {} : { signal: options.signal })
+          })
+        : {
+            assessment: assessmentFields!,
+            localPlanHash: options.selection.assessment.freezeSha256
+          };
 
   const quote = await requestHostedQuote({
     session: options.session,
@@ -554,6 +629,28 @@ async function resolveHostedCreateRequest(options: {
   if (options.selection.kind === "suite") {
     const current = await loadCustomerSuiteFile(options.selection.suite.sourcePath, options.cwd);
     assertSuiteUnchanged(options.selection.suite, current);
+  }
+  if (options.selection.kind === "investigation") {
+    const confirmedPin = await resolvePinnedInvestigationSelection({
+      document: options.selection.investigation.document,
+      cloud: options.session.cloud,
+      cwd: options.cwd,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+    if (
+      confirmedPin.pin.revisionId !== options.selection.investigation.document.identities.suiteRevisionId ||
+      confirmedPin.caseId !== options.selection.investigation.document.identities.caseId ||
+      confirmedPin.pin.contentHash !== options.selection.investigation.document.identities.suiteContentHash
+    ) {
+      throw suiteError(
+        "PINNED_REVISION_UNAVAILABLE",
+        "The pinned suite revision changed after the quote. Reproduction will not silently select another revision or reuse the quote."
+      );
+    }
+    writeLine(
+      options.stderr,
+      `Reproducing pinned case ${sanitizeTerminal(options.selection.investigation.document.identities.caseId)} at suite revision ${sanitizeTerminal(options.selection.investigation.document.identities.suiteRevisionId)}. This is a new quoted run. The original investigation run is unchanged.`
+    );
   }
   const ceiling = resolveSpendingCeiling({
     quote,
@@ -731,6 +828,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "--suite <path>",
       "customer-owned hosted suite file (aw-suite/1). Admission uses the server-accepted revision, not a later file edit"
     )
+    .option(
+      "--investigation <path>",
+      "reproduce the exact pinned case from an aw-investigation-export/1 file. Uses a new quote; never selects latest or reuses a consumed quote"
+    )
     .option("--profile <profile>", "quick, full, combined, or custom")
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
     .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
@@ -749,6 +850,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         packet?: string;
         assessment?: string;
         suite?: string;
+        investigation?: string;
         profile?: string;
         estimate?: boolean;
         maxCredits?: string;
@@ -809,6 +911,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 config: values.config,
                 ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
                 ...(values.suite === undefined ? {} : { suite: values.suite }),
+                ...(values.investigation === undefined ? {} : { investigation: values.investigation }),
                 ...(values.profile === undefined ? {} : { profile: values.profile }),
                 ...(values.allowFileCredentials === undefined
                   ? {}
@@ -862,6 +965,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               ...(values.packet === undefined ? {} : { packet: values.packet }),
               ...(values.assessment === undefined ? {} : { assessment: values.assessment }),
               ...(values.suite === undefined ? {} : { suite: values.suite }),
+              ...(values.investigation === undefined ? {} : { investigation: values.investigation }),
               ...(values.profile === undefined ? {} : { profile: values.profile }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json }),
@@ -957,6 +1061,7 @@ function assertTestSelection(values: {
   packet?: string;
   assessment?: string;
   suite?: string;
+  investigation?: string;
   profile?: string;
   local?: boolean;
   estimate?: boolean;
@@ -977,11 +1082,17 @@ function assertTestSelection(values: {
       message: "--max-credits applies only to hosted tests."
     });
   }
-  if (values.maxCredits !== undefined && values.assessment === undefined && values.suite === undefined) {
+  if (
+    values.maxCredits !== undefined &&
+    values.assessment === undefined &&
+    values.suite === undefined &&
+    values.investigation === undefined
+  ) {
     throw new AwError({
       code: "MAX_CREDITS_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "--max-credits applies to quoted hosted assessments and suites. Packet-only tests do not send a spending ceiling."
+      message:
+        "--max-credits applies to quoted hosted assessments, suites, and investigation reproductions. Packet-only tests do not send a spending ceiling."
     });
   }
   if (values.yes === true && values.local === true) {
@@ -991,11 +1102,16 @@ function assertTestSelection(values: {
       message: "--yes spending consent applies only to hosted tests."
     });
   }
-  if (values.estimate === true && values.assessment === undefined && values.suite === undefined) {
+  if (
+    values.estimate === true &&
+    values.assessment === undefined &&
+    values.suite === undefined &&
+    values.investigation === undefined
+  ) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment or --suite."
+      message: "test --estimate requires --assessment, --suite, or --investigation."
     });
   }
   if (values.assessment !== undefined && values.local === true) {
@@ -1014,6 +1130,14 @@ function assertTestSelection(values: {
         "--suite is a hosted customer-owned suite and cannot be used with --local. Validate offline with `augmentworks suite validate` / `suite preview`."
     });
   }
+  if (values.investigation !== undefined && values.local === true) {
+    throw new AwError({
+      code: "HOSTED_INVESTIGATION_UNSUPPORTED_LOCAL",
+      category: "config",
+      message:
+        "--investigation reproduces a hosted semantic case and cannot be used with --local. Inspect offline with `augmentworks investigation inspect`."
+    });
+  }
   if (values.assessment !== undefined && values.packet !== undefined) {
     throw new AwError({
       code: "ASSESSMENT_PACKET_CONFLICT",
@@ -1028,6 +1152,16 @@ function assertTestSelection(values: {
       message: "Use either --suite, --assessment, or --packet, not a combination."
     });
   }
+  if (
+    values.investigation !== undefined &&
+    (values.suite !== undefined || values.assessment !== undefined || values.packet !== undefined)
+  ) {
+    throw new AwError({
+      code: "INVESTIGATION_SELECTION_CONFLICT",
+      category: "config",
+      message: "Use either --investigation, --suite, --assessment, or --packet, not a combination."
+    });
+  }
   if (values.profile !== undefined && values.assessment === undefined) {
     throw new AwError({
       code: "ASSESSMENT_PROFILE_REQUIRES_FILE",
@@ -1035,11 +1169,16 @@ function assertTestSelection(values: {
       message: "--profile requires --assessment."
     });
   }
-  if (values.assessment === undefined && values.packet === undefined && values.suite === undefined) {
+  if (
+    values.assessment === undefined &&
+    values.packet === undefined &&
+    values.suite === undefined &&
+    values.investigation === undefined
+  ) {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet, --assessment, or --suite."
+      message: "Provide --packet, --assessment, --suite, or --investigation."
     });
   }
 }
@@ -1049,7 +1188,7 @@ function requirePacket(value: string | undefined): string {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet, --assessment, or --suite."
+      message: "Provide --packet, --assessment, --suite, or --investigation."
     });
   }
   return value;

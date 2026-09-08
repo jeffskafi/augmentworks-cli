@@ -311,10 +311,14 @@ target:
     const packet = JSON.parse(await runSchema(false, "local-packet")) as Record<string, unknown>;
     const result = JSON.parse(await runSchema(true, "local-result")) as Record<string, unknown>;
     const suite = JSON.parse(await runSchema(false, "customer-suite")) as Record<string, unknown>;
+    const investigation = JSON.parse(await runSchema(false, "investigation-export")) as Record<string, unknown>;
     expect(packet["$id"]).toBe("https://augmentworks.ai/schemas/v1/local-packet.schema.json");
     expect(result["$id"]).toBe("https://augmentworks.ai/schemas/v1/local-result.schema.json");
     expect(String(suite["$id"])).toBe(
       String(packet["$id"]).replace(/local-packet\.schema\.json$/u, "customer-suite.schema.json")
+    );
+    expect(String(investigation["$id"])).toBe(
+      String(packet["$id"]).replace(/local-packet\.schema\.json$/u, "investigation-export.schema.json")
     );
   });
 });

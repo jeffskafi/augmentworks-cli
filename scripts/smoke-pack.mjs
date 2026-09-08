@@ -125,6 +125,7 @@ function assertInventory(report) {
     "schemas/v1/local-packet.schema.json",
     "schemas/v1/local-result.schema.json",
     "schemas/v1/customer-suite.schema.json",
+    "schemas/v1/investigation-export.schema.json",
     "packets/support-refunds-starter/0.1.0/packet.json",
     "schemas/v1/cli-release.json",
     "assets/demo/packet.json",
@@ -166,7 +167,11 @@ function assertInventory(report) {
     "contracts/aw-run-report-v1.lock.json",
     "contracts/aw-suite-v1.lock.json",
     "contracts/aw-release-policy-v1.lock.json",
-    "contracts/aw-release-policy-v1.fixtures.json"
+    "contracts/aw-release-policy-v1.fixtures.json",
+    "contracts/aw-investigation-export-v1.lock.json",
+    "contracts/aw-investigation-export-v1.fixtures.json",
+    "assets/investigations/response-only.json",
+    "assets/investigations/stateful.json"
   ]) {
     assert(fileSet.has(path), `published tarball is missing ${path}`);
   }
@@ -364,6 +369,7 @@ async function main() {
       "compare",
       "gate",
       "baseline",
+      "investigation",
       "recover",
       "schema"
     ]) {
@@ -392,6 +398,12 @@ async function main() {
     const baselineHelp = execCli(["baseline", "--help"]);
     assert(baselineHelp.stdout.includes("status"), "packed CLI is missing baseline status");
     assert(baselineHelp.stdout.includes("promote"), "packed CLI is missing baseline promote");
+    const investigationHelp = execCli(["investigation", "--help"]);
+    assert(investigationHelp.stdout.includes("inspect"), "packed CLI is missing investigation inspect");
+    assert(investigationHelp.stdout.includes("fetch"), "packed CLI is missing investigation fetch");
+    assert(investigationHelp.stdout.includes("export-regression"), "packed CLI is missing investigation export-regression");
+    const testHelpInvestigation = execCli(["test", "--help"]);
+    assert(testHelpInvestigation.stdout.includes("--investigation"), "packed CLI is missing test --investigation");
 
     process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
     const schemaResult = execCli(["schema"]);
@@ -405,7 +417,7 @@ async function main() {
     }
     assert(schema !== null && typeof schema === "object", "schema command returned a non-object");
     assert(schema.type === "object", "schema command returned an unexpected root schema");
-    for (const kind of ["local-packet", "local-result", "customer-suite"]) {
+    for (const kind of ["local-packet", "local-result", "customer-suite", "investigation-export"]) {
       const localSchema = JSON.parse(execCli(["schema", "--kind", kind, "--compact"]).stdout);
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
     }
@@ -615,6 +627,36 @@ async function main() {
       assert(
         !validateRun.stdout.includes("poison-hosted-token-must-not-be-used"),
         "hosted credential leaked into suite validate stdout"
+      );
+    }
+
+    process.stdout.write("[pack smoke] checking offline investigation inspect from packed CLI\n");
+    const packedInvestigations = join(installedRoot, "assets", "investigations");
+    for (const sample of ["response-only.json", "stateful.json"]) {
+      const investigationPath = join(packedInvestigations, sample);
+      const inspectRun = execCli(["investigation", "inspect", investigationPath, "--json"], {
+        env: {
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      });
+      let inspectReport;
+      try {
+        inspectReport = JSON.parse(inspectRun.stdout);
+      } catch (error) {
+        throw new SmokeFailure(
+          `packed investigation inspect --json was not parseable JSON: ${error instanceof Error ? error.message : String(error)}\n${inspectRun.stdout}`
+        );
+      }
+      assert(inspectReport.ok === true, `packed investigation inspect failed for ${sample}`);
+      assert(inspectReport.admissionCalls === 0, "investigation inspect must not admit a run");
+      assert(inspectReport.executesTarget === false, "investigation inspect claimed target execution");
+      assert(inspectReport.executesShell === false, "investigation inspect claimed shell execution");
+      assert(inspectReport.callsEvaluator === false, "investigation inspect claimed an evaluator");
+      assert(inspectReport.copiedCommandsAreData === true, "investigation inspect must treat command fragments as data");
+      assert(
+        !inspectRun.stdout.includes("poison-hosted-token-must-not-be-used"),
+        "hosted credential leaked into investigation inspect stdout"
       );
     }
 

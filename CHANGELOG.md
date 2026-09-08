@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Investigation inspect/fetch/export-regression and `test --investigation`
+  consume `aw-investigation-export/1`. Inspect is observation-only (no target,
+  shell fragment, evaluator, or admission). Reproduction GETs the exact pinned
+  suite revision and uses a new quote / `--max-credits` / `--yes` path. Missing
+  prepare/session/cleanup prerequisites block before paid execution. Regression
+  drafts keep the original expected condition; failing chatbot output is not
+  ground truth.
+
 ## [0.3.4] - 2026-09-08
 
 Candidate first-dollar customer-owned assessment package. Executable npx pins

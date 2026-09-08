@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "aw-investigation-export/1",
+  "packageVersion": "aw-feature/1",
+  "note": "CLI consumer fixtures for AUG-44. Main schema files were not byte-vendored. Packed copies live at assets/investigations/.",
+  "identities": {
+    "workspaceId": "11111111-1111-4111-8111-111111111111",
+    "responseOnlyRunId": "run_orig_faq_status",
+    "statefulRunId": "run_orig_refund_limit",
+    "suiteId": "customer.faq.non_commerce",
+    "suiteRevisionId": "rev_pinned_faq_1",
+    "caseId": "faq.status-page",
+    "suiteContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "samples": {
+    "responseOnly": "examples/investigations/response-only.json",
+    "stateful": "examples/investigations/stateful.json"
+  }
+}
