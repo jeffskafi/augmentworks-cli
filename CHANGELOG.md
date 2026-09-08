@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-09-08
+
+Corrective published-line package for 0.3.4's stale candidate/unverified
+packaged metadata. Executable npx pins match this tarball. Do not overwrite
+or relabel `@augmentworks/cli@0.3.4`. Independent inspection of 0.3.4 is
+recorded in `docs/feature-readiness/published-registry-evidence.json`.
+`published_package_verified` is published-line identity, not a live registry
+probe of this exact tarball.
+
+### Fixed
+
+- Packaged `cli-release.json`, README, `test --help`, agent resources, and
+  discovery last-inspected snapshot no longer describe this line as a
+  candidate or claim last verified npm is 0.3.2. Help advertises quoted
+  `aw-relay/0.3` from `HOSTED_ASSESSMENT_OPTION_HELP` instead of hard-coded
+  source-0.3.3 / published-0.3.2 protocol wording.
+
 ### Added
 
 - Hosted GitHub Actions own-target recipe
@@ -25,6 +42,11 @@ All notable changes to this project are documented here. The format follows
   ground truth.
 
 ## [0.3.4] - 2026-09-08
+
+Published 2026-09-08 (`gitHead` `c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f`,
+integrity `sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==`).
+The immutable tarball still contains candidate/unverified packaged metadata;
+0.3.5 corrects that copy without overwriting 0.3.4.
 
 Candidate first-dollar customer-owned assessment package. Executable npx pins
 match this tarball. Registry verification is recorded in
@@ -262,6 +284,7 @@ This repository does not overwrite or relabel 0.3.3.
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.3.5]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.5
 [0.3.4]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.4
 [0.3.3]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.3
 [0.3.1]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.1

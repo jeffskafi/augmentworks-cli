@@ -5,7 +5,7 @@
  * rewrite the published tarball. It is not evidence that 0.3.1 contains demo.
  *
  * Usage:
- *   node scripts/verify-published-discovery.mjs --version 0.3.2
+ *   node scripts/verify-published-discovery.mjs --version 0.3.4
  */
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";

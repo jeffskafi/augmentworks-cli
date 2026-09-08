@@ -3,7 +3,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const pkg = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
 const guidance = (await readFile(resolve(root, "agent-resources/guidance.md"), "utf8")).trim();
+if (!guidance.includes(`@augmentworks/cli@${pkg.version}`)) {
+  throw new Error(`agent-resources/guidance.md must pin @augmentworks/cli@${pkg.version}`);
+}
 
 const skill = `---
 name: augmentworks

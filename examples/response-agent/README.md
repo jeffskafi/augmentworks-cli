@@ -1,10 +1,10 @@
 # Synthetic response-agent example
 
-This directory is a **synthetic** FAQ assessment fixture for this 0.3.4 CLI.
+This directory is a **synthetic** FAQ assessment fixture for this 0.3.5 CLI.
 It is not a production knowledge base, not a real customer policy, and not
 included in the npm tarball. Clone this repository for the example server.
 
-This `@augmentworks/cli@0.3.4` package includes `--assessment`. `init --starter
+This `@augmentworks/cli@0.3.5` package includes `--assessment`. `init --starter
 response-only` writes a packaged copy of this fixture (including `server.mjs`)
 instead of copying this git-only example directory.
 

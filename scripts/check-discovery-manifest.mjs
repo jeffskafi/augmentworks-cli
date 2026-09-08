@@ -27,18 +27,18 @@ if (!published.ok) {
   throw new Error(`Last verified published snapshot is invalid:\n${published.errors.join("\n")}`);
 }
 if (!LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo) {
-  throw new Error("The last verified published 0.3.2 snapshot must advertise localDemo.");
+  throw new Error("The last independently inspected published snapshot must advertise localDemo.");
 }
-if (LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version !== "0.3.2") {
+if (LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version !== "0.3.4") {
   throw new Error(
-    "The last independently verified published snapshot must remain 0.3.2 until a later registry tarball is inspected. Do not relabel 0.3.2 or 0.3.3 provenance."
+    "The last independently inspected published snapshot must remain 0.3.4 until a later registry tarball is inspected. Do not relabel 0.3.4 or 0.3.3 provenance."
   );
 }
-if (committed.package.version === "0.3.4" && committed.package.releaseStatus !== "development") {
+if (committed.package.releaseStatus === "published") {
   throw new Error(
-    "Candidate 0.3.4 must stay development-status in the committed discovery manifest until registry verification."
+    "Committed source discovery-manifest.json stays development; published snapshots are generated after registry inspection and must not be baked as this checkout's current status."
   );
 }
 process.stdout.write(
-  `CLI discovery contract ok: ${committed.package.name}@${committed.package.version} (${committed.package.releaseStatus})\n`
+  `CLI discovery contract ok: ${committed.package.name}@${committed.package.version} (${committed.package.releaseStatus}); last independently inspected published ${LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version}\n`
 );

@@ -69,7 +69,7 @@ import {
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { getStateDirectory } from "../relay/state-dir.js";
 import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../system/browser.js";
-import { HOSTED_TEST_KEEP_TERMINAL } from "../release.js";
+import { HOSTED_ASSESSMENT_OPTION_HELP, HOSTED_TEST_KEEP_TERMINAL } from "../release.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
 import {
   assertMachineHostedAdmission,
@@ -831,10 +831,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "--packet <reference>",
       "hosted key@version, or a bundled/local JSON packet with --local"
     )
-    .option(
-      "--assessment <path>",
-      "hosted assessment file (quoted aw-relay/0.3 on source 0.3.3; published 0.3.2 uses aw-relay/0.2)"
-    )
+    .option("--assessment <path>", HOSTED_ASSESSMENT_OPTION_HELP)
     .option(
       "--suite <path>",
       "customer-owned hosted suite file (aw-suite/1). Admission uses the server-accepted revision, not a later file edit"

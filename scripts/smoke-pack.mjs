@@ -345,6 +345,43 @@ async function main() {
     const installedVersion = execCli(["--version"]);
     assert(installedVersion.stdout.trim() === rootManifest.version, "installed CLI version is inconsistent");
 
+    const packedRelease = JSON.parse(
+      await readFile(join(installedRoot, "schemas", "v1", "cli-release.json"), "utf8")
+    );
+    assert(
+      packedRelease.published_package_version === rootManifest.version,
+      "packed cli-release version differs from package.json"
+    );
+    assert(
+      packedRelease.published_package_verified === true,
+      "packed cli-release must not claim unverified candidate identity"
+    );
+    assert(
+      !String(packedRelease.notes).includes("Candidate 0.3.4"),
+      "packed notes still describe 0.3.4 as a candidate"
+    );
+    assert(
+      !String(packedRelease.notes).includes(
+        "Last independently verified published tarball remains @augmentworks/cli@0.3.2"
+      ),
+      "packed notes still claim last verified is 0.3.2"
+    );
+
+    const packedReadme = await readFile(join(installedRoot, "README.md"), "utf8");
+    assert(!/That candidate includes/.test(packedReadme), "packed README still calls this package a candidate");
+    assert(
+      !/last independently verified npm remains [`*_]*0\.3\.2/i.test(packedReadme),
+      "packed README still claims last verified is 0.3.2"
+    );
+
+    const testHelp = execCli(["test", "--help"]);
+    assert(testHelp.stdout.includes("quoted aw-relay/0.3"), "packed test --help must advertise current quoted protocol");
+    assert(!testHelp.stdout.includes("source 0.3.3"), "packed test --help still mentions source 0.3.3");
+    assert(
+      !testHelp.stdout.includes("published 0.3.2 uses aw-relay/0.2"),
+      "packed test --help still claims published 0.3.2 protocol"
+    );
+
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");
     assert(recoverHelp.stdout.includes("--resume"), "packed CLI is missing recover --resume");

@@ -4,6 +4,7 @@ import { createTestCommand, hostedExitCode } from "../../src/commands/test.js";
 import { EXIT, exitCodeFor, AwError } from "../../src/errors.js";
 import type { RunStatusResponse } from "../../src/cloud/protocol.js";
 import { runSourceCli } from "../util/cli-process.js";
+import { HOSTED_ASSESSMENT_OPTION_HELP } from "../../src/version.js";
 
 function runStatus(overrides: Partial<RunStatusResponse> = {}): RunStatusResponse {
   return {
@@ -28,6 +29,9 @@ describe("assessment CLI flags", () => {
     expect(testHelp.stdout).toContain("--suite");
     expect(testHelp.stdout).toContain("--investigation");
     expect(testHelp.stdout).toContain("--local");
+    expect(testHelp.stdout).toContain(HOSTED_ASSESSMENT_OPTION_HELP);
+    expect(testHelp.stdout).not.toMatch(/source 0\.3\.3/u);
+    expect(testHelp.stdout).not.toMatch(/published 0\.3\.2 uses aw-relay\/0\.2/u);
     expect(doctorHelp.exitCode).toBe(0);
     expect(doctorHelp.stdout).toContain("--assessment");
     expect(doctorHelp.stdout).toContain("--profile");

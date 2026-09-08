@@ -6,7 +6,7 @@ quote, never execute a target, and never call an LLM. A hosted
 `test --suite` pins an immutable server revision, then uses the existing
 quote / `--max-credits` / `--yes` consent path.
 
-This command is in the `0.3.4` package. From a clone after `npm ci` and
+This command is in the `0.3.5` package. From a clone after `npm ci` and
 `npm run build`, use `node dist/index.js`. Installed npx pins match this
 package version. Do not pin immutable npm `0.3.3`.
 

@@ -1,4 +1,11 @@
-import { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION } from "./version.js";
+import {
+  CLI_VERSION,
+  CONFIG_VERSION,
+  HOSTED_ASSESSMENT_OPTION_HELP,
+  RELAY_PROTOCOL_VERSION
+} from "./version.js";
+
+export { HOSTED_ASSESSMENT_OPTION_HELP };
 
 export const NPM_PACKAGE = "@augmentworks/cli";
 export const SOURCE_REPOSITORY = "https://github.com/jeffskafi/augmentworks-cli.git";
@@ -6,19 +13,32 @@ export const SOURCE_REPOSITORY_HTTPS = "https://github.com/jeffskafi/augmentwork
 export const EXAMPLE_PATH = "examples/refund-agent";
 
 export const SOURCE_PACKAGE_VERSION: string = CLI_VERSION;
-/** Identity of this tarball. Distinct from last independently verified registry evidence. */
+/** Identity of this tarball. Distinct from independently inspected registry evidence. */
 export const PUBLISHED_PACKAGE_VERSION: string = CLI_VERSION;
 /**
- * True only after the matching registry tarball is downloaded and inspected.
- * Candidate metadata in this file must not be treated as that evidence.
+ * Packaged published-line identity. True when this artifact is a published
+ * release, not a candidate snapshot.
+ *
+ * This field is not a live npm registry probe of this exact tarball.
+ * Independent inspection of a specific registry version is recorded in
+ * LAST_VERIFIED_* and docs/feature-readiness/published-registry-evidence.json,
+ * keyed by version. Those records can only be filled after publication and must
+ * not be baked back as "this tarball is unverified; use 0.3.2".
  */
-export const PUBLISHED_PACKAGE_VERIFIED = false;
-/** Last independently verified npm tarball. Do not relabel 0.3.2 or 0.3.3 provenance. */
-export const LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION = "0.3.2";
-export const LAST_VERIFIED_PUBLISHED_GIT_HEAD = "d36ec8590b005445dba940d2df3abcb53971cea5";
-export const LAST_VERIFIED_PUBLISHED_AT = "2026-09-06T14:33:30.670Z";
+export const PUBLISHED_PACKAGE_VERIFIED = true;
+/**
+ * Last independently inspected npm tarball. This is prior-version evidence,
+ * not a recommendation to prefer that pin over this package identity.
+ * Do not relabel 0.3.4, 0.3.3, or 0.3.2 provenance.
+ */
+export const LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION = "0.3.4";
+export const LAST_VERIFIED_PUBLISHED_GIT_HEAD = "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f";
+export const LAST_VERIFIED_PUBLISHED_AT = "2026-09-08T06:38:24.847Z";
+export const LAST_VERIFIED_PUBLISHED_INTEGRITY =
+  "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==";
 /** Immutable npm 0.3.3 (not this release). Do not overwrite or relabel. */
 export const REGISTRY_0_3_3_GIT_HEAD = "4a08ea0d352f2515e725cb9ca946807112422436";
+export const REGISTRY_0_3_4_GIT_HEAD = LAST_VERIFIED_PUBLISHED_GIT_HEAD;
 export const HOSTED_COMMAND_PIN: string = SOURCE_PACKAGE_VERSION;
 export const LOCAL_DISTRIBUTION: "npm" | "git" =
   SOURCE_PACKAGE_VERSION === PUBLISHED_PACKAGE_VERSION ? "npm" : "git";
@@ -66,7 +86,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Candidate 0.3.4 is the first-dollar customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.4), not 0.3.2. npm 0.3.3 remains an immutable registry artifact (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, published 2026-09-07T16:21:14Z) and is not overwritten or relabeled; that tarball lacks suite validate/preview, test --suite, and starter/probe. Last independently verified published tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Registry verification of 0.3.4 is recorded in docs/feature-readiness/first-dollar-registry-acceptance.json, not by flipping this candidate flag. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Do not run @latest."
+    "Published 0.3.5 is the customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, investigation inspect/fetch/export-regression, hosted GitHub Actions own-target recipe, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.5). published_package_verified is published-line identity (not a candidate), not a live registry probe of this exact tarball. Independent inspection of npm @augmentworks/cli@0.3.4 (gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f, integrity sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==, published 2026-09-08T06:38:24.847Z) is recorded in docs/feature-readiness/published-registry-evidence.json. Immutable npm 0.3.4 still ships stale candidate metadata and is not overwritten or relabeled; 0.3.5 corrects packaged copy. Immutable npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436) is not this release line. Website discovery may remain on 0.3.4 until it adopts this patch. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Do not run @latest."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {

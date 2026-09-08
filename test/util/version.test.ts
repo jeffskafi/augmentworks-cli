@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION, RELAY_PROTOCOL_VERSION_V2, RELAY_PROTOCOL_VERSION_V3 } from "../../src/version.js";
+import { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION, RELAY_PROTOCOL_VERSION_V2, RELAY_PROTOCOL_VERSION_V3, HOSTED_ASSESSMENT_OPTION_HELP } from "../../src/version.js";
 
 interface PackageManifest {
   version?: unknown;
@@ -22,5 +22,6 @@ describe("version contracts", () => {
     expect(RELAY_PROTOCOL_VERSION).toMatch(/^aw-relay\/\d+\.\d+$/);
     expect(RELAY_PROTOCOL_VERSION_V2).toBe("aw-relay/0.2");
     expect(RELAY_PROTOCOL_VERSION_V3).toBe("aw-relay/0.3");
+    expect(HOSTED_ASSESSMENT_OPTION_HELP).toBe("hosted assessment file (quoted aw-relay/0.3)");
   });
 });

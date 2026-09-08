@@ -1,11 +1,11 @@
 {
   "schemaVersion": "aw-first-dollar-release/1",
-  "verifiedAt": null,
+  "verifiedAt": "2026-09-08T06:38:24.847Z",
   "cli": {
     "packageName": "@augmentworks/cli",
     "version": "0.3.4",
-    "gitHead": null,
-    "integrity": null,
+    "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
+    "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==",
     "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.4"
   },
   "mainContractSha": "650472d91442a6866a7b6ef18e6dacc23a2a9260",
@@ -44,7 +44,7 @@
       "name": "candidate-main-head",
       "artifactKind": "registry",
       "status": "pass",
-      "evidence": "Default main b8c3e7c3d71d9bef2cb07ddf3771c0822934208d includes AUG-35 PR #32, AUG-32 PR #31, AUG-24 PR #30, AUG-59 PR #28, AUG-54 PR #26. npm 0.3.4 unused. Candidate PR https://github.com/jeffskafi/augmentworks-cli/pull/33. Rechecked 2026-09-07. This is branch/head selection, not registry publication."
+      "evidence": "Default main b8c3e7c3d71d9bef2cb07ddf3771c0822934208d includes AUG-35 PR #32, AUG-32 PR #31, AUG-24 PR #30, AUG-59 PR #28, AUG-54 PR #26. Candidate PR https://github.com/jeffskafi/augmentworks-cli/pull/33. Rechecked 2026-09-07 as branch/head selection. GitHub release v0.3.4 later targeted c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f."
     },
     {
       "name": "npm-ci-check-audit",
@@ -79,31 +79,30 @@
     {
       "name": "github-release-v0.3.4",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Inspected .github/workflows/release.yml: non-draft/non-prerelease published release, tag must equal v0.3.4, environment npm, npm publish with provenance, no NODE_AUTH_TOKEN. This agent cannot create GitHub releases (gh read-only; repo permissions lack release/admin). Missing publication permission is an external blocker. Do not bypass."
+      "status": "pass",
+      "evidence": "GitHub release v0.3.4 published 2026-09-08 06:33:39 UTC, target c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f. https://github.com/jeffskafi/augmentworks-cli/releases/tag/v0.3.4"
     },
     {
       "name": "registry-tarball-gitHead-integrity",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "npm view @augmentworks/cli@0.3.4 returned 404. Local pack SHA-256 46a7f4d653cf1e29a38ac0b47adf0c4117bba2daefcc54c6fd1fc35cd910d5f4 is QA only. Do not overwrite npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, integrity sha512-6jUbZmKz9mix5F55R/RL94DqXHGjDCiQcGgXX8GfJweqH/1XoG0OxmM/rQfNN5u1EL1Mc4kC2mfDCOWF7TKCKw==)."
+      "status": "pass",
+      "evidence": "npm view @augmentworks/cli@0.3.4: version 0.3.4, gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f, dist.integrity sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==, time.0.3.4 2026-09-08T06:38:24.847Z. Do not overwrite npm 0.3.4 or 0.3.3."
     },
     {
       "name": "verify-published-discovery",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "node scripts/verify-published-discovery.mjs --version 0.3.4 exited nonzero: npm error 404 No match found for version 0.3.4. Script emits metadata only and does not replace executable inspection."
+      "status": "pass",
+      "evidence": "npm view confirms 0.3.4 publication. Website discovery snapshot on main records releaseStatus published and verifiedAt 2026-09-08T06:38:24.847Z. The immutable 0.3.4 tarball still packages candidate/unverified CLI_RELEASE copy; AUG-79 publishes 0.3.5 to correct that packaged copy without relabeling 0.3.4."
     }
   ],
   "limitations": [
-    "cli.gitHead, cli.integrity, and verifiedAt stay null until the registry tarball is downloaded. package.json 0.3.4 is not publication.",
-    "Local pack/check passes above are candidate QA. They are not npm provenance or registry integrity.",
-    "Last independently verified npm tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5).",
+    "This file records independently inspected @augmentworks/cli@0.3.4. It is not a live probe of a later patch.",
+    "The immutable 0.3.4 tarball still contains stale candidate metadata (AUG-79). Do not overwrite or relabel 0.3.4.",
     "Immutable npm 0.3.3 is not this release and must not be relabeled.",
-    "Committed discovery-manifest.json stays schemaVersion 1 with releaseStatus development.",
+    "Committed discovery-manifest.json on a source checkout stays schemaVersion 1 with releaseStatus development.",
     "No live purchases, production provider calls, customer-target contact, or extra trial grants were used.",
     "AUG-47/48 broader baseline/regression/CI acceptance is not claimed.",
     "AUG-58 remains authoritative for hosted positive/fault/browser QA.",
-    "GitHub release creation and npm trusted publishing require maintainer authorization in the existing protected npm environment."
+    "A later 0.3.5 patch fills docs/feature-readiness/published-registry-evidence.json thisPackageIdentity after protected publish."
   ]
 }

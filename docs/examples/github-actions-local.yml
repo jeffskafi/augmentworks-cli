@@ -1,8 +1,7 @@
 # Customer GitHub Actions example (not this repository's development CI)
 
-# Pin the verified published package. Source 0.3.3 billed commands are not in npm 0.3.2.
-# Local CI needs no AugmentWorks login. Do not use || true or continue-on-error
-# on the assessment step. Always upload reports.
+# Pin this package. Local CI needs no AugmentWorks login. Do not use || true
+# or continue-on-error on the assessment step. Always upload reports.
 
 name: AugmentWorks local assessment
 
@@ -33,7 +32,7 @@ jobs:
           CHATBOT_BASE_URL: http://127.0.0.1:8000
           CHATBOT_API_KEY: ci-synthetic-placeholder
         run: |
-          npx --yes @augmentworks/cli@0.3.2 test \
+          npx --yes @augmentworks/cli@0.3.5 test \
             --local \
             -c augmentworks.yaml \
             --packet support-refunds-starter@0.1.0 \
