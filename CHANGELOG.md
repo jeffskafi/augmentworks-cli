@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Hosted GitHub Actions own-target recipe
+  (`docs/examples/github-actions-hosted.yml`) with scoped
+  `AUGMENTWORKS_API_KEY`, explicit `test --headless`, isolated synthetic
+  target startup, offline doctor/mapping/suite validation, quoted
+  `--max-credits`, original-run wait, `gate` CI provenance, credential-free
+  summaries/artifacts, and fork-PR secret skipping. Machine principals missing
+  `run:execute` fail closed with `MACHINE_ACTION_DENIED` before quote.
+
 - Investigation inspect/fetch/export-regression and `test --investigation`
   consume `aw-investigation-export/1`. Inspect is observation-only (no target,
   shell fragment, evaluator, or admission). Reproduction GETs the exact pinned

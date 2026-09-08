@@ -8,9 +8,10 @@
 # exit 13; a new required semantic regression is exit 10 even when
 # aggregate pass rates match; incomplete grading or an incomplete gate is
 # 11; evaluator error is 12. Recover an interrupted create before starting
-# another admission. Comparison and gate do not start, reserve, or charge
-# a run. Do not auto-promote a baseline. Machine credential issuance and
-# GitHub secret setup belong to AUG-45.
+# Do not auto-promote a baseline. Prefer repository secret AUGMENTWORKS_API_KEY
+# (AUGMENTWORKS_TOKEN remains a compatible injection). The complete hosted
+# GitHub Actions journey, scoped machine key, isolated target startup, fork-PR
+# policy, and CI provenance via gate live in github-actions-hosted.yml.
 
 name: AugmentWorks hosted assessment with release gate (source)
 

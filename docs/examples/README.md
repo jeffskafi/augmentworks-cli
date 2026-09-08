@@ -21,11 +21,15 @@ See `../walkthrough-draft.md`. Do not fabricate a recording.
 
 ## Hosted CI (this 0.3.4 package)
 
-`github-actions-hosted-source.yml` is a copy-pastable quoted hosted workflow
-for this package. Executable npx pins match `0.3.4`. Do not advertise
-immutable npm `0.3.3`. Website adoption waits for registry evidence.
+`github-actions-hosted.yml` is the maintained customer GitHub Actions recipe:
+scoped `AUGMENTWORKS_API_KEY`, isolated synthetic target, offline doctor and
+mapping validation, quoted `--max-credits --yes --headless` suite admission,
+`run wait` on the original ID, `gate`, a credential-free step summary, artifact
+upload, and always-on target cleanup. Untrusted fork pull requests skip the
+secret-bearing job. Do not use `pull_request_target`. `gate` on a finalized
+result is the CI provenance record; unfinished evaluation cannot be green.
 
-`github-actions-hosted-gate.yml` adds a read-only `gate` after quoted
-execution and `run wait` on the original run ID. It requires an explicit
-`AUGMENTWORKS_BASELINE_ID`. It does not issue machine credentials, create
-GitHub secrets, auto-promote a pin, or start a second billed assessment.
+`github-actions-hosted-source.yml` is a shorter source-tree quoted hosted
+workflow. `github-actions-hosted-gate.yml` is a shorter gate-after-wait snippet
+without target startup or fork-PR policy. Prefer `github-actions-hosted.yml`
+for a complete own-target journey.

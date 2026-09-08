@@ -404,6 +404,7 @@ async function main() {
     assert(investigationHelp.stdout.includes("export-regression"), "packed CLI is missing investigation export-regression");
     const testHelpInvestigation = execCli(["test", "--help"]);
     assert(testHelpInvestigation.stdout.includes("--investigation"), "packed CLI is missing test --investigation");
+    assert(testHelpInvestigation.stdout.includes("--headless"), "packed CLI is missing test --headless");
 
     process.stdout.write("[pack smoke] checking schema, init, and offline doctor\n");
     const schemaResult = execCli(["schema"]);

@@ -1,6 +1,42 @@
 export const CLI_OAUTH_CLIENT_ID = "augmentworks-cli";
 export const DEFAULT_AUTH_SCOPES = ["connector:identity", "connector:run"] as const;
 
+/** Fine-grained workspace actions from GET /api/v1/cli/auth/me (AW-QA-1 / AUG-19). */
+export const FEATURE_ACTIONS = {
+  suiteRead: "suite:read",
+  runExecute: "run:execute",
+  runCancel: "run:cancel",
+  runRead: "run:read",
+  evaluationRead: "evaluation:read",
+  criterionDetailRead: "criterion_detail:read",
+  billingRead: "billing:read",
+  baselinePromote: "baseline:promote"
+} as const;
+
+export type FeatureAction = (typeof FEATURE_ACTIONS)[keyof typeof FEATURE_ACTIONS];
+
+/**
+ * Minimum actions for a hosted CI admit (quote + create). Transport scopes
+ * `connector:identity` / `connector:run` are not sufficient on a machine principal.
+ * Report-only keys omit `run:execute` and must not quote or start a run.
+ */
+export const MACHINE_HOSTED_EXECUTE_ACTIONS = [FEATURE_ACTIONS.runExecute] as const;
+
+export const MACHINE_SUITE_EXECUTE_ACTIONS = [
+  FEATURE_ACTIONS.runExecute,
+  FEATURE_ACTIONS.suiteRead
+] as const;
+
+export const MACHINE_CI_RECOMMENDED_ACTIONS = [
+  FEATURE_ACTIONS.suiteRead,
+  FEATURE_ACTIONS.runExecute,
+  FEATURE_ACTIONS.runCancel,
+  FEATURE_ACTIONS.runRead,
+  FEATURE_ACTIONS.evaluationRead,
+  FEATURE_ACTIONS.criterionDetailRead,
+  FEATURE_ACTIONS.billingRead
+] as const;
+
 export interface StoredCredential {
   readonly accessToken: string;
   readonly tokenType: "Bearer";

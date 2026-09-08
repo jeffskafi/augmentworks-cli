@@ -72,7 +72,9 @@ import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../
 import { HOSTED_TEST_KEEP_TERMINAL } from "../release.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
 import {
+  assertMachineHostedAdmission,
   authenticateHostedSession,
+  isHeadlessEnvironment,
   type HostedAuthDependencies
 } from "./hosted-auth.js";
 import {
@@ -95,6 +97,7 @@ export interface TestOptions {
   readonly estimate?: boolean;
   readonly maxCredits?: string;
   readonly yes?: boolean;
+  readonly headless?: boolean;
   readonly allowFileCredentials?: boolean;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
@@ -158,7 +161,7 @@ export async function runTest(
 
   const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
-  const interactive = (dependencies.isInteractive ?? defaultInteractive)();
+  const interactive = (dependencies.isInteractive ?? (() => defaultInteractive(env, options)))();
   if (
     (selection.kind === "suite" || selection.kind === "investigation") &&
     maxCredits === undefined &&
@@ -174,6 +177,7 @@ export async function runTest(
     });
   }
   const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: selection.kind === "suite" });
   const target = hostedTargetBinding(report.resolvedConfig);
   const stderr = dependencies.stderr ?? process.stderr;
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
@@ -250,7 +254,9 @@ export async function runTest(
       `${prepared.kind === "resume_bound" || prepared.kind === "replay_pending" ? "Resuming" : "Run"} ${sanitizeTerminal(binding.run_id)}: ${sanitizeTerminal(dashboard.toString())}`
     );
     writeLine(stderr, HOSTED_TEST_KEEP_TERMINAL);
-    if (options.open === true) {
+    if (options.open === true && isHeadlessEnvironment(env, options)) {
+      writeLine(stderr, "Headless mode does not open a browser.");
+    } else if (options.open === true) {
       try {
         await (dependencies.openBrowser ?? ((url) => openBrowserUrl(url, [session.apiOrigin.origin])))(
           dashboard
@@ -340,6 +346,7 @@ export async function runEstimate(
   }
   const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
   const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: selection.kind === "suite" });
   const target = hostedTargetBinding(report.resolvedConfig);
   const prepared = await prepareQuotedAssessment({
     selection,
@@ -785,7 +792,11 @@ function writeConsentExplanation(
   );
 }
 
-function defaultInteractive(): boolean {
+function defaultInteractive(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { readonly headless?: boolean } = {}
+): boolean {
+  if (isHeadlessEnvironment(env, options)) return false;
   return process.stdin.isTTY === true && process.stderr.isTTY === true;
 }
 
@@ -836,6 +847,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
     .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
     .option("--yes", "skip the interactive spending prompt; still requires --max-credits")
+    .option(
+      "--headless",
+      "explicit noninteractive hosted mode: require AUGMENTWORKS_API_KEY or AUGMENTWORKS_TOKEN, never load a keychain, and never open a browser"
+    )
     .option("--local", "run entirely in the customer environment without AugmentWorks services")
     .option("--output-dir <path>", "fresh exact report directory for --local")
     .option("--open", "open the hosted dashboard or generated local HTML report")
@@ -855,6 +870,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         estimate?: boolean;
         maxCredits?: string;
         yes?: boolean;
+        headless?: boolean;
         local?: boolean;
         outputDir?: string;
         open?: boolean;
@@ -915,7 +931,8 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 ...(values.profile === undefined ? {} : { profile: values.profile }),
                 ...(values.allowFileCredentials === undefined
                   ? {}
-                  : { allowFileCredentials: values.allowFileCredentials })
+                  : { allowFileCredentials: values.allowFileCredentials }),
+                ...(values.headless === undefined ? {} : { headless: values.headless })
               },
               dependencies
             );
@@ -973,7 +990,8 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               ...(values.yes === undefined ? {} : { yes: values.yes }),
               ...(values.allowFileCredentials === undefined
                 ? {}
-                : { allowFileCredentials: values.allowFileCredentials })
+                : { allowFileCredentials: values.allowFileCredentials }),
+              ...(values.headless === undefined ? {} : { headless: values.headless })
             },
             dependencies
           );
@@ -1067,6 +1085,7 @@ function assertTestSelection(values: {
   estimate?: boolean;
   maxCredits?: string;
   yes?: boolean;
+  headless?: boolean;
 }): void {
   if (values.estimate === true && values.local === true) {
     throw new AwError({
@@ -1100,6 +1119,14 @@ function assertTestSelection(values: {
       code: "YES_LOCAL_UNSUPPORTED",
       category: "config",
       message: "--yes spending consent applies only to hosted tests."
+    });
+  }
+  if (values.headless === true && values.local === true) {
+    throw new AwError({
+      code: "HEADLESS_LOCAL_UNSUPPORTED",
+      category: "config",
+      message:
+        "--headless applies only to hosted AugmentWorks authentication. Local tests do not use a workspace API key."
     });
   }
   if (

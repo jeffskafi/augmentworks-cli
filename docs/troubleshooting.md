@@ -177,6 +177,9 @@ one of them. Equal values are treated as the same explicit API key.
 Expired, revoked, or invalid workspace keys exit `3` with `API_KEY_REVOKED`.
 Issue a new key at https://augmentworks.ai/portal/settings/api-keys. Do not
 call `logout` from automation cleanup; logout revokes reusable workspace keys.
+Headless CI without `AUGMENTWORKS_API_KEY` or `AUGMENTWORKS_TOKEN` exits `3`
+with `AUTH_REQUIRED` and does not load a keychain. A machine key missing
+`run:execute` exits `3` with `MACHINE_ACTION_DENIED` and does not quote.
 
 `CHATBOT_API_KEY` authenticates only the synthetic target. Putting an
 AugmentWorks API key in `bearer_env` will not authorize hosted report reads.

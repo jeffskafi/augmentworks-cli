@@ -82,6 +82,15 @@ describe("CLI entrypoint", () => {
     expect(investigation.stdout).toContain("export-regression");
   });
 
+  it("documents test --headless as explicit noninteractive hosted mode", async () => {
+    const result = await runSourceCli(["test", "--help"], { cwd: projectRoot });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--headless");
+    expect(result.stdout).toContain("AUGMENTWORKS_API_KEY");
+    expect(result.stdout).toMatch(/never\s+load a keychain/);
+  });
+
   it("documents probe as an explicit bounded target check", async () => {
     const result = await runSourceCli(["probe", "--help"], { cwd: projectRoot });
 

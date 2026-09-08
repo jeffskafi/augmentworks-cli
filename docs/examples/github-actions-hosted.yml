@@ -1,0 +1,206 @@
+# Customer GitHub Actions recipe for a complete hosted own-target journey.
+#
+# Copy this file into the application repository that contains the synthetic
+# starter files (after `init --starter response-quality`, typically
+# augmentworks.yaml, own-chatbot.suite.yaml, server.mjs, fixtures/, and
+# references/). Do not paste it into this CLI repository's development CI.
+#
+# This 0.3.4 package: explicit AUGMENTWORKS_API_KEY mode, --headless, quoted
+# --max-credits, run wait/report, gate, suite validate, and investigation
+# inspect/export. npm --yes is not a spending ceiling. Do not use
+# pull_request_target. Do not run logout from automation cleanup.
+#
+# Installs @augmentworks/cli@0.3.4 (this package). Registry verification of
+# that tarball is recorded in docs/feature-readiness/first-dollar-registry-acceptance.json
+# and is not implied by this example. Do not pin @latest or overwrite npm 0.3.3.
+#
+# Secrets (repository, not environment):
+#   AUGMENTWORKS_API_KEY     scoped machine key (required)
+#   AUGMENTWORKS_BASELINE_ID explicit pin (required; the CLI will not invent one)
+#   AUGMENTWORKS_API_URL     optional; omit in production (trusted origin only)
+#
+# Minimum machine actions for this recipe:
+#   suite:read, run:execute, run:cancel, run:read, evaluation:read,
+#   criterion_detail:read, billing:read
+# Do not grant purchase, subscription administration, membership, publication,
+# credential issuance, or baseline:promote. connector:identity / connector:run
+# transport scopes are not sufficient machine authorization.
+#
+# Untrusted fork pull requests skip this secret-bearing job. Same-repo
+# pull_request, push to the default branch, and workflow_dispatch may run it.
+# A required semantic regression exits 10 and fails the job. Unfinished
+# evaluation exits 11 and never calls gate, so it cannot be a green release.
+# POST /v1/release-gates/evaluate on a finalized result is the CI provenance
+# record; the server emits own_target.ci_result_recorded once for that
+# aw-release-policy/1 decision when the principal is a machine. Pending work
+# is not activation. Do not send target URLs, secrets, or transcripts.
+
+name: AugmentWorks hosted own-target CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: augmentworks-hosted-${{ github.repository }}-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hosted-own-target:
+    name: Hosted suite, wait, and release gate
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AUGMENTWORKS_API_KEY: ${{ secrets.AUGMENTWORKS_API_KEY }}
+      AUGMENTWORKS_BASELINE_ID: ${{ secrets.AUGMENTWORKS_BASELINE_ID }}
+      AUGMENTWORKS_API_URL: ${{ secrets.AUGMENTWORKS_API_URL }}
+      AUGMENTWORKS_HEADLESS: "1"
+      CHATBOT_BASE_URL: http://127.0.0.1:8000
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+
+      - name: Require the scoped machine secret
+        run: |
+          if [ -z "$AUGMENTWORKS_API_KEY" ]; then
+            echo "Set repository secret AUGMENTWORKS_API_KEY to a scoped workspace machine key." >&2
+            exit 3
+          fi
+          if [ -z "$AUGMENTWORKS_BASELINE_ID" ]; then
+            echo "Set AUGMENTWORKS_BASELINE_ID to an explicit pin. The CLI will not invent or promote one." >&2
+            exit 2
+          fi
+
+      - name: Start isolated synthetic target
+        run: |
+          umask 077
+          export CHATBOT_API_KEY="$(node -e "process.stdout.write(require('crypto').randomBytes(24).toString('hex'))")"
+          printf '%s' "$CHATBOT_API_KEY" > "$RUNNER_TEMP/chatbot-api-key"
+          mkdir -p .augmentworks/ci
+          nohup node server.mjs >"$RUNNER_TEMP/target.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/target.pid"
+          deadline=$((SECONDS + 30))
+          until node -e "fetch(process.env.CHATBOT_BASE_URL + '/health').then((r) => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))" 2>/dev/null; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "Synthetic target did not become ready on CHATBOT_BASE_URL." >&2
+              exit 5
+            fi
+            sleep 0.2
+          done
+
+      - name: Offline doctor, mapping preview, and suite validation
+        run: |
+          export CHATBOT_API_KEY="$(cat "$RUNNER_TEMP/chatbot-api-key")"
+          AW=(npx --yes @augmentworks/cli@0.3.4)
+          "${AW[@]}" doctor --offline -c augmentworks.yaml
+          "${AW[@]}" preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json --json > .augmentworks/ci/preview-mapping.json
+          "${AW[@]}" suite validate own-chatbot.suite.yaml --json > .augmentworks/ci/suite-validate.json
+
+      - name: Estimate, admit with a ceiling, wait, gate, and recover
+        id: hosted
+        run: |
+          export CHATBOT_API_KEY="$(cat "$RUNNER_TEMP/chatbot-api-key")"
+          AW=(npx --yes @augmentworks/cli@0.3.4)
+          set +e
+          "${AW[@]}" whoami --json > .augmentworks/ci/whoami.json
+          whoami_code=$?
+          set -e
+          if [ "$whoami_code" -ne 0 ]; then
+            echo "whoami failed. A revoked or unscoped key cannot continue. Do not call logout from CI." >&2
+            exit "$whoami_code"
+          fi
+          if grep -E 'aw_api_|Bearer |CHATBOT_API_KEY=' .augmentworks/ci/whoami.json; then
+            echo "whoami JSON must not contain credential material." >&2
+            exit 1
+          fi
+          "${AW[@]}" test --suite own-chatbot.suite.yaml --estimate --json --headless > .augmentworks/ci/estimate.json
+          set +e
+          "${AW[@]}" test --suite own-chatbot.suite.yaml --max-credits 30 --yes --json --headless > .augmentworks/ci/test.json
+          admit_code=$?
+          set -e
+          run_id="$(node -e "
+            const fs = require('node:fs');
+            const raw = fs.readFileSync('.augmentworks/ci/test.json', 'utf8');
+            try {
+              const parsed = JSON.parse(raw);
+              process.stdout.write(String(parsed.run_id ?? parsed.runId ?? ''));
+            } catch {
+              process.stdout.write('');
+            }
+          ")"
+          if [ -z "$run_id" ]; then
+            echo "No run id. Inspect recover before starting another hosted test." >&2
+            set +e
+            "${AW[@]}" recover --json > .augmentworks/ci/recover.json
+            set -e
+            exit "$admit_code"
+          fi
+          printf '%s' "$run_id" > .augmentworks/ci/run-id.txt
+          set +e
+          "${AW[@]}" run wait "$run_id" --json --timeout-ms 60000 > .augmentworks/ci/wait.json
+          wait_code=$?
+          set -e
+          if [ "$wait_code" -ne 0 ] && [ "$wait_code" -ne 10 ]; then
+            echo "Wait did not finish for original run $run_id. Re-query that ID. Do not start another billed assessment or treat this as a green gate." >&2
+            set +e
+            "${AW[@]}" recover --json > .augmentworks/ci/recover.json
+            set -e
+            exit "$wait_code"
+          fi
+          set +e
+          "${AW[@]}" gate --run "$run_id" --baseline "$AUGMENTWORKS_BASELINE_ID" --json > .augmentworks/ci/gate.json
+          gate_code=$?
+          set -e
+          if [ "$gate_code" -eq 10 ]; then
+            set +e
+            "${AW[@]}" run report "$run_id" --json > .augmentworks/ci/run-report.json
+            set -e
+            echo "Release gate blocked. Inspect the original run; do not admit another assessment from this job." >&2
+            echo "Offline reproduction: investigation inspect <export.json> then test --investigation <file> --max-credits N --yes --headless" >&2
+          fi
+          {
+            echo "## AugmentWorks hosted CI"
+            echo
+            echo "- original run: \`$run_id\`"
+            echo "- admit exit: \`$admit_code\`"
+            echo "- wait exit: \`$wait_code\`"
+            echo "- gate exit: \`$gate_code\`"
+            echo "- recover: \`npx --yes @augmentworks/cli@0.3.4 recover --json\` (does not start a run)"
+            echo "- wait: \`npx --yes @augmentworks/cli@0.3.4 run wait $run_id\`"
+            echo "- gate records CI provenance through POST /v1/release-gates/evaluate; unfinished evaluation never reaches this step"
+            echo
+            echo "Summaries omit credentials, private target URLs, and excluded evidence."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -E 'aw_api_|CHATBOT_API_KEY=|Bearer ' "$GITHUB_STEP_SUMMARY" .augmentworks/ci/*.json 2>/dev/null; then
+            echo "CI artifacts must not contain credential material." >&2
+            exit 1
+          fi
+          exit "$gate_code"
+
+      - name: Upload allowed artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: augmentworks-hosted-ci
+          path: .augmentworks/ci
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Stop synthetic target
+        if: ${{ always() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/target.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/target.pid")" 2>/dev/null || true
+          fi
+          rm -f "$RUNNER_TEMP/chatbot-api-key" "$RUNNER_TEMP/target.pid"

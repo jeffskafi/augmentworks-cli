@@ -183,4 +183,45 @@ noninteractive report export.
 
 Never pass a token as a command-line argument, commit it to YAML, print it in a
 build log, or paste it into an AI assistant. Rotate CI credentials on exposure
-and scope them to one workspace and the minimum required target actions.
+and scope them to one workspace and the minimum required actions.
+
+## GitHub Actions machine credentials
+
+Issue a workspace API key at
+[[REDACTED]/portal/settings/api-keys]([REDACTED]/portal/settings/api-keys)
+with the CI preset. Store only `AUGMENTWORKS_API_KEY` (and an explicit
+`AUGMENTWORKS_BASELINE_ID`) as repository secrets. Optional
+`AUGMENTWORKS_API_URL` selects the production origin or a loopback development
+origin. Generate the synthetic target `CHATBOT_API_KEY` on the runner; do not
+put target secrets in GitHub.
+
+Minimum machine actions for hosted CI: `suite:read`, `run:execute`,
+`run:cancel`, `run:read`, `evaluation:read`, `criterion_detail:read`, and
+`billing:read`. `connector:identity` and `connector:run` are transport scopes
+and are not sufficient. Do not grant purchase, subscription administration,
+membership, publication, credential issuance, or `baseline:promote`. Revoking
+the key blocks the next admission. The workflow cannot buy credits or
+administer the workspace.
+
+`test --headless` (or `CI=true` / `AUGMENTWORKS_HEADLESS=1`) requires the
+environment key and never loads a keychain or launches a browser. Missing
+credentials exit `3` with `AUTH_REQUIRED` without inventing a workspace.
+Revoked keys exit `3` with `API_KEY_REVOKED`. A report-only key missing
+`run:execute` exits `3` with `MACHINE_ACTION_DENIED` before quote or create.
+
+Copy-pastable recipe: `docs/examples/github-actions-hosted.yml`. It starts an
+isolated synthetic target, runs offline doctor and mapping validation,
+estimates, admits with `--max-credits N --yes`, waits on that original run,
+applies `gate`, writes a credential-free step summary, uploads
+`.augmentworks/ci` for 7 days, and always stops the target. Bounded runtime is
+20 minutes; concurrency is one hosted job per ref and does not cancel
+in-progress billed work. Untrusted fork `pull_request` jobs are skipped.
+Do not use `pull_request_target` to execute untrusted code with credentials.
+
+`gate` after a finalized wait is the CI provenance call
+(`POST /v1/release-gates/evaluate`). The server emits
+`own_target.ci_result_recorded` once for that `aw-release-policy/1` decision
+when the principal is a machine. Unfinished evaluation never reaches `gate`
+and cannot be a green release. Status, wait, recover, and report do not start
+a reservation. Do not call `logout` from CI cleanup.
+
