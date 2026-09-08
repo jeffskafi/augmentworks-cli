@@ -45,12 +45,12 @@ export async function readBundledSchema(
   kind: BundledSchemaKind = "config"
 ): Promise<Record<string, unknown>> {
   const schema = JSON.parse(await readFile(await schemaPath(kind), "utf8")) as Record<string, unknown>;
-  if (kind === "customer-suite") {
+  if (kind === "customer-suite" || kind === "investigation-export") {
     const config = JSON.parse(await readFile(await schemaPath("config"), "utf8")) as Record<string, unknown>;
     const configId = typeof config["$id"] === "string" ? config["$id"] : "";
     const prefix = configId.replace(/augmentworks\.schema\.json$/u, "");
     if (prefix !== "" && prefix !== configId) {
-      schema["$id"] = `${prefix}customer-suite.schema.json`;
+      schema["$id"] = `${prefix}${SCHEMA_FILES[kind]}`;
     }
   }
   return schema;

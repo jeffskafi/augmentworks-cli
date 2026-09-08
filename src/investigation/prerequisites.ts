@@ -40,10 +40,10 @@ function requiredMapping(document: InvestigationExport): {
     };
   }
   return {
-    prepare: mapping?.prepare === true,
-    observe: mapping?.observe === true,
-    cleanup: mapping?.cleanup === true,
-    session: mapping?.session === true
+    prepare: false,
+    observe: false,
+    cleanup: false,
+    session: false
   };
 }
 
@@ -102,8 +102,9 @@ export function evaluateInvestigationPrerequisites(
     });
   }
 
-  if (document.reproductionKind === "response_only" && document.fullyReproducible) {
-    if (required.prepare || required.observe || required.cleanup || required.session) {
+  if (document.reproductionKind === "response_only") {
+    const mapping = document.prerequisites.mapping;
+    if (mapping?.prepare === true || mapping?.observe === true || mapping?.cleanup === true || mapping?.session === true) {
       findings.push({
         code: "RESPONSE_ONLY_OVERCLAIM",
         blocking: false,

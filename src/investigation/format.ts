@@ -135,7 +135,9 @@ export function formatInvestigationHuman(
       : `  actual (not ground truth): ${redact(actual).slice(0, 400)}`,
     `  copied_commands_are_data: yes (this CLI will not execute them)`,
     fragment.argv.length === 0
-      ? "  command_fragment: (none)"
+      ? fragment.text === null || fragment.text === ""
+        ? "  command_fragment: (none)"
+        : `  command_fragment: ${redact(fragment.text ?? "")}`
       : `  command_fragment: ${fragment.argv.map((part) => redact(part)).join(" ")}`,
     `  local_mapping: send=${prerequisites.local.send ? "yes" : "no"} prepare=${prerequisites.local.prepare ? "yes" : "no"} observe=${prerequisites.local.observe ? "yes" : "no"} cleanup=${prerequisites.local.cleanup ? "yes" : "no"} session=${prerequisites.local.session ? "yes" : "no"}`,
     `  ready_for_paid_execution: ${prerequisites.readyForPaidExecution ? "yes" : "no"}`,

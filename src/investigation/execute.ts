@@ -252,6 +252,7 @@ export async function exportInvestigationRegression(
       executesTarget: false,
       expectedSource: documentExpectedSource(loaded.document),
       actualIsNotGroundTruth: true,
+      admissionCalls: 0,
       path: written.path,
       suiteId: `${loaded.document.identities.suiteId}.regression`,
       caseId: loaded.document.identities.caseId,

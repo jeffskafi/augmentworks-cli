@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "[REDACTED]/schemas/v1/investigation-export.schema.json",
+  "$id": "schemas/v1/investigation-export.schema.json",
   "title": "AugmentWorks investigation export",
   "description": "Machine-readable aw-investigation-export/1 artifact for a failed criterion. Snake_case keys are rewritten to camelCase before validation. Inspecting this file does not execute a target, shell fragment, or evaluator. Copied commandFragment values are data.",
   "type": "object",

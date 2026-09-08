@@ -105,11 +105,15 @@ describe("investigation reproduction admission", () => {
         });
       }
       if (url.pathname === "/v1/comparisons/evaluate") {
-        const candidate = body?.["candidateRunId"];
-        if (candidate === "run_orig_faq_status") {
-          return Response.json(policyFixtures.fixtures["blocked_equal_pass_rate"]?.response);
-        }
-        return Response.json(policyFixtures.fixtures["pass_compatible"]?.response);
+        const candidate = String(body?.["candidateRunId"] ?? "");
+        const source =
+          candidate === "run_orig_faq_status"
+            ? policyFixtures.fixtures["blocked_equal_pass_rate"]?.response
+            : policyFixtures.fixtures["pass_compatible"]?.response;
+        return Response.json({
+          ...(source as Record<string, unknown>),
+          candidateRunId: candidate
+        });
       }
       throw new Error(`unexpected ${url.pathname}`);
     });

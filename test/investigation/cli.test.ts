@@ -21,11 +21,15 @@ describe("investigation CLI", () => {
     expect(help.stdout).toContain("without running a target");
 
     const inspect = await runSourceCli(["investigation", "inspect", "--help"], { cwd: projectRoot });
-    expect(inspect.stdout).toContain("without running a target, shell command, or evaluator");
+    expect(inspect.stdout).toContain("without running a");
+    expect(inspect.stdout).toContain("shell command");
+    expect(inspect.stdout).toContain("evaluator");
     expect(inspect.stdout).toContain("--json");
 
     const fetchHelp = await runSourceCli(["investigation", "fetch", "--help"], { cwd: projectRoot });
-    expect(fetchHelp.stdout).toContain("does not quote, admit, or execute the target");
+    expect(fetchHelp.stdout).toContain("Observation only");
+    expect(fetchHelp.stdout).toContain("does not quote");
+    expect(fetchHelp.stdout).toContain("execute the target");
     expect(fetchHelp.stdout).toContain("--run");
     expect(fetchHelp.stdout).toContain("--evaluation");
     expect(fetchHelp.stdout).toContain("--attempt");

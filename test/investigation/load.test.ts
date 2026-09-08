@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -29,7 +30,33 @@ function poisonEnv(): Record<string, string> {
   };
 }
 
+function sha256Lf(buffer: Buffer): string {
+  return createHash("sha256")
+    .update(Buffer.from(buffer.toString("utf8").replace(/\r\n/gu, "\n").replace(/\r/gu, "\n"), "utf8"))
+    .digest("hex");
+}
+
 describe("investigation load and inspect", () => {
+  it("pins the consumer fixture checksum in the lock file", async () => {
+    const lock = JSON.parse(
+      await readFile(resolve(projectRoot, "contracts/aw-investigation-export-v1.lock.json"), "utf8")
+    ) as {
+      cli: { consumerFixturesChecksum: string };
+      source: { schemaChecksum: string; consumedCommitCited: string };
+    };
+    const bytes = await readFile(
+      resolve(projectRoot, "contracts/aw-investigation-export-v1.fixtures.json")
+    );
+    expect(sha256Lf(bytes)).toBe(lock.cli.consumerFixturesChecksum);
+    expect(lock.cli.consumerFixturesChecksum).toBe(
+      "48422512afa62dbac67bf634a58cfa5821b035db9d58c9d1fb44ca5b9decbdbc"
+    );
+    expect(lock.source.schemaChecksum).toBe(
+      "4f026740a349c736e98af95599736a92cb81246bea3a1673b26e7fa94cadc870"
+    );
+    expect(lock.source.consumedCommitCited).toBe("a8e5ad17ce60f9b199d6a45f34188546d075e4bf");
+  });
+
   it("validates the packed response-only and stateful fixtures without calling a target", async () => {
     for (const relative of [
       "examples/investigations/response-only.json",
@@ -92,7 +119,7 @@ describe("investigation load and inspect", () => {
     expect(result.stdout).toContain("executes_target: no");
     expect(result.stdout).toContain("executes_shell: no");
     expect(result.stdout).toContain("admission_calls: 0");
-    expect(result.stdout).toContain("rm -rf /tmp/aw-investigation-must-not-run");
+    expect(result.stdout).toMatch(/command_fragment: augmentworks test --investigation/);
     expect(result.stdout).toContain("not ground truth");
   });
 
