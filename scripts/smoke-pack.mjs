@@ -381,6 +381,7 @@ async function main() {
       !testHelp.stdout.includes("published 0.3.2 uses aw-relay/0.2"),
       "packed test --help still claims published 0.3.2 protocol"
     );
+    assert(testHelp.stdout.includes("--suite"), "packed CLI is missing test --suite");
 
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");
@@ -631,8 +632,6 @@ async function main() {
     const suiteHelp = execCli(["suite", "--help"]);
     assert(suiteHelp.stdout.includes("validate"), "packed CLI is missing suite validate");
     assert(suiteHelp.stdout.includes("preview"), "packed CLI is missing suite preview");
-    const testHelp = execCli(["test", "--help"]);
-    assert(testHelp.stdout.includes("--suite"), "packed CLI is missing test --suite");
     const packedSuites = join(installedRoot, "assets", "customer-suites");
     for (const sample of ["faq-non-commerce.yaml", "returns-14-day.yaml"]) {
       const suitePath = join(packedSuites, sample);
