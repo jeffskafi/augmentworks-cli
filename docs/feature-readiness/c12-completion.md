@@ -19,7 +19,7 @@ from release acceptance under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `303fc38d3168814ef6f698e75da0dcbcb4ec2a25` (merge of CLI PR #38 / AUG-45) |
 | Working branch | `cursor/catalog-selection-shards-950b` |
-| Implementation commits | `8869c5bdcf06a7a30f5e4ff0715bc159ce903ede` (feature), `d199d90b34423d99021d8680b0494283dff1916c` (schema/create-run/admit fixes), plus this evidence commit |
+| Implementation commits | `8869c5bdcf06a7a30f5e4ff0715bc159ce903ede` (feature), `d199d90b34423d99021d8680b0494283dff1916c` (schema/create-run/admit fixes), `4379a957355abcf1c18c64d66a3e730fb363aa62` (verification evidence) |
 | Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/40 |
 | AUG-24 (C05) | Merged CLI#30. Explicit session mode remains config-advertised; compile sends `single_turn` or `explicit_session_v1`. |
 | AUG-25 (C08) | Main#74 merge `71fc0d4`; head cited `0288c5ed12eeb5563d144ae61521cf686e9a2c2b`. Schema `aw-coverage-catalog/1`. Live catalog checksum `75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566` (`catalogVersion` `1.0.0`). Consumer fixtures SHA-256 `d6b5803007218cfeb0a6c918122d2a32c42e4e9c29b603bf8284411f4d210ea9`. |
@@ -34,6 +34,7 @@ from release acceptance under AUG-7.
 | Run-report contract (untouched) | `aw-run-report/1`; schema `7726ec277d33e435d2832e8be0898baf9337631d779f073a10c7795fc7de38ff`; fixtures `febd2626c96672d0e79afc4706b3a5136598b61bbebbdeb0f8ec1bdbc44cd806` (AW-QA-1) |
 | Migrations | None. This repository does not own SQL. |
 | Counterpart | `jeffskafi/augmentworks` was **not** modified |
+| Competing CLI PRs | Draft PR #39 (AUG-79) also edits `src/commands/test.ts` (help copy), `scripts/smoke-pack.mjs`, README/docs version strings, and copy-contract/release tests. It does not own catalog/selection. Merge after one lands will need a rebase of the other. No competing rewrite of the compiler/catalog path. |
 
 ## Code completion vs verification vs release
 
