@@ -142,8 +142,14 @@ the configured endpoint.
 - `AUGMENTWORKS_TOKEN` is reserved for connector tokens and development
   integration harnesses when API-key mode is absent; the v0.1 interactive auth
   service does not issue a long-lived CI credential. Prefer a workspace API
-  key for unattended report export. Do not run `logout` as routine automation
+  key for unattended hosted CI and report export. Do not run `logout` as routine automation
   cleanup; it revokes reusable credentials.
+- GitHub Actions hosted CI uses `docs/examples/github-actions-hosted.yml`:
+  one scoped `AUGMENTWORKS_API_KEY`, `--headless`, a finite `--max-credits`
+  ceiling, and `gate` on the original run. Fork pull requests skip
+  secret-bearing jobs. Do not use `pull_request_target`. Machine keys must not
+  purchase credits or administer the workspace. Summaries and uploaded
+  artifacts omit credentials, private target URLs, and excluded evidence.
 - Customer target credentials are named, not embedded, in YAML and are resolved
   from the local environment.
 - Tokens are never accepted as command-line flags, included in config digests,

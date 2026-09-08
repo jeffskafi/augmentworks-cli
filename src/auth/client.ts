@@ -558,6 +558,16 @@ export function remapAuthError(error: unknown, source: CredentialSource): unknow
   ) {
     return error.code === "API_KEY_REVOKED" ? error : apiKeyRevokedError(error);
   }
+  if (error.code === "SCOPE_DENIED") {
+    return new AwError({
+      code: "SCOPE_DENIED",
+      category: "auth",
+      message:
+        "This workspace API key does not have the required actions. Issue a CI key with run:execute (and suite:read for --suite). Report-only keys cannot quote or admit a run. Machine keys cannot buy credits or administer the workspace.",
+      cause: error,
+      ...(error.details === undefined ? {} : { details: error.details })
+    });
+  }
   return error;
 }
 

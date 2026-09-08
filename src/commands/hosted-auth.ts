@@ -5,13 +5,21 @@ import {
   inspectCredentialEnvironment,
   resolveAccessToken
 } from "../auth/credential-store.js";
-import type { AccessTokenProvider, AuthIdentity, CredentialSource } from "../auth/types.js";
+import {
+  FEATURE_ACTIONS,
+  MACHINE_HOSTED_EXECUTE_ACTIONS,
+  MACHINE_SUITE_EXECUTE_ACTIONS,
+  type AccessTokenProvider,
+  type AuthIdentity,
+  type CredentialSource
+} from "../auth/types.js";
 import { CloudClient } from "../cloud/client.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
 import type { RunIntentTenantBinding } from "../relay/run-intent.js";
 
 export interface HostedAuthOptions {
   readonly allowFileCredentials?: boolean;
+  readonly headless?: boolean;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly signal?: AbortSignal;
@@ -48,6 +56,13 @@ export async function authenticateHostedSession(
 ): Promise<HostedAuthSession> {
   const env = options.env ?? process.env;
   const inspected = inspectCredentialEnvironment(env);
+  if (
+    isHeadlessEnvironment(env, options) &&
+    inspected.mode === "none" &&
+    dependencies.accessToken === undefined
+  ) {
+    throw headlessAuthRequiredError();
+  }
   const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
   const accessTokenOptions = {
     apiOrigin,
@@ -143,6 +158,51 @@ export function assertSameTenant(expected: RunIntentTenantBinding, identity: Aut
         "The authenticated AugmentWorks connector or workspace changed while the assessment was starting. No request was sent with the changed credential."
     });
   }
+}
+
+export function isHeadlessEnvironment(
+  env: NodeJS.ProcessEnv = process.env,
+  options: { readonly headless?: boolean } = {}
+): boolean {
+  if (options.headless === true) return true;
+  const explicit = env["AUGMENTWORKS_HEADLESS"];
+  if (explicit === "1" || explicit === "true") return true;
+  const ci = env["CI"];
+  return ci === "1" || ci === "true";
+}
+
+export function headlessAuthRequiredError(): AwError {
+  return new AwError({
+    code: "AUTH_REQUIRED",
+    category: "auth",
+    message:
+      "Headless hosted commands require AUGMENTWORKS_API_KEY (or a compatible AUGMENTWORKS_TOKEN). The CLI will not load a keychain, launch a browser, or invent a workspace credential. Issue a scoped machine key at [REDACTED]/portal/settings/api-keys."
+  });
+}
+
+export function machineActionDeniedError(missing: readonly string[]): AwError {
+  const listed = missing.map((action) => sanitizeTerminal(action)).join(", ");
+  return new AwError({
+    code: "MACHINE_ACTION_DENIED",
+    category: "auth",
+    message:
+      missing.includes(FEATURE_ACTIONS.runExecute)
+        ? `This machine credential cannot admit hosted work (missing ${listed}). Report-only keys may export a retained report but cannot quote, reserve, or start a run. Issue a CI key with run:execute (and suite:read for --suite). Machine keys cannot buy credits or administer the workspace.`
+        : `This machine credential is missing required actions: ${listed}. No quote, reservation, or run was created.`
+  });
+}
+
+export function assertMachineHostedAdmission(
+  identity: AuthIdentity,
+  options: { readonly suite?: boolean } = {}
+): void {
+  if (identity.principalKind !== "machine") return;
+  const required = options.suite === true ? MACHINE_SUITE_EXECUTE_ACTIONS : MACHINE_HOSTED_EXECUTE_ACTIONS;
+  const actions = identity.actions;
+  if (actions === undefined) return;
+  const granted = new Set(actions);
+  const missing = required.filter((action) => !granted.has(action));
+  if (missing.length > 0) throw machineActionDeniedError(missing);
 }
 
 function writeLine(stream: Pick<NodeJS.WriteStream, "write">, value: string): void {

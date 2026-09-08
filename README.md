@@ -340,9 +340,11 @@ does not check AugmentWorks authentication or fetch a hosted report.
 call the target, or promote a pin. `gate --wait` re-queries the original run
 ID through `run wait` semantics, then evaluates that same ID. Promotion is an
 explicit `baseline promote --expected-revision` and is never automatic.
-Machine credentials typically cannot promote. Fixture-based CI:
-`docs/examples/github-actions-hosted-gate.yml` (this 0.3.4 package; machine
-credentials remain AUG-45).
+Machine credentials typically cannot promote. The complete hosted GitHub
+Actions recipe is `docs/examples/github-actions-hosted.yml` (scoped
+`AUGMENTWORKS_API_KEY`, isolated synthetic target, `--headless`, quoted
+`--max-credits`, `run wait` on the original ID, then `gate`). A shorter
+gate-only snippet remains in `docs/examples/github-actions-hosted-gate.yml`.
 
 Copy-pastable noninteractive CI (this 0.3.4 package after `npm ci && npm run build`;
 no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
@@ -691,12 +693,12 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
-| `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local` |
+| `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--headless] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local`. `--headless` requires `AUGMENTWORKS_API_KEY` or `AUGMENTWORKS_TOKEN` and never opens a browser |
 | `investigation inspect <file> [--json]` / `investigation fetch --run id --evaluation id --attempt id --criterion id [--out path] [--json]` / `investigation export-regression <file> --out path [--json]` | Inspect or download a safe failure investigation, or export a reviewed `aw-suite/1` regression draft | Observation only. Does not execute a target, shell fragment, evaluator, or quote. Copied commands are data. See `docs/investigation.md` |
 | `test [-c path] --investigation path [--estimate] [--max-credits n] [--yes] [--open]` | Reproduce the exact pinned case from an investigation file | New quote and consent every time. Never selects `latest` or reuses a consumed quote. Cannot be combined with `--local`, `--suite`, `--assessment`, or `--packet` |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target |
 | `compare --run <run-id> --baseline <baseline-id> [--json]` | Compare a candidate run against an explicit pinned baseline | Read-only. Does not start a test, reserve credits, or consume credits. Rejects missing identities; does not invent a pin |
-| `gate --run <run-id> --baseline <baseline-id> [--wait] [--timeout-ms n] [--json]` | Evaluate the hosted `aw-release-policy/1` release decision | Transport success is not a pass. `--wait` re-queries the original run ID only. See `docs/examples/github-actions-hosted-gate.yml` |
+| `gate --run <run-id> --baseline <baseline-id> [--wait] [--timeout-ms n] [--json]` | Evaluate the hosted `aw-release-policy/1` release decision | Transport success is not a pass. `--wait` re-queries the original run ID only. A finalized machine-principal `gate` is the CI provenance record. See `docs/examples/github-actions-hosted.yml` |
 | `baseline status [--json]` / `baseline promote --run <run-id> --baseline <id> --expected-revision <n> [--json]` | List pins, or explicitly promote a candidate onto a pin | Status is read-only. Promote is never automatic, requires `--expected-revision`, and stays off the machine allowlist unless the server grants `baseline:promote` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command |
