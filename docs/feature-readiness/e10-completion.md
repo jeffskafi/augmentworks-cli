@@ -18,7 +18,7 @@ is distinct from release acceptance under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `b8c3e7c3d71d9bef2cb07ddf3771c0822934208d` (merge of PR #32; includes merged AUG-32 PR #31 and AUG-11 PR #18) |
 | Working branch | `cursor/baseline-compare-release-gate-61dc` |
-| Pull request | recorded after open |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/34 |
 | AUG-23 (main E08) | Done. Cited head `235d39074cab1c57ada2cc015192dc129697683c` on PR https://github.com/jeffskafi/augmentworks/pull/58. Later portal consumer AUG-27 cited `0fd19ef`. Handoff `docs/feature-readiness/e08-completion.md` on main. Migration `20260911120001_application_environment_baselines.sql`. |
 | AUG-27 (main E09) | Done. PR https://github.com/jeffskafi/augmentworks/pull/70. Fixtures checksum published as prefix `be0cc3f54…` (not completed here). |
 | AUG-32 (CLI E06) | Merged PR #31. `src/commands/test.ts` was **not** edited. |
