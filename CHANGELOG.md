@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.3.4] - 2026-09-07
+## [0.3.4] - 2026-09-08
 
 Candidate first-dollar customer-owned assessment package. Executable npx pins
 match this tarball. Registry verification is recorded in
@@ -83,6 +83,9 @@ implied by this changelog entry.
 
 ### Fixed
 
+- Hosted `run report --json` keeps the producer `aw-criterion-detail/1`
+  `document` on converted export details so occurrence, criterion kind, and
+  stored rationale survive the published CLI pin.
 - Hosted `run report` no longer treats a terminal `hasMore: false` page as
   complete when `totalAttempts` / `totalCriteria` disagree with retrieved
   unique IDs, when pages contradict those totals, or when a page, criterion
