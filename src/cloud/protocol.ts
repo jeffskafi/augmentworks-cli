@@ -390,7 +390,7 @@ export const CreateRunAssessmentSchema = z
     profile: AssessmentProfileSchema,
     evaluation_mode: EvaluationModeSchema,
     disclosure_version: z.string().min(1).max(80).nullable(),
-    selected_scenario_ids: z.array(identifier).max(20).optional(),
+    selected_scenario_ids: z.array(identifier).max(20).optional(), // per-run cap; compiled shards must stay within this bound
     packet_bindings: z
       .array(z.object({ key: identifier, version: PacketBindingSchema.shape.version }).strict())
       .min(1)

@@ -84,6 +84,36 @@ import {
   runLocalTest,
   type LocalTestDependencies
 } from "./local-test.js";
+import { compileHostedSelection } from "./selection.js";
+import { formatSelectionHuman } from "../selection/format.js";
+import { compileRequestFromAssessment, conversationModeFromConfig } from "../selection/request.js";
+import { loadSuiteSelectionManifest } from "../selection/load.js";
+import {
+  assertShardWithinPerRunLimits,
+  requirePinnedSelectionVersion,
+  selectShard,
+  shardCreateFields
+} from "../selection/admit.js";
+import { hostedSelectionUnsupportedLocalError, selectionError } from "../selection/errors.js";
+import {
+  artifactFromProgress,
+  assertResumeSameShard,
+  initialProgress,
+  loadProgress,
+  markShardRunning,
+  markShardTerminal,
+  nextRunnableShard,
+  saveProgress,
+  skipRemainingPendingShards,
+  writeArtifact
+} from "../selection/progress.js";
+import type {
+  SelectionArtifact,
+  SelectionProgress,
+  ShardManifest,
+  SuiteSelectionManifest
+} from "../selection/schema.js";
+import type { CreateRunAssessment } from "../cloud/protocol.js";
 
 export interface TestOptions {
   readonly config?: string;
@@ -92,6 +122,10 @@ export interface TestOptions {
   readonly suite?: string;
   readonly investigation?: string;
   readonly profile?: string;
+  readonly manifest?: string;
+  readonly shard?: string;
+  readonly allShards?: boolean;
+  readonly artifactOut?: string;
   readonly open?: boolean;
   readonly json?: boolean;
   readonly estimate?: boolean;
@@ -109,6 +143,8 @@ export interface TestOptions {
 export interface TestResult {
   readonly binding: CreateRunResponse;
   readonly run: RunStatusResponse;
+  readonly coverage?: SelectionArtifact;
+  readonly quoteUnits?: number;
 }
 
 export interface EstimateResult {
@@ -160,10 +196,39 @@ export async function runTest(
   }
 
   const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
+  if (usesCompiledSelection(options, selection)) {
+    return runCompiledSelectionTest(options, dependencies, {
+      cwd,
+      env,
+      report,
+      selection
+    });
+  }
+  return executeHostedSelection(selection, options, dependencies, { cwd, env, report });
+}
+
+async function executeHostedSelection(
+  selection: HostedSelection,
+  options: TestOptions,
+  dependencies: TestDependencies,
+  context: {
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly report: DoctorReport;
+  }
+): Promise<TestResult> {
+  const { cwd, env, report } = context;
+  if (report.resolvedConfig === undefined) {
+    throw new AwError({
+      code: "DOCTOR_FAILED",
+      category: "config",
+      message: "Doctor found configuration errors."
+    });
+  }
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
   const interactive = (dependencies.isInteractive ?? (() => defaultInteractive(env, options)))();
   if (
-    (selection.kind === "suite" || selection.kind === "investigation") &&
+    (selection.kind === "suite" || selection.kind === "investigation" || selection.kind === "shard") &&
     maxCredits === undefined &&
     (options.yes === true || !interactive)
   ) {
@@ -177,7 +242,9 @@ export async function runTest(
     });
   }
   const session = await authenticateHostedSession(options, dependencies);
-  assertMachineHostedAdmission(session.identity, { suite: selection.kind === "suite" });
+  assertMachineHostedAdmission(session.identity, {
+    suite: selection.kind === "suite" || selection.kind === "shard"
+  });
   const target = hostedTargetBinding(report.resolvedConfig);
   const stderr = dependencies.stderr ?? process.stderr;
   const stateDirectory = options.stateDirectory ?? getStateDirectory(env);
@@ -270,7 +337,11 @@ export async function runTest(
     if (isTerminal(binding.status)) {
       const run = await session.cloud.getRunStatus(binding.run_id, options.signal);
       await releaseTerminalIfSafe(recovery, binding, run);
-      return { binding, run };
+      return {
+        binding,
+        run,
+        ...(resolved.quote === undefined ? {} : { quoteUnits: resolved.quote.executionUnits })
+      };
     }
 
     const connector =
@@ -299,13 +370,295 @@ export async function runTest(
     try {
       const run = await runner.run();
       await releaseTerminalIfSafe(recovery, binding, run);
-      return { binding, run };
+      return {
+        binding,
+        run,
+        ...(resolved.quote === undefined ? {} : { quoteUnits: resolved.quote.executionUnits })
+      };
     } finally {
       removeSignals();
     }
   } finally {
     await intentStore.close();
   }
+}
+
+function usesCompiledSelection(options: TestOptions, selection: HostedSelection): boolean {
+  if (options.manifest !== undefined || options.shard !== undefined || options.allShards === true) {
+    return true;
+  }
+  if (selection.kind === "manifest_file") return true;
+  if (selection.kind === "assessment") {
+    return selection.assessment.document.selection !== undefined;
+  }
+  return false;
+}
+
+async function resolveCompiledManifest(
+  options: TestOptions,
+  context: {
+    readonly cwd: string;
+    readonly report: DoctorReport;
+    readonly selection: HostedSelection;
+    readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
+  }
+): Promise<SuiteSelectionManifest> {
+  if (options.manifest !== undefined) {
+    const manifest = await loadSuiteSelectionManifest(options.manifest, context.cwd);
+    requirePinnedSelectionVersion(
+      manifest,
+      context.selection.kind === "assessment"
+        ? context.selection.assessment.document.selection?.suite_version
+        : undefined
+    );
+    return manifest;
+  }
+  if (context.selection.kind !== "assessment" || context.selection.assessment.document.selection === undefined) {
+    throw selectionError(
+      "MANIFEST_REQUIRED",
+      "Pass --manifest from `selection compile` or an assessment file with a selection block."
+    );
+  }
+  if (context.report.resolvedConfig === undefined) {
+    throw new AwError({
+      code: "DOCTOR_FAILED",
+      category: "config",
+      message: "Doctor found configuration errors."
+    });
+  }
+  const request = compileRequestFromAssessment(
+    context.selection.assessment,
+    conversationModeFromConfig(context.report.resolvedConfig)
+  );
+  return compileHostedSelection({
+    request,
+    session: context.session,
+    suiteVersion: context.selection.assessment.document.selection.suite_version,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+}
+
+function shardHostedSelection(shard: ShardManifest): HostedSelection {
+  const created = shardCreateFields(shard);
+  return {
+    kind: "shard",
+    packet: created.packet,
+    shardAssessment: created.assessment,
+    localPlanHash: shard.planHash
+  };
+}
+
+async function runCompiledSelectionEstimate(
+  options: TestOptions,
+  dependencies: TestDependencies,
+  context: {
+    readonly cwd: string;
+    readonly report: DoctorReport;
+    readonly selection: HostedSelection;
+  }
+): Promise<EstimateResult> {
+  if (options.allShards === true) {
+    throw selectionError(
+      "ESTIMATE_ALL_SHARDS_UNSUPPORTED",
+      "Estimate one shard at a time with --shard. The CLI does not sum shard quotes into a whole-suite price."
+    );
+  }
+  if (context.report.resolvedConfig === undefined) {
+    throw new AwError({
+      code: "DOCTOR_FAILED",
+      category: "config",
+      message: "Doctor found configuration errors."
+    });
+  }
+  const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: true });
+  const manifest = await resolveCompiledManifest(options, { ...context, session });
+  const stderr = dependencies.stderr ?? process.stderr;
+  writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
+  const shard = selectShard(manifest, options.shard);
+  const hosted = shardHostedSelection(shard);
+  const prepared = await prepareQuotedAssessment({
+    selection: hosted,
+    session,
+    cwd: context.cwd,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+  const quote = await requestHostedQuote({
+    session,
+    assessment: prepared.assessment,
+    packet: hosted.packet,
+    configSha256: context.report.resolvedConfig.configDigest,
+    target: hostedTargetBinding(context.report.resolvedConfig),
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+  return {
+    quote,
+    localPlanHash: prepared.localPlanHash,
+    workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
+    advertisedCapabilities: hostedTargetBinding(context.report.resolvedConfig).capabilities
+  };
+}
+
+async function runCompiledSelectionTest(
+  options: TestOptions,
+  dependencies: TestDependencies,
+  context: {
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly report: DoctorReport;
+    readonly selection: HostedSelection;
+  }
+): Promise<TestResult> {
+  if (context.report.resolvedConfig === undefined) {
+    throw new AwError({
+      code: "DOCTOR_FAILED",
+      category: "config",
+      message: "Doctor found configuration errors."
+    });
+  }
+  const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: true });
+  const manifest = await resolveCompiledManifest(options, { ...context, session });
+  const stderr = dependencies.stderr ?? process.stderr;
+  writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
+  const stateDirectory = options.stateDirectory ?? getStateDirectory(context.env);
+  const maxCredits = parseMaxCreditsFlag(options.maxCredits);
+
+  if (options.allShards === true) {
+    if (maxCredits === undefined) {
+      throw new AwError({
+        code: "MAX_CREDITS_REQUIRED",
+        category: "config",
+        message:
+          "--all-shards requires a finite aggregate --max-credits ceiling. The CLI will not start additional shards after the consented budget."
+      });
+    }
+    for (const shard of manifest.shards) {
+      assertShardWithinPerRunLimits(manifest, shard);
+    }
+    let progress =
+      (await loadProgress(stateDirectory, manifest.manifestHash)) ??
+      initialProgress(manifest, maxCredits);
+    if (progress.aggregateMaxCredits !== maxCredits && progress.shards.some((shard) => shard.status !== "pending")) {
+      throw selectionError(
+        "SHARD_PROGRESS_BLOCKED",
+        "An in-progress multi-shard run already has a consented aggregate budget. Reuse the original --max-credits value. The CLI will not silently raise consent."
+      );
+    }
+    if (progress.aggregateMaxCredits !== maxCredits) {
+      progress = { ...progress, aggregateMaxCredits: maxCredits, remainingCredits: maxCredits };
+    }
+    let last: TestResult | undefined;
+    while (true) {
+      const next = nextRunnableShard(progress);
+      if (next === undefined) break;
+      assertResumeSameShard(progress, next.shardId);
+      if (
+        next.status !== "running" &&
+        next.status !== "interrupted" &&
+        progress.remainingCredits <= 0
+      ) {
+        progress = skipRemainingPendingShards(progress, "aggregate_budget");
+        await saveProgress(stateDirectory, progress);
+        break;
+      }
+      const shard = selectShard(manifest, next.shardId);
+      progress = markShardRunning(progress, shard.shardId);
+      await saveProgress(stateDirectory, progress);
+      const shardCeiling = String(progress.remainingCredits);
+      try {
+        last = await executeHostedSelection(
+          shardHostedSelection(shard),
+          { ...options, maxCredits: shardCeiling, allShards: false, shard: shard.shardId },
+          dependencies,
+          context
+        );
+      } catch (error) {
+        const skipped = error instanceof AwError && error.code === "BUDGET_EXCEEDED";
+        progress = markShardTerminal(progress, shard.shardId, skipped ? "skipped" : "interrupted", {
+          stoppedReason: error instanceof AwError ? error.code : "failed"
+        });
+        await saveProgress(stateDirectory, progress);
+        await persistCoverageArtifact(options, context.cwd, stateDirectory, manifest, progress);
+        throw error;
+      }
+      const outcome = hostedExitCode(last.run);
+      if (outcome === EXIT.OK) {
+        if (last.quoteUnits === undefined) {
+          progress = markShardTerminal(progress, shard.shardId, "interrupted", {
+            runId: last.run.run_id,
+            stoppedReason: "quote_units_missing"
+          });
+          await saveProgress(stateDirectory, progress);
+          break;
+        }
+        progress = markShardTerminal(progress, shard.shardId, "completed", {
+          runId: last.run.run_id,
+          quoteUnits: last.quoteUnits
+        });
+        await saveProgress(stateDirectory, progress);
+        continue;
+      }
+      const failedStatus = outcome === EXIT.INTERRUPTED ? "interrupted" : "failed";
+      progress = markShardTerminal(progress, shard.shardId, failedStatus, {
+        runId: last.run.run_id,
+        stoppedReason: `exit_${String(outcome)}`
+      });
+      await saveProgress(stateDirectory, progress);
+      break;
+    }
+    const coverage = await persistCoverageArtifact(options, context.cwd, stateDirectory, manifest, progress);
+    if (last === undefined) {
+      throw selectionError(
+        "SELECTION_EMPTY",
+        "No shard was executed. An incomplete shard set cannot make a whole-suite release decision."
+      );
+    }
+    return { ...last, coverage };
+  }
+
+  const shard = selectShard(manifest, options.shard);
+  const result = await executeHostedSelection(
+    shardHostedSelection(shard),
+    options,
+    dependencies,
+    context
+  );
+  const progress: SelectionProgress = {
+    ...initialProgress(manifest, maxCredits ?? 0),
+    shards: manifest.shards.map((entry) =>
+      entry.shardId === shard.shardId
+        ? {
+            shardId: entry.shardId,
+            shardIdentityHash: entry.shardIdentityHash,
+            status: "completed" as const,
+            runId: result.run.run_id
+          }
+        : {
+            shardId: entry.shardId,
+            shardIdentityHash: entry.shardIdentityHash,
+            status: "pending" as const
+          }
+    )
+  };
+  const coverage = await persistCoverageArtifact(options, context.cwd, stateDirectory, manifest, progress);
+  return { ...result, coverage };
+}
+
+async function persistCoverageArtifact(
+  options: TestOptions,
+  cwd: string,
+  stateDirectory: string,
+  manifest: SuiteSelectionManifest,
+  progress: SelectionProgress
+): Promise<SelectionArtifact> {
+  const coverage = artifactFromProgress(manifest, progress);
+  if (options.artifactOut !== undefined) {
+    await writeArtifact(resolve(cwd, options.artifactOut), coverage);
+  } else {
+    await writeArtifact(resolve(stateDirectory, "selections", `${manifest.manifestHash}.declared-shards.json`), coverage);
+  }
+  return coverage;
 }
 
 async function createOrRecover(
@@ -324,11 +677,17 @@ export async function runEstimate(
   options: TestOptions,
   dependencies: TestDependencies = {}
 ): Promise<EstimateResult> {
-  if (options.assessment === undefined && options.suite === undefined && options.investigation === undefined) {
+  if (
+    options.assessment === undefined &&
+    options.suite === undefined &&
+    options.investigation === undefined &&
+    options.manifest === undefined
+  ) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment, --suite, or --investigation. Packet-only hosted tests do not use quotes."
+      message:
+        "test --estimate requires --assessment, --suite, --investigation, or --manifest. Packet-only hosted tests do not use quotes."
     });
   }
   const cwd = resolve(options.cwd ?? process.cwd());
@@ -345,6 +704,13 @@ export async function runEstimate(
     });
   }
   const selection = await loadHostedSelection(options, cwd, report.resolvedConfig);
+  if (usesCompiledSelection(options, selection)) {
+    return runCompiledSelectionEstimate(options, dependencies, {
+      cwd,
+      report,
+      selection
+    });
+  }
   const session = await authenticateHostedSession(options, dependencies);
   assertMachineHostedAdmission(session.identity, { suite: selection.kind === "suite" });
   const target = hostedTargetBinding(report.resolvedConfig);
@@ -398,6 +764,22 @@ type HostedSelection =
       readonly assessment?: undefined;
       readonly suite?: undefined;
       readonly investigation: LoadedInvestigation;
+    }
+  | {
+      readonly kind: "manifest_file";
+      readonly packet: { key: string; version: string };
+      readonly assessment?: undefined;
+      readonly suite?: undefined;
+      readonly investigation?: undefined;
+    }
+  | {
+      readonly kind: "shard";
+      readonly packet: { key: string; version: string };
+      readonly shardAssessment: CreateRunAssessment;
+      readonly localPlanHash: string;
+      readonly assessment?: undefined;
+      readonly suite?: undefined;
+      readonly investigation?: undefined;
     };
 
 async function loadHostedSelection(
@@ -443,6 +825,12 @@ async function loadHostedSelection(
     const packet = primaryAssessmentPacket(assessment);
     await assertHostedConversationAdmission(resolved, packet);
     return { kind: "assessment", packet, assessment };
+  }
+  if (options.manifest !== undefined) {
+    return {
+      kind: "manifest_file",
+      packet: { key: "aw-customer-suite", version: "1.0.0" }
+    };
   }
   const packet = parsePacketReference(requirePacket(options.packet));
   await assertHostedConversationAdmission(resolved, packet);
@@ -526,6 +914,12 @@ async function prepareQuotedAssessment(options: {
       localPlanHash: options.selection.assessment.freezeSha256
     };
   }
+  if (options.selection.kind === "shard") {
+    return {
+      assessment: options.selection.shardAssessment,
+      localPlanHash: options.selection.localPlanHash
+    };
+  }
   if (options.selection.kind === "investigation") {
     return pinInvestigationCase({
       investigation: options.selection.investigation,
@@ -579,7 +973,9 @@ async function resolveHostedCreateRequest(options: {
   const assessmentFields =
     options.selection.kind === "assessment"
       ? assessmentCreateFields(options.selection.assessment)
-      : undefined;
+      : options.selection.kind === "shard"
+        ? options.selection.shardAssessment
+        : undefined;
   const existing = options.existing?.request;
   if (assessmentFields !== undefined && existing?.protocol_version === "aw-relay/0.3") {
     const replayCeiling = options.maxCredits ?? existing.max_credits;
@@ -620,10 +1016,15 @@ async function resolveHostedCreateRequest(options: {
             cwd: options.cwd,
             ...(options.signal === undefined ? {} : { signal: options.signal })
           })
-        : {
-            assessment: assessmentFields!,
-            localPlanHash: options.selection.assessment.freezeSha256
-          };
+        : options.selection.kind === "shard"
+          ? {
+              assessment: options.selection.shardAssessment,
+              localPlanHash: options.selection.localPlanHash
+            }
+          : {
+              assessment: assessmentFields!,
+              localPlanHash: options.selection.assessment.freezeSha256
+            };
 
   const quote = await requestHostedQuote({
     session: options.session,
@@ -844,6 +1245,19 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "reproduce the exact pinned case from an aw-investigation-export/1 file. Uses a new quote; never selects latest or reuses a consumed quote"
     )
     .option("--profile <profile>", "quick, full, combined, or custom")
+    .option(
+      "--manifest <path>",
+      "immutable server suite-selection manifest from `selection compile` (hosted only)"
+    )
+    .option("--shard <shard-id>", "execute one compiled shard from --manifest or an assessment selection")
+    .option(
+      "--all-shards",
+      "execute compiled shards in order under one finite aggregate --max-credits ceiling; stops before exceeding consent"
+    )
+    .option(
+      "--artifact-out <path>",
+      "write manifestHash and per-shard run IDs for gate --manifest-file"
+    )
     .option("--estimate", "compile and quote the hosted assessment without creating a run")
     .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
     .option("--yes", "skip the interactive spending prompt; still requires --max-credits")
@@ -867,6 +1281,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         suite?: string;
         investigation?: string;
         profile?: string;
+        manifest?: string;
+        shard?: string;
+        allShards?: boolean;
+        artifactOut?: string;
         estimate?: boolean;
         maxCredits?: string;
         yes?: boolean;
@@ -929,6 +1347,9 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 ...(values.suite === undefined ? {} : { suite: values.suite }),
                 ...(values.investigation === undefined ? {} : { investigation: values.investigation }),
                 ...(values.profile === undefined ? {} : { profile: values.profile }),
+                ...(values.manifest === undefined ? {} : { manifest: values.manifest }),
+                ...(values.shard === undefined ? {} : { shard: values.shard }),
+                ...(values.allShards === undefined ? {} : { allShards: values.allShards }),
                 ...(values.allowFileCredentials === undefined
                   ? {}
                   : { allowFileCredentials: values.allowFileCredentials }),
@@ -984,6 +1405,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               ...(values.suite === undefined ? {} : { suite: values.suite }),
               ...(values.investigation === undefined ? {} : { investigation: values.investigation }),
               ...(values.profile === undefined ? {} : { profile: values.profile }),
+              ...(values.manifest === undefined ? {} : { manifest: values.manifest }),
+              ...(values.shard === undefined ? {} : { shard: values.shard }),
+              ...(values.allShards === undefined ? {} : { allShards: values.allShards }),
+              ...(values.artifactOut === undefined ? {} : { artifactOut: values.artifactOut }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json }),
               ...(values.maxCredits === undefined ? {} : { maxCredits: values.maxCredits }),
@@ -1081,12 +1506,43 @@ function assertTestSelection(values: {
   suite?: string;
   investigation?: string;
   profile?: string;
+  manifest?: string;
+  shard?: string;
+  allShards?: boolean;
+  artifactOut?: string;
   local?: boolean;
   estimate?: boolean;
   maxCredits?: string;
   yes?: boolean;
   headless?: boolean;
 }): void {
+  const hostedSelection =
+    values.manifest !== undefined || values.shard !== undefined || values.allShards === true;
+  if (hostedSelection && values.local === true) {
+    throw hostedSelectionUnsupportedLocalError();
+  }
+  if (values.shard !== undefined && values.allShards === true) {
+    throw selectionError(
+      "SHARD_SELECTOR_CONFLICT",
+      "Use either --shard <id> or --all-shards, not both."
+    );
+  }
+  if (values.allShards === true && values.estimate === true) {
+    throw selectionError(
+      "ESTIMATE_ALL_SHARDS_UNSUPPORTED",
+      "Estimate one shard at a time with --shard. The CLI does not sum shard quotes into a whole-suite price."
+    );
+  }
+  if (
+    (values.shard !== undefined || values.allShards === true) &&
+    values.manifest === undefined &&
+    values.assessment === undefined
+  ) {
+    throw selectionError(
+      "SHARD_REQUIRES_MANIFEST",
+      "--shard and --all-shards require --manifest or an assessment file with a selection block."
+    );
+  }
   if (values.estimate === true && values.local === true) {
     throw new AwError({
       code: "ESTIMATE_LOCAL_UNSUPPORTED",
@@ -1105,13 +1561,14 @@ function assertTestSelection(values: {
     values.maxCredits !== undefined &&
     values.assessment === undefined &&
     values.suite === undefined &&
-    values.investigation === undefined
+    values.investigation === undefined &&
+    values.manifest === undefined
   ) {
     throw new AwError({
       code: "MAX_CREDITS_REQUIRES_ASSESSMENT",
       category: "config",
       message:
-        "--max-credits applies to quoted hosted assessments, suites, and investigation reproductions. Packet-only tests do not send a spending ceiling."
+        "--max-credits applies to quoted hosted assessments, suites, investigation reproductions, and compiled shards. Packet-only tests do not send a spending ceiling."
     });
   }
   if (values.yes === true && values.local === true) {
@@ -1133,12 +1590,13 @@ function assertTestSelection(values: {
     values.estimate === true &&
     values.assessment === undefined &&
     values.suite === undefined &&
-    values.investigation === undefined
+    values.investigation === undefined &&
+    values.manifest === undefined
   ) {
     throw new AwError({
       code: "ESTIMATE_REQUIRES_ASSESSMENT",
       category: "config",
-      message: "test --estimate requires --assessment, --suite, or --investigation."
+      message: "test --estimate requires --assessment, --suite, --investigation, or --manifest."
     });
   }
   if (values.assessment !== undefined && values.local === true) {
@@ -1172,6 +1630,15 @@ function assertTestSelection(values: {
       message: "Use either --assessment or --packet, not both."
     });
   }
+  if (
+    values.manifest !== undefined &&
+    (values.packet !== undefined || values.suite !== undefined || values.investigation !== undefined)
+  ) {
+    throw selectionError(
+      "MANIFEST_SELECTION_CONFLICT",
+      "Use --manifest with an optional assessment selection, not with --packet, --suite, or --investigation."
+    );
+  }
   if (values.suite !== undefined && (values.assessment !== undefined || values.packet !== undefined)) {
     throw new AwError({
       code: "SUITE_SELECTION_CONFLICT",
@@ -1200,12 +1667,13 @@ function assertTestSelection(values: {
     values.assessment === undefined &&
     values.packet === undefined &&
     values.suite === undefined &&
-    values.investigation === undefined
+    values.investigation === undefined &&
+    values.manifest === undefined
   ) {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet, --assessment, --suite, or --investigation."
+      message: "Provide --packet, --assessment, --suite, --investigation, or --manifest."
     });
   }
 }
@@ -1215,7 +1683,7 @@ function requirePacket(value: string | undefined): string {
     throw new AwError({
       code: "PACKET_OR_ASSESSMENT_REQUIRED",
       category: "config",
-      message: "Provide --packet, --assessment, --suite, or --investigation."
+      message: "Provide --packet, --assessment, --suite, --investigation, or --manifest."
     });
   }
   return value;
@@ -1230,7 +1698,8 @@ function hostedJsonResult(result: TestResult): Record<string, unknown> {
     dashboard_url: result.binding.dashboard_url,
     ...(result.run.evaluation_status === undefined
       ? {}
-      : { evaluation_status: result.run.evaluation_status })
+      : { evaluation_status: result.run.evaluation_status }),
+    ...(result.coverage === undefined ? {} : { coverage: result.coverage })
   };
 }
 
@@ -1279,6 +1748,22 @@ function writeHostedResult(stdout: Pick<NodeJS.WriteStream, "write">, result: Te
       result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
     }.`
   );
+  if (result.coverage !== undefined) {
+    writeLine(
+      stdout,
+      `Coverage manifest ${sanitizeTerminal(result.coverage.manifestHash)}; declared ${String(result.coverage.declaredShards.length)} / expected ${String(result.coverage.expectedShardIds.length)} shards.`
+    );
+    if (
+      result.coverage.missingShardIds.length > 0 ||
+      result.coverage.skippedShardIds.length > 0 ||
+      result.coverage.failedShardIds.length > 0
+    ) {
+      writeLine(
+        stdout,
+        `Incomplete coverage: missing=${result.coverage.missingShardIds.join(",") || "none"} skipped=${result.coverage.skippedShardIds.join(",") || "none"} failed=${result.coverage.failedShardIds.join(",") || "none"}. Whole-suite gate cannot pass.`
+      );
+    }
+  }
 }
 
 function assertRunBinding(binding: CreateRunResponse, request: CreateRunRequest): void {

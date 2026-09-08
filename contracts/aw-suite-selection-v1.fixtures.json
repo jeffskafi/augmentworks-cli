@@ -1,0 +1,481 @@
+{
+  "schemaVersion": "aw-suite-selection/1",
+  "packageVersion": "aw-feature/1",
+  "note": "Sanitized consumer fixtures for compile and evaluate-manifest. createsBillableRun is false. Workspace IDs are synthetic.",
+  "discoveredPaths": {
+    "compile": "POST /v1/suite-selections/compile",
+    "evaluateManifest": "POST /v1/release-gates/evaluate-manifest"
+  },
+  "fixtures": {
+    "compile_executable": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-suite-selection/1",
+        "documentKind": "suite_selection_manifest",
+        "selectionVersion": "1.0.0",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "suiteId": null,
+        "semanticRevisionHash": null,
+        "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "inventoryHash": "30bbc294b019c31e39b1b683551a6607ffedb201919effb81540602f840a4dc3",
+        "normalizedSelection": {
+          "profile": "release",
+          "includeTags": [
+            "factuality"
+          ],
+          "excludeTags": [],
+          "conversationMode": "explicit_session_v1",
+          "excludedCaseIds": [],
+          "requestedCaseIds": []
+        },
+        "requestedCaseCount": 20,
+        "includedCaseCount": 2,
+        "plannedExecutions": 4,
+        "plannedCommands": 4,
+        "perRunLimits": {
+          "maxCases": 20,
+          "maxExecutions": 60,
+          "maxCommands": 512
+        },
+        "quoteIsAuthoritative": true,
+        "aggregateReleaseRequiresCompleteCoverage": true,
+        "executable": true,
+        "unexecutableReason": null,
+        "included": [
+          {
+            "caseId": "response-quality/0.1.0/R01",
+            "reasonCode": "included",
+            "message": "Case response-quality/0.1.0/R01 is included once in the normalized selection."
+          },
+          {
+            "caseId": "response-quality/0.1.0/R02",
+            "reasonCode": "included",
+            "message": "Case response-quality/0.1.0/R02 is included once in the normalized selection."
+          }
+        ],
+        "excluded": [
+          {
+            "caseId": "response-quality/0.1.0/R04",
+            "reasonCode": "tag_filter_excluded",
+            "message": "Case response-quality/0.1.0/R04 has none of the include tags (factuality)."
+          }
+        ],
+        "incompatible": [],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIndex": 0,
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "caseIds": [
+              "response-quality/0.1.0/R01",
+              "response-quality/0.1.0/R02"
+            ],
+            "plannedExecutions": 4,
+            "plannedCommands": 4,
+            "planHash": "0d7a7ff1fa4d7a91fd081e505b0fb0ee8c713fcd8b7f496353a65297d828f408",
+            "packetBindings": [
+              {
+                "key": "aw-customer-suite",
+                "version": "1.0.0",
+                "sha256": "f81ae918454f5597bbc6b171f636fb7d5c48037828fcacc6241e67c93ca05df2"
+              }
+            ],
+            "compileOk": true,
+            "compileReasonCode": null,
+            "compileMessage": null
+          }
+        ],
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f"
+      }
+    },
+    "compile_empty": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-suite-selection/1",
+        "documentKind": "suite_selection_manifest",
+        "selectionVersion": "1.0.0",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "suiteId": null,
+        "semanticRevisionHash": null,
+        "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "inventoryHash": "30bbc294b019c31e39b1b683551a6607ffedb201919effb81540602f840a4dc3",
+        "normalizedSelection": {
+          "profile": "smoke",
+          "includeTags": [
+            "no-such-tag"
+          ],
+          "excludeTags": [],
+          "conversationMode": "single_turn",
+          "excludedCaseIds": [],
+          "requestedCaseIds": []
+        },
+        "requestedCaseCount": 20,
+        "includedCaseCount": 0,
+        "plannedExecutions": 0,
+        "plannedCommands": 0,
+        "perRunLimits": {
+          "maxCases": 20,
+          "maxExecutions": 60,
+          "maxCommands": 512
+        },
+        "quoteIsAuthoritative": true,
+        "aggregateReleaseRequiresCompleteCoverage": true,
+        "executable": false,
+        "unexecutableReason": "No compatible cases remain after filters and capability checks.",
+        "included": [],
+        "excluded": [
+          {
+            "caseId": "response-quality/0.1.0/R01",
+            "reasonCode": "tag_filter_excluded",
+            "message": "Case response-quality/0.1.0/R01 has none of the include tags (no-such-tag)."
+          }
+        ],
+        "incompatible": [],
+        "shards": [],
+        "manifestHash": "b33a9d3ba75311f7225021a4e7f1691d5c2b7a8d7bf2147a39ca22cd0d3cd8c4"
+      }
+    },
+    "compile_incompatible_session": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-suite-selection/1",
+        "documentKind": "suite_selection_manifest",
+        "selectionVersion": "1.0.0",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "suiteId": null,
+        "semanticRevisionHash": null,
+        "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "inventoryHash": "30bbc294b019c31e39b1b683551a6607ffedb201919effb81540602f840a4dc3",
+        "normalizedSelection": {
+          "profile": "release",
+          "includeTags": [],
+          "excludeTags": [],
+          "conversationMode": "single_turn",
+          "excludedCaseIds": [],
+          "requestedCaseIds": []
+        },
+        "requestedCaseCount": 20,
+        "includedCaseCount": 0,
+        "plannedExecutions": 0,
+        "plannedCommands": 0,
+        "perRunLimits": {
+          "maxCases": 20,
+          "maxExecutions": 60,
+          "maxCommands": 512
+        },
+        "quoteIsAuthoritative": true,
+        "aggregateReleaseRequiresCompleteCoverage": true,
+        "executable": false,
+        "unexecutableReason": "A customer-owned suite cannot silently drop incompatible cases. Supply the missing bindings or remove the unsupported case.",
+        "included": [],
+        "excluded": [],
+        "incompatible": [
+          {
+            "caseId": "response-quality/0.1.0/R07",
+            "reasonCode": "capability_multi_turn",
+            "message": "A single-turn connector cannot receive a quote or admission that assumes multi-turn support. Configure explicit_session_v1 with a session mapping, or exclude the incompatible cases before consent."
+          },
+          {
+            "caseId": "support-refunds/0.2.0/S01",
+            "reasonCode": "capability_prepare",
+            "message": "This case requires prepare, but the authenticated connector does not advertise prepare."
+          }
+        ],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIndex": 0,
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "caseIds": [],
+            "plannedExecutions": 0,
+            "plannedCommands": 0,
+            "planHash": "0d7a7ff1fa4d7a91fd081e505b0fb0ee8c713fcd8b7f496353a65297d828f408",
+            "packetBindings": [
+              {
+                "key": "aw-customer-suite",
+                "version": "1.0.0",
+                "sha256": "f81ae918454f5597bbc6b171f636fb7d5c48037828fcacc6241e67c93ca05df2"
+              }
+            ],
+            "compileOk": false,
+            "compileReasonCode": "capability_multi_turn",
+            "compileMessage": "A customer-owned suite cannot silently drop incompatible cases."
+          }
+        ],
+        "manifestHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "compile_per_run_expanded_limit": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-suite-selection/1",
+        "documentKind": "suite_selection_manifest",
+        "selectionVersion": "1.0.0",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "suiteId": null,
+        "semanticRevisionHash": null,
+        "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "inventoryHash": "30bbc294b019c31e39b1b683551a6607ffedb201919effb81540602f840a4dc3",
+        "normalizedSelection": {
+          "profile": "release",
+          "includeTags": [
+            "factuality"
+          ],
+          "excludeTags": [],
+          "conversationMode": "explicit_session_v1",
+          "excludedCaseIds": [],
+          "requestedCaseIds": []
+        },
+        "requestedCaseCount": 20,
+        "includedCaseCount": 21,
+        "plannedExecutions": 66,
+        "plannedCommands": 66,
+        "perRunLimits": {
+          "maxCases": 20,
+          "maxExecutions": 60,
+          "maxCommands": 512
+        },
+        "quoteIsAuthoritative": true,
+        "aggregateReleaseRequiresCompleteCoverage": true,
+        "executable": true,
+        "unexecutableReason": null,
+        "included": [
+          {
+            "caseId": "response-quality/0.1.0/R01",
+            "reasonCode": "included",
+            "message": "Case response-quality/0.1.0/R01 is included once in the normalized selection."
+          },
+          {
+            "caseId": "response-quality/0.1.0/R02",
+            "reasonCode": "included",
+            "message": "Case response-quality/0.1.0/R02 is included once in the normalized selection."
+          }
+        ],
+        "excluded": [
+          {
+            "caseId": "response-quality/0.1.0/R04",
+            "reasonCode": "tag_filter_excluded",
+            "message": "Case response-quality/0.1.0/R04 has none of the include tags (factuality)."
+          }
+        ],
+        "incompatible": [],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIndex": 0,
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "caseIds": [
+              "response-quality/0.1.0/R01",
+              "response-quality/0.1.0/R02",
+              "response-quality/0.1.0/R03",
+              "response-quality/0.1.0/R04",
+              "response-quality/0.1.0/R05",
+              "response-quality/0.1.0/R06",
+              "response-quality/0.1.0/R07",
+              "response-quality/0.1.0/R08",
+              "response-quality/0.1.0/R09",
+              "response-quality/0.1.0/R10",
+              "response-quality/0.1.0/R11",
+              "response-quality/0.1.0/R12",
+              "response-quality/0.1.0/R13",
+              "response-quality/0.1.0/R14",
+              "response-quality/0.1.0/R15",
+              "response-quality/0.1.0/R16",
+              "response-quality/0.1.0/R17",
+              "response-quality/0.1.0/R18",
+              "response-quality/0.1.0/R19",
+              "response-quality/0.1.0/R20",
+              "response-quality/0.1.0/R21"
+            ],
+            "plannedExecutions": 66,
+            "plannedCommands": 66,
+            "planHash": "0d7a7ff1fa4d7a91fd081e505b0fb0ee8c713fcd8b7f496353a65297d828f408",
+            "packetBindings": [
+              {
+                "key": "aw-customer-suite",
+                "version": "1.0.0",
+                "sha256": "f81ae918454f5597bbc6b171f636fb7d5c48037828fcacc6241e67c93ca05df2"
+              }
+            ],
+            "compileOk": true,
+            "compileReasonCode": null,
+            "compileMessage": null
+          }
+        ],
+        "manifestHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "evaluate_missing_shards": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-manifest-release-policy/1",
+        "documentKind": "manifest_release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "semanticRevisionHash": null,
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "incomplete",
+        "coverageComplete": false,
+        "reasons": [
+          {
+            "code": "missing_shard",
+            "shardId": "shard-000",
+            "message": "Shard shard-000 has no declared run. Complete declared coverage is required."
+          }
+        ],
+        "expectedShardIds": [
+          "shard-000"
+        ],
+        "declaredRunIds": [],
+        "shards": [],
+        "note": "Aggregate cross-shard release gating requires complete declared coverage, not any single successful shard. The CLI must not recompute this policy."
+      }
+    },
+    "evaluate_substituted_shard": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-manifest-release-policy/1",
+        "documentKind": "manifest_release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "semanticRevisionHash": null,
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "incompatible",
+        "coverageComplete": false,
+        "reasons": [
+          {
+            "code": "substituted_shard",
+            "shardId": "shard-000",
+            "message": "Shard shard-000 identity does not match the immutable manifest."
+          },
+          {
+            "code": "incomplete_shard",
+            "shardId": "shard-000",
+            "message": "Shard shard-000 is not terminal complete evidence."
+          }
+        ],
+        "expectedShardIds": [
+          "shard-000"
+        ],
+        "declaredRunIds": [
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "",
+            "runId": "11111111-1111-4111-8111-111111111111",
+            "evaluationId": null,
+            "evaluationRevision": null,
+            "executionState": "not_started",
+            "evaluationStatus": "pending",
+            "shardDecision": null,
+            "comparability": null
+          }
+        ],
+        "note": "Aggregate cross-shard release gating requires complete declared coverage, not any single successful shard. The CLI must not recompute this policy."
+      }
+    },
+    "evaluate_incomplete_run": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-manifest-release-policy/1",
+        "documentKind": "manifest_release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "semanticRevisionHash": null,
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "incomplete",
+        "coverageComplete": false,
+        "reasons": [
+          {
+            "code": "incomplete_shard",
+            "shardId": "shard-000",
+            "message": "Shard shard-000 is not terminal complete evidence."
+          }
+        ],
+        "expectedShardIds": [
+          "shard-000"
+        ],
+        "declaredRunIds": [
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "11111111-1111-4111-8111-111111111111",
+            "evaluationId": null,
+            "evaluationRevision": null,
+            "executionState": "not_started",
+            "evaluationStatus": "pending",
+            "shardDecision": null,
+            "comparability": null
+          }
+        ],
+        "note": "Aggregate cross-shard release gating requires complete declared coverage, not any single successful shard. The CLI must not recompute this policy."
+      }
+    },
+    "evaluate_complete_pass": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-manifest-release-policy/1",
+        "documentKind": "manifest_release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": null,
+        "semanticRevisionHash": null,
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "reasons": [],
+        "expectedShardIds": [
+          "shard-000"
+        ],
+        "declaredRunIds": [
+          "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        ],
+        "shards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "evaluationId": "eval-1",
+            "evaluationRevision": 1,
+            "executionState": "completed",
+            "evaluationStatus": "complete",
+            "shardDecision": "pass",
+            "comparability": "compatible"
+          }
+        ],
+        "note": "Aggregate cross-shard release gating requires complete declared coverage, not any single successful shard. The CLI must not recompute this policy."
+      }
+    },
+    "compile_unauthorized": {
+      "status": 401,
+      "response": {
+        "schemaVersion": "aw-feature-error/1",
+        "error": {
+          "code": "unauthorized",
+          "message": "Authentication required.",
+          "retryable": false
+        }
+      }
+    }
+  }
+}

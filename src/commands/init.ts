@@ -79,6 +79,7 @@ npx --yes ${NPM_PACKAGE}@${HOSTED_COMMAND_PIN} doctor -c ${configDisplayPath}
 - Keep target paths and request/response mappings declarative. Do not add executable mappings.
 - Add only synthetic prepare, send, observe, and cleanup hooks required by the selected pattern. Response-only JSON chat must not add unused state hooks.
 - Preview mappings with a synthetic JSON fixture before calling the target. Use \`probe\` to print the bounded plan, then \`probe --yes\` only after that review. Doctor and init never probe.
+- Hosted catalog listing is \`catalog list\` / \`catalog show\`. Smoke/release selection and shards are server-compiled; catalog counts are not a quote. Keep this generated assessment format; do not invent a second file.
 - Show the diff and ask before starting an assessment or changing external systems.
 - Do not overwrite an edited assessment or reference file. Re-run init with --force only when replacing generated starters.
 `;

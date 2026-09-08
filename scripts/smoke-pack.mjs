@@ -363,6 +363,8 @@ async function main() {
       "preview-mapping",
       "probe",
       "demo",
+      "catalog",
+      "selection",
       "test",
       "suite",
       "run",
@@ -395,6 +397,15 @@ async function main() {
     const gateHelp = execCli(["gate", "--help"]);
     assert(gateHelp.stdout.includes("--wait"), "packed CLI is missing gate --wait");
     assert(gateHelp.stdout.includes("--timeout-ms"), "packed CLI is missing gate --timeout-ms");
+    assert(gateHelp.stdout.includes("--manifest-file"), "packed CLI is missing gate --manifest-file");
+    const catalogHelp = execCli(["catalog", "--help"]);
+    assert(catalogHelp.stdout.includes("list"), "packed CLI is missing catalog list");
+    assert(catalogHelp.stdout.includes("show"), "packed CLI is missing catalog show");
+    const selectionHelp = execCli(["selection", "--help"]);
+    assert(selectionHelp.stdout.includes("compile"), "packed CLI is missing selection compile");
+    const testHelpSelection = execCli(["test", "--help"]);
+    assert(testHelpSelection.stdout.includes("--manifest"), "packed CLI is missing test --manifest");
+    assert(testHelpSelection.stdout.includes("--all-shards"), "packed CLI is missing test --all-shards");
     const baselineHelp = execCli(["baseline", "--help"]);
     assert(baselineHelp.stdout.includes("status"), "packed CLI is missing baseline status");
     assert(baselineHelp.stdout.includes("promote"), "packed CLI is missing baseline promote");

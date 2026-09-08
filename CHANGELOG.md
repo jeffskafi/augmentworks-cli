@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Catalog listing (`catalog list` / `catalog show`) consumes public
+  `aw-coverage-catalog/1` metadata with bounded cache, ETag revalidation, and
+  fail-closed stale `catalogVersion`. Static counts are informative, not a
+  quote. `selection compile` and `test --manifest` / `--shard` / `--all-shards`
+  consume server-produced `aw-suite-selection/1` shard manifests under the
+  existing finite `--max-credits` ceiling. Whole-suite `gate --manifest-file`
+  maps the server `aw-manifest-release-policy/1` verdict. Incomplete shard sets
+  cannot pass. The CLI does not compile, price, or batch-run locally.
+
 - Hosted GitHub Actions own-target recipe
   (`docs/examples/github-actions-hosted.yml`) with scoped
   `AUGMENTWORKS_API_KEY`, explicit `test --headless`, isolated synthetic
