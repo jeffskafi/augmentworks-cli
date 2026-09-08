@@ -37,6 +37,23 @@ Selected candidate: current default main plus this 0.3.4 metadata PR. Compatible
 
 Do not overwrite npm 0.3.3 or relabel its provenance.
 
+## Candidate verification (not registry)
+
+Tested head: PR https://github.com/jeffskafi/augmentworks-cli/pull/33 on branch `cursor/cli-verified-customer-release-f205`. Base `main` `b8c3e7c3d71d9bef2cb07ddf3771c0822934208d`.
+
+| Command | Result |
+| --- | --- |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN npm ci` | Pass |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN npm run check` | Pass. typecheck; **71 files / 677 tests**; discovery `@augmentworks/cli@0.3.4 (development)` |
+| `npm run audit:ci` | Pass. 0 vulnerabilities |
+| `npm run smoke:pack` | Pass. Local tarball **53 files, 429540 bytes**, SHA-256 `46a7f4d653cf1e29a38ac0b47adf0c4117bba2daefcc54c6fd1fc35cd910d5f4`. examples/ absent. Starters and customer suites present. |
+| `AUGMENTWORKS_PACKED_BIN=<local installed dist> npm run test:packed-billing-fixture` | Pass. `creates=1 quotes=4 targets=1 polls=3 refreshes=1` |
+| `AUGMENTWORKS_PACKED_BIN=<local installed dist> npm run test:packed-report-fixture` | Pass. `requests=8` |
+| Packed `init --agent` | Writes `npx --yes @augmentworks/cli@0.3.4`, not 0.3.2/0.3.3 |
+| `node scripts/verify-published-discovery.mjs --version 0.3.4` | **404**. npm 0.3.4 is not on the registry. |
+
+A local pack is QA only. It is not npm publication.
+
 ## Publication path (maintainer)
 
 Inspected `.github/workflows/release.yml`: `on.release.types: [published]`,

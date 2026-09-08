@@ -43,60 +43,61 @@
     {
       "name": "candidate-main-head",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Selected default main b8c3e7c3d71d9bef2cb07ddf3771c0822934208d (AUG-35 PR #32). Candidate version 0.3.4 is unused on npm. Rechecked 2026-09-07."
+      "status": "pass",
+      "evidence": "Default main b8c3e7c3d71d9bef2cb07ddf3771c0822934208d includes AUG-35 PR #32, AUG-32 PR #31, AUG-24 PR #30, AUG-59 PR #28, AUG-54 PR #26. npm 0.3.4 unused. Candidate PR https://github.com/jeffskafi/augmentworks-cli/pull/33. Rechecked 2026-09-07. This is branch/head selection, not registry publication."
     },
     {
       "name": "npm-ci-check-audit",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Pending local npm ci / npm run check / npm run audit:ci on the candidate branch."
+      "status": "pass",
+      "evidence": "Candidate checkout, not a registry tarball. env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN npm ci; npm run check; npm run audit:ci. typecheck pass. vitest 71 files / 677 tests pass (22.97s). discovery @augmentworks/cli@0.3.4 (development). aw-billing/1 from 650472d91442a6866a7b6ef18e6dacc23a2a9260. aw-run-report/1 schema 7726ec277d33e435d2832e8be0898baf9337631d779f073a10c7795fc7de38ff. npm audit --audit-level=high: 0 vulnerabilities."
     },
     {
       "name": "smoke-pack-inventory",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Pending npm run smoke:pack. examples/ must remain absent; assets/starters and assets/customer-suites must be present."
+      "status": "pass",
+      "evidence": "Local npm pack only, not registry. npm run smoke:pack passed in 16s: 53 files, 429540 compressed bytes, SHA-256 46a7f4d653cf1e29a38ac0b47adf0c4117bba2daefcc54c6fd1fc35cd910d5f4. examples/ absent. assets/starters and assets/customer-suites present. Packed init, no-overwrite, offline doctor, preview-mapping, suite validate/preview, bounded probe, demo fail/fix, packed billing/report fixtures all passed against the installed local tarball."
     },
     {
       "name": "packed-billing-fixture",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Pending npm run test:packed-billing-fixture with AUGMENTWORKS_PACKED_BIN set to an installed artifact."
+      "status": "pass",
+      "evidence": "AUGMENTWORKS_PACKED_BIN set to the installed local tarball dist/index.js (not registry). npm run test:packed-billing-fixture passed: creates=1 quotes=4 targets=1 polls=3 refreshes=1. Loopback HTTP fixture only."
     },
     {
       "name": "packed-report-fixture",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Pending npm run test:packed-report-fixture with AUGMENTWORKS_PACKED_BIN set to an installed artifact."
+      "status": "pass",
+      "evidence": "AUGMENTWORKS_PACKED_BIN set to the installed local tarball dist/index.js (not registry). npm run test:packed-report-fixture passed: requests=8, producer aw-criterion-detail-read/1 @ 8068a90 + AW-QA-1 report."
     },
     {
       "name": "offline-init-doctor-suite-probe",
       "artifactKind": "registry",
-      "status": "not_run",
-      "evidence": "Covered by scripts/smoke-pack.mjs once that command is run on this candidate. Offline doctor/preview/suite validate must not contact hosted service or the target."
+      "status": "pass",
+      "evidence": "Local packed binary, not registry. init --agent wrote npx --yes @augmentworks/cli@0.3.4 (not 0.3.2/0.3.3). Offline doctor printed CONNECTION_PROBE_AVAILABLE without target calls. suite validate/preview against packed assets/customer-suites with AUGMENTWORKS_API_URL=http://127.0.0.1:1. probe without --yes did not execute. workflow probe --yes used generated server.mjs only (4 calls, 0 credits). demo fail/fix on loopback. No hosted service and no customer-target contact."
     },
     {
       "name": "github-release-v0.3.4",
       "artifactKind": "registry",
       "status": "not_run",
-      "evidence": "Protected .github/workflows/release.yml publishes only from a non-draft/non-prerelease GitHub release tagged v0.3.4 into the npm environment. This agent cannot create GitHub releases or npm credentials. Missing publication permission is an external blocker."
+      "evidence": "Inspected .github/workflows/release.yml: non-draft/non-prerelease published release, tag must equal v0.3.4, environment npm, npm publish with provenance, no NODE_AUTH_TOKEN. This agent cannot create GitHub releases (gh read-only; repo permissions lack release/admin). Missing publication permission is an external blocker. Do not bypass."
     },
     {
       "name": "registry-tarball-gitHead-integrity",
       "artifactKind": "registry",
       "status": "not_run",
-      "evidence": "npm 0.3.4 does not exist yet (HTTP 404). Do not treat a local pack as registry evidence. Do not overwrite npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, sha512-6jUbZmKz9mix5F55R/RL94DqXHGjDCiQcGgXX8GfJweqH/1XoG0OxmM/rQfNN5u1EL1Mc4kC2mfDCOWF7TKCKw==)."
+      "evidence": "npm view @augmentworks/cli@0.3.4 returned 404. Local pack SHA-256 46a7f4d653cf1e29a38ac0b47adf0c4117bba2daefcc54c6fd1fc35cd910d5f4 is QA only. Do not overwrite npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, integrity sha512-6jUbZmKz9mix5F55R/RL94DqXHGjDCiQcGgXX8GfJweqH/1XoG0OxmM/rQfNN5u1EL1Mc4kC2mfDCOWF7TKCKw==)."
     },
     {
       "name": "verify-published-discovery",
       "artifactKind": "registry",
       "status": "not_run",
-      "evidence": "node scripts/verify-published-discovery.mjs --version 0.3.4 emits metadata only and cannot replace executable inspection of the registry tarball."
+      "evidence": "node scripts/verify-published-discovery.mjs --version 0.3.4 exited nonzero: npm error 404 No match found for version 0.3.4. Script emits metadata only and does not replace executable inspection."
     }
   ],
   "limitations": [
-    "This file is candidate metadata until registry checks pass. package.json 0.3.4 is not publication.",
+    "cli.gitHead, cli.integrity, and verifiedAt stay null until the registry tarball is downloaded. package.json 0.3.4 is not publication.",
+    "Local pack/check passes above are candidate QA. They are not npm provenance or registry integrity.",
     "Last independently verified npm tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5).",
     "Immutable npm 0.3.3 is not this release and must not be relabeled.",
     "Committed discovery-manifest.json stays schemaVersion 1 with releaseStatus development.",
