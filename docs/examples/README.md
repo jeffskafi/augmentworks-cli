@@ -24,3 +24,8 @@ See `../walkthrough-draft.md`. Do not fabricate a recording.
 `github-actions-hosted-source.yml` is a copy-pastable quoted hosted workflow
 for this package. Executable npx pins match `0.3.4`. Do not advertise
 immutable npm `0.3.3`. Website adoption waits for registry evidence.
+
+`github-actions-hosted-gate.yml` adds a read-only `gate` after quoted
+execution and `run wait` on the original run ID. It requires an explicit
+`AUGMENTWORKS_BASELINE_ID`. It does not issue machine credentials, create
+GitHub secrets, auto-promote a pin, or start a second billed assessment.

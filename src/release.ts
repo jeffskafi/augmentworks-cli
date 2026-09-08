@@ -188,6 +188,45 @@ export const SOURCE_MAX_CREDITS_COMMAND = formatSourceCli([
 export const SOURCE_RUN_STATUS_COMMAND = formatSourceCli(["run", "status", "<run-id>"]);
 export const SOURCE_RUN_WAIT_COMMAND = formatSourceCli(["run", "wait", "<run-id>"]);
 export const SOURCE_RUN_REPORT_COMMAND = formatSourceCli(["run", "report", "<run-id>", "--json"]);
+export const SOURCE_COMPARE_COMMAND = formatSourceCli([
+  "compare",
+  "--run",
+  "<run-id>",
+  "--baseline",
+  "<baseline-id>",
+  "--json"
+]);
+export const SOURCE_GATE_COMMAND = formatSourceCli([
+  "gate",
+  "--run",
+  "<run-id>",
+  "--baseline",
+  "<baseline-id>",
+  "--json"
+]);
+export const SOURCE_GATE_WAIT_COMMAND = formatSourceCli([
+  "gate",
+  "--run",
+  "<run-id>",
+  "--baseline",
+  "<baseline-id>",
+  "--wait",
+  "--timeout-ms",
+  "60000",
+  "--json"
+]);
+export const SOURCE_BASELINE_STATUS_COMMAND = formatSourceCli(["baseline", "status", "--json"]);
+export const SOURCE_BASELINE_PROMOTE_COMMAND = formatSourceCli([
+  "baseline",
+  "promote",
+  "--run",
+  "<run-id>",
+  "--baseline",
+  "<baseline-id>",
+  "--expected-revision",
+  "<n>",
+  "--json"
+]);
 export const SOURCE_SUITE_VALIDATE_COMMAND = formatSourceCli([
   "suite",
   "validate",

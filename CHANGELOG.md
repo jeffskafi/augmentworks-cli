@@ -73,6 +73,13 @@ implied by this changelog entry.
   `workflow` (stateful prepare/send/observe/cleanup). `probe` prints a
   call plan; `--yes` executes it against the configured target only.
   Doctor and init never probe.
+- Hosted release gate: `compare`, `gate`, and
+  `baseline status` / `baseline promote` consume `aw-release-policy/1`.
+  A new required semantic regression exits `10` even when aggregate pass
+  rates match and the HTTP request succeeded. Pending judging, evaluator
+  error, incompatible scope, and missing coverage cannot exit `0`.
+  Observation commands do not start, reserve, or charge a run. Promotion
+  is explicit and never automatic.
 
 ### Fixed
 

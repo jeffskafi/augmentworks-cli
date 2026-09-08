@@ -1,0 +1,314 @@
+{
+  "schemaVersion": "aw-release-policy/1",
+  "packageVersion": "aw-feature/1",
+  "note": "CLI consumer fixtures for AUG-40. Main schema files were not byte-vendored.",
+  "identities": {
+    "workspaceId": "11111111-1111-4111-8111-111111111111",
+    "candidateRunId": "77777777-7777-4777-8777-777777777777",
+    "baselineId": "88888888-8888-4888-8888-888888888888",
+    "baselineRunId": "66666666-6666-4666-8666-666666666666",
+    "candidateEvaluationId": "99999999-9999-4999-8999-999999999999",
+    "baselineEvaluationId": "55555555-5555-4555-8555-555555555555",
+    "candidateSnapshotHash": "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe",
+    "baselineSnapshotHash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+  },
+  "fixtures": {
+    "blocked_equal_pass_rate": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "createsBillableRun": false,
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "candidateEvaluationId": "99999999-9999-4999-8999-999999999999",
+        "candidateEvaluationRevision": 4,
+        "candidateSnapshotHash": "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "selectedBaseline": {
+          "baselineId": "88888888-8888-4888-8888-888888888888",
+          "name": "staging-main",
+          "runId": "66666666-6666-4666-8666-666666666666",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 3,
+          "snapshotHash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+          "semanticRevisionHash": "abababababababababababababababababababababababababababababababab",
+          "promotionRevision": 2
+        },
+        "decision": "block",
+        "comparability": "compatible",
+        "coverageChange": "none",
+        "evaluationStatus": "complete",
+        "reasonCodes": ["new_required_regression"],
+        "reasons": [
+          "A new required failure appeared while the aggregate pass rate stayed 1/2."
+        ],
+        "aggregateNote": "Both runs passed 1 of 2 required cases. A new required failure blocked the release.",
+        "groups": {
+          "new_required_regressions": [
+            {
+              "caseId": "policy-limit-order-remains-paid",
+              "criterionId": "required-limit",
+              "requirement": "required",
+              "baselineOutcome": "passed",
+              "candidateOutcome": "failed"
+            }
+          ],
+          "fixes": [
+            {
+              "caseId": "faq-hours",
+              "criterionId": "hours-correct",
+              "requirement": "required",
+              "baselineOutcome": "failed",
+              "candidateOutcome": "passed"
+            }
+          ],
+          "persistent_failures": [],
+          "newly_verified": [],
+          "coverage_changes": [],
+          "incompatible_scope": [],
+          "unresolved": []
+        }
+      }
+    },
+    "pass_compatible": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "candidateEvaluationId": "99999999-9999-4999-8999-999999999999",
+        "candidateEvaluationRevision": 5,
+        "candidateSnapshotHash": "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "selectedBaseline": {
+          "baselineId": "88888888-8888-4888-8888-888888888888",
+          "runId": "66666666-6666-4666-8666-666666666666",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 3,
+          "snapshotHash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+          "semanticRevisionHash": "abababababababababababababababababababababababababababababababab",
+          "promotionRevision": 2
+        },
+        "gate": {
+          "decision": "pass",
+          "comparability": "compatible",
+          "coverageChange": "none",
+          "evaluationStatus": "complete",
+          "headline": "Pass"
+        },
+        "groups": {
+          "new_required_regressions": [],
+          "fixes": [],
+          "persistent_failures": [],
+          "newly_verified": [],
+          "coverage_changes": [],
+          "incompatible_scope": [],
+          "unresolved": []
+        }
+      }
+    },
+    "incomplete_pending": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "selectedBaseline": {
+          "baselineId": "88888888-8888-4888-8888-888888888888",
+          "promotionRevision": 2
+        },
+        "decision": "incomplete",
+        "comparability": "compatible",
+        "coverageChange": "none",
+        "evaluationStatus": "pending",
+        "groups": {
+          "unresolved": [{ "caseId": "faq-hours", "unresolved": true }]
+        }
+      }
+    },
+    "incomplete_absent": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "incomplete",
+        "comparability": "incomplete",
+        "coverageChange": "none",
+        "evaluationStatus": "absent"
+      }
+    },
+    "evaluator_error": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "incomplete",
+        "comparability": "compatible",
+        "coverageChange": "none",
+        "evaluationStatus": "error",
+        "reasonCodes": ["evaluator_error"]
+      }
+    },
+    "incompatible_scope": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "incompatible",
+        "comparability": "incompatible",
+        "coverageChange": "none",
+        "evaluationStatus": "complete",
+        "reasonCodes": ["incompatible_scope"],
+        "reasons": ["The candidate rubric changed. That is a scope change, not an app improvement."],
+        "groups": {
+          "incompatible_scope": [{ "caseId": "faq-hours", "change": "rubric" }]
+        }
+      }
+    },
+    "missing_required_coverage": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "incomplete",
+        "comparability": "compatible",
+        "coverageChange": "missing_required",
+        "evaluationStatus": "complete",
+        "groups": {
+          "coverage_changes": [{ "caseId": "policy-limit-order-remains-paid", "change": "removed" }]
+        }
+      }
+    },
+    "unknown_decision": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "mystery",
+        "comparability": "compatible",
+        "coverageChange": "none",
+        "evaluationStatus": "complete",
+        "groups": {
+          "new_required_regressions": []
+        }
+      }
+    },
+    "creates_billable_run": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": true,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "selectedBaselineId": "88888888-8888-4888-8888-888888888888",
+        "decision": "pass",
+        "comparability": "compatible",
+        "coverageChange": "none",
+        "evaluationStatus": "complete"
+      }
+    },
+    "applications_ok": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "applications": [
+          {
+            "applicationId": "app_faq",
+            "name": "FAQ bot",
+            "environments": [
+              {
+                "environmentId": "env_staging",
+                "name": "staging",
+                "baselines": [
+                  {
+                    "baselineId": "88888888-8888-4888-8888-888888888888",
+                    "name": "staging-main",
+                    "promotionRevision": 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "promote_ok": {
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-release-policy/1",
+        "packageVersion": "aw-feature/1",
+        "createsBillableRun": false,
+        "baselineId": "88888888-8888-4888-8888-888888888888",
+        "promotionRevision": 3,
+        "candidateRunId": "77777777-7777-4777-8777-777777777777",
+        "evaluationId": "99999999-9999-4999-8999-999999999999",
+        "evaluationRevision": 5,
+        "snapshotHash": "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe"
+      }
+    },
+    "missing_baseline": {
+      "status": 404,
+      "response": {
+        "schemaVersion": "aw-feature-error/1",
+        "documentKind": "feature_error",
+        "packageVersion": "aw-feature/1",
+        "error": {
+          "code": "missing_baseline",
+          "message": "Baseline pin was not found."
+        }
+      }
+    },
+    "promotion_conflict": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-feature-error/1",
+        "documentKind": "feature_error",
+        "packageVersion": "aw-feature/1",
+        "error": {
+          "code": "promotion_conflict",
+          "message": "The baseline pin changed. Retry with the current promotion revision."
+        }
+      }
+    },
+    "auth_rejected": {
+      "status": 401,
+      "response": {
+        "error": {
+          "code": "UNAUTHORIZED",
+          "message": "Sign in to compare results."
+        }
+      }
+    }
+  }
+}
