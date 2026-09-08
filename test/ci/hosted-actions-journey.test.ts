@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,14 +34,64 @@ const temporaryDirectories: string[] = [];
 const servers: ListeningServer[] = [];
 const children: Array<ReturnType<typeof spawn>> = [];
 
-afterEach(async () => {
-  for (const child of children.splice(0)) {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+function childHasExited(child: ReturnType<typeof spawn>): boolean {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+async function waitForChildExit(child: ReturnType<typeof spawn>, timeoutMs: number): Promise<void> {
+  if (childHasExited(child)) return;
+  await Promise.race([
+    new Promise<void>((fulfill) => {
+      const onExit = (): void => fulfill();
+      child.once("exit", onExit);
+      if (childHasExited(child)) {
+        child.off("exit", onExit);
+        fulfill();
+      }
+    }),
+    new Promise<void>((fulfill) => {
+      const timer = setTimeout(fulfill, timeoutMs);
+      timer.unref?.();
+    })
+  ]);
+}
+
+async function stopChild(child: ReturnType<typeof spawn>): Promise<void> {
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+  if (childHasExited(child)) return;
+  child.kill("SIGTERM");
+  await waitForChildExit(child, 5_000);
+  if (childHasExited(child)) return;
+  child.kill("SIGKILL");
+  await waitForChildExit(child, 2_000);
+}
+
+function isRetryableRemoveError(error: unknown): boolean {
+  if (process.platform !== "win32" || typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
   }
+  const code = error.code;
+  return code === "EBUSY" || code === "EPERM" || code === "ENOTEMPTY";
+}
+
+async function removeDirectory(directory: string): Promise<void> {
+  const attempts = process.platform === "win32" ? 8 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await rm(directory, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!isRetryableRemoveError(error) || attempt === attempts - 1) throw error;
+      await new Promise((fulfill) => setTimeout(fulfill, 25 * 2 ** attempt));
+    }
+  }
+}
+
+afterEach(async () => {
+  await Promise.all(children.splice(0).map((child) => stopChild(child)));
   await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((directory) => removeDirectory(directory)));
 });
 
 beforeAll(async () => {
@@ -240,7 +290,7 @@ describe("hosted GitHub Actions recipe", () => {
     const port = await freeLoopbackPort();
     const origin = `http://127.0.0.1:${String(port)}`;
     const token = "ci-synthetic-target-key";
-    const child = spawn(process.execPath, ["server.mjs"], {
+    const child = spawn(process.execPath, [resolve(cwd, "server.mjs")], {
       cwd,
       env: {
         ...process.env,
