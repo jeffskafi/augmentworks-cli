@@ -60,6 +60,30 @@ const packetSelectionSchema = z
 
 const parameterValueSchema = z.union([z.string().max(2_000), z.number().finite(), z.boolean(), z.null()]);
 
+const selectionIdentifier = z
+  .string()
+  .min(1)
+  .max(300)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
+
+export const AssessmentSelectionSchema = z
+  .object({
+    profile: z.enum(["smoke", "release"]),
+    suite_version: z
+      .string()
+      .min(1)
+      .max(80)
+      .regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/)
+      .optional(),
+    include_tags: z.array(z.string().min(1).max(80)).max(16).optional(),
+    exclude_tags: z.array(z.string().min(1).max(80)).max(16).optional(),
+    include_catalog: z.boolean().optional(),
+    requested_case_ids: z.array(selectionIdentifier).max(48).optional(),
+    excluded_case_ids: z.array(selectionIdentifier).max(48).optional(),
+    suite_revision_id: z.string().min(1).max(128).optional()
+  })
+  .strict();
+
 export const AssessmentFileSchema = z
   .object({
     schema_version: z.literal(ASSESSMENT_FILE_SCHEMA),
@@ -89,7 +113,8 @@ export const AssessmentFileSchema = z
         prose: z.string().max(8_000).optional()
       })
       .strict()
-      .optional()
+      .optional(),
+    selection: AssessmentSelectionSchema.optional()
   })
   .strict()
   .superRefine((value, context) => {
@@ -149,5 +174,6 @@ export const AssessmentFileSchema = z
 export type AssessmentProfile = z.infer<typeof AssessmentProfileSchema>;
 export type EvaluationMode = z.infer<typeof EvaluationModeSchema>;
 export type AssessmentFile = z.infer<typeof AssessmentFileSchema>;
+export type AssessmentSelection = z.infer<typeof AssessmentSelectionSchema>;
 export type LocalReferenceSpec = z.infer<typeof localReferenceSchema>;
 export type PacketSelection = z.infer<typeof packetSelectionSchema>;

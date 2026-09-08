@@ -31,7 +31,7 @@ describe("CLI entrypoint", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "test", "suite", "investigation", "run", "compare", "gate", "baseline", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "catalog", "selection", "test", "suite", "investigation", "run", "compare", "gate", "baseline", "recover", "schema"]) {
       expect(result.stdout).toMatch(new RegExp(`^  ${command}(?: \\[options\\])?`, "m"));
     }
     expect(result.stdout).not.toMatch(/^  connect\b/m);
@@ -69,6 +69,7 @@ describe("CLI entrypoint", () => {
     expect(gate.exitCode).toBe(0);
     expect(gate.stdout).toContain("--wait");
     expect(gate.stdout).toContain("--timeout-ms");
+    expect(gate.stdout).toContain("--manifest-file");
 
     const baseline = await runSourceCli(["baseline", "--help"], { cwd: projectRoot });
     expect(baseline.exitCode).toBe(0);
@@ -80,6 +81,15 @@ describe("CLI entrypoint", () => {
     expect(investigation.stdout).toContain("inspect");
     expect(investigation.stdout).toContain("fetch");
     expect(investigation.stdout).toContain("export-regression");
+
+    const catalog = await runSourceCli(["catalog", "--help"], { cwd: projectRoot });
+    expect(catalog.exitCode).toBe(0);
+    expect(catalog.stdout).toContain("list");
+    expect(catalog.stdout).toContain("show");
+
+    const selection = await runSourceCli(["selection", "--help"], { cwd: projectRoot });
+    expect(selection.exitCode).toBe(0);
+    expect(selection.stdout).toContain("compile");
   });
 
   it("documents test --headless as explicit noninteractive hosted mode", async () => {

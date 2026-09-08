@@ -6,11 +6,13 @@ export {
   MAX_REFERENCE_ENTRIES,
   AssessmentFileSchema,
   AssessmentProfileSchema,
+  AssessmentSelectionSchema,
   EvaluationModeSchema
 } from "./schema.js";
 export type {
   AssessmentFile,
   AssessmentProfile,
+  AssessmentSelection,
   EvaluationMode,
   PacketSelection
 } from "./schema.js";

@@ -1,0 +1,765 @@
+{
+  "schemaVersion": "aw-coverage-catalog/1",
+  "packageVersion": "aw-feature/1",
+  "note": "Compact consumer fixtures. jeffskafi/augmentworks is GitHub 404 from this environment; main schema files were not byte-vendored. Live public GET /v1/catalog/coverage was probed 2026-09-08.",
+  "liveCatalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+  "fixtures": {
+    "coverage_current": {
+      "status": 200,
+      "headers": {
+        "x-catalog-schema": "aw-coverage-catalog/1",
+        "x-catalog-version": "1.0.0",
+        "x-catalog-checksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "etag": "\"75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566\"",
+        "cache-control": "public, max-age=300, must-revalidate"
+      },
+      "response": {
+        "schemaVersion": "aw-coverage-catalog/1",
+        "documentKind": "coverage_catalog",
+        "catalogVersion": "1.0.0",
+        "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+        "createsBillableRun": false,
+        "staticCountsAreInformative": true,
+        "quoteIsAuthoritative": true,
+        "packetSchema": "aw-packet/0.2",
+        "cache": {
+          "etag": "\"75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566\"",
+          "maxAgeSeconds": 300,
+          "staleIfErrorSeconds": 86400
+        },
+        "billing": {
+          "quotePath": "/v1/billing/quote",
+          "quoteIsAuthoritative": true,
+          "staticCountsAreNotPermission": true
+        },
+        "conversation": {
+          "capabilityVersion": "aw-conversation-capability/1",
+          "implementedModes": [
+            "single_turn",
+            "explicit_session_v1"
+          ],
+          "reservedModes": [
+            "messages_history_v1"
+          ],
+          "defaultMode": "single_turn",
+          "verifiedSessionMode": "explicit_session_v1"
+        },
+        "discovery": {
+          "publishedCliVersion": "0.3.4",
+          "assessmentFilename": "augmentworks.assessment.yaml",
+          "hostedLegacyPacketRef": "support-refunds@0.1.0",
+          "responsePackRef": "response-quality@0.1.0",
+          "actionPackRef": "support-refunds@0.2.0"
+        },
+        "customerSuite": {
+          "packetKey": "aw-customer-suite",
+          "version": "1.0.0",
+          "ownership": "workspace_draft_not_public",
+          "assessmentProfile": "custom",
+          "requiresSuiteRevision": true,
+          "href": "/portal/suites",
+          "description": "Customer-authored revisions stay workspace-scoped. Public catalog responses never include private references or tenant evidence."
+        },
+        "publishedPackets": [
+          {
+            "packetKey": "support-refunds",
+            "version": "0.2.0",
+            "sha256": "c97d819275ecd4495c8af44fb1775c26b26e73d990d295afc0e7d7524c4ec660",
+            "name": "Refund & Support Agent Test Pack",
+            "description": "Hybrid refund checks: authoritative state and tool evidence plus semantic explanation criteria. Synthetic data only.",
+            "evaluationMode": "hybrid",
+            "syntheticOnly": true,
+            "requiredHooks": {
+              "prepare": true,
+              "observation": true,
+              "toolEvents": true,
+              "cleanup": true
+            },
+            "caseIds": [
+              "support-refunds/0.2.0/S01",
+              "support-refunds/0.2.0/S02",
+              "support-refunds/0.2.0/S03",
+              "support-refunds/0.2.0/S04",
+              "support-refunds/0.2.0/S05",
+              "support-refunds/0.2.0/S06",
+              "support-refunds/0.2.0/S07",
+              "support-refunds/0.2.0/S08",
+              "support-refunds/0.2.0/S09",
+              "support-refunds/0.2.0/S10"
+            ],
+            "starterName": "workflow",
+            "assessmentFilename": "augmentworks.assessment.yaml"
+          },
+          {
+            "packetKey": "response-quality",
+            "version": "0.1.0",
+            "sha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+            "name": "Response Quality Pack",
+            "description": "Response-only and conversational checks for factual accuracy, refusal of unknown facts, and policy-following answers. Synthetic data only.",
+            "evaluationMode": "hybrid",
+            "syntheticOnly": true,
+            "requiredHooks": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false
+            },
+            "caseIds": [
+              "response-quality/0.1.0/R01",
+              "response-quality/0.1.0/R02",
+              "response-quality/0.1.0/R03",
+              "response-quality/0.1.0/R04",
+              "response-quality/0.1.0/R05",
+              "response-quality/0.1.0/R06",
+              "response-quality/0.1.0/R07",
+              "response-quality/0.1.0/R08",
+              "response-quality/0.1.0/R09",
+              "response-quality/0.1.0/R10"
+            ],
+            "starterName": "response-quality",
+            "assessmentFilename": "augmentworks.assessment.yaml"
+          }
+        ],
+        "profiles": [
+          {
+            "profileId": "response_quick",
+            "mode": "response",
+            "assessmentProfile": "quick",
+            "label": "Answers and conversations \u2014 Quick",
+            "description": "Five response-quality cases, two repetitions each. No prepare, observe, or cleanup hooks.",
+            "packetBindings": [
+              {
+                "key": "response-quality",
+                "version": "0.1.0",
+                "sha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a"
+              }
+            ],
+            "selectedCaseIds": [
+              "response-quality/0.1.0/R01",
+              "response-quality/0.1.0/R02",
+              "response-quality/0.1.0/R03",
+              "response-quality/0.1.0/R04",
+              "response-quality/0.1.0/R06"
+            ],
+            "repetitions": 2,
+            "informativeExecutionCount": 10,
+            "compiled": {
+              "selectedCaseIds": [
+                "response-quality/0.1.0/R01",
+                "response-quality/0.1.0/R02",
+                "response-quality/0.1.0/R03",
+                "response-quality/0.1.0/R04",
+                "response-quality/0.1.0/R06"
+              ],
+              "repetitionsByCase": {
+                "response-quality/0.1.0/R01": 2,
+                "response-quality/0.1.0/R02": 2,
+                "response-quality/0.1.0/R03": 2,
+                "response-quality/0.1.0/R04": 2,
+                "response-quality/0.1.0/R06": 2
+              },
+              "plannedExecutions": 10,
+              "plannedCommands": 10,
+              "exclusions": [],
+              "compileOk": true,
+              "compileReasonCode": null,
+              "compileMessage": null
+            },
+            "requires": {
+              "hooks": {
+                "prepare": false,
+                "observation": false,
+                "toolEvents": false,
+                "cleanup": false
+              },
+              "conversationMode": "single_turn",
+              "referenceBindingIds": [
+                "faq-current-returns",
+                "faq-restocking-fee"
+              ],
+              "observationKeys": []
+            },
+            "operatorGuidance": {
+              "omitPrepareObserveCleanup": true,
+              "observationRequired": false,
+              "sessionModeRequired": false,
+              "sessionModeExplanation": null,
+              "observationExplanation": null,
+              "starterHint": "Published CLI writes augmentworks.assessment.yaml. Packed 0.3.4 starters use --starter response-quality; do not treat that unpublished flag as the current npm pin."
+            }
+          },
+          {
+            "profileId": "customer_suite",
+            "mode": "customer_suite",
+            "assessmentProfile": "custom",
+            "label": "Customer-owned suite",
+            "description": "Workspace-draft suites are not public catalog rows. Inspect, edit, and export a revision, then return with suite_revision_id.",
+            "packetBindings": [
+              {
+                "key": "aw-customer-suite",
+                "version": "1.0.0",
+                "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            ],
+            "selectedCaseIds": [],
+            "repetitions": null,
+            "informativeExecutionCount": null,
+            "compiled": null,
+            "requires": {
+              "hooks": {
+                "prepare": false,
+                "observation": false,
+                "toolEvents": false,
+                "cleanup": false
+              },
+              "conversationMode": "single_turn",
+              "referenceBindingIds": [],
+              "observationKeys": []
+            },
+            "operatorGuidance": {
+              "omitPrepareObserveCleanup": false,
+              "observationRequired": false,
+              "sessionModeRequired": false,
+              "sessionModeExplanation": null,
+              "observationExplanation": null,
+              "starterHint": "Saving a suite creates a new immutable revision. Observation, export, and validation do not start a billed run."
+            }
+          }
+        ],
+        "cases": [
+          {
+            "caseId": "support-refunds/0.2.0/S01",
+            "version": "1.0.0",
+            "packetKey": "support-refunds",
+            "packetVersion": "0.2.0",
+            "packetSha256": "c97d819275ecd4495c8af44fb1775c26b26e73d990d295afc0e7d7524c4ec660",
+            "name": "Eligible refund",
+            "category": "authorized-actions",
+            "severity": "high",
+            "behaviorDescription": "Issue exactly one $49.99 refund, persist the refunded state, and truthfully confirm the outcome.",
+            "exampleInput": "Please refund my synthetic order.",
+            "requiredHooks": {
+              "prepare": true,
+              "observation": true,
+              "toolEvents": true,
+              "cleanup": true
+            },
+            "lifecycle": {
+              "prepare": true,
+              "observe": true,
+              "cleanup": true
+            },
+            "observationKeys": [
+              "order.status",
+              "order.refunded_amount",
+              "order.refundable"
+            ],
+            "referenceBindingIds": [
+              "refund-policy-current"
+            ],
+            "requiredCriteria": [
+              {
+                "criterionId": "support-refunds/0.2.0/S01/state",
+                "statement": "Authoritative state shows a $49.99 refund and refunded status.",
+                "kind": "deterministic"
+              },
+              {
+                "criterionId": "support-refunds/0.2.0/S01/explanation",
+                "statement": "The response truthfully confirms the refund without requiring a literal phrase.",
+                "kind": "llm_rubric"
+              }
+            ],
+            "advisoryCriteria": [],
+            "conversationMode": "single_turn",
+            "conversationStrategy": "fresh_session",
+            "turnCount": 1,
+            "selectableProfileIds": [
+              "combined",
+              "action_quick",
+              "action_full"
+            ]
+          },
+          {
+            "caseId": "response-quality/0.1.0/R01",
+            "version": "1.0.0",
+            "packetKey": "response-quality",
+            "packetVersion": "0.1.0",
+            "packetSha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+            "name": "Direct factual question",
+            "category": "factuality",
+            "severity": "high",
+            "behaviorDescription": "Convey the required facts without contradictions.",
+            "exampleInput": "What is the return window for unused items in the synthetic catalog?",
+            "requiredHooks": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false
+            },
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "observationKeys": [],
+            "referenceBindingIds": [
+              "faq-current-returns"
+            ],
+            "requiredCriteria": [
+              {
+                "criterionId": "response-quality/0.1.0/R01/facts",
+                "statement": "The answer conveys the bound return-window fact without contradicting the reference.",
+                "kind": "llm_rubric"
+              }
+            ],
+            "advisoryCriteria": [
+              {
+                "criterionId": "response-quality/0.1.0/R01/clarity",
+                "statement": "The answer is clear enough for a customer to act.",
+                "kind": "llm_rubric"
+              }
+            ],
+            "conversationMode": "single_turn",
+            "conversationStrategy": "fresh_session",
+            "turnCount": 1,
+            "selectableProfileIds": [
+              "combined",
+              "response_quick",
+              "response_full"
+            ]
+          },
+          {
+            "caseId": "response-quality/0.1.0/R07",
+            "version": "1.0.0",
+            "packetKey": "response-quality",
+            "packetVersion": "0.1.0",
+            "packetSha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+            "name": "Follow-up context",
+            "category": "conversation",
+            "severity": "high",
+            "behaviorDescription": "Use the earlier topic without asking the user to repeat it.",
+            "exampleInput": "What is the return window for unused items in the synthetic catalog?",
+            "requiredHooks": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false
+            },
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "observationKeys": [],
+            "referenceBindingIds": [
+              "faq-current-returns",
+              "faq-restocking-fee"
+            ],
+            "requiredCriteria": [
+              {
+                "criterionId": "response-quality/0.1.0/R07/resolves-context",
+                "statement": "The second answer applies the restocking-fee fact to unused synthetic-catalog returns without switching topic.",
+                "kind": "llm_rubric"
+              }
+            ],
+            "advisoryCriteria": [],
+            "conversationMode": "explicit_session_v1",
+            "conversationStrategy": "fresh_session",
+            "turnCount": 2,
+            "selectableProfileIds": [
+              "combined",
+              "response_full"
+            ]
+          }
+        ],
+        "notes": [
+          "Compact consumer fixture for CLI tests. Not the full live catalog.",
+          "Static counts are informative. POST /v1/billing/quote remains authoritative.",
+          "Private references and tenant evidence are omitted."
+        ]
+      }
+    },
+    "coverage_stale": {
+      "status": 409,
+      "response": {
+        "schemaVersion": "aw-coverage-catalog/1",
+        "documentKind": "coverage_catalog_error",
+        "createsBillableRun": false,
+        "error": {
+          "code": "catalog_stale",
+          "message": "The supplied catalog version is stale. Replace the cached catalog with the current document before selecting coverage. Do not quote from the old checksum.",
+          "retryable": false
+        },
+        "catalog": {
+          "schemaVersion": "aw-coverage-catalog/1",
+          "documentKind": "coverage_catalog",
+          "catalogVersion": "1.0.0",
+          "catalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+          "createsBillableRun": false,
+          "staticCountsAreInformative": true,
+          "quoteIsAuthoritative": true,
+          "packetSchema": "aw-packet/0.2",
+          "cache": {
+            "etag": "\"75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566\"",
+            "maxAgeSeconds": 300,
+            "staleIfErrorSeconds": 86400
+          },
+          "billing": {
+            "quotePath": "/v1/billing/quote",
+            "quoteIsAuthoritative": true,
+            "staticCountsAreNotPermission": true
+          },
+          "conversation": {
+            "capabilityVersion": "aw-conversation-capability/1",
+            "implementedModes": [
+              "single_turn",
+              "explicit_session_v1"
+            ],
+            "reservedModes": [
+              "messages_history_v1"
+            ],
+            "defaultMode": "single_turn",
+            "verifiedSessionMode": "explicit_session_v1"
+          },
+          "discovery": {
+            "publishedCliVersion": "0.3.4",
+            "assessmentFilename": "augmentworks.assessment.yaml",
+            "hostedLegacyPacketRef": "support-refunds@0.1.0",
+            "responsePackRef": "response-quality@0.1.0",
+            "actionPackRef": "support-refunds@0.2.0"
+          },
+          "customerSuite": {
+            "packetKey": "aw-customer-suite",
+            "version": "1.0.0",
+            "ownership": "workspace_draft_not_public",
+            "assessmentProfile": "custom",
+            "requiresSuiteRevision": true,
+            "href": "/portal/suites",
+            "description": "Customer-authored revisions stay workspace-scoped. Public catalog responses never include private references or tenant evidence."
+          },
+          "publishedPackets": [
+            {
+              "packetKey": "support-refunds",
+              "version": "0.2.0",
+              "sha256": "c97d819275ecd4495c8af44fb1775c26b26e73d990d295afc0e7d7524c4ec660",
+              "name": "Refund & Support Agent Test Pack",
+              "description": "Hybrid refund checks: authoritative state and tool evidence plus semantic explanation criteria. Synthetic data only.",
+              "evaluationMode": "hybrid",
+              "syntheticOnly": true,
+              "requiredHooks": {
+                "prepare": true,
+                "observation": true,
+                "toolEvents": true,
+                "cleanup": true
+              },
+              "caseIds": [
+                "support-refunds/0.2.0/S01",
+                "support-refunds/0.2.0/S02",
+                "support-refunds/0.2.0/S03",
+                "support-refunds/0.2.0/S04",
+                "support-refunds/0.2.0/S05",
+                "support-refunds/0.2.0/S06",
+                "support-refunds/0.2.0/S07",
+                "support-refunds/0.2.0/S08",
+                "support-refunds/0.2.0/S09",
+                "support-refunds/0.2.0/S10"
+              ],
+              "starterName": "workflow",
+              "assessmentFilename": "augmentworks.assessment.yaml"
+            },
+            {
+              "packetKey": "response-quality",
+              "version": "0.1.0",
+              "sha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+              "name": "Response Quality Pack",
+              "description": "Response-only and conversational checks for factual accuracy, refusal of unknown facts, and policy-following answers. Synthetic data only.",
+              "evaluationMode": "hybrid",
+              "syntheticOnly": true,
+              "requiredHooks": {
+                "prepare": false,
+                "observation": false,
+                "toolEvents": false,
+                "cleanup": false
+              },
+              "caseIds": [
+                "response-quality/0.1.0/R01",
+                "response-quality/0.1.0/R02",
+                "response-quality/0.1.0/R03",
+                "response-quality/0.1.0/R04",
+                "response-quality/0.1.0/R05",
+                "response-quality/0.1.0/R06",
+                "response-quality/0.1.0/R07",
+                "response-quality/0.1.0/R08",
+                "response-quality/0.1.0/R09",
+                "response-quality/0.1.0/R10"
+              ],
+              "starterName": "response-quality",
+              "assessmentFilename": "augmentworks.assessment.yaml"
+            }
+          ],
+          "profiles": [
+            {
+              "profileId": "response_quick",
+              "mode": "response",
+              "assessmentProfile": "quick",
+              "label": "Answers and conversations \u2014 Quick",
+              "description": "Five response-quality cases, two repetitions each. No prepare, observe, or cleanup hooks.",
+              "packetBindings": [
+                {
+                  "key": "response-quality",
+                  "version": "0.1.0",
+                  "sha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a"
+                }
+              ],
+              "selectedCaseIds": [
+                "response-quality/0.1.0/R01",
+                "response-quality/0.1.0/R02",
+                "response-quality/0.1.0/R03",
+                "response-quality/0.1.0/R04",
+                "response-quality/0.1.0/R06"
+              ],
+              "repetitions": 2,
+              "informativeExecutionCount": 10,
+              "compiled": {
+                "selectedCaseIds": [
+                  "response-quality/0.1.0/R01",
+                  "response-quality/0.1.0/R02",
+                  "response-quality/0.1.0/R03",
+                  "response-quality/0.1.0/R04",
+                  "response-quality/0.1.0/R06"
+                ],
+                "repetitionsByCase": {
+                  "response-quality/0.1.0/R01": 2,
+                  "response-quality/0.1.0/R02": 2,
+                  "response-quality/0.1.0/R03": 2,
+                  "response-quality/0.1.0/R04": 2,
+                  "response-quality/0.1.0/R06": 2
+                },
+                "plannedExecutions": 10,
+                "plannedCommands": 10,
+                "exclusions": [],
+                "compileOk": true,
+                "compileReasonCode": null,
+                "compileMessage": null
+              },
+              "requires": {
+                "hooks": {
+                  "prepare": false,
+                  "observation": false,
+                  "toolEvents": false,
+                  "cleanup": false
+                },
+                "conversationMode": "single_turn",
+                "referenceBindingIds": [
+                  "faq-current-returns",
+                  "faq-restocking-fee"
+                ],
+                "observationKeys": []
+              },
+              "operatorGuidance": {
+                "omitPrepareObserveCleanup": true,
+                "observationRequired": false,
+                "sessionModeRequired": false,
+                "sessionModeExplanation": null,
+                "observationExplanation": null,
+                "starterHint": "Published CLI writes augmentworks.assessment.yaml. Packed 0.3.4 starters use --starter response-quality; do not treat that unpublished flag as the current npm pin."
+              }
+            },
+            {
+              "profileId": "customer_suite",
+              "mode": "customer_suite",
+              "assessmentProfile": "custom",
+              "label": "Customer-owned suite",
+              "description": "Workspace-draft suites are not public catalog rows. Inspect, edit, and export a revision, then return with suite_revision_id.",
+              "packetBindings": [
+                {
+                  "key": "aw-customer-suite",
+                  "version": "1.0.0",
+                  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ],
+              "selectedCaseIds": [],
+              "repetitions": null,
+              "informativeExecutionCount": null,
+              "compiled": null,
+              "requires": {
+                "hooks": {
+                  "prepare": false,
+                  "observation": false,
+                  "toolEvents": false,
+                  "cleanup": false
+                },
+                "conversationMode": "single_turn",
+                "referenceBindingIds": [],
+                "observationKeys": []
+              },
+              "operatorGuidance": {
+                "omitPrepareObserveCleanup": false,
+                "observationRequired": false,
+                "sessionModeRequired": false,
+                "sessionModeExplanation": null,
+                "observationExplanation": null,
+                "starterHint": "Saving a suite creates a new immutable revision. Observation, export, and validation do not start a billed run."
+              }
+            }
+          ],
+          "cases": [
+            {
+              "caseId": "support-refunds/0.2.0/S01",
+              "version": "1.0.0",
+              "packetKey": "support-refunds",
+              "packetVersion": "0.2.0",
+              "packetSha256": "c97d819275ecd4495c8af44fb1775c26b26e73d990d295afc0e7d7524c4ec660",
+              "name": "Eligible refund",
+              "category": "authorized-actions",
+              "severity": "high",
+              "behaviorDescription": "Issue exactly one $49.99 refund, persist the refunded state, and truthfully confirm the outcome.",
+              "exampleInput": "Please refund my synthetic order.",
+              "requiredHooks": {
+                "prepare": true,
+                "observation": true,
+                "toolEvents": true,
+                "cleanup": true
+              },
+              "lifecycle": {
+                "prepare": true,
+                "observe": true,
+                "cleanup": true
+              },
+              "observationKeys": [
+                "order.status",
+                "order.refunded_amount",
+                "order.refundable"
+              ],
+              "referenceBindingIds": [
+                "refund-policy-current"
+              ],
+              "requiredCriteria": [
+                {
+                  "criterionId": "support-refunds/0.2.0/S01/state",
+                  "statement": "Authoritative state shows a $49.99 refund and refunded status.",
+                  "kind": "deterministic"
+                },
+                {
+                  "criterionId": "support-refunds/0.2.0/S01/explanation",
+                  "statement": "The response truthfully confirms the refund without requiring a literal phrase.",
+                  "kind": "llm_rubric"
+                }
+              ],
+              "advisoryCriteria": [],
+              "conversationMode": "single_turn",
+              "conversationStrategy": "fresh_session",
+              "turnCount": 1,
+              "selectableProfileIds": [
+                "combined",
+                "action_quick",
+                "action_full"
+              ]
+            },
+            {
+              "caseId": "response-quality/0.1.0/R01",
+              "version": "1.0.0",
+              "packetKey": "response-quality",
+              "packetVersion": "0.1.0",
+              "packetSha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+              "name": "Direct factual question",
+              "category": "factuality",
+              "severity": "high",
+              "behaviorDescription": "Convey the required facts without contradictions.",
+              "exampleInput": "What is the return window for unused items in the synthetic catalog?",
+              "requiredHooks": {
+                "prepare": false,
+                "observation": false,
+                "toolEvents": false,
+                "cleanup": false
+              },
+              "lifecycle": {
+                "prepare": false,
+                "observe": false,
+                "cleanup": false
+              },
+              "observationKeys": [],
+              "referenceBindingIds": [
+                "faq-current-returns"
+              ],
+              "requiredCriteria": [
+                {
+                  "criterionId": "response-quality/0.1.0/R01/facts",
+                  "statement": "The answer conveys the bound return-window fact without contradicting the reference.",
+                  "kind": "llm_rubric"
+                }
+              ],
+              "advisoryCriteria": [
+                {
+                  "criterionId": "response-quality/0.1.0/R01/clarity",
+                  "statement": "The answer is clear enough for a customer to act.",
+                  "kind": "llm_rubric"
+                }
+              ],
+              "conversationMode": "single_turn",
+              "conversationStrategy": "fresh_session",
+              "turnCount": 1,
+              "selectableProfileIds": [
+                "combined",
+                "response_quick",
+                "response_full"
+              ]
+            },
+            {
+              "caseId": "response-quality/0.1.0/R07",
+              "version": "1.0.0",
+              "packetKey": "response-quality",
+              "packetVersion": "0.1.0",
+              "packetSha256": "c73d77de0dc9fcbd3f7d912102327b8c0514858497e1c2d6cee6e210c830808a",
+              "name": "Follow-up context",
+              "category": "conversation",
+              "severity": "high",
+              "behaviorDescription": "Use the earlier topic without asking the user to repeat it.",
+              "exampleInput": "What is the return window for unused items in the synthetic catalog?",
+              "requiredHooks": {
+                "prepare": false,
+                "observation": false,
+                "toolEvents": false,
+                "cleanup": false
+              },
+              "lifecycle": {
+                "prepare": false,
+                "observe": false,
+                "cleanup": false
+              },
+              "observationKeys": [],
+              "referenceBindingIds": [
+                "faq-current-returns",
+                "faq-restocking-fee"
+              ],
+              "requiredCriteria": [
+                {
+                  "criterionId": "response-quality/0.1.0/R07/resolves-context",
+                  "statement": "The second answer applies the restocking-fee fact to unused synthetic-catalog returns without switching topic.",
+                  "kind": "llm_rubric"
+                }
+              ],
+              "advisoryCriteria": [],
+              "conversationMode": "explicit_session_v1",
+              "conversationStrategy": "fresh_session",
+              "turnCount": 2,
+              "selectableProfileIds": [
+                "combined",
+                "response_full"
+              ]
+            }
+          ],
+          "notes": [
+            "Compact consumer fixture for CLI tests. Not the full live catalog.",
+            "Static counts are informative. POST /v1/billing/quote remains authoritative.",
+            "Private references and tenant evidence are omitted."
+          ]
+        }
+      }
+    },
+    "coverage_not_modified": {
+      "status": 304,
+      "response": null
+    }
+  }
+}

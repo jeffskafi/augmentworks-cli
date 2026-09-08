@@ -66,7 +66,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Candidate 0.3.4 is the first-dollar customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.4), not 0.3.2. npm 0.3.3 remains an immutable registry artifact (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, published 2026-09-07T16:21:14Z) and is not overwritten or relabeled; that tarball lacks suite validate/preview, test --suite, and starter/probe. Last independently verified published tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Registry verification of 0.3.4 is recorded in docs/feature-readiness/first-dollar-registry-acceptance.json, not by flipping this candidate flag. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Do not run @latest."
+    "Candidate 0.3.4 is the first-dollar customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.4), not 0.3.2. npm 0.3.3 remains an immutable registry artifact (gitHead 4a08ea0d352f2515e725cb9ca946807112422436, published 2026-09-07T16:21:14Z) and is not overwritten or relabeled; that tarball lacks suite validate/preview, test --suite, and starter/probe. Last independently verified published tarball remains @augmentworks/cli@0.3.2 (gitHead d36ec8590b005445dba940d2df3abcb53971cea5). Registry verification of 0.3.4 is recorded in docs/feature-readiness/first-dollar-registry-acceptance.json, not by flipping this candidate flag. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Catalog list/show and selection compile consume aw-coverage-catalog/1 and aw-suite-selection/1 without a local compiler or pricing engine. Do not run @latest."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -283,6 +283,31 @@ export const SOURCE_INVESTIGATION_TEST_COMMAND = formatWrappedCommand("node dist
   "--investigation examples/investigations/response-only.json",
   "--max-credits 30",
   "--yes"
+]);
+export const SOURCE_CATALOG_LIST_COMMAND = formatSourceCli(["catalog", "list", "--json"]);
+export const SOURCE_CATALOG_SHOW_COMMAND = formatSourceCli([
+  "catalog",
+  "show",
+  "response-quality/0.1.0/R01"
+]);
+export const SOURCE_SELECTION_COMPILE_COMMAND = formatWrappedCommand("node dist/index.js", "selection compile", [
+  "-c augmentworks.yaml",
+  "--assessment ./augmentworks.assessment.yaml",
+  "--out ./suite-selection.manifest.json"
+]);
+export const SOURCE_TEST_SHARD_COMMAND = formatWrappedCommand("node dist/index.js", "test", [
+  "--manifest ./suite-selection.manifest.json",
+  "--shard shard-000",
+  "--max-credits 30",
+  "--yes"
+]);
+export const SOURCE_GATE_MANIFEST_COMMAND = formatSourceCli([
+  "gate",
+  "--manifest-file",
+  "./suite-selection.manifest.json",
+  "--declared-shards",
+  "./suite-selection.declared-shards.json",
+  "--json"
 ]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {
