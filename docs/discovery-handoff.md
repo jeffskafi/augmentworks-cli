@@ -63,9 +63,10 @@ npx --yes @augmentworks/cli@0.3.5 demo
 Website maintainers must independently review and adopt a **pinned** published
 manifest. Never fetch `latest` into the live website at runtime.
 
-Keep the live website snapshot on independently inspected
-`@augmentworks/cli@0.3.4` until website maintainers deliberately adopt 0.3.5.
-Do not pin immutable npm `0.3.3`. Do not overwrite 0.3.4.
+Independently inspected `@augmentworks/cli@0.3.5` is ready for a deliberate
+website pin (`gitHead` `11570f6cf883ec6e6743e010c35134bb485234dd`,
+`verifiedAt` `2026-09-09T02:56:49.964Z`, `localDemo` verified via packed
+`demo --json`). Do not pin immutable npm `0.3.3`. Do not overwrite 0.3.4.
 
 Command arrays are data for reviewed rendering and tests. The website must not
 execute imported command arrays.
@@ -88,11 +89,16 @@ npm test
 
 ## Next publish/release step
 
-1. Land this source on `main`.
-2. Run `npm run check && npm run audit:ci && npm run smoke:pack`.
-3. Create a protected `v0.3.5` GitHub release (maintainers only; existing
-   `.github/workflows/release.yml`, non-draft, non-prerelease, `npm` environment).
+1. Land this source on `main`. **Done** (`11570f6`, CLI PR #39).
+2. Run `npm run check && npm run audit:ci && npm run smoke:pack`. **Done** (merge CI green).
+3. Create a protected `v0.3.5` GitHub release. **Done** 2026-09-09T02:51:28Z.
    Do not overwrite `v0.3.4`.
 4. Download the npm tarball and run `scripts/verify-published-discovery.mjs --version 0.3.5`.
+   **Done.** Registry `gitHead` `11570f6cf883ec6e6743e010c35134bb485234dd`,
+   integrity `sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ==`,
+   published `2026-09-09T02:56:49.964Z`. Packed `--version` `0.3.5`;
+   `published_package_verified: true`; `demo --json` ok.
 5. Fill `thisPackageIdentity` in `docs/feature-readiness/published-registry-evidence.json`.
-6. Hand the published 0.3.5 manifest to website maintainers. Do not self-adopt.
+   **Done** in this follow-up (status `independently-inspected`).
+6. Hand the published 0.3.5 manifest to website maintainers. Website maintainers
+   may now adopt the pinned 0.3.5 snapshot. Do not fetch `latest` at runtime.
