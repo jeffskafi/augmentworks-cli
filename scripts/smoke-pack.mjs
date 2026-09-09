@@ -5,6 +5,7 @@ import { constants as fsConstants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { parsePackReport } from "./npm-pack-report.mjs";
 
@@ -81,6 +82,56 @@ function run(executable, args, options = {}) {
   }
 
   return { stdout: result.stdout, stderr: result.stderr };
+}
+
+function runAsync(executable, args, options = {}) {
+  return new Promise((fulfill, reject) => {
+    const child = spawn(executable, args, {
+      cwd: options.cwd ?? projectRoot,
+      env: { ...process.env, ...options.env, NO_COLOR: "1" },
+      windowsHide: true
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new SmokeFailure(`Timed out: ${executable} ${args.join(" ")}`));
+    }, options.timeoutMs ?? commandTimeoutMs);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(new SmokeFailure(`Could not run ${executable} ${args.join(" ")}: ${error.message}`));
+    });
+    child.once("close", (status, signal) => {
+      clearTimeout(timer);
+      if (options.allowFailure === true) {
+        fulfill({ status, stdout, stderr });
+        return;
+      }
+      if (status !== 0) {
+        reject(
+          new SmokeFailure(
+            [
+              `Command failed (${String(status ?? signal)}): ${executable} ${args.join(" ")}`,
+              stdout.trim(),
+              stderr.trim()
+            ]
+              .filter(Boolean)
+              .join("\n")
+          )
+        );
+        return;
+      }
+      fulfill({ status: 0, stdout, stderr });
+    });
+  });
 }
 
 async function walkFiles(root) {
@@ -252,6 +303,226 @@ async function assertBundledLicenseCoverage(packageRoot) {
       documentedAsHeading || documentedAsListItem,
       `THIRD_PARTY_NOTICES.md is missing bundled package ${packageName}`
     );
+  }
+}
+
+const ACTION_COMPILE_CAPABILITIES = {
+  prepare: true,
+  observation: true,
+  toolEvents: true,
+  cleanup: true,
+  multiTurn: false,
+  observationKeys: ["order.refundable", "order.refunded_amount", "order.status"]
+};
+
+const ACTION_CONNECTOR_YAML = `version: 1
+target:
+  name: refunds-staging
+  connector: http
+  base_url: http://127.0.0.1:9
+  operations:
+    prepare:
+      method: POST
+      path: /__augmentworks/prepare
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+        fixture: $input.fixture
+    send:
+      method: POST
+      path: /chat
+      request:
+        message: $input.message.content
+      response:
+        content: $.answer
+        tool_events: $.events
+    observe:
+      method: POST
+      path: /__augmentworks/observe
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+        probe_keys: $input.probe_keys
+      response:
+        order.status: $.order.status
+        order.refunded_amount: $.order.refunded_amount
+        order.refundable: $.order.refundable
+    cleanup:
+      method: POST
+      path: /__augmentworks/cleanup
+      idempotent: true
+      request:
+        attempt_id: $input.attempt_id
+telemetry:
+  allow_tool_events: true
+  allow_observations:
+    - order.status
+    - order.refunded_amount
+    - order.refundable
+`;
+
+function packedSelectionManifest(included) {
+  const hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const caseId = "support-refunds/0.2.0/S01";
+  return {
+    schemaVersion: "aw-suite-selection/1",
+    documentKind: "suite_selection_manifest",
+    selectionVersion: "1.0.0",
+    createsBillableRun: false,
+    catalogChecksum: hash,
+    inventoryHash: hash,
+    normalizedSelection: {
+      profile: "smoke",
+      includeTags: [],
+      excludeTags: [],
+      conversationMode: "single_turn",
+      excludedCaseIds: [],
+      requestedCaseIds: []
+    },
+    requestedCaseCount: 1,
+    includedCaseCount: included ? 1 : 0,
+    plannedExecutions: included ? 2 : 0,
+    plannedCommands: included ? 8 : 0,
+    perRunLimits: { maxCases: 20, maxExecutions: 60, maxCommands: 512 },
+    quoteIsAuthoritative: true,
+    aggregateReleaseRequiresCompleteCoverage: true,
+    executable: included,
+    unexecutableReason: included ? null : "No compatible cases remain after filters and capability checks.",
+    included: included
+      ? [{ caseId, reasonCode: "included", message: "included" }]
+      : [],
+    excluded: [],
+    incompatible: included
+      ? []
+      : [{ caseId, reasonCode: "capability_prepare", message: "missing prepare" }],
+    shards: included
+      ? [
+          {
+            shardId: "shard-000",
+            shardIndex: 0,
+            shardIdentityHash: hash,
+            caseIds: [caseId],
+            plannedExecutions: 2,
+            plannedCommands: 8,
+            planHash: hash,
+            packetBindings: [{ key: "support-refunds", version: "0.2.0" }],
+            compileOk: true
+          }
+        ]
+      : [],
+    manifestHash: hash
+  };
+}
+
+async function assertPackedSelectionCompile(packedBin, consumerDirectory) {
+  const workDirectory = join(consumerDirectory, "selection-capabilities");
+  await mkdir(workDirectory, { recursive: true });
+  await writeFile(join(workDirectory, "augmentworks.yaml"), ACTION_CONNECTOR_YAML, "utf8");
+  await writeFile(join(workDirectory, "broken.yaml"), "version: [\n", "utf8");
+
+  const requests = [];
+  const httpServer = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const chunks = [];
+    request.on("data", (chunk) => chunks.push(chunk));
+    request.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8");
+      const parsed = raw === "" ? undefined : JSON.parse(raw);
+      requests.push({ method: request.method ?? "GET", path: url.pathname, body: parsed });
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        const body = JSON.stringify({
+          subject: "user_test",
+          email: "developer@example.com",
+          workspace_id: "11111111-1111-4111-8111-111111111111",
+          workspace_name: "Test Workspace",
+          connector_id: "connector_test",
+          connector_name: "Refunds Staging",
+          scopes: ["connector:identity", "connector:run"]
+        });
+        response.writeHead(200, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
+        response.end(body);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/v1/suite-selections/compile") {
+        const capabilities = parsed?.capabilities ?? {};
+        const included =
+          capabilities.prepare === true &&
+          capabilities.observation === true &&
+          capabilities.toolEvents === true &&
+          capabilities.cleanup === true &&
+          Array.isArray(capabilities.observationKeys) &&
+          capabilities.observationKeys.join(",") === ACTION_COMPILE_CAPABILITIES.observationKeys.join(",");
+        const payload = JSON.stringify(packedSelectionManifest(included));
+        response.writeHead(200, { "content-type": "application/json", "content-length": Buffer.byteLength(payload) });
+        response.end(payload);
+        return;
+      }
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code: "NOT_FOUND", message: "missing" } }));
+    });
+  });
+
+  const baseUrl = await new Promise((fulfill, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(0, "127.0.0.1", () => {
+      const address = httpServer.address();
+      fulfill(`http://127.0.0.1:${String(address.port)}`);
+    });
+  });
+
+  try {
+    const env = {
+      AUGMENTWORKS_API_URL: baseUrl,
+      AUGMENTWORKS_TOKEN: "aw_connector_test_access_token_selection",
+      AUGMENTWORKS_API_KEY: "",
+      AUGMENTWORKS_REFRESH_TOKEN: "",
+      CI: "1"
+    };
+    const compiled = await runAsync(process.execPath, [packedBin, "selection", "compile", "--profile", "smoke", "--include-catalog", "--json"], {
+      cwd: workDirectory,
+      env
+    });
+    const compileRequest = requests.find((entry) => entry.method === "POST" && entry.path === "/v1/suite-selections/compile");
+    assert(compileRequest !== undefined, "packed selection compile did not POST /v1/suite-selections/compile");
+    const capabilities = compileRequest.body?.capabilities ?? {};
+    assert(capabilities.prepare === true, "packed compile omitted prepare");
+    assert(capabilities.observation === true, "packed compile omitted observation");
+    assert(capabilities.toolEvents === true, "packed compile omitted toolEvents");
+    assert(capabilities.cleanup === true, "packed compile omitted cleanup");
+    assert(capabilities.multiTurn === false, "packed compile overstated multiTurn");
+    assert(
+      Array.isArray(capabilities.observationKeys) &&
+        capabilities.observationKeys.join(",") === ACTION_COMPILE_CAPABILITIES.observationKeys.join(","),
+      `packed compile observationKeys were ${JSON.stringify(capabilities.observationKeys)}`
+    );
+    const payload = JSON.parse(compiled.stdout);
+    assert(payload.includedCaseCount === 1, "packed action compile did not include the action case");
+    assert(payload.createsBillableRun === false, "packed compile advertised a billable run");
+    assert(
+      !requests.some((entry) => entry.path === "/v1/billing/quote" || entry.path.startsWith("/v1/relay/runs")),
+      "packed selection compile created a quote or run"
+    );
+
+    const beforeFailure = requests.length;
+    const failed = await runAsync(
+      process.execPath,
+      [packedBin, "selection", "compile", "--config", "broken.yaml", "--profile", "smoke", "--include-catalog"],
+      {
+        cwd: workDirectory,
+        env,
+        allowFailure: true
+      }
+    );
+    assert(failed.status === 2, `packed malformed config exited ${String(failed.status)}: ${failed.stderr}`);
+    assert(/Error \[[A-Z0-9_]+\]:/.test(failed.stderr), "packed malformed config omitted the config diagnostic");
+    assert(requests.length === beforeFailure, "packed malformed config reached authentication or compile");
+  } finally {
+    await new Promise((fulfill, reject) => {
+      httpServer.close((error) => {
+        if (error) reject(error);
+        else fulfill();
+      });
+    });
   }
 }
 
@@ -441,6 +712,8 @@ async function main() {
     assert(catalogHelp.stdout.includes("show"), "packed CLI is missing catalog show");
     const selectionHelp = execCli(["selection", "--help"]);
     assert(selectionHelp.stdout.includes("compile"), "packed CLI is missing selection compile");
+    process.stdout.write("[pack smoke] checking packed selection compile capability snapshot\n");
+    await assertPackedSelectionCompile(join(installedRoot, "dist", "index.js"), consumerDirectory);
     const testHelpSelection = execCli(["test", "--help"]);
     assert(testHelpSelection.stdout.includes("--manifest"), "packed CLI is missing test --manifest");
     assert(testHelpSelection.stdout.includes("--all-shards"), "packed CLI is missing test --all-shards");

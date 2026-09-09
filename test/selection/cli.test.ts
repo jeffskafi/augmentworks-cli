@@ -153,6 +153,15 @@ describe("selection and manifest-gate CLI", () => {
         expect(body["schemaVersion"]).toBe("aw-suite-selection/1");
         expect(body["profile"]).toBe("smoke");
         expect(body["includeCatalog"]).toBe(true);
+        expect(body["conversationMode"]).toBe("single_turn");
+        expect(body["capabilities"]).toEqual({
+          prepare: false,
+          observation: false,
+          toolEvents: false,
+          cleanup: false,
+          multiTurn: false,
+          observationKeys: []
+        });
         send(response, empty.status, empty.response);
         return true;
       }

@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `selection compile` and assessment-driven hosted selection now forward the
+  connector's prepare/observation/tool-event/cleanup snapshot (including sorted
+  observation keys and truthful multi-turn) on `POST /v1/suite-selections/compile`.
+  A missing default `augmentworks.yaml` stays an explicit capability-free
+  single-turn mode. Malformed or unresolved `--config` paths fail with the
+  existing config diagnostic before authentication or quoting.
+
 ## [0.3.5] - 2026-09-08
 
 Corrective published-line package for 0.3.4's stale candidate/unverified
