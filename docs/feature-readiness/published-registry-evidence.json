@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "aw-cli-registry-evidence/1",
+  "semantics": "Post-publication independent inspection of npm tarballs. Packaged cli-release.json is this artifact's identity, not a live registry probe of this version. Do not overwrite or relabel existing npm versions.",
+  "lastIndependentlyInspected": {
+    "packageName": "@augmentworks/cli",
+    "version": "0.3.4",
+    "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
+    "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==",
+    "verifiedAt": "2026-09-08T06:38:24.847Z",
+    "githubRelease": "v0.3.4",
+    "githubReleasePublishedAt": "2026-09-08T06:33:39Z",
+    "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.4",
+    "notes": "Published and independently inspected. The immutable 0.3.4 tarball still contains stale candidate/unverified packaged metadata (AUG-79). Do not overwrite 0.3.4."
+  },
+  "thisPackageIdentity": {
+    "packageName": "@augmentworks/cli",
+    "version": "0.3.5",
+    "publishedPackageVerifiedMeaning": "published-line identity, not inspection of this tarball",
+    "gitHead": null,
+    "integrity": null,
+    "verifiedAt": null,
+    "status": "pending-protected-publish",
+    "notes": "Corrective metadata patch for 0.3.4 packaged copy. Fill gitHead/integrity/verifiedAt after the protected v0.3.5 GitHub release and npm trusted publish. Do not overwrite 0.3.4."
+  },
+  "immutableArtifacts": [
+    {
+      "version": "0.3.2",
+      "gitHead": "d36ec8590b005445dba940d2df3abcb53971cea5",
+      "verifiedAt": "2026-09-06T14:33:30.670Z"
+    },
+    {
+      "version": "0.3.3",
+      "gitHead": "4a08ea0d352f2515e725cb9ca946807112422436",
+      "verifiedAt": "2026-09-07T16:21:14.023Z",
+      "notes": "Published immutable artifact; not this customer-owned assessment release line. Do not relabel."
+    },
+    {
+      "version": "0.3.4",
+      "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
+      "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==",
+      "verifiedAt": "2026-09-08T06:38:24.847Z"
+    }
+  ]
+}

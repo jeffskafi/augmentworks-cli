@@ -10,6 +10,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { EXIT } from "../../src/errors.js";
 import { FEATURE_ACTIONS, MACHINE_CI_RECOMMENDED_ACTIONS } from "../../src/auth/types.js";
+import { CLI_VERSION } from "../../src/version.js";
 import { ensurePackedCliBuilt, runPackedCli, runSourceCli } from "../util/cli-process.js";
 import { listenLoopback, readJsonBody, type ListeningServer } from "../util/http-server.js";
 
@@ -280,7 +281,7 @@ describe("hosted GitHub Actions recipe", () => {
     expect(recipe).not.toMatch(/(?:^|\n)\s+logout\b/u);
     expect(recipe).not.toContain("baseline promote");
     expect(recipe).not.toContain("npx @augmentworks/cli@latest");
-    expect(recipe).toContain("@augmentworks/cli@0.3.4");
+    expect(recipe).toContain(`@augmentworks/cli@${CLI_VERSION}`);
     expect(recipe).toContain("run:execute");
     expect(recipe).toContain("Do not grant purchase");
   });

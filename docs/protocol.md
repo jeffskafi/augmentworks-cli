@@ -22,9 +22,9 @@ mode. Hybrid local packets are refused before any target call.
 
 - Cloud envelopes use `protocol_version: "aw-relay/0.1"` for legacy `--packet`
   runs such as `support-refunds@0.1.0`.
-- Source 0.3.2 hosted `--assessment` / hybrid / expanded plans use
-  `aw-relay/0.2`. Command sequence 101–512 is accepted only on 0.2.
-- This 0.3.4 package's quoted hosted `--assessment` uses `aw-relay/0.3` create with
+- Hosted `--assessment` / hybrid / expanded plans on `aw-relay/0.2` accept
+  command sequence 101–512 only on 0.2.
+- This package's quoted hosted `--assessment` uses `aw-relay/0.3` create with
   `quote_id` and optional `max_credits`. Command polling stays on 0.1/0.2.
   Do not send those fields through an unchanged 0.1/0.2 object.
 - Normalized target operation inputs and results use

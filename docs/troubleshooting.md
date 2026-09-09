@@ -3,7 +3,7 @@
 Start with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.4 doctor \
+npx --yes @augmentworks/cli@0.3.5 doctor \
   -c augmentworks.yaml
 ```
 
@@ -27,7 +27,7 @@ Pass the config path explicitly. `.env` must be beside that file, not
 necessarily in the current directory.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.4 doctor \
+npx --yes @augmentworks/cli@0.3.5 doctor \
   -c ./config/augmentworks.yaml
 ```
 
@@ -93,7 +93,7 @@ modules, symlinks, or executable instructions. Validate the expected data shape
 with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.4 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.5 schema --kind local-packet
 ```
 
 An `aw-packet/0.1` packet must declare `synthetic_only: true`, remain within the
@@ -104,7 +104,7 @@ packet with `evaluation_mode: hybrid` or `llm_rubric` criteria fail with
 
 ### `--assessment` requires an assessment file
 
-This `@augmentworks/cli@0.3.4` package includes `--assessment`. `init` writes
+This `@augmentworks/cli@0.3.5` package includes `--assessment`. `init` writes
 `augmentworks.assessment.yaml` and starter references.
 See `examples/response-agent/`. `--assessment` cannot be combined with `--local`.
 If hosted grading is pending after target work, the exit code is `11`, not `0`.
@@ -248,8 +248,8 @@ There is no `--rerun` flag and no force-new option.
 Inspect the existing assessment without creating another run:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.4 recover
-npx --yes @augmentworks/cli@0.3.4 recover --json
+npx --yes @augmentworks/cli@0.3.5 recover
+npx --yes @augmentworks/cli@0.3.5 recover --json
 ```
 
 `--retire` retires a create only after the server proves it never became a run,
@@ -279,8 +279,8 @@ support before attempting another assessment.
 
 ### `usage` cannot read billing
 
-`usage` is in this 0.3.4 package. Run `node dist/index.js usage` from a clone
-or `npx --yes @augmentworks/cli@0.3.4 usage` after install. The command uses the existing connector
+`usage` is in this 0.3.5 package. Run `node dist/index.js usage` from a clone
+or `npx --yes @augmentworks/cli@0.3.5 usage` after install. The command uses the existing connector
 credential (`connector:identity`) and does not need target YAML.
 
 A server without `usage_v1` exits `13` with `USAGE_UNSUPPORTED`. That is not a
@@ -353,7 +353,7 @@ credit status; the CLI does not meter credits locally.
 
 ### Packaged `demo` failed or was not found
 
-`demo` is in this `0.3.4` package. From a clone, run `node dist/index.js demo`. The demo ignores project
+`demo` is in this `0.3.5` package. From a clone, run `node dist/index.js demo`. The demo ignores project
 YAML and `CHATBOT_*` environment variables. Exit `0` means the fail-then-pass
 story succeeded; the summary is `AW-DEMO-SUMMARY-1`, not `AW-LOCAL-RESULT-1`.
 `--mode faulty` is expected to exit `10`. A customer release gate should use

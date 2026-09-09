@@ -31,23 +31,23 @@ describe("discovery manifest", () => {
     }
   });
 
-  it("keeps the last verified published 0.3.2 snapshot with demo", () => {
+  it("keeps the last independently inspected published 0.3.4 snapshot with demo", () => {
     const parsed = parseDiscoveryManifest(LAST_VERIFIED_PUBLISHED_DISCOVERY);
     expect(parsed.ok).toBe(true);
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.2");
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.4");
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.releaseStatus).toBe("published");
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(true);
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.commands.localDemo).toEqual([
       "npx",
       "--yes",
-      "@augmentworks/cli@0.3.2",
+      "@augmentworks/cli@0.3.4",
       "demo"
     ]);
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.provenance.verifiedAt).toBe(
-      "2026-09-06T14:33:30.670Z"
+      "2026-09-08T06:38:24.847Z"
     );
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.provenance.sourceCommit).toBe(
-      "d36ec8590b005445dba940d2df3abcb53971cea5"
+      "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f"
     );
   });
 
@@ -95,13 +95,13 @@ describe("discovery manifest", () => {
     }
   });
 
-  it("keeps candidate 0.3.4 development-status until a registry tarball is inspected", () => {
+  it("keeps the source checkout development-status without claiming this tarball is already inspected", () => {
     const source = sourceDiscoveryManifest();
-    expect(source.package.version).toBe("0.3.4");
+    expect(source.package.version).toBe("0.3.5");
     expect(source.package.releaseStatus).toBe("development");
     expect(source.provenance.verifiedAt).toBeNull();
     expect(source.provenance.sourceCommit).toBeNull();
-    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.2");
+    expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.package.version).toBe("0.3.4");
     expect(LAST_VERIFIED_PUBLISHED_DISCOVERY.capabilities.localDemo).toBe(true);
     expect(source.capabilities.localDemo).toBe(true);
   });

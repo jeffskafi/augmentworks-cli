@@ -63,6 +63,8 @@ const documentedSurfaces = [
   "docs/distribution-runbook.md",
   "docs/stabilization-implementation.md",
   "docs/stabilization-rollout.md",
+  "docs/examples/github-actions-hosted.yml",
+  "docs/examples/github-actions-local.yml",
   "examples/refund-agent/README.md",
   "examples/response-agent/README.md",
   "examples/basic-chat/README.md",
