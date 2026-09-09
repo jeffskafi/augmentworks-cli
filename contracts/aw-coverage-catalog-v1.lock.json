@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "aw-coverage-catalog/1",
+  "packageVersion": "aw-feature/1",
+  "algorithm": "sha256",
+  "source": {
+    "repository": "https://github.com/jeffskafi/augmentworks.git",
+    "consumedCommit": "71fc0d4",
+    "consumedHeadCited": "0288c5ed12eeb5563d144ae61521cf686e9a2c2b",
+    "linearIssue": "AUG-25",
+    "handoff": "docs/feature-readiness/c08-completion.md",
+    "schemaChecksumPublished": "8c2e6366\u20267287",
+    "fixturesChecksumPublished": "221f6d14\u202649d8",
+    "liveCatalogChecksum": "75fe8b5d745bed9da4459875b1b40a8c87f56f3e8740765df6de28653b40a566",
+    "liveCatalogVersion": "1.0.0",
+    "consumerFixturesChecksum": "d6b5803007218cfeb0a6c918122d2a32c42e4e9c29b603bf8284411f4d210ea9",
+    "note": "jeffskafi/augmentworks is not readable from this environment (GitHub 404). Main schema files were not byte-vendored. Identity is Linear-published AUG-25 plus live public GET /v1/catalog/coverage. Compact fixtures are consumer-safe subsets, not the full 38KiB live document."
+  },
+  "discoveredPaths": {
+    "coverage": "GET /v1/catalog/coverage",
+    "coverageVersionQuery": "GET /v1/catalog/coverage?catalogVersion=",
+    "stale": "409 coverage_catalog_error error.code=catalog_stale",
+    "notModified": "304 If-None-Match"
+  },
+  "cli": {
+    "cacheMaxAgeSeconds": 300,
+    "staleIfErrorSeconds": 86400,
+    "createsBillableRun": false
+  }
+}

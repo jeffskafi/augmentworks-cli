@@ -1,0 +1,10 @@
+---
+description: Pull requests must never be drafts; always mark them ready for review.
+alwaysApply: true
+---
+
+# Pull requests
+
+Never open pull requests as drafts. Always create and leave them marked ready
+for review. If a PR is already in draft, mark it ready. Do not use draft PRs
+in this repository.

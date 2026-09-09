@@ -40,6 +40,8 @@
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "test:packed-billing-fixture": "node scripts/packed-billing-fixture.mjs",
     "test:packed-billing-live": "node scripts/packed-billing-live.mjs",
+    "test:packed-core-release": "node scripts/packed-core-release-acceptance.mjs --source registry --version 0.3.4",
+    "test:packed-core-release:local": "node scripts/packed-core-release-acceptance.mjs --source local",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check && npm run audit:ci && npm run smoke:pack"

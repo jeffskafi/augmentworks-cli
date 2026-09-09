@@ -398,3 +398,19 @@ node dist/index.js doctor \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick
 ```
+
+Optional hosted compiler fields may be added to that same assessment file.
+They are not a second generated format. `test --profile` remains
+`quick|full|combined|custom`. Smoke/release lives under `selection.profile`:
+
+```yaml
+selection:
+  profile: smoke
+  include_catalog: true
+  include_tags:
+    - factuality
+```
+
+`selection compile` asks the server for included, excluded, and incompatible
+cases plus bounded shards. Those counts are not a quote. `--local` cannot use
+catalog metadata or compiled manifests.

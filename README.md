@@ -40,7 +40,7 @@ audit, or hosted evidence record.
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.5**, the identity of this package. This published-line package includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `suite validate` / `preview`, `test --suite`, `investigation inspect` / `fetch` / `export-regression`, `test --investigation`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. `published_package_verified` is published-line identity, not a live registry probe of this exact tarball. Independent inspection of 0.3.4 is recorded in `docs/feature-readiness/published-registry-evidence.json`. The immutable 0.3.4 tarball still contains stale candidate metadata; this 0.3.5 patch corrects packaged copy. Website discovery may remain on 0.3.4 until it adopts this patch. Do not overwrite or relabel npm 0.3.4 or 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.5**, the identity of this package. This published-line package includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `catalog list` / `show`, `selection compile`, `suite validate` / `preview`, `test --suite`, `investigation inspect` / `fetch` / `export-regression`, `test --investigation`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. `published_package_verified` is published-line identity, not a live registry probe of this exact tarball. Independent inspection of 0.3.4 is recorded in `docs/feature-readiness/published-registry-evidence.json`. The immutable 0.3.4 tarball still contains stale candidate metadata; this 0.3.5 patch corrects packaged copy. Website discovery may remain on 0.3.4 until it adopts this patch. Do not overwrite or relabel npm 0.3.4 or 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
 
 ## Packaged demo (this 0.3.5 package)
 
@@ -294,6 +294,27 @@ node dist/index.js test \
   --investigation examples/investigations/response-only.json \
   --max-credits 30 \
   --yes
+```
+
+Public coverage catalog listing is unauthenticated. Compile and shard
+execution are hosted compiler features, not a local pricing engine. Static
+catalog counts are informative. `POST /v1/billing/quote` remains the only
+cost preview. `--all-shards` requires a finite aggregate `--max-credits`
+ceiling and stops before exceeding consent.
+
+```bash
+node dist/index.js catalog list --json
+node dist/index.js catalog show response-quality/0.1.0/R01
+node dist/index.js selection compile \
+  -c augmentworks.yaml \
+  --assessment ./augmentworks.assessment.yaml \
+  --out ./suite-selection.manifest.json
+node dist/index.js test \
+  --manifest ./suite-selection.manifest.json \
+  --shard shard-000 \
+  --max-credits 30 \
+  --yes
+node dist/index.js gate --manifest-file ./suite-selection.manifest.json --declared-shards ./suite-selection.declared-shards.json --json
 ```
 
 Source assessment doctor and quoted hosted execution:
@@ -690,15 +711,19 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
 | `preview-mapping [-c path] [--operation kind] [--fixture path] [--probe-keys keys] [--json]` | Preview response mappings and the exact sanitized evidence payload from a local JSON fixture | Reads only the selected config and fixture. No target, cloud, or model call |
 | `probe [-c path] [--yes] [--json]` | Explicit bounded synthetic connection probe | Prints the planned calls first. `--yes` executes them against the configured target only. Never runs during doctor or init. No hosted API, no credits |
+| `catalog list [--json]` / `catalog show <id> [--json]` | List or show the public coverage catalog | Unauthenticated. Static counts are informative, not a quote. Stale `--catalog-version` fails closed |
+| `selection compile [--assessment path] [--profile smoke\|release] [--json] [--out path]` | Ask the server compiler for included/excluded/incompatible cases and bounded shards | Not a quote and not a billable run. Cannot be used with `--local` |
 | `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling |
+| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling. Optional YAML `selection` (smoke/release) is compiled by the server |
+| `test [-c path] --manifest path [--shard id \| --all-shards] [--max-credits n] [--yes] [--artifact-out path]` | Quote or run one compiled shard, or a finite multi-shard driver | Prints exclusions before consent. `--all-shards` requires `--max-credits`. Status/recovery resume the original shard run. Cannot be used with `--local` |
 | `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--headless] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local`. `--headless` requires `AUGMENTWORKS_API_KEY` or `AUGMENTWORKS_TOKEN` and never opens a browser |
 | `investigation inspect <file> [--json]` / `investigation fetch --run id --evaluation id --attempt id --criterion id [--out path] [--json]` / `investigation export-regression <file> --out path [--json]` | Inspect or download a safe failure investigation, or export a reviewed `aw-suite/1` regression draft | Observation only. Does not execute a target, shell fragment, evaluator, or quote. Copied commands are data. See `docs/investigation.md` |
 | `test [-c path] --investigation path [--estimate] [--max-credits n] [--yes] [--open]` | Reproduce the exact pinned case from an investigation file | New quote and consent every time. Never selects `latest` or reuses a consumed quote. Cannot be combined with `--local`, `--suite`, `--assessment`, or `--packet` |
 | `run status <run-id>` / `run wait <run-id>` / `run retry-evaluation <run-id>` / `run report <run-id>` | Inspect, wait, retry incomplete grading, or export the complete hosted report | Status/wait/report are read-only. `run report` always writes one `aw-run-report-export/1` JSON document. Retry-evaluation debits 0 customer credits and does not replay the target |
 | `compare --run <run-id> --baseline <baseline-id> [--json]` | Compare a candidate run against an explicit pinned baseline | Read-only. Does not start a test, reserve credits, or consume credits. Rejects missing identities; does not invent a pin |
 | `gate --run <run-id> --baseline <baseline-id> [--wait] [--timeout-ms n] [--json]` | Evaluate the hosted `aw-release-policy/1` release decision | Transport success is not a pass. `--wait` re-queries the original run ID only. A finalized machine-principal `gate` is the CI provenance record. See `docs/examples/github-actions-hosted.yml` |
+| `gate --manifest-file path [--declared-shards path] [--wait] [--json]` | Evaluate the hosted whole-manifest coverage policy | Incomplete, skipped, or failed shards cannot pass. The CLI maps the server verdict; it does not recompute suite pricing |
 | `baseline status [--json]` / `baseline promote --run <run-id> --baseline <id> --expected-revision <n> [--json]` | List pins, or explicitly promote a candidate onto a pin | Status is read-only. Promote is never automatic, requires `--expected-revision`, and stays off the machine allowlist unless the server grants `baseline:promote` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command |

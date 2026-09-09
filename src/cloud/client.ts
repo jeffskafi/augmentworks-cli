@@ -75,6 +75,18 @@ import {
   type InvestigationExportRequest
 } from "../investigation/schema.js";
 import { mapInvestigationHttpError } from "../investigation/protocol.js";
+import {
+  CompileSuiteSelectionRequestSchema,
+  EvaluateManifestRequestSchema,
+  ManifestReleasePolicyResultSchema,
+  SELECTION_PATHS,
+  SuiteSelectionManifestSchema,
+  type CompileSuiteSelectionRequest,
+  type EvaluateManifestRequest,
+  type ManifestReleasePolicyResult,
+  type SuiteSelectionManifest
+} from "../selection/schema.js";
+import { createsBillableCompileError, selectionError } from "../selection/errors.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -513,6 +525,49 @@ export class CloudClient {
     } catch (error) {
       throw mapReleasePolicyError(error);
     }
+  }
+
+  async compileSuiteSelection(
+    request: CompileSuiteSelectionRequest,
+    signal?: AbortSignal
+  ): Promise<SuiteSelectionManifest> {
+    const validated = CompileSuiteSelectionRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw selectionError(
+        "INVALID_SELECTION_REQUEST",
+        "The suite-selection compile request does not match aw-suite-selection/1."
+      );
+    }
+    const value = await this.#request("POST", SELECTION_PATHS.compile, validated.data, signal);
+    const parsed = parseResponse(SuiteSelectionManifestSchema, value, "suite-selection compile response");
+    if (parsed.createsBillableRun) throw createsBillableCompileError();
+    return parsed;
+  }
+
+  async evaluateManifestReleasePolicy(
+    request: EvaluateManifestRequest,
+    signal?: AbortSignal
+  ): Promise<ManifestReleasePolicyResult> {
+    const validated = EvaluateManifestRequestSchema.safeParse(request);
+    if (!validated.success) {
+      throw selectionError(
+        "INVALID_MANIFEST_GATE_REQUEST",
+        "The manifest release-gate request does not match aw-suite-selection/1."
+      );
+    }
+    const value = await this.#request(
+      "POST",
+      SELECTION_PATHS.evaluateManifest,
+      validated.data,
+      signal
+    );
+    const parsed = parseResponse(
+      ManifestReleasePolicyResultSchema,
+      value,
+      "manifest release-policy response"
+    );
+    if (parsed.createsBillableRun) throw createsBillableCompileError();
+    return parsed;
   }
 
   async promoteBaseline(

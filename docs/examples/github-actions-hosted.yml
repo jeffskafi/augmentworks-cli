@@ -160,6 +160,11 @@ jobs:
           fi
           set +e
           "${AW[@]}" gate --run "$run_id" --baseline "$AUGMENTWORKS_BASELINE_ID" --json > .augmentworks/ci/gate.json
+          # Optional whole-suite coverage: compile once, run each shard (or
+          # `--all-shards` with one finite `--max-credits`), then
+          # `gate --manifest-file` with `--declared-shards`. Incomplete shard
+          # sets cannot pass. Do not replace this single-run gate unless that
+          # declared coverage set is complete.
           gate_code=$?
           set -e
           if [ "$gate_code" -eq 10 ]; then

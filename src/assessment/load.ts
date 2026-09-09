@@ -120,6 +120,7 @@ export async function loadAssessmentFile(
       evaluation_mode: document.evaluation_mode,
       packets: document.packets,
       parameters: document["parameters"] ?? {},
+      selection: document.selection ?? null,
       references: {
         local: localReferences.map((entry) => ({
           id: entry.id,
@@ -184,7 +185,16 @@ export function assessmentDiagnostics(assessment: LoadedAssessment): Diagnostic[
       level: "ok",
       code: "ASSESSMENT_FREEZE_HASH",
       message: `Assessment freeze sha256 ${assessment.freezeSha256}.`
-    }
+    },
+    ...(assessment.document.selection === undefined
+      ? []
+      : [
+          {
+            level: "ok" as const,
+            code: "ASSESSMENT_SELECTION",
+            message: `Hosted selection profile=${assessment.document.selection.profile} (smoke/release compiler fields; not available in --local).`
+          }
+        ])
   ];
 }
 

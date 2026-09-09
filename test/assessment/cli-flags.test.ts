@@ -28,6 +28,7 @@ describe("assessment CLI flags", () => {
     expect(testHelp.stdout).toContain("--profile");
     expect(testHelp.stdout).toContain("--suite");
     expect(testHelp.stdout).toContain("--investigation");
+    expect(testHelp.stdout).toContain("--manifest");
     expect(testHelp.stdout).toContain("--local");
     expect(testHelp.stdout).toContain(HOSTED_ASSESSMENT_OPTION_HELP);
     expect(testHelp.stdout).not.toMatch(/source 0\.3\.3/u);

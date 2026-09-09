@@ -401,6 +401,8 @@ async function main() {
       "preview-mapping",
       "probe",
       "demo",
+      "catalog",
+      "selection",
       "test",
       "suite",
       "run",
@@ -433,6 +435,15 @@ async function main() {
     const gateHelp = execCli(["gate", "--help"]);
     assert(gateHelp.stdout.includes("--wait"), "packed CLI is missing gate --wait");
     assert(gateHelp.stdout.includes("--timeout-ms"), "packed CLI is missing gate --timeout-ms");
+    assert(gateHelp.stdout.includes("--manifest-file"), "packed CLI is missing gate --manifest-file");
+    const catalogHelp = execCli(["catalog", "--help"]);
+    assert(catalogHelp.stdout.includes("list"), "packed CLI is missing catalog list");
+    assert(catalogHelp.stdout.includes("show"), "packed CLI is missing catalog show");
+    const selectionHelp = execCli(["selection", "--help"]);
+    assert(selectionHelp.stdout.includes("compile"), "packed CLI is missing selection compile");
+    const testHelpSelection = execCli(["test", "--help"]);
+    assert(testHelpSelection.stdout.includes("--manifest"), "packed CLI is missing test --manifest");
+    assert(testHelpSelection.stdout.includes("--all-shards"), "packed CLI is missing test --all-shards");
     const baselineHelp = execCli(["baseline", "--help"]);
     assert(baselineHelp.stdout.includes("status"), "packed CLI is missing baseline status");
     assert(baselineHelp.stdout.includes("promote"), "packed CLI is missing baseline promote");
@@ -972,6 +983,38 @@ async function main() {
       );
     }
     process.stdout.write(reportFixture.stdout);
+
+    process.stdout.write("[pack smoke] core customer release-acceptance (local packed binary, not registry)\n");
+    const coreAcceptance = spawnSync(
+      process.execPath,
+      [join(projectRoot, "scripts", "packed-core-release-acceptance.mjs"), "--source", "local"],
+      {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          AUGMENTWORKS_PACKED_BIN: packedCli,
+          NO_COLOR: "1"
+        },
+        encoding: "utf8",
+        timeout: 180_000,
+        windowsHide: true
+      }
+    );
+    if (coreAcceptance.error !== undefined) {
+      throw new SmokeFailure(`core release-acceptance failed to start: ${coreAcceptance.error.message}`);
+    }
+    if (coreAcceptance.status !== 0) {
+      throw new SmokeFailure(
+        [
+          "core customer release-acceptance (local packed binary) failed",
+          coreAcceptance.stdout.trim(),
+          coreAcceptance.stderr.trim()
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(coreAcceptance.stdout);
 
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`

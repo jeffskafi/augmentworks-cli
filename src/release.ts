@@ -86,7 +86,7 @@ export const CLI_RELEASE: CliReleaseFixture = {
   target_protocol_version: TARGET_PROTOCOL_VERSION,
   config_version: CONFIG_VERSION,
   notes:
-    "Published 0.3.5 is the customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, investigation inspect/fetch/export-regression, hosted GitHub Actions own-target recipe, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.5). published_package_verified is published-line identity (not a candidate), not a live registry probe of this exact tarball. Independent inspection of npm @augmentworks/cli@0.3.4 (gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f, integrity sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==, published 2026-09-08T06:38:24.847Z) is recorded in docs/feature-readiness/published-registry-evidence.json. Immutable npm 0.3.4 still ships stale candidate metadata and is not overwritten or relabeled; 0.3.5 corrects packaged copy. Immutable npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436) is not this release line. Website discovery may remain on 0.3.4 until it adopts this patch. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Do not run @latest."
+    "Published 0.3.5 is the customer-owned assessment package: suite validate/preview and test --suite, own-target starters and bounded probe, explicit session mode, offline mapping preview, quoted billing (--estimate / --max-credits), AUGMENTWORKS_API_KEY mode, investigation inspect/fetch/export-regression, hosted GitHub Actions own-target recipe, and complete hosted report export. Generated and documented npx commands pin this package version (0.3.5). published_package_verified is published-line identity (not a candidate), not a live registry probe of this exact tarball. Independent inspection of npm @augmentworks/cli@0.3.4 (gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f, integrity sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==, published 2026-09-08T06:38:24.847Z) is recorded in docs/feature-readiness/published-registry-evidence.json. Immutable npm 0.3.4 still ships stale candidate metadata and is not overwritten or relabeled; 0.3.5 corrects packaged copy. Immutable npm 0.3.3 (gitHead 4a08ea0d352f2515e725cb9ca946807112422436) is not this release line. Website discovery may remain on 0.3.4 until it adopts this patch. Vendors aw-billing/1 from main 650472d91442a6866a7b6ef18e6dacc23a2a9260 including subscriptions_v1. The CLI does not subscribe, cancel, or collect payment methods. Live subscription sales stay gated on the server. Catalog list/show and selection compile consume aw-coverage-catalog/1 and aw-suite-selection/1 without a local compiler or pricing engine. Do not run @latest."
 };
 
 export function formatNpx(pin: string, argv: readonly string[]): string {
@@ -303,6 +303,31 @@ export const SOURCE_INVESTIGATION_TEST_COMMAND = formatWrappedCommand("node dist
   "--investigation examples/investigations/response-only.json",
   "--max-credits 30",
   "--yes"
+]);
+export const SOURCE_CATALOG_LIST_COMMAND = formatSourceCli(["catalog", "list", "--json"]);
+export const SOURCE_CATALOG_SHOW_COMMAND = formatSourceCli([
+  "catalog",
+  "show",
+  "response-quality/0.1.0/R01"
+]);
+export const SOURCE_SELECTION_COMPILE_COMMAND = formatWrappedCommand("node dist/index.js", "selection compile", [
+  "-c augmentworks.yaml",
+  "--assessment ./augmentworks.assessment.yaml",
+  "--out ./suite-selection.manifest.json"
+]);
+export const SOURCE_TEST_SHARD_COMMAND = formatWrappedCommand("node dist/index.js", "test", [
+  "--manifest ./suite-selection.manifest.json",
+  "--shard shard-000",
+  "--max-credits 30",
+  "--yes"
+]);
+export const SOURCE_GATE_MANIFEST_COMMAND = formatSourceCli([
+  "gate",
+  "--manifest-file",
+  "./suite-selection.manifest.json",
+  "--declared-shards",
+  "./suite-selection.declared-shards.json",
+  "--json"
 ]);
 
 export const PUBLISHED_LOCAL_COMMANDS = {

@@ -83,5 +83,26 @@ Packed installs include the same files under `assets/customer-suites/`.
 5. Do not paste judging credentials into the suite file. Do not expand to a
    hundred default scenarios. Do not import production transcripts.
 
-Case order is file order. This CLI does not add extra case/tag filters;
-selection is the cases in the file, within server limits.
+Case order is file order for `test --suite`. Larger owned suites use the
+server compiler:
+
+```bash
+node dist/index.js catalog list --json
+node dist/index.js selection compile \
+  -c augmentworks.yaml \
+  --assessment ./augmentworks.assessment.yaml \
+  --out ./suite-selection.manifest.json
+node dist/index.js test \
+  --manifest ./suite-selection.manifest.json \
+  --shard shard-000 \
+  --max-credits 30 \
+  --yes
+node dist/index.js gate --manifest-file ./suite-selection.manifest.json --declared-shards ./suite-selection.declared-shards.json --json
+```
+
+Optional assessment YAML `selection` fields (`profile: smoke|release`,
+`suite_version`, tags, `include_catalog`, requested/excluded case ids) are
+compiled by the server. Local `test --local` still uses deterministic packets
+only. Catalog counts are not a quote. `--all-shards` requires a finite
+aggregate `--max-credits` and stops before exceeding consent. An incomplete
+declared shard set cannot make a whole-suite gate green.

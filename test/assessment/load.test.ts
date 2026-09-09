@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { loadAssessmentFile } from "../../src/assessment/load.js";
+import { loadAssessmentFile, assessmentDiagnostics } from "../../src/assessment/load.js";
 import { runDoctor } from "../../src/commands/doctor.js";
 
 const directories: string[] = [];
@@ -65,6 +65,32 @@ describe("assessment file loader", () => {
     expect(loaded.localReferences[0]?.relativePath).toBe("references/faq.md");
     expect(loaded.localReferences[0]?.content).toContain("Synthetic FAQ");
     expect(loaded.document.packets[0]).toEqual({ key: "response-quality", version: "0.1.0" });
+  });
+
+  it("freezes optional smoke/release selection fields", async () => {
+    const cwd = await temporaryDirectory();
+    await mkdir(resolve(cwd, "references"));
+    await writeFile(resolve(cwd, "references/faq.md"), "# Synthetic FAQ\n", "utf8");
+    await writeFile(resolve(cwd, "plain.yaml"), ASSESSMENT, "utf8");
+    await writeFile(
+      resolve(cwd, "selected.yaml"),
+      `${ASSESSMENT}
+selection:
+  profile: smoke
+  include_catalog: true
+  include_tags:
+    - factuality
+`,
+      "utf8"
+    );
+    const plain = await loadAssessmentFile({ path: "plain.yaml", cwd });
+    const selected = await loadAssessmentFile({ path: "selected.yaml", cwd });
+    expect(selected.document.selection?.profile).toBe("smoke");
+    expect(selected.document.selection?.include_tags).toEqual(["factuality"]);
+    expect(selected.freezeSha256).not.toBe(plain.freezeSha256);
+    expect(assessmentDiagnostics(selected).some((diagnostic) => diagnostic.code === "ASSESSMENT_SELECTION")).toBe(
+      true
+    );
   });
 
   it("rejects path traversal, globs, credentials, and symlink escapes", async () => {

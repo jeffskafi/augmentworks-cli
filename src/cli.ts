@@ -10,6 +10,8 @@ import { createLoginCommand } from "./commands/login.js";
 import { createLogoutCommand } from "./commands/logout.js";
 import { createSchemaCommand } from "./commands/schema.js";
 import { createSuiteCommand } from "./commands/suite.js";
+import { createCatalogCommand } from "./commands/catalog.js";
+import { createSelectionCommand } from "./commands/selection.js";
 import { createTestCommand } from "./commands/test.js";
 import { createRunCommand } from "./commands/run.js";
 import { createCompareCommand } from "./commands/compare.js";
@@ -70,6 +72,8 @@ export function createCli(io: CliIo = {}): Command {
   program.addCommand(createPreviewMappingCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createProbeCommand({ stdout, setExitCode: requestExitCode }));
   program.addCommand(createDemoCommand({ stdout, stderr, setExitCode: requestExitCode }));
+  program.addCommand(createCatalogCommand({ stdout, stderr }));
+  program.addCommand(createSelectionCommand({ stdout, stderr }));
   program.addCommand(createTestCommand({ stdout, stderr, setExitCode: requestExitCode }));
   program.addCommand(createSuiteCommand({ stdout }));
   program.addCommand(createRunCommand({ stdout, stderr, setExitCode: requestExitCode }));
