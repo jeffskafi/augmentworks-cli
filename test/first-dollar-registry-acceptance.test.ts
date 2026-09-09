@@ -134,9 +134,14 @@ describe("published registry evidence record", () => {
     expect(record.lastIndependentlyInspected.verifiedAt).toBe("2026-09-08T06:38:24.847Z");
     expect(record.thisPackageIdentity.version).toBe(SOURCE_PACKAGE_VERSION);
     expect(record.thisPackageIdentity.version).toBe("0.3.5");
-    expect(record.thisPackageIdentity.gitHead).toBeNull();
-    expect(record.thisPackageIdentity.integrity).toBeNull();
-    expect(record.thisPackageIdentity.verifiedAt).toBeNull();
-    expect(record.thisPackageIdentity.status).toBe("pending-protected-publish");
+    expect(record.thisPackageIdentity.gitHead).toBe(
+      "11570f6cf883ec6e6743e010c35134bb485234dd"
+    );
+    expect(record.thisPackageIdentity.integrity).toBe(
+      "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ=="
+    );
+    expect(record.thisPackageIdentity.verifiedAt).toBe("2026-09-09T02:56:49.964Z");
+    expect(record.thisPackageIdentity.status).toBe("independently-inspected");
+    expect(record.thisPackageIdentity.gitHead).not.toBe(record.lastIndependentlyInspected.gitHead);
   });
 });

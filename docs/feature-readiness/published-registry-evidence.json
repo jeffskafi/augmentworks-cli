@@ -10,17 +10,23 @@
     "githubRelease": "v0.3.4",
     "githubReleasePublishedAt": "2026-09-08T06:33:39Z",
     "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.4",
-    "notes": "Published and independently inspected. The immutable 0.3.4 tarball still contains stale candidate/unverified packaged metadata (AUG-79). Do not overwrite 0.3.4."
+    "notes": "Published and independently inspected. The immutable 0.3.4 tarball still contains stale candidate/unverified packaged metadata (AUG-79). Do not overwrite 0.3.4. Corrective 0.3.5 is recorded under thisPackageIdentity."
   },
   "thisPackageIdentity": {
     "packageName": "@augmentworks/cli",
     "version": "0.3.5",
     "publishedPackageVerifiedMeaning": "published-line identity, not inspection of this tarball",
-    "gitHead": null,
-    "integrity": null,
-    "verifiedAt": null,
-    "status": "pending-protected-publish",
-    "notes": "Corrective metadata patch for 0.3.4 packaged copy. Fill gitHead/integrity/verifiedAt after the protected v0.3.5 GitHub release and npm trusted publish. Do not overwrite 0.3.4."
+    "gitHead": "11570f6cf883ec6e6743e010c35134bb485234dd",
+    "integrity": "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ==",
+    "verifiedAt": "2026-09-09T02:56:49.964Z",
+    "status": "independently-inspected",
+    "githubRelease": "v0.3.5",
+    "githubReleasePublishedAt": "2026-09-09T02:51:28Z",
+    "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.5",
+    "shasum": "81182095aa62042e612b8a17dcb73d0105a24929",
+    "tarballSha256": "3b9a693b4f4bfc46bf793695bf6fd35719f5872c45e4c921e38ea7efd9a9f4b5",
+    "fileCount": 64,
+    "notes": "Protected v0.3.5 GitHub release and npm trusted publish with provenance. Downloaded registry tarball: published_package_verified true, --version 0.3.5, test --help uses quoted aw-relay/0.3, no candidate/last-verified-0.3.2/source-0.3.3 copy, demo --json ok. Do not overwrite 0.3.4 or 0.3.5."
   },
   "immutableArtifacts": [
     {
@@ -39,6 +45,12 @@
       "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
       "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==",
       "verifiedAt": "2026-09-08T06:38:24.847Z"
+    },
+    {
+      "version": "0.3.5",
+      "gitHead": "11570f6cf883ec6e6743e010c35134bb485234dd",
+      "integrity": "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ==",
+      "verifiedAt": "2026-09-09T02:56:49.964Z"
     }
   ]
 }
