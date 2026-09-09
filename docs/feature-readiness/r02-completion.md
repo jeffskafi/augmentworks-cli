@@ -18,7 +18,7 @@ later commands is distinct from this registry gate under AUG-7.
 | Audit / default-main baseline | `8a9f31a9fa6d99b2f0ea7e1530a4b73741592027` |
 | Working base (`origin/main`) | `5ecae185e34f09574c878f8b0e149710444a0625` (merge of CLI PR #40 / AUG-46) |
 | Working branch | `cursor/cli-published-core-workflow-b20a` |
-| Pull request | (this PR) |
+| Pull request | [CLI #42](https://github.com/jeffskafi/augmentworks-cli/pull/42) |
 | AUG-47 (R01) | Done. Main [PR #106](https://github.com/jeffskafi/augmentworks/pull/106) head `d9f3a7fafca3ff2bb5d517bcea031dd2b9aa8ad9`. Handoff `docs/feature-readiness/core-acceptance.md`. CLI pin `@augmentworks/cli@0.3.4` `gitHead` `c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f`. Packed SHA-256 `a97b1ff77823933defcecac8181c0dc5c925cfe356dfe2d6bad2f39e271d4021` matches the registry tarball downloaded here. Deployed web SHA still unverified on that ticket. |
 | AUG-73 | Done. CLI PR #33. npm `@augmentworks/cli@0.3.4` published 2026-09-08T06:38:24.847Z. Integrity reused, not relabeled. |
 | AUG-40 (E10) | Merged CLI#34. Present in published 0.3.4. Handoff `docs/feature-readiness/e10-completion.md`. |
