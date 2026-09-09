@@ -87,7 +87,7 @@ import {
 } from "./local-test.js";
 import { compileHostedSelection } from "./selection.js";
 import { formatSelectionHuman } from "../selection/format.js";
-import { compileRequestFromAssessment, conversationModeFromConfig } from "../selection/request.js";
+import { compileRequestFromAssessment, selectionAdvertisementFromResolved } from "../selection/request.js";
 import { loadSuiteSelectionManifest } from "../selection/load.js";
 import {
   assertShardWithinPerRunLimits,
@@ -429,7 +429,7 @@ async function resolveCompiledManifest(
   }
   const request = compileRequestFromAssessment(
     context.selection.assessment,
-    conversationModeFromConfig(context.report.resolvedConfig)
+    selectionAdvertisementFromResolved(context.report.resolvedConfig)
   );
   const suiteVersion = context.selection.assessment.document.selection.suite_version;
   return compileHostedSelection({

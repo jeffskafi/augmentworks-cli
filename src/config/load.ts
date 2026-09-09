@@ -174,14 +174,18 @@ function configTooLarge(): ConfigFileError {
   );
 }
 
-export async function loadConfig(options: InspectConfigOptions = {}): Promise<ResolvedConfig> {
-  const inspection = await inspectConfig(options);
-  if (inspection.resolvedConfig !== undefined) return inspection.resolvedConfig;
+export function unresolvedConfigError(inspection: ConfigInspection): AwError {
   const firstError = inspection.diagnostics.find((item) => item.level === "error");
-  throw new AwError({
+  return new AwError({
     code: firstError?.code ?? "CONFIG_INVALID",
     category: "config",
     message: firstError?.message ?? "The AugmentWorks configuration is invalid.",
     ...(firstError?.path === undefined ? {} : { details: { path: firstError.path } })
   });
+}
+
+export async function loadConfig(options: InspectConfigOptions = {}): Promise<ResolvedConfig> {
+  const inspection = await inspectConfig(options);
+  if (inspection.resolvedConfig !== undefined) return inspection.resolvedConfig;
+  throw unresolvedConfigError(inspection);
 }

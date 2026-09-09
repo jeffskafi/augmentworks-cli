@@ -4,13 +4,17 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 
 import { loadAssessmentFile } from "../assessment/load.js";
-import { inspectConfig } from "../config/load.js";
 import type { ResolvedConfig } from "../config/types.js";
-import { SINGLE_TURN_CONVERSATION } from "../config/conversation.js";
 import { formatSelectionHuman, selectionCompileJson } from "../selection/format.js";
-import { compileRequestFromAssessment, conversationModeFromConfig } from "../selection/request.js";
 import {
-  CompileSuiteSelectionRequestSchema,
+  compileRequestFromAssessment,
+  compileRequestFromFlags,
+  conversationModeFromConfig,
+  parseCompileRequest,
+  resolveSelectionAdvertisement,
+  type SelectionAdvertisement
+} from "../selection/request.js";
+import {
   SelectionProfileSchema,
   type CompileSuiteSelectionRequest,
   type SelectionProfile,
@@ -52,7 +56,11 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
     .description(
       "Ask the server compiler for included/excluded/incompatible cases and bounded shards. Not a quote."
     )
-    .option("-c, --config <path>", "configuration path used only for advertised conversation mode", "augmentworks.yaml")
+    .option(
+      "-c, --config <path>",
+      "connector YAML for advertised lifecycle, observation, and conversation capabilities; a missing default file is capability-free single-turn",
+      "augmentworks.yaml"
+    )
     .option("--assessment <path>", "assessment file with optional smoke/release selection fields")
     .option("--profile <profile>", "smoke or release (overrides assessment selection.profile)")
     .option("--include-catalog", "include the public catalog inventory when no suite_revision_id is set")
@@ -66,27 +74,35 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
     )
     .option("--local", "rejected; compile is hosted-only")
     .action(
-      async (values: {
-        config: string;
-        assessment?: string;
-        profile?: string;
-        includeCatalog?: boolean;
-        includeTags?: string;
-        excludeTags?: string;
-        out?: string;
-        json?: boolean;
-        allowFileCredentials?: boolean;
-        local?: boolean;
-      }) => {
+      async (
+        values: {
+          config: string;
+          assessment?: string;
+          profile?: string;
+          includeCatalog?: boolean;
+          includeTags?: string;
+          excludeTags?: string;
+          out?: string;
+          json?: boolean;
+          allowFileCredentials?: boolean;
+          local?: boolean;
+        },
+        command: Command
+      ) => {
         if (values.local === true) throw hostedSelectionUnsupportedLocalError();
         const workingDirectory = cwd();
         const profile =
           values.profile === undefined ? undefined : parseSelectionProfile(values.profile);
-        const conversationMode = await resolveConversationMode(values.config, workingDirectory, dependencies);
+        const advertisement = await resolveSelectionAdvertisement({
+          configPath: values.config,
+          cwd: workingDirectory,
+          allowMissingDefault: command.getOptionValueSource("config") !== "cli",
+          ...(dependencies.env === undefined ? {} : { processEnv: dependencies.env })
+        });
         const request = await buildCompileRequest({
           assessment: values.assessment,
           cwd: workingDirectory,
-          conversationMode,
+          advertisement,
           profile,
           includeCatalog: values.includeCatalog === true,
           includeTags: splitTags(values.includeTags),
@@ -153,32 +169,10 @@ function splitTags(value: string | undefined): string[] | undefined {
   return value.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
 }
 
-async function resolveConversationMode(
-  configPath: string,
-  cwd: string,
-  dependencies: SelectionCommandDependencies
-): Promise<"single_turn" | "explicit_session_v1"> {
-  try {
-    const inspection = await inspectConfig({
-      configPath: configPath,
-      cwd,
-      ...(dependencies.env === undefined ? {} : { processEnv: dependencies.env })
-    });
-    if (inspection.resolvedConfig !== undefined) {
-      return conversationModeFromConfig(inspection.resolvedConfig);
-    }
-  } catch {
-    // Fall through to single-turn when no connector YAML is present.
-  }
-  return SINGLE_TURN_CONVERSATION.strategy === "explicit_session_v1"
-    ? "explicit_session_v1"
-    : "single_turn";
-}
-
 async function buildCompileRequest(options: {
   readonly assessment: string | undefined;
   readonly cwd: string;
-  readonly conversationMode: "single_turn" | "explicit_session_v1";
+  readonly advertisement: SelectionAdvertisement;
   readonly profile: SelectionProfile | undefined;
   readonly includeCatalog: boolean;
   readonly includeTags: string[] | undefined;
@@ -193,12 +187,15 @@ async function buildCompileRequest(options: {
       );
     }
     if (loaded.document.selection !== undefined) {
-      const fromFile = compileRequestFromAssessment(loaded, options.conversationMode, options.profile);
-      return CompileSuiteSelectionRequestSchema.parse({
-        ...fromFile,
-        ...(options.includeTags === undefined ? {} : { includeTags: options.includeTags }),
-        ...(options.excludeTags === undefined ? {} : { excludeTags: options.excludeTags })
-      });
+      const fromFile = compileRequestFromAssessment(loaded, options.advertisement, options.profile);
+      return parseCompileRequest(
+        {
+          ...fromFile,
+          ...(options.includeTags === undefined ? {} : { includeTags: options.includeTags }),
+          ...(options.excludeTags === undefined ? {} : { excludeTags: options.excludeTags })
+        },
+        options.advertisement
+      );
     }
   }
   if (options.profile === undefined) {
@@ -207,10 +204,9 @@ async function buildCompileRequest(options: {
       "Pass --profile smoke|release or an assessment file with a selection block."
     );
   }
-  return CompileSuiteSelectionRequestSchema.parse({
-    schemaVersion: "aw-suite-selection/1",
+  return compileRequestFromFlags({
+    advertisement: options.advertisement,
     profile: options.profile,
-    conversationMode: options.conversationMode,
     includeCatalog: true,
     ...(options.includeTags === undefined ? {} : { includeTags: options.includeTags }),
     ...(options.excludeTags === undefined ? {} : { excludeTags: options.excludeTags })

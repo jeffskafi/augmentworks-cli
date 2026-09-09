@@ -30,12 +30,63 @@ const semver = z
 export const SelectionProfileSchema = z.enum(["smoke", "release"]);
 export type SelectionProfile = z.infer<typeof SelectionProfileSchema>;
 export const SelectionConversationModeSchema = z.enum(["single_turn", "explicit_session_v1"]);
+export type SelectionConversationMode = z.infer<typeof SelectionConversationModeSchema>;
+
+const observationKey = z
+  .string()
+  .min(1)
+  .max(300)
+  .regex(
+    /^[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*$/,
+    "must be a dotted observation key"
+  );
+
+export const CompileSuiteSelectionCapabilitiesSchema = z
+  .object({
+    prepare: z.boolean(),
+    observation: z.boolean(),
+    toolEvents: z.boolean(),
+    cleanup: z.boolean(),
+    multiTurn: z.boolean(),
+    observationKeys: z.array(observationKey).max(64)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.observationKeys).size !== value.observationKeys.length) {
+      context.addIssue({
+        code: "custom",
+        message: "observationKeys must be unique",
+        path: ["observationKeys"]
+      });
+    }
+    if (
+      value.observationKeys.some(
+        (key, index) => index > 0 && value.observationKeys[index - 1]! >= key
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "observationKeys must be sorted in ascending order",
+        path: ["observationKeys"]
+      });
+    }
+    if (!value.observation && value.observationKeys.length > 0) {
+      context.addIssue({
+        code: "custom",
+        message: "observationKeys require the observation capability",
+        path: ["observationKeys"]
+      });
+    }
+  });
+
+export type CompileSuiteSelectionCapabilities = z.infer<typeof CompileSuiteSelectionCapabilitiesSchema>;
 
 export const CompileSuiteSelectionRequestSchema = z
   .object({
     schemaVersion: z.literal(SUITE_SELECTION_SCHEMA_VERSION),
     profile: SelectionProfileSchema,
     conversationMode: SelectionConversationModeSchema,
+    capabilities: CompileSuiteSelectionCapabilitiesSchema,
     includeCatalog: z.boolean().optional(),
     includeTags: z.array(z.string().min(1).max(80)).max(16).optional(),
     excludeTags: z.array(z.string().min(1).max(80)).max(16).optional(),
@@ -43,7 +94,17 @@ export const CompileSuiteSelectionRequestSchema = z
     excludedCaseIds: z.array(identifier).max(INVENTORY_CASE_BOUND).optional(),
     suiteRevisionId: z.string().min(1).max(128).optional()
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const session = value.conversationMode === "explicit_session_v1";
+    if (session !== value.capabilities.multiTurn) {
+      context.addIssue({
+        code: "custom",
+        message: "conversationMode and capabilities.multiTurn must agree",
+        path: ["capabilities", "multiTurn"]
+      });
+    }
+  });
 
 export type CompileSuiteSelectionRequest = z.infer<typeof CompileSuiteSelectionRequestSchema>;
 

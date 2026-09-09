@@ -1,4 +1,4 @@
-export { loadConfig, inspectConfig } from "./load.js";
+export { loadConfig, inspectConfig, unresolvedConfigError } from "./load.js";
 export { parseDotEnv, exactEnvironmentName } from "./environment.js";
 export { parseYamlStrict, StrictYamlError } from "./yaml.js";
 export { isLocalOrPrivateHost } from "./resolve.js";

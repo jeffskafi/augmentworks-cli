@@ -413,4 +413,9 @@ selection:
 
 `selection compile` asks the server for included, excluded, and incompatible
 cases plus bounded shards. Those counts are not a quote. `--local` cannot use
-catalog metadata or compiled manifests.
+catalog metadata or compiled manifests. Compile forwards the connector's
+prepare, observation, tool-event, cleanup, and conversation capabilities from
+`--config`. A missing default `augmentworks.yaml` is an explicit
+capability-free single-turn advertisement. An explicit `--config` path that
+is missing, malformed, or unresolved fails with the existing config
+diagnostic before authentication.
