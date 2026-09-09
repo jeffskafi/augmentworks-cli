@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "aw-core-release-acceptance/1",
+  "issue": "AUG-48",
+  "verifiedAt": "2026-09-09T02:21:36.538Z",
+  "releaseReady": false,
+  "source": "registry",
+  "cli": {
+    "packageName": "@augmentworks/cli",
+    "version": "0.3.4",
+    "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
+    "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==",
+    "shasum": "c0c2443cac952c1cb100178e483e22ee222f12b1",
+    "tarballSha256": "a97b1ff77823933defcecac8181c0dc5c925cfe356dfe2d6bad2f39e271d4021",
+    "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.4",
+    "publishedAt": "2026-09-08T06:38:24.847Z",
+    "fileCount": 55,
+    "packagedPublishedFlag": false
+  },
+  "install": {
+    "command": "npm pack @augmentworks/cli@0.3.4 && npm install --ignore-scripts <tarball>",
+    "outputExcerpt": "\nadded 1 package in 196ms\n"
+  },
+  "mainContractPair": {
+    "aw-billing/1": {
+      "commit": "650472d91442a6866a7b6ef18e6dacc23a2a9260",
+      "schemaSha256": "3097c7aa74233e97233dcc488ba7eaacb1be5c6af0554bc308ca1569d155b645",
+      "fixturesSha256": "a4b9234b426f98132ddbd8e82755caa0aa718c4ec1e3bf17064d1bf364a6cb84"
+    },
+    "aw-release-policy/1": {
+      "consumedCommitCited": "235d39074cab1c57ada2cc015192dc129697683c",
+      "consumerFixturesSha256": "dcc76898c8e89bf4e2e18c68f6882e7c9643f0fe2a612a88eae1167d5224c65f"
+    }
+  },
+  "commandsPresent": {
+    "compare": true,
+    "gate": true,
+    "baseline": true,
+    "suite": true,
+    "probe": true,
+    "investigation": false,
+    "headless": false
+  },
+  "predecessor": {
+    "aug47": {
+      "repository": "jeffskafi/augmentworks",
+      "pullRequest": "https://github.com/jeffskafi/augmentworks/pull/106",
+      "head": "d9f3a7fafca3ff2bb5d517bcea031dd2b9aa8ad9",
+      "handoff": "docs/feature-readiness/core-acceptance.md",
+      "cliPin": "@augmentworks/cli@0.3.4",
+      "packedTarballSha256": "a97b1ff77823933defcecac8181c0dc5c925cfe356dfe2d6bad2f39e271d4021"
+    },
+    "aug73": {
+      "version": "0.3.4",
+      "gitHead": "c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f",
+      "integrity": "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ=="
+    }
+  },
+  "checks": [
+    {
+      "name": "registry-identity",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "@augmentworks/cli@0.3.4 gitHead=c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f integrity=sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ== shasum=c0c2443cac952c1cb100178e483e22ee222f12b1 tarballSha256=a97b1ff77823933defcecac8181c0dc5c925cfe356dfe2d6bad2f39e271d4021 publishedAt=2026-09-08T06:38:24.847Z fileCount=55"
+    },
+    {
+      "name": "inventory-schemas-fixtures",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "Installed package includes billing/release-policy locks and own-target starter/suite files. investigation-export schema absent."
+    },
+    {
+      "name": "version-and-help",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "--version=0.3.4; compare=true gate=true baseline=true suite=true probe=true investigation=false --headless=false"
+    },
+    {
+      "name": "documentation-pins",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "init --agent wrote @augmentworks/cli@0.3.4. Packaged cli-release published_package_verified=false (packaged metadata is not a live registry probe)."
+    },
+    {
+      "name": "offline-suite-session-mapping-probe",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "Packed/registry binary: init --agent, offline doctor, preview-mapping --json, suite validate, probe preflight. Zero hosted contact; secrets omitted from stdout."
+    },
+    {
+      "name": "invalid-mapping",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "preview-mapping on a malformed selector exited 2 with RESPONSE_MAPPING_INVALID. No hosted run."
+    },
+    {
+      "name": "unsupported-capability",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "suite validate of a history_array_v1 suite exited 2 SUITE_UNSUPPORTED_FEATURE. No quote or create."
+    },
+    {
+      "name": "wait-timeout-running",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "run wait --timeout-ms 1 on running/pending grading exited 11; run status stayed incomplete. Original run 77777777-7777-4777-8777-777777777777. Zero quote/create."
+    },
+    {
+      "name": "revoked-credential",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "test --estimate with a 401 API key exited 3. Paths: GET /api/v1/cli/auth/me. No quote/create."
+    },
+    {
+      "name": "credit-ceiling",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "test --suite --max-credits 0 --yes exited 13 without POST /v1/relay/runs. Quote/suite pin may occur; admission does not."
+    },
+    {
+      "name": "incompatible-baseline",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "gate --json against incompatible_scope exited 2. Observation only; createsBillableRun remains false on the document."
+    },
+    {
+      "name": "failing-required-criterion",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "gate blocked_equal_pass_rate exited 10 assessment=blocked. Equal aggregate pass rate with a new required failure is not a green CI decision."
+    },
+    {
+      "name": "passing-ci-decision",
+      "artifactKind": "registry",
+      "status": "pass",
+      "evidence": "gate pass_compatible exited 0 assessment=passed, createsBillableRun=false. Observation only."
+    },
+    {
+      "name": "investigation-repro-export",
+      "artifactKind": "registry",
+      "status": "not_run",
+      "evidence": "@augmentworks/cli@0.3.4 --help does not list investigation (AUG-44 landed after published gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f). Local main includes it; a later registry version must be installed before this check can pass."
+    },
+    {
+      "name": "machine-ci-headless",
+      "artifactKind": "registry",
+      "status": "not_run",
+      "evidence": "@augmentworks/cli@0.3.4 test --help does not include --headless (AUG-45 landed after published gitHead c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f). Revoked API-key admission was tested; scoped machine CI admission is unpublished."
+    },
+    {
+      "name": "live-authorized-environment",
+      "artifactKind": "registry",
+      "status": "not_run",
+      "evidence": "No disposable migrated main API token or Stripe test-mode secrets were supplied. scripts/packed-billing-live.mjs remains the live billing gate and was not run. Synthetic loopback fixtures are not that environment."
+    }
+  ],
+  "limitations": [
+    "releaseReady is false until investigation/repro, machine --headless CI, and a compatible authorized environment are verified on a real registry tarball.",
+    "Local pack success is not a passed npm release.",
+    "AUG-46 catalog/shard CLI is out of scope for this first core published loop.",
+    "Packaged cli-release.json may still describe 0.3.4 as a candidate; that metadata is owned by AUG-79 and is not overwritten here.",
+    "No live purchases, production provider calls, or customer-target contact."
+  ],
+  "recovery": [
+    "Observation commands (run wait/status/report, recover, compare, gate) reuse the original run id and must not start a new billed assessment.",
+    "A blocked gate (exit 10) is the CI failure. Do not admit another hosted test from the same job to flip the result.",
+    "A wait timeout or pending grading (exit 11) is not a green release. Re-query the same run id.",
+    "A revoked API key cannot continue; do not call logout from automation cleanup.",
+    "If this published version lacks investigation or --headless, install a later immutable registry version after the protected release.yml publish. Do not overwrite 0.3.4."
+  ]
+}

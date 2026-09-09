@@ -948,6 +948,38 @@ async function main() {
     }
     process.stdout.write(reportFixture.stdout);
 
+    process.stdout.write("[pack smoke] core customer release-acceptance (local packed binary, not registry)\n");
+    const coreAcceptance = spawnSync(
+      process.execPath,
+      [join(projectRoot, "scripts", "packed-core-release-acceptance.mjs"), "--source", "local"],
+      {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          AUGMENTWORKS_PACKED_BIN: packedCli,
+          NO_COLOR: "1"
+        },
+        encoding: "utf8",
+        timeout: 180_000,
+        windowsHide: true
+      }
+    );
+    if (coreAcceptance.error !== undefined) {
+      throw new SmokeFailure(`core release-acceptance failed to start: ${coreAcceptance.error.message}`);
+    }
+    if (coreAcceptance.status !== 0) {
+      throw new SmokeFailure(
+        [
+          "core customer release-acceptance (local packed binary) failed",
+          coreAcceptance.stdout.trim(),
+          coreAcceptance.stderr.trim()
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(coreAcceptance.stdout);
+
     process.stdout.write(
       `[pack smoke] passed (${String(report.entryCount)} files, ${String(report.size)} compressed bytes)\n`
     );
