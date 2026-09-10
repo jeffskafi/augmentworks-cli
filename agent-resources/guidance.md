@@ -9,13 +9,13 @@ AugmentWorks during unrelated coding.
 
 1. Inspect existing tests, applicable repository instructions, actual target
    capabilities, and the desired test scope.
-2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.5 demo`,
+2. Prefer a packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.6 demo`,
    or `node dist/index.js demo` from a clone after `npm ci && npm run build`)
    or non-networked `doctor` for a first look. Preview mappings with
    `node dist/index.js preview-mapping` before an assessment. Explicitly probe
    a safe synthetic target with `node dist/index.js probe` (plan) then
    `node dist/index.js probe --yes`. Doctor and init never probe. This
-   `@augmentworks/cli@0.3.5` package includes `demo`, hosted `--assessment`,
+   `@augmentworks/cli@0.3.6` package includes `demo`, hosted `--assessment`,
    `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`,
    `--max-credits`, `run status`/`run wait`/`run report`,
    `AUGMENTWORKS_API_KEY` mode, and init starter generation.
@@ -24,12 +24,12 @@ AugmentWorks during unrelated coding.
 
 ## Commands (version-pinned)
 
-This 0.3.5 package:
+This 0.3.6 package:
 
-- `npx --yes @augmentworks/cli@0.3.5 init --agent`
-- `npx --yes @augmentworks/cli@0.3.5 doctor -c augmentworks.yaml`
-- `npx --yes @augmentworks/cli@0.3.5 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
-- `npx --yes @augmentworks/cli@0.3.5 schema --kind local-packet`
+- `npx --yes @augmentworks/cli@0.3.6 init --agent`
+- `npx --yes @augmentworks/cli@0.3.6 doctor -c augmentworks.yaml`
+- `npx --yes @augmentworks/cli@0.3.6 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+- `npx --yes @augmentworks/cli@0.3.6 schema --kind local-packet`
 
 From a clone after `npm ci && npm run build`:
 
@@ -37,7 +37,7 @@ From a clone after `npm ci && npm run build`:
 - `node dist/index.js probe -c augmentworks.yaml`
 - `node dist/index.js probe -c augmentworks.yaml --yes`
 
-Do not use `@latest` or immutable npm `0.3.3` npx pins. After building this
+Do not use `@latest` or immutable npm `0.3.5` / `0.3.4` / `0.3.3` npx pins. After building this
 repository you may also use: `node dist/index.js demo`, `node dist/index.js init`
 (writes `augmentworks.yaml`, `augmentworks.assessment.yaml`, and references),
 read-only `node dist/index.js usage` (no grant, reservation, checkout,

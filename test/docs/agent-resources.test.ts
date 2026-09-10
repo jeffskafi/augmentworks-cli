@@ -21,7 +21,8 @@ describe("agent resources", () => {
       expect(wrapper).toContain(guidance);
       expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@latest\b/u);
       expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.3\b/u);
-      expect(wrapper).toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.5\b/u);
+      expect(wrapper).not.toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.5\b/u);
+      expect(wrapper).toMatch(/npx(?:\s+(?:--yes|-y))?\s+@augmentworks\/cli@0\.3\.6\b/u);
     }
     expect(skill.startsWith("---\nname: augmentworks\n")).toBe(true);
     expect(cursor).toContain("alwaysApply: false");

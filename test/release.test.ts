@@ -37,13 +37,14 @@ describe("CLI release metadata", () => {
   });
 
   it("pins hosted npx commands to this package version, not 0.3.2 or 0.3.3", () => {
-    expect(SOURCE_PACKAGE_VERSION).toBe("0.3.5");
-    expect(PUBLISHED_PACKAGE_VERSION).toBe("0.3.5");
+    expect(SOURCE_PACKAGE_VERSION).toBe("0.3.6");
+    expect(PUBLISHED_PACKAGE_VERSION).toBe("0.3.6");
     expect(HOSTED_COMMAND_PIN).toBe(SOURCE_PACKAGE_VERSION);
     expect(HOSTED_COMMAND_PIN).not.toBe("0.3.2");
     expect(HOSTED_COMMAND_PIN).not.toBe("0.3.3");
     expect(HOSTED_COMMAND_PIN).not.toBe("0.3.4");
-    expect(allowedDocumentedNpxPins()).toEqual(["0.3.5"]);
+    expect(HOSTED_COMMAND_PIN).not.toBe("0.3.5");
+    expect(allowedDocumentedNpxPins()).toEqual(["0.3.6"]);
     expect(HOSTED_COMMANDS.login).toBe(formatNpx(HOSTED_COMMAND_PIN, ["login"]));
     expect(HOSTED_COMMANDS.initAgent).toBe(formatNpx(HOSTED_COMMAND_PIN, ["init", "--agent"]));
     expect(HOSTED_COMMANDS.recover).toBe(formatNpx(HOSTED_COMMAND_PIN, ["recover"]));
@@ -56,18 +57,18 @@ describe("CLI release metadata", () => {
   it("exposes published-line identity without baking a stale last-verified 0.3.2 result", () => {
     expect(PUBLISHED_PACKAGE_VERIFIED).toBe(true);
     expect(CLI_RELEASE.published_package_verified).toBe(true);
-    expect(LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION).toBe("0.3.4");
-    expect(LAST_VERIFIED_PUBLISHED_GIT_HEAD).toBe("c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f");
-    expect(LAST_VERIFIED_PUBLISHED_AT).toBe("2026-09-08T06:38:24.847Z");
+    expect(LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION).toBe("0.3.5");
+    expect(LAST_VERIFIED_PUBLISHED_GIT_HEAD).toBe("11570f6cf883ec6e6743e010c35134bb485234dd");
+    expect(LAST_VERIFIED_PUBLISHED_AT).toBe("2026-09-09T02:56:49.964Z");
     expect(LAST_VERIFIED_PUBLISHED_INTEGRITY).toBe(
-      "sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ=="
+      "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ=="
     );
     expect(REGISTRY_0_3_3_GIT_HEAD).toBe("4a08ea0d352f2515e725cb9ca946807112422436");
-    expect(CLI_RELEASE.notes).toContain("Published 0.3.5");
+    expect(CLI_RELEASE.notes).toContain("Published 0.3.6");
     expect(CLI_RELEASE.notes).not.toMatch(/Candidate 0\.3\.4/u);
     expect(CLI_RELEASE.notes).not.toMatch(/Last independently verified published tarball remains @augmentworks\/cli@0\.3\.2/u);
     expect(CLI_RELEASE.notes).toContain("published-registry-evidence.json");
-    expect(CLI_RELEASE.notes).toContain("c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f");
+    expect(CLI_RELEASE.notes).toContain("11570f6cf883ec6e6743e010c35134bb485234dd");
   });
 
   it("does not advertise unpublished local npx pins", () => {
