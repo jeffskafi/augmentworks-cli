@@ -92,7 +92,7 @@
       "name": "verify-published-discovery",
       "artifactKind": "registry",
       "status": "pass",
-      "evidence": "npm view confirms 0.3.4 publication. Website discovery snapshot on main records releaseStatus published and verifiedAt 2026-09-08T06:38:24.847Z. The immutable 0.3.4 tarball still packages candidate/unverified CLI_RELEASE copy. AUG-79 published 0.3.5 without relabeling 0.3.4; thisPackageIdentity is independently-inspected in published-registry-evidence.json."
+      "evidence": "npm view confirms 0.3.4 publication. Website discovery snapshot on main records releaseStatus published and verifiedAt 2026-09-08T06:38:24.847Z. The immutable 0.3.4 tarball still packages candidate/unverified CLI_RELEASE copy. AUG-79 published 0.3.5 and AUG-87 published 0.3.6 without relabeling 0.3.4; thisPackageIdentity is independently-inspected in published-registry-evidence.json."
     }
   ],
   "limitations": [
@@ -103,6 +103,6 @@
     "No live purchases, production provider calls, customer-target contact, or extra trial grants were used.",
     "AUG-47/48 broader baseline/regression/CI acceptance is not claimed.",
     "AUG-58 remains authoritative for hosted positive/fault/browser QA.",
-    "0.3.5 thisPackageIdentity is filled in docs/feature-readiness/published-registry-evidence.json after the protected v0.3.5 publish. This file still records independently inspected 0.3.4."
+    "0.3.6 thisPackageIdentity is filled in docs/feature-readiness/published-registry-evidence.json after the protected v0.3.6 publish. This file still records independently inspected 0.3.4."
   ]
 }

@@ -19,14 +19,17 @@
     "packageName": "@augmentworks/cli",
     "version": "0.3.6",
     "publishedPackageVerifiedMeaning": "published-line identity, not inspection of this tarball",
-    "gitHead": null,
-    "integrity": null,
-    "verifiedAt": null,
-    "status": "pending-protected-publish",
-    "githubRelease": null,
-    "githubReleasePublishedAt": null,
+    "gitHead": "a9b927a2413305003f817c20e9c5df277512f83e",
+    "integrity": "sha512-idDM/kYfDCzDu+iaSqzZjEchyui9I8r1krUFdZ8BmVtZIye2D5WbHFpbYaNzuwjPvV7gCk1XixLwu1kuROXfwA==",
+    "verifiedAt": "2026-09-10T16:26:29.450Z",
+    "status": "independently-inspected",
+    "githubRelease": "v0.3.6",
+    "githubReleasePublishedAt": "2026-09-10T16:20:33Z",
     "registryUrl": "https://registry.npmjs.org/@augmentworks/cli/0.3.6",
-    "notes": "AUG-82 suite-selection capability patch. Fill gitHead/integrity/verifiedAt after the protected v0.3.6 GitHub release and npm trusted publish. Do not overwrite 0.3.5, 0.3.4, or 0.3.3."
+    "shasum": "dfd71377136fa113365affbeddad581af4cbedd7",
+    "tarballSha256": "cf589a8998b6c7a947e6e91260a1a8e03082bb7d9ab6bc9e1ffc6740863d75b3",
+    "fileCount": 64,
+    "notes": "Protected v0.3.6 GitHub release and npm trusted publish with provenance. Independently downloaded registry tarball: published_package_verified true, --version 0.3.6, test --help uses quoted aw-relay/0.3, bundled CompileSuiteSelectionRequestSchema includes capabilities. Direct and assessment-driven selection compile POST prepare/observation/toolEvents/cleanup true, multiTurn false, sorted observationKeys order.refundable,order.refunded_amount,order.status. Removing toolEvents, an observation key, or prepare still yields the matching incompatibility. No quote, reservation, or run. Do not overwrite 0.3.5, 0.3.4, or 0.3.3."
   },
   "immutableArtifacts": [
     {
@@ -52,6 +55,13 @@
       "integrity": "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ==",
       "verifiedAt": "2026-09-09T02:56:49.964Z",
       "notes": "Independently inspected. Omits suite-selection capabilities request field (AUG-82). Do not overwrite or relabel."
+    },
+    {
+      "version": "0.3.6",
+      "gitHead": "a9b927a2413305003f817c20e9c5df277512f83e",
+      "integrity": "sha512-idDM/kYfDCzDu+iaSqzZjEchyui9I8r1krUFdZ8BmVtZIye2D5WbHFpbYaNzuwjPvV7gCk1XixLwu1kuROXfwA==",
+      "verifiedAt": "2026-09-10T16:26:29.450Z",
+      "notes": "Independently inspected. Includes suite-selection capabilities request field (AUG-82). Do not overwrite or relabel."
     }
   ]
 }
