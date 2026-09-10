@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-09-10
+
+Published-line patch for the AUG-82 suite-selection capability fix. Executable
+npx pins match this tarball. Do not overwrite or relabel
+`@augmentworks/cli@0.3.5`. Independent inspection of 0.3.5 is recorded in
+`docs/feature-readiness/published-registry-evidence.json`.
+`published_package_verified` is published-line identity, not a live registry
+probe of this exact tarball.
+
 ### Fixed
 
 - `selection compile` and assessment-driven hosted selection now forward the
@@ -302,6 +311,7 @@ This repository does not overwrite or relabel 0.3.3.
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.3.6]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.6
 [0.3.5]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.5
 [0.3.4]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.4
 [0.3.3]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.3

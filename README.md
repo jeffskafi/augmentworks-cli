@@ -15,9 +15,9 @@ target SDK, and no coding assistant is used in either runtime path.
 
 | Path | What it is | Needs | Status |
 | --- | --- | --- | --- |
-| Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ | In this `@augmentworks/cli@0.3.5` package |
-| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | In this `@augmentworks/cli@0.3.5` package |
-| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | In this `@augmentworks/cli@0.3.5` package, including quoted `--estimate` / `--max-credits` |
+| Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ | In this `@augmentworks/cli@0.3.6` package |
+| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | In this `@augmentworks/cli@0.3.6` package |
+| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | In this `@augmentworks/cli@0.3.6` package, including quoted `--estimate` / `--max-credits` |
 
 Product site: [https://augmentworks.ai](https://augmentworks.ai).
 Report schemas: `schema --kind local-packet` and `schema --kind local-result`.
@@ -33,16 +33,16 @@ audit, or hosted evidence record.
 
 | Identity | Current value |
 | --- | --- |
-| This package (`package.json`) | `0.3.5` |
-| Executable `npx` pin (matches this tarball) | `@augmentworks/cli@0.3.5` |
+| This package (`package.json`) | `0.3.6` |
+| Executable `npx` pin (matches this tarball) | `@augmentworks/cli@0.3.6` |
 | Hosted assessment protocol | `aw-relay/0.3` |
-| Immutable prior npm artifacts | `@augmentworks/cli@0.3.4` (`gitHead` `c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f`, integrity `sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==`, published 2026-09-08T06:38:24.847Z) and `@augmentworks/cli@0.3.3` (`gitHead` `4a08ea0d352f2515e725cb9ca946807112422436`). Do not overwrite or relabel either. |
+| Immutable prior npm artifacts | `@augmentworks/cli@0.3.5` (`gitHead` `11570f6cf883ec6e6743e010c35134bb485234dd`, integrity `sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ==`, published 2026-09-09T02:56:49.964Z; omits suite-selection `capabilities`), `@augmentworks/cli@0.3.4` (`gitHead` `c3da8d92bdd3daa21e9e230ffc5d110b43adaa5f`, integrity `sha512-TLeAzDglZoGL6fWLxA9rIUwJd69NFqgmlONzU4uRmhDz4S31+dfSZpaj44ahb6lUjnmuoY6sDmfPStxFzInpVQ==`, published 2026-09-08T06:38:24.847Z), and `@augmentworks/cli@0.3.3` (`gitHead` `4a08ea0d352f2515e725cb9ca946807112422436`). Do not overwrite or relabel any of them. |
 | Hosted packet | `support-refunds@0.1.0` |
 | Local starter packet | `support-refunds-starter@0.1.0` |
 
-Executable `npx` examples pin **0.3.5**, the identity of this package. This published-line package includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `catalog list` / `show`, `selection compile`, `suite validate` / `preview`, `test --suite`, `investigation inspect` / `fetch` / `export-regression`, `test --investigation`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. `published_package_verified` is published-line identity, not a live registry probe of this exact tarball. Independent inspection of 0.3.4 is recorded in `docs/feature-readiness/published-registry-evidence.json`. The immutable 0.3.4 tarball still contains stale candidate metadata; this 0.3.5 patch corrects packaged copy. Website discovery may remain on 0.3.4 until it adopts this patch. Do not overwrite or relabel npm 0.3.4 or 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
+Executable `npx` examples pin **0.3.6**, the identity of this package. This published-line package includes packaged `demo`, hosted `--assessment` / `--profile`, `usage`, `billing`, `preview-mapping`, `probe`, `catalog list` / `show`, `selection compile` with connector capabilities, `suite validate` / `preview`, `test --suite`, `investigation inspect` / `fetch` / `export-regression`, `test --investigation`, `--estimate` / `--max-credits`, `run status` / `run wait` / `run report`, `compare` / `gate` / `baseline`, `AUGMENTWORKS_API_KEY` mode, and empty-directory own-target starters. `examples/` is still omitted from the npm tarball; starters ship under `assets/`. `published_package_verified` is published-line identity, not a live registry probe of this exact tarball. Independent inspection of 0.3.5 is recorded in `docs/feature-readiness/published-registry-evidence.json`. The immutable 0.3.5 tarball omits suite-selection `capabilities` (AUG-82); this 0.3.6 patch includes the merged fix. Website discovery may remain on 0.3.5 until it adopts this independently inspected patch. Do not overwrite or relabel npm 0.3.5, 0.3.4, or 0.3.3. `npx --yes` only skips the npm prompt; it is not a hosted spending ceiling. Do not run `npx @augmentworks/cli@latest`.
 
-## Packaged demo (this 0.3.5 package)
+## Packaged demo (this 0.3.6 package)
 
 Prerequisites: Node.js 20 or newer. No API key, login, second terminal, Docker,
 database, or model.
@@ -56,7 +56,7 @@ node dist/index.js demo
 Published npm:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 demo
+npx --yes @augmentworks/cli@0.3.6 demo
 ```
 
 Machine-readable summary (not an `AW-LOCAL-RESULT-1` report):
@@ -84,9 +84,9 @@ opens HTML only if you pass it; default is no browser. After a hard kill,
 cleanup may not run; the in-memory demo target vanishes with the process, but
 a real application still needs a server-side fixture TTL.
 
-Website discovery may remain on independently inspected `@augmentworks/cli@0.3.4`
+Website discovery may remain on independently inspected `@augmentworks/cli@0.3.5`
 until maintainers adopt this patch. Do not treat this pin as a live registry
-probe of 0.3.5, and do not use `@latest` or `@0.3.3`.
+probe of 0.3.6, and do not use `@latest` or `@0.3.5` for catalog/selection compile.
 
 ## Hosted quickstart
 
@@ -94,7 +94,7 @@ Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
 authorized, isolated synthetic test target. Hosted access is not a public
 self-serve signup; do not assume a trial entitlement.
 
-This `@augmentworks/cli@0.3.5` package can log in, run `--assessment`, and
+This `@augmentworks/cli@0.3.6` package can log in, run `--assessment`, and
 `init` writes `augmentworks.assessment.yaml`. From a clone after
 `npm ci && npm run build`:
 
@@ -113,16 +113,16 @@ you pass `--force`. `--force` still never replaces an existing `.env`.
 `npm --yes` only skips the npm installer prompt; it is not CLI spending consent.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 login
+npx --yes @augmentworks/cli@0.3.6 login
 
-npx --yes @augmentworks/cli@0.3.5 init --agent
-# This 0.3.5 package writes augmentworks.assessment.yaml and starter files.
+npx --yes @augmentworks/cli@0.3.6 init --agent
+# This 0.3.6 package writes augmentworks.assessment.yaml and starter files.
 # Edit .env with isolated synthetic target values.
 
-npx --yes @augmentworks/cli@0.3.5 doctor \
+npx --yes @augmentworks/cli@0.3.6 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.5 test \
+npx --yes @augmentworks/cli@0.3.6 test \
   -c augmentworks.yaml \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
@@ -144,7 +144,7 @@ original run; do not delete journals or blindly rerun the test command.
 For an SSH or otherwise headless environment, use device authorization:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 login --device
+npx --yes @augmentworks/cli@0.3.6 login --device
 ```
 
 ## Workspace usage
@@ -367,7 +367,7 @@ Actions recipe is `docs/examples/github-actions-hosted.yml` (scoped
 `--max-credits`, `run wait` on the original ID, then `gate`). A shorter
 gate-only snippet remains in `docs/examples/github-actions-hosted-gate.yml`.
 
-Copy-pastable noninteractive CI (this 0.3.5 package after `npm ci && npm run build`;
+Copy-pastable noninteractive CI (this 0.3.6 package after `npm ci && npm run build`;
 no browser; `npx --yes` is not a spending ceiling). Capture the run id, wait
 on that exact run if grading is pending, and recover an interrupted create
 before considering a new admission:
@@ -425,7 +425,7 @@ patch. Independent registry evidence lives in
 No AugmentWorks account, login, credit, relay, or dashboard is required. Point
 the published CLI at **your** authorized isolated synthetic target, or clone
 this repository for the refund-agent example server. `examples/` is not in the
-npm tarball. The local CLI itself is this `0.3.5` package. This path
+npm tarball. The local CLI itself is this `0.3.6` package. This path
 is not the packaged `demo` command.
 
 ```bash
@@ -442,10 +442,10 @@ node --env-file=.env server.mjs
 In another terminal, from the example directory, run the published local CLI:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 doctor \
+npx --yes @augmentworks/cli@0.3.6 doctor \
   -c augmentworks.yaml
 
-npx --yes @augmentworks/cli@0.3.5 test \
+npx --yes @augmentworks/cli@0.3.6 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -472,7 +472,7 @@ Windows because POSIX file modes cannot establish a safe Windows ACL.
 Do not put an AugmentWorks token on the command line. Long-lived project-token
 issuance is not part of the interactive connector-auth release, so do not
 substitute its one-hour interactive access token for an unattended CI
-credential. This `0.3.5` package accepts `AUGMENTWORKS_API_KEY` for noninteractive
+credential. This `0.3.6` package accepts `AUGMENTWORKS_API_KEY` for noninteractive
 workspace keys issued at https://augmentworks.ai/portal/settings/api-keys.
 That mode never loads a keychain, refreshes, or persists credentials. Differing
 nonempty `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail closed
@@ -642,8 +642,8 @@ before any target call.
 Print the packet and result schemas with:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 schema --kind local-packet
-npx --yes @augmentworks/cli@0.3.5 schema --kind local-result
+npx --yes @augmentworks/cli@0.3.6 schema --kind local-packet
+npx --yes @augmentworks/cli@0.3.6 schema --kind local-result
 ```
 
 ### Local reports and trust
@@ -665,22 +665,22 @@ same final local result on stdout; the three files are still generated.
 
 ## Hosted assessment files
 
-`--assessment` is in this `@augmentworks/cli@0.3.5` package. `init` writes
+`--assessment` is in this `@augmentworks/cli@0.3.6` package. `init` writes
 `augmentworks.yaml`, `augmentworks.assessment.yaml`, and referenced starter
 files before you run an assessment. See `examples/response-agent/` for the FAQ
 fixture used as the packaged `response-quality` starter.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.5 doctor \
+npx --yes @augmentworks/cli@0.3.6 doctor \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick
 
-npx --yes @augmentworks/cli@0.3.5 test \
+npx --yes @augmentworks/cli@0.3.6 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile quick \
   --open
 
-npx --yes @augmentworks/cli@0.3.5 test \
+npx --yes @augmentworks/cli@0.3.6 test \
   --assessment ./augmentworks.assessment.yaml \
   --profile full \
   --open
@@ -799,13 +799,13 @@ Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli
 After the packaged demo, configure the generic HTTP connector against an
 authorized, isolated synthetic target in a test or staging environment:
 
-1. `npx --yes @augmentworks/cli@0.3.5 init --agent`
+1. `npx --yes @augmentworks/cli@0.3.6 init --agent`
 2. `node dist/index.js init` or `node dist/index.js init --starter workflow` from a clone after `npm ci && npm run build`. Map only the hooks required by that pattern.
 3. Put secret *names* in YAML and values only in local `.env`.
-4. `npx --yes @augmentworks/cli@0.3.5 doctor -c augmentworks.yaml`
+4. `npx --yes @augmentworks/cli@0.3.6 doctor -c augmentworks.yaml`
 5. `node dist/index.js preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
 6. `node dist/index.js probe -c augmentworks.yaml` then `node dist/index.js probe -c augmentworks.yaml --yes`
-7. `npx --yes @augmentworks/cli@0.3.5 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
+7. `npx --yes @augmentworks/cli@0.3.6 test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0`
 
 Do not fabricate an OpenAI, LangServe, MCP, or framework adapter the CLI does
 not provide. Hosted access remains an invited workspace at
@@ -825,7 +825,7 @@ define pricing or public signup.
   or blindly rerun the test. There is no `--rerun` flag.
 - Pointing the CLI directly at a model provider tests the model endpoint, not
   the customer's policies, tools, database, or application behavior.
-- This `@augmentworks/cli@0.3.5` package includes `--assessment`, `demo`, and
+- This `@augmentworks/cli@0.3.6` package includes `--assessment`, `demo`, and
   `init` starter generation. Packaged `usage`, `billing`, `preview-mapping`, `probe`, `test --estimate`, `--max-credits`,
   `run status`/`run wait`/`run report`, `compare`/`gate`/`baseline`, `AUGMENTWORKS_API_KEY` mode, owned-suite
   commands, investigation inspect/fetch, and own-target starters are in this package.

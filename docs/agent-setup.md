@@ -14,14 +14,14 @@ during unrelated coding.
 
 | Item | Value |
 | --- | --- |
-| This package | `@augmentworks/cli@0.3.5` (published-line identity; executable npx pin matches this tarball) |
-| Immutable prior npm | `@augmentworks/cli@0.3.4` (published; packaged candidate metadata was stale) and `@augmentworks/cli@0.3.3` |
+| This package | `@augmentworks/cli@0.3.6` (published-line identity; executable npx pin matches this tarball) |
+| Immutable prior npm | `@augmentworks/cli@0.3.5` (published; omits suite-selection capabilities), `@augmentworks/cli@0.3.4`, and `@augmentworks/cli@0.3.3` |
 | Node.js | 20 or newer |
 | Local packet | `support-refunds-starter@0.1.0` |
 | Hosted packet | `support-refunds@0.1.0` |
 
-Do not run `@latest`. Do not pin immutable npm `0.3.3` or overwrite `0.3.4`.
-Independent inspection of 0.3.4 is recorded in
+Do not run `@latest`. Do not pin immutable npm `0.3.5` / `0.3.4` / `0.3.3` or overwrite them.
+Independent inspection of 0.3.5 is recorded in
 `docs/feature-readiness/published-registry-evidence.json`.
 
 Prerequisites: Node.js 20+, an authorized isolated synthetic target (or the
@@ -47,14 +47,14 @@ Check existing tests, applicable instructions, actual target capabilities, and
 the desired test scope before changing code.
 
 If I asked for a first look and there is no application target yet, prefer the
-packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.5 demo` or
+packaged synthetic demo (`npx --yes @augmentworks/cli@0.3.6 demo` or
 `node dist/index.js demo` after `npm ci && npm run build`) or non-networked doctor.
-This `@augmentworks/cli@0.3.5` package includes demo, `--assessment`, and
+This `@augmentworks/cli@0.3.6` package includes demo, `--assessment`, and
 `init` starter generation.
 
-Use the pinned @augmentworks/cli@0.3.5 package for application integration:
+Use the pinned @augmentworks/cli@0.3.6 package for application integration:
 
-npx --yes @augmentworks/cli@0.3.5 init --agent
+npx --yes @augmentworks/cli@0.3.6 init --agent
 
 Then configure the generic YAML HTTP connector. Do not require a Python adapter
 or AugmentWorks target SDK; implement only missing synthetic hooks in this
@@ -70,7 +70,7 @@ placeholders.
 
 Run:
 
-npx --yes @augmentworks/cli@0.3.5 doctor -c augmentworks.yaml
+npx --yes @augmentworks/cli@0.3.6 doctor -c augmentworks.yaml
 
 Show me the resulting diff, and explain the telemetry allowlist, idempotency,
 cleanup, and server-side fixture TTLs. Preserve already granted user
@@ -93,7 +93,7 @@ insert credentials.
    Otherwise start with `doctor --offline`.
 3. Inspect application routes or an OpenAPI description inside that root.
 4. Identify the application endpoint—not merely its model-provider endpoint.
-5. Run `npx --yes @augmentworks/cli@0.3.5 init --agent` only when those files
+5. Run `npx --yes @augmentworks/cli@0.3.6 init --agent` only when those files
    are missing. Preserve collision behavior: existing files are not overwritten
    without `--force`. `--agent` is an explicit opt-in that writes
    `augmentworks.agent.md` only.
@@ -120,7 +120,7 @@ insert credentials.
 12. If authoring a local packet, create strict JSON using `aw-packet/0.1`; do not
     add JavaScript, modules, shell instructions, remote URLs, or secret values.
     Validate its contract with
-    `npx --yes @augmentworks/cli@0.3.5 schema --kind local-packet`.
+    `npx --yes @augmentworks/cli@0.3.6 schema --kind local-packet`.
 13. Show the diff, explain which target operations will run, and stop for human
     approval before `test` unless that same scoped assessment was already
     authorized.
@@ -179,7 +179,7 @@ edit them independently.
   require an AugmentWorks account:
 
   ```bash
-  npx --yes @augmentworks/cli@0.3.5 test \
+  npx --yes @augmentworks/cli@0.3.6 test \
     --local \
     -c augmentworks.yaml \
     --packet support-refunds-starter@0.1.0 \
@@ -198,8 +198,8 @@ edit them independently.
   follows the workspace's remaining baseline/remediation allowance:
 
   ```bash
-  npx --yes @augmentworks/cli@0.3.5 login
-  npx --yes @augmentworks/cli@0.3.5 test \
+  npx --yes @augmentworks/cli@0.3.6 login
+  npx --yes @augmentworks/cli@0.3.6 test \
     -c augmentworks.yaml \
     --packet support-refunds@0.1.0 \
     --open
@@ -220,5 +220,5 @@ run is executed by the same version-pinned, deterministic CLI.
   allowlisted observation keys.
 - `LOCAL_OUTPUT_EXISTS`: choose a fresh `--output-dir` leaf.
 - Exit `11`: hosted judging is pending; this is not a pass.
-- Packaged demo not found: assets did not install. Reinstall `@augmentworks/cli@0.3.5`
+- Packaged demo not found: assets did not install. Reinstall `@augmentworks/cli@0.3.6`
   or run `test --local` with your target.
