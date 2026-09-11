@@ -246,6 +246,7 @@ describe("saved-suite admission pin", () => {
       suite_revision_id: SUITE_REVISION,
       suite_content_hash: CANONICAL_HASH
     });
+    if (pin === undefined) throw new Error("expected saved-suite pin");
     const created = shardCreateFields(manifest.shards[0]!, { suitePin: pin });
     expect(created.packet).toEqual({ key: "aw-customer-suite", version: "1.0.0" });
     expectSuiteTriple(created.assessment as unknown as Record<string, unknown>);
