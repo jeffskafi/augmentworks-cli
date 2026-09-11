@@ -5,7 +5,7 @@ export function formatSelectionHuman(manifest: SuiteSelectionManifest): string {
   const lines = [
     `Selection ${sanitizeTerminal(manifest.normalizedSelection.profile)} / ${sanitizeTerminal(manifest.normalizedSelection.conversationMode)}`,
     `Manifest ${sanitizeTerminal(manifest.manifestHash)}`,
-    `Catalog checksum ${sanitizeTerminal(manifest.catalogChecksum)}`,
+    `Catalog checksum ${manifest.catalogChecksum === null ? "none" : sanitizeTerminal(manifest.catalogChecksum)}`,
     `Included ${String(manifest.includedCaseCount)} of ${String(manifest.requestedCaseCount)} requested cases`,
     `Planned executions ${String(manifest.plannedExecutions)}; planned commands ${String(manifest.plannedCommands)}`,
     `Per-run limits ${String(manifest.perRunLimits.maxCases)} cases / ${String(manifest.perRunLimits.maxExecutions)} executions / ${String(manifest.perRunLimits.maxCommands)} commands`,
@@ -56,6 +56,7 @@ export function selectionCompileJson(manifest: SuiteSelectionManifest): Record<s
     manifestHash: manifest.manifestHash,
     catalogChecksum: manifest.catalogChecksum,
     inventoryHash: manifest.inventoryHash,
+    suiteBinding: manifest.suiteBinding ?? null,
     normalizedSelection: manifest.normalizedSelection,
     requestedCaseCount: manifest.requestedCaseCount,
     includedCaseCount: manifest.includedCaseCount,

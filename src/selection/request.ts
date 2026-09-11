@@ -1,3 +1,4 @@
+import type { AssessmentSelection } from "../assessment/schema.js";
 import type { LoadedAssessment } from "../assessment/load.js";
 import { inspectConfig, unresolvedConfigError } from "../config/load.js";
 import { advertisedTargetCapabilities, CONVERSATION_STRATEGY_EXPLICIT_SESSION } from "../config/conversation.js";
@@ -8,7 +9,10 @@ import type {
   SelectionConversationMode,
   SelectionProfile
 } from "./schema.js";
-import { CompileSuiteSelectionRequestSchema } from "./schema.js";
+import {
+  CompileSuiteSelectionRequestSchema,
+  SAVED_SUITE_ACCEPTED_MANIFEST_VERSIONS
+} from "./schema.js";
 import { selectionError } from "./errors.js";
 
 export interface SelectionAdvertisement {
@@ -94,8 +98,9 @@ export function compileRequestFromAssessment(
     schemaVersion: "aw-suite-selection/1",
     profile: profileOverride ?? selection.profile
   };
-  if (selection.suite_revision_id !== undefined && selection.suite_revision_id !== "") {
+  if (isSavedSuiteSelection(selection)) {
     body["suiteRevisionId"] = selection.suite_revision_id;
+    body["acceptedManifestVersions"] = [...SAVED_SUITE_ACCEPTED_MANIFEST_VERSIONS];
   } else {
     body["includeCatalog"] = selection.include_catalog ?? true;
   }
@@ -138,6 +143,12 @@ export function parseCompileRequest(
     conversationMode: advertisement.conversationMode,
     capabilities: cloneSelectionCapabilities(advertisement.capabilities)
   });
+}
+
+export function isSavedSuiteSelection(
+  selection: AssessmentSelection | undefined
+): selection is AssessmentSelection & { readonly suite_revision_id: string } {
+  return selection?.suite_revision_id !== undefined && selection.suite_revision_id !== "";
 }
 
 export function cloneSelectionCapabilities(

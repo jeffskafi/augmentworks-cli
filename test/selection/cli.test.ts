@@ -153,6 +153,7 @@ describe("selection and manifest-gate CLI", () => {
         expect(body["schemaVersion"]).toBe("aw-suite-selection/1");
         expect(body["profile"]).toBe("smoke");
         expect(body["includeCatalog"]).toBe(true);
+        expect(body).not.toHaveProperty("acceptedManifestVersions");
         expect(body["conversationMode"]).toBe("single_turn");
         expect(body["capabilities"]).toEqual({
           prepare: false,

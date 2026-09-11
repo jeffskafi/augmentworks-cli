@@ -10,21 +10,23 @@ import {
   compileRequestFromAssessment,
   compileRequestFromFlags,
   conversationModeFromConfig,
+  isSavedSuiteSelection,
   parseCompileRequest,
   resolveSelectionAdvertisement,
   type SelectionAdvertisement
 } from "../selection/request.js";
 import {
   SelectionProfileSchema,
+  requestsSavedSuiteManifest,
   type CompileSuiteSelectionRequest,
   type SelectionProfile,
   type SuiteSelectionManifest
 } from "../selection/schema.js";
 import { hostedSelectionUnsupportedLocalError, selectionError } from "../selection/errors.js";
 import {
+  admitCompiledSelection,
   assertShardWithinPerRunLimits,
-  requireExecutableManifest,
-  requirePinnedSelectionVersion
+  requireExecutableManifest
 } from "../selection/admit.js";
 import {
   authenticateHostedSession,
@@ -118,7 +120,15 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
         const manifest = await session.cloud.compileSuiteSelection(request);
         if (values.assessment !== undefined) {
           const loaded = await loadAssessmentFile({ path: values.assessment, cwd: workingDirectory });
-          requirePinnedSelectionVersion(manifest, loaded.document.selection?.suite_version);
+          admitCompiledSelection(manifest, {
+            requestedSavedSuite: isSavedSuiteSelection(loaded.document.selection),
+            ...(loaded.document.selection?.suite_version === undefined
+              ? {}
+              : { suiteVersion: loaded.document.selection.suite_version }),
+            ...(loaded.document.selection?.suite_revision_id === undefined
+              ? {}
+              : { suiteRevisionId: loaded.document.selection.suite_revision_id })
+          });
         }
         if (values.out !== undefined) {
           const outPath = resolve(workingDirectory, values.out);
@@ -146,13 +156,18 @@ export async function compileHostedSelection(options: {
   readonly request: CompileSuiteSelectionRequest;
   readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
   readonly suiteVersion?: string;
+  readonly suiteRevisionId?: string;
   readonly signal?: AbortSignal;
 }): Promise<SuiteSelectionManifest> {
   const manifest =
     options.signal === undefined
       ? await options.session.cloud.compileSuiteSelection(options.request)
       : await options.session.cloud.compileSuiteSelection(options.request, options.signal);
-  requirePinnedSelectionVersion(manifest, options.suiteVersion);
+  admitCompiledSelection(manifest, {
+    requestedSavedSuite: requestsSavedSuiteManifest(options.request),
+    ...(options.suiteVersion === undefined ? {} : { suiteVersion: options.suiteVersion }),
+    ...(options.suiteRevisionId === undefined ? {} : { suiteRevisionId: options.suiteRevisionId })
+  });
   return manifest;
 }
 

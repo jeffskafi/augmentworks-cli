@@ -148,6 +148,7 @@ describe("selection compile capability advertisement", () => {
       includeCatalog: true,
       capabilities: ACTION_CONNECTOR_CAPABILITIES
     });
+    expect(body).not.toHaveProperty("acceptedManifestVersions");
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout) as {
       includedCaseCount: number;
@@ -171,6 +172,7 @@ describe("selection compile capability advertisement", () => {
     );
     expect(body?.["capabilities"]).toEqual(ACTION_CONNECTOR_CAPABILITIES);
     expect(body?.["requestedCaseIds"]).toEqual([...ACTION_QUICK_CASE_IDS]);
+    expect(body).not.toHaveProperty("acceptedManifestVersions");
     expect(result.exitCode).toBe(0);
     const payload = JSON.parse(result.stdout) as { includedCaseCount: number };
     expect(payload.includedCaseCount).toBe(5);

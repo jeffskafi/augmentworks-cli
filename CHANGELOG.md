@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Saved-suite assessments negotiate `aw-suite-selection/2`, validate
+  `aw-saved-suite-binding/1`, and carry `suite_id` / `suite_revision_id` /
+  `suite_content_hash` through estimate, quote, and create. Catalog compiles
+  still omit `acceptedManifestVersions` and keep `aw-suite-selection/1`.
+  A v1 or HTTP 400 response to a requested saved-suite compile fails with
+  `SAVED_SUITE_BINDING_UNSUPPORTED` before quote. Package version remains
+  0.3.6; this is source integration, not publication.
+
 ## [0.3.6] - 2026-09-10
 
 Published-line patch for the AUG-82 suite-selection capability fix. Executable

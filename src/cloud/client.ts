@@ -80,12 +80,12 @@ import {
   EvaluateManifestRequestSchema,
   ManifestReleasePolicyResultSchema,
   SELECTION_PATHS,
-  SuiteSelectionManifestSchema,
   type CompileSuiteSelectionRequest,
   type EvaluateManifestRequest,
   type ManifestReleasePolicyResult,
   type SuiteSelectionManifest
 } from "../selection/schema.js";
+import { mapSavedSuiteCompileError, parseCompiledSuiteSelectionManifest } from "../selection/parse.js";
 import { createsBillableCompileError, selectionError } from "../selection/errors.js";
 
 export interface CloudClientOptions {
@@ -538,10 +538,12 @@ export class CloudClient {
         "The suite-selection compile request does not match aw-suite-selection/1."
       );
     }
-    const value = await this.#request("POST", SELECTION_PATHS.compile, validated.data, signal);
-    const parsed = parseResponse(SuiteSelectionManifestSchema, value, "suite-selection compile response");
-    if (parsed.createsBillableRun) throw createsBillableCompileError();
-    return parsed;
+    try {
+      const value = await this.#request("POST", SELECTION_PATHS.compile, validated.data, signal);
+      return parseCompiledSuiteSelectionManifest(value, validated.data);
+    } catch (error) {
+      throw mapSavedSuiteCompileError(error, validated.data);
+    }
   }
 
   async evaluateManifestReleasePolicy(
