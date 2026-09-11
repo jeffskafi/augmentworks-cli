@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 export const SUITE_SELECTION_SCHEMA_VERSION = "aw-suite-selection/1" as const;
+export const SUITE_SELECTION_SCHEMA_VERSION_V2 = "aw-suite-selection/2" as const;
 export const SUITE_SELECTION_DOCUMENT_KIND = "suite_selection_manifest" as const;
+export const SAVED_SUITE_BINDING_SCHEMA_VERSION = "aw-saved-suite-binding/1" as const;
+export const SAVED_SUITE_SELECTION_VERSION = "2.0.0" as const;
+export const SAVED_SUITE_ACCEPTED_MANIFEST_VERSIONS = [SUITE_SELECTION_SCHEMA_VERSION_V2] as const;
 export const MANIFEST_RELEASE_POLICY_SCHEMA_VERSION = "aw-manifest-release-policy/1" as const;
 export const MANIFEST_RELEASE_POLICY_DOCUMENT_KIND = "manifest_release_policy_result" as const;
 export const SELECTION_PROGRESS_SCHEMA_VERSION = "aw-selection-progress/1" as const;
@@ -92,7 +96,11 @@ export const CompileSuiteSelectionRequestSchema = z
     excludeTags: z.array(z.string().min(1).max(80)).max(16).optional(),
     requestedCaseIds: z.array(identifier).max(INVENTORY_CASE_BOUND).optional(),
     excludedCaseIds: z.array(identifier).max(INVENTORY_CASE_BOUND).optional(),
-    suiteRevisionId: z.string().min(1).max(128).optional()
+    suiteRevisionId: z.string().min(1).max(128).optional(),
+    acceptedManifestVersions: z
+      .array(z.literal(SUITE_SELECTION_SCHEMA_VERSION_V2))
+      .length(1)
+      .optional()
   })
   .strict()
   .superRefine((value, context) => {
@@ -102,6 +110,13 @@ export const CompileSuiteSelectionRequestSchema = z
         code: "custom",
         message: "conversationMode and capabilities.multiTurn must agree",
         path: ["capabilities", "multiTurn"]
+      });
+    }
+    if (value.acceptedManifestVersions !== undefined && (value.suiteRevisionId === undefined || value.suiteRevisionId === "")) {
+      context.addIssue({
+        code: "custom",
+        message: "acceptedManifestVersions requires suiteRevisionId for a saved-suite compile",
+        path: ["acceptedManifestVersions"]
       });
     }
   });
@@ -144,9 +159,59 @@ export const ShardManifestSchema = z
 
 export type ShardManifest = z.infer<typeof ShardManifestSchema>;
 
+export const SavedSuiteBindingCaseSchema = z
+  .object({
+    caseId: identifier,
+    scenarioId: identifier,
+    repetitions: z.literal(1)
+  })
+  .strict();
+
+export type SavedSuiteBindingCase = z.infer<typeof SavedSuiteBindingCaseSchema>;
+
+export const SavedSuiteBindingSchema = z
+  .object({
+    schemaVersion: z.literal(SAVED_SUITE_BINDING_SCHEMA_VERSION),
+    suiteId: identifier,
+    suiteRevisionId: z.string().min(1).max(128),
+    canonicalHash: sha256,
+    semanticRevisionHash: z.string().min(1).max(128),
+    cases: z.array(SavedSuiteBindingCaseSchema).min(1).max(CREATE_RUN_MAX_SELECTED_CASES)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const caseIds = value.cases.map((entry) => entry.caseId);
+    if (new Set(caseIds).size !== caseIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "suiteBinding.cases caseId values must be unique",
+        path: ["cases"]
+      });
+    }
+    const scenarioIds = value.cases.map((entry) => entry.scenarioId);
+    if (new Set(scenarioIds).size !== scenarioIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "suiteBinding.cases scenarioId values must be unique",
+        path: ["cases"]
+      });
+    }
+    for (const [index, entry] of value.cases.entries()) {
+      if (entry.scenarioId !== entry.caseId && !entry.scenarioId.endsWith(`/${entry.caseId}`)) {
+        context.addIssue({
+          code: "custom",
+          message: "suiteBinding scenarioId must equal caseId or end with /caseId",
+          path: ["cases", index, "scenarioId"]
+        });
+      }
+    }
+  });
+
+export type SavedSuiteBinding = z.infer<typeof SavedSuiteBindingSchema>;
+
 export const SuiteSelectionManifestSchema = z
   .object({
-    schemaVersion: z.literal(SUITE_SELECTION_SCHEMA_VERSION),
+    schemaVersion: z.enum([SUITE_SELECTION_SCHEMA_VERSION, SUITE_SELECTION_SCHEMA_VERSION_V2]),
     documentKind: z.literal(SUITE_SELECTION_DOCUMENT_KIND),
     selectionVersion: semver,
     createsBillableRun: z.boolean(),
@@ -154,7 +219,7 @@ export const SuiteSelectionManifestSchema = z
     suiteRevisionId: z.string().max(128).nullable().optional(),
     suiteId: z.string().max(300).nullable().optional(),
     semanticRevisionHash: z.string().max(128).nullable().optional(),
-    catalogChecksum: sha256,
+    catalogChecksum: z.union([sha256, z.null()]),
     inventoryHash: sha256,
     normalizedSelection: z
       .object({
@@ -185,11 +250,61 @@ export const SuiteSelectionManifestSchema = z
     excluded: z.array(dispositionSchema).max(INVENTORY_CASE_BOUND),
     incompatible: z.array(dispositionSchema).max(INVENTORY_CASE_BOUND),
     shards: z.array(ShardManifestSchema).max(16),
+    suiteBinding: SavedSuiteBindingSchema.optional(),
     manifestHash: sha256
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((value, context) => {
+    if (value.schemaVersion === SUITE_SELECTION_SCHEMA_VERSION) {
+      if (value.catalogChecksum === null) {
+        context.addIssue({
+          code: "custom",
+          message: "aw-suite-selection/1 requires a SHA-256 catalogChecksum",
+          path: ["catalogChecksum"]
+        });
+      }
+      if (value.suiteBinding !== undefined) {
+        context.addIssue({
+          code: "custom",
+          message: "aw-suite-selection/1 does not include suiteBinding",
+          path: ["suiteBinding"]
+        });
+      }
+      return;
+    }
+    if (value.selectionVersion !== SAVED_SUITE_SELECTION_VERSION) {
+      context.addIssue({
+        code: "custom",
+        message: `aw-suite-selection/2 requires selectionVersion ${SAVED_SUITE_SELECTION_VERSION}`,
+        path: ["selectionVersion"]
+      });
+    }
+    if (value.suiteBinding === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "aw-suite-selection/2 requires suiteBinding",
+        path: ["suiteBinding"]
+      });
+    }
+  });
 
 export type SuiteSelectionManifest = z.infer<typeof SuiteSelectionManifestSchema>;
+
+export function isSavedSuiteManifest(
+  manifest: SuiteSelectionManifest
+): manifest is SuiteSelectionManifest & {
+  schemaVersion: typeof SUITE_SELECTION_SCHEMA_VERSION_V2;
+  suiteBinding: SavedSuiteBinding;
+} {
+  return manifest.schemaVersion === SUITE_SELECTION_SCHEMA_VERSION_V2 && manifest.suiteBinding !== undefined;
+}
+
+export function requestsSavedSuiteManifest(request: CompileSuiteSelectionRequest): boolean {
+  return (
+    request.acceptedManifestVersions?.length === 1 &&
+    request.acceptedManifestVersions[0] === SUITE_SELECTION_SCHEMA_VERSION_V2
+  );
+}
 
 export const DeclaredShardSchema = z
   .object({

@@ -87,11 +87,12 @@ import {
 } from "./local-test.js";
 import { compileHostedSelection } from "./selection.js";
 import { formatSelectionHuman } from "../selection/format.js";
-import { compileRequestFromAssessment, selectionAdvertisementFromResolved } from "../selection/request.js";
+import { compileRequestFromAssessment, isSavedSuiteSelection, selectionAdvertisementFromResolved } from "../selection/request.js";
 import { loadSuiteSelectionManifest } from "../selection/load.js";
 import {
+  admitCompiledSelection,
   assertShardWithinPerRunLimits,
-  requirePinnedSelectionVersion,
+  savedSuitePinFromManifest,
   selectShard,
   shardCreateFields
 } from "../selection/admit.js";
@@ -406,12 +407,15 @@ async function resolveCompiledManifest(
 ): Promise<SuiteSelectionManifest> {
   if (options.manifest !== undefined) {
     const manifest = await loadSuiteSelectionManifest(options.manifest, context.cwd);
-    requirePinnedSelectionVersion(
-      manifest,
-      context.selection.kind === "assessment"
-        ? context.selection.assessment.document.selection?.suite_version
-        : undefined
-    );
+    const assessmentSelection =
+      context.selection.kind === "assessment" ? context.selection.assessment.document.selection : undefined;
+    admitCompiledSelection(manifest, {
+      requestedSavedSuite: isSavedSuiteSelection(assessmentSelection),
+      ...(assessmentSelection?.suite_version === undefined ? {} : { suiteVersion: assessmentSelection.suite_version }),
+      ...(assessmentSelection?.suite_revision_id === undefined
+        ? {}
+        : { suiteRevisionId: assessmentSelection.suite_revision_id })
+    });
     return manifest;
   }
   if (context.selection.kind !== "assessment" || context.selection.assessment.document.selection === undefined) {
@@ -431,26 +435,48 @@ async function resolveCompiledManifest(
     context.selection.assessment,
     selectionAdvertisementFromResolved(context.report.resolvedConfig)
   );
-  const suiteVersion = context.selection.assessment.document.selection.suite_version;
+  const selection = context.selection.assessment.document.selection;
+  const suiteVersion = selection.suite_version;
   return compileHostedSelection({
     request,
     session: context.session,
     ...(suiteVersion === undefined ? {} : { suiteVersion }),
+    ...(selection.suite_revision_id === undefined ? {} : { suiteRevisionId: selection.suite_revision_id }),
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
 }
 
-function shardSelectionForContext(shard: ShardManifest, selection: HostedSelection): HostedSelection {
+function shardSelectionForContext(
+  shard: ShardManifest,
+  selection: HostedSelection,
+  manifest: SuiteSelectionManifest
+): HostedSelection {
+  const suitePin = savedSuitePinFromManifest(manifest);
   return selection.kind === "assessment"
-    ? shardHostedSelection(shard, selection.assessment)
-    : shardHostedSelection(shard);
+    ? shardHostedSelection(shard, {
+        assessment: selection.assessment,
+        ...(suitePin === undefined ? {} : { suitePin })
+      })
+    : shardHostedSelection(shard, suitePin === undefined ? {} : { suitePin });
 }
 
-function shardHostedSelection(shard: ShardManifest, assessment?: LoadedAssessment): HostedSelection {
-  const created =
-    assessment === undefined
-      ? shardCreateFields(shard)
-      : shardCreateFields(shard, { referenceBundle: buildAssessmentReferencePayload(assessment) });
+function shardHostedSelection(
+  shard: ShardManifest,
+  extras: {
+    readonly assessment?: LoadedAssessment;
+    readonly suitePin?: {
+      readonly suite_id: string;
+      readonly suite_revision_id: string;
+      readonly suite_content_hash: string;
+    };
+  } = {}
+): HostedSelection {
+  const created = shardCreateFields(shard, {
+    ...(extras.assessment === undefined
+      ? {}
+      : { referenceBundle: buildAssessmentReferencePayload(extras.assessment) }),
+    ...(extras.suitePin === undefined ? {} : { suitePin: extras.suitePin })
+  });
   return {
     kind: "shard",
     packet: created.packet,
@@ -487,7 +513,7 @@ async function runCompiledSelectionEstimate(
   const stderr = dependencies.stderr ?? process.stderr;
   writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
   const shard = selectShard(manifest, options.shard);
-  const hosted = shardSelectionForContext(shard, context.selection);
+  const hosted = shardSelectionForContext(shard, context.selection, manifest);
   const prepared = await prepareQuotedAssessment({
     selection: hosted,
     session,
@@ -579,7 +605,7 @@ async function runCompiledSelectionTest(
       const shardCeiling = String(progress.remainingCredits);
       try {
         last = await executeHostedSelection(
-          shardSelectionForContext(shard, context.selection),
+          shardSelectionForContext(shard, context.selection, manifest),
           { ...options, maxCredits: shardCeiling, allShards: false, shard: shard.shardId },
           dependencies,
           context
@@ -630,7 +656,7 @@ async function runCompiledSelectionTest(
 
   const shard = selectShard(manifest, options.shard);
   const result = await executeHostedSelection(
-    shardSelectionForContext(shard, context.selection),
+    shardSelectionForContext(shard, context.selection, manifest),
     options,
     dependencies,
     context

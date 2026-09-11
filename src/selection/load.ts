@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { SuiteSelectionManifestSchema, type SuiteSelectionManifest } from "./schema.js";
+import { SuiteSelectionManifestSchema, SUITE_SELECTION_SCHEMA_VERSION_V2, type SuiteSelectionManifest } from "./schema.js";
+import { requireSavedSuiteManifest } from "./admit.js";
 import { selectionError } from "./errors.js";
 
 export async function loadSuiteSelectionManifest(
@@ -25,6 +26,9 @@ export async function loadSuiteSelectionManifest(
       "MANIFEST_FILE_INVALID",
       `The suite selection manifest is invalid at ${location}: ${issue?.message ?? "schema validation failed"}.`
     );
+  }
+  if (parsed.data.schemaVersion === SUITE_SELECTION_SCHEMA_VERSION_V2) {
+    requireSavedSuiteManifest(parsed.data);
   }
   return parsed.data;
 }

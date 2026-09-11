@@ -47,6 +47,36 @@ export function perRunExpandedLimitError(details: {
   );
 }
 
+export function savedSuiteBindingUnsupportedError(cause?: unknown): AwError {
+  return selectionError(
+    "SAVED_SUITE_BINDING_UNSUPPORTED",
+    "This CLI requested aw-suite-selection/2 for a saved policy suite, but the server did not return a bound immutable suite. Upgrade the CLI and server so saved-suite compile uses aw-suite-selection/2. No quote, reservation, or run was created.",
+    { category: "protocol", ...(cause === undefined ? {} : { cause }) }
+  );
+}
+
+export function savedSuiteBindingInvalidError(
+  reason: string,
+  details?: Readonly<Record<string, string | number | boolean>>
+): AwError {
+  return selectionError(
+    "SAVED_SUITE_BINDING_INVALID",
+    `${reason} The CLI will not quote, reserve, or start a run from a malformed, tampered, mixed, or over-limit saved-suite binding.`,
+    { category: "protocol", ...(details === undefined ? {} : { details }) }
+  );
+}
+
+export function savedSuiteBindingStaleError(details: {
+  readonly requested_revision: string;
+  readonly bound_revision: string;
+}): AwError {
+  return selectionError(
+    "SAVED_SUITE_BINDING_STALE",
+    `The compiled suiteBinding revision ${details.bound_revision} does not match the assessment suite_revision_id ${details.requested_revision}. Replace the pin before consent. Do not quote from a stale binding.`,
+    { category: "protocol", details }
+  );
+}
+
 export function hostedSelectionUnsupportedLocalError(): AwError {
   return selectionError(
     "HOSTED_SELECTION_UNSUPPORTED_LOCAL",
