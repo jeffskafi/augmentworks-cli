@@ -70,6 +70,7 @@ describe("CLI entrypoint", () => {
     expect(gate.stdout).toContain("--wait");
     expect(gate.stdout).toContain("--timeout-ms");
     expect(gate.stdout).toContain("--manifest-file");
+    expect(gate.stdout).toContain("aw-manifest-release-policy/2");
 
     const baseline = await runSourceCli(["baseline", "--help"], { cwd: projectRoot });
     expect(baseline.exitCode).toBe(0);

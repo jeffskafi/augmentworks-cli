@@ -1,5 +1,7 @@
 import { sanitizeTerminal } from "../errors.js";
-import type { ManifestReleasePolicyResult, ShardManifest, SuiteSelectionManifest } from "./schema.js";
+import type { ManifestGateClassification } from "./classify.js";
+import { nextActionForGate } from "./gate-v2.js";
+import type { ManifestReleasePolicyV2, ShardManifest, SuiteSelectionManifest } from "./schema.js";
 
 export function formatSelectionHuman(manifest: SuiteSelectionManifest): string {
   const lines = [
@@ -80,49 +82,44 @@ export function selectionCompileJson(manifest: SuiteSelectionManifest): Record<s
   };
 }
 
-export function formatManifestGateHuman(result: ManifestReleasePolicyResult): string {
+export function formatManifestGateHuman(
+  result: ManifestReleasePolicyV2,
+  classification: ManifestGateClassification
+): string {
   const lines = [
     "Command: gate --manifest-file",
     `Decision: ${sanitizeTerminal(result.decision)}`,
     `Coverage complete: ${result.coverageComplete ? "yes" : "no"}`,
-    `Policy: ${sanitizeTerminal(result.policyVersion)}`,
-    `Manifest ${sanitizeTerminal(result.manifestHash)}`,
-    `Expected shards: ${result.expectedShardIds.join(", ") || "none"}`,
-    `Declared runs: ${result.declaredRunIds.join(", ") || "none"}`
+    "Evidence source: server",
+    `Resolved shards: ${String(result.resolvedShards.length)}`
   ];
-  for (const reason of result.reasons) {
-    const shard = reason.shardId ? ` (${sanitizeTerminal(reason.shardId)})` : "";
-    lines.push(`Reason ${sanitizeTerminal(reason.code)}${shard}: ${sanitizeTerminal(reason.message)}`);
+  for (const code of classification.reasonCodes) {
+    lines.push(`Reason ${sanitizeTerminal(code)}`);
   }
-  if (result.note) lines.push(sanitizeTerminal(result.note));
+  lines.push(`Next action: ${nextActionForGate(result.decision)}`);
   return `${lines.join("\n")}\n`;
 }
 
 export function manifestGateJson(
-  result: ManifestReleasePolicyResult,
-  extras: {
-    readonly exitCode: number;
-    readonly assessment: string;
-  }
+  result: ManifestReleasePolicyV2,
+  extras: ManifestGateClassification
 ): Record<string, unknown> {
   return {
     ok: extras.exitCode === 0,
-    observation: "succeeded",
+    observation: extras.observation,
     assessment: extras.assessment,
     exit_code: extras.exitCode,
-    schemaVersion: result.schemaVersion,
     documentKind: result.documentKind,
-    policyVersion: result.policyVersion,
+    manifestHash: result.manifestHash,
     createsBillableRun: result.createsBillableRun,
     command: "gate",
-    manifestHash: result.manifestHash,
+    evidenceSource: result.evidenceSource,
     decision: result.decision,
     coverageComplete: result.coverageComplete,
-    expectedShardIds: result.expectedShardIds,
-    declaredRunIds: result.declaredRunIds,
-    reasons: result.reasons,
-    shards: result.shards,
-    note: result.note ?? null
+    reasonCodes: extras.reasonCodes,
+    resolvedShardCount: result.resolvedShards.length,
+    resolvedShards: result.resolvedShards,
+    nextAction: nextActionForGate(result.decision)
   };
 }
 

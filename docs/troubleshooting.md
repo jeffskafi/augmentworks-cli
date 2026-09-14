@@ -307,7 +307,7 @@ completed run with a null outcome exits `11`, never `0`. Timed-out waits stay
 read-only and never create another quote, reservation, or run. Retry guidance
 names the original run ID.
 
-`compare` / `gate` POST `/v1/comparisons/evaluate` or
+`compare` / `gate --run` POST `/v1/comparisons/evaluate` or
 `/v1/release-gates/evaluate` for an explicit `--run` and `--baseline`.
 They never quote, create, or retry a run. HTTP 200 with `decision: block`
 exits `10` even when aggregate pass rates match. Pending judging, missing
@@ -316,6 +316,18 @@ coverage, and unknown server decisions exit `11`. Evaluator error exits
 diagnostics on stderr. After an interrupt, re-query the original run ID;
 do not substitute a newer run or auto-promote. `baseline promote` requires
 `--expected-revision` and `baseline:promote`; a stale pin exits `4`.
+
+`gate --manifest-file` POSTs identity-only
+`aw-manifest-release-gate-request/2` to `/v1/release-gates/evaluate-manifest`.
+Exit `0` requires an `aw-manifest-release-policy/2` receipt with
+`evidenceSource: server`, `decision: pass`, complete coverage, and every
+resolved shard terminal/completed/pass. Empty, non-executable, tampered, or
+incomplete declarations fail locally (`MANIFEST_EMPTY`,
+`MANIFEST_NOT_EXECUTABLE`, `MANIFEST_INTEGRITY_MISMATCH`,
+`MANIFEST_DECLARATION_INCOMPLETE` / `DUPLICATE`) with no network. Legacy v1,
+malformed, or mismatched receipts exit nonzero with
+`MANIFEST_GATE_CONTRACT_UNSUPPORTED` or `MANIFEST_GATE_RESPONSE_MISMATCH`.
+Do not fall back to a caller-authoritative v1 pass.
 
 `run report <run-id> --json` exports one
 `aw-run-report-export/1` document: `retrieved`, `complete`, `report`,

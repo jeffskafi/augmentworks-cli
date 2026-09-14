@@ -56,6 +56,10 @@ refused.
 - An ambiguous outcome for any operation that is not explicitly idempotent is
   marked indeterminate rather than blindly retried. Observation or cleanup runs
   only if the relay dispatches those typed follow-ups.
+- Whole-suite `gate --manifest-file` sends identity-only v2 fields and does
+  not follow redirects with the bearer. Local preflight is network-free and
+  does not load API credentials. Diagnostics omit Authorization, cookies,
+  target URLs, manifest bodies, and raw server payloads.
 
 ## Customer-executed local mode
 

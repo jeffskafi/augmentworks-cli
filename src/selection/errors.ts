@@ -7,12 +7,14 @@ export function selectionError(
     readonly category?: AwError["category"];
     readonly details?: Readonly<Record<string, string | number | boolean>>;
     readonly cause?: unknown;
+    readonly retryable?: boolean;
   } = {}
 ): AwError {
   return new AwError({
     code,
     category: options.category ?? "config",
     message,
+    ...(options.retryable === undefined ? {} : { retryable: options.retryable }),
     ...(options.details === undefined ? {} : { details: options.details }),
     ...(options.cause === undefined ? {} : { cause: options.cause })
   });
@@ -91,4 +93,59 @@ export function createsBillableCompileError(): AwError {
     message:
       "The suite-selection API advertised createsBillableRun. Compile and manifest gating must not start, reserve, or charge a run."
   });
+}
+
+export function manifestNotExecutableError(reason?: string): AwError {
+  const detail = reason !== undefined && reason.trim() !== "" ? ` ${reason}` : "";
+  return selectionError(
+    "MANIFEST_NOT_EXECUTABLE",
+    `This compiled suite is not executable.${detail} Recompile after fixing incompatible cases. The CLI will not evaluate a release gate for a non-executable manifest.`
+  );
+}
+
+export function manifestEmptyError(): AwError {
+  return selectionError(
+    "MANIFEST_EMPTY",
+    "This compiled suite has no included cases or expected shards. An empty suite cannot authorize a release. The CLI will not send a release-gate request."
+  );
+}
+
+export function manifestIntegrityMismatchError(): AwError {
+  return selectionError(
+    "MANIFEST_INTEGRITY_MISMATCH",
+    "The compiled manifestHash does not match the canonical unsigned document. Replace the tampered or stale manifest. The CLI will not send a release-gate request."
+  );
+}
+
+export function manifestDeclarationIncompleteError(reason?: string): AwError {
+  const detail = reason !== undefined && reason.trim() !== "" ? ` ${reason}` : "";
+  return selectionError(
+    "MANIFEST_DECLARATION_INCOMPLETE",
+    `Declared shards must cover every expected shard exactly once with matching identity hashes and run UUIDs.${detail} Supply --declared-shards from test --artifact-out. The CLI will not send a partial or extra declaration.`
+  );
+}
+
+export function manifestDeclarationDuplicateError(): AwError {
+  return selectionError(
+    "MANIFEST_DECLARATION_DUPLICATE",
+    "Declared shards contain duplicate shard IDs, identity hashes, or run IDs. The CLI will not send a duplicate declaration."
+  );
+}
+
+export function manifestGateContractUnsupportedError(reason?: string): AwError {
+  const detail = reason !== undefined && reason.trim() !== "" ? ` ${reason}` : "";
+  return selectionError(
+    "MANIFEST_GATE_CONTRACT_UNSUPPORTED",
+    `The server did not return an aw-manifest-release-policy/2 server-authoritative receipt.${detail} This CLI will not treat a legacy or malformed body as a pass.`,
+    { category: "protocol" }
+  );
+}
+
+export function manifestGateResponseMismatchError(reason?: string): AwError {
+  const detail = reason !== undefined && reason.trim() !== "" ? ` ${reason}` : "";
+  return selectionError(
+    "MANIFEST_GATE_RESPONSE_MISMATCH",
+    `The v2 receipt is internally inconsistent with an authorized pass.${detail} The CLI will not authorize a release.`,
+    { category: "protocol" }
+  );
 }

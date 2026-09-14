@@ -1,0 +1,513 @@
+{
+  "schemaVersion": "aw-manifest-release-gate-v2-fixtures/1",
+  "packageVersion": "aw-feature/1",
+  "note": "Shared golden request/response fixtures for aw-manifest-release-gate-request/2 and aw-manifest-release-policy/2. Identity-only. createsBillableRun is false. Workspace, run, and hash values are synthetic. Main and CLI tests should consume this file without reconstructing a caller-authoritative v1 pass.",
+  "discoveredPaths": {
+    "evaluateManifest": "POST /v1/release-gates/evaluate-manifest",
+    "evaluateManifestAlias": "POST /api/v1/release-gates/evaluate-manifest"
+  },
+  "limits": {
+    "maxBytes": 65536,
+    "minShards": 1,
+    "maxShards": 16
+  },
+  "identities": {
+    "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+    "shard000": {
+      "shardId": "shard-000",
+      "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+      "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    },
+    "shard001": {
+      "shardId": "shard-001",
+      "shardIdentityHash": "3b4e26299b49dfd5a93b035b1e49efb6f069b1ff032e9f161ff699fa6de94c4e",
+      "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    }
+  },
+  "reasonCodes": [
+    "MANIFEST_NOT_FOUND",
+    "MANIFEST_NOT_EXECUTABLE",
+    "MANIFEST_EMPTY",
+    "MANIFEST_EXPIRED",
+    "DECLARATION_DUPLICATE",
+    "DECLARATION_MISSING",
+    "DECLARATION_EXTRA",
+    "SHARD_IDENTITY_MISMATCH",
+    "RUN_NOT_FOUND",
+    "RUN_WORKSPACE_MISMATCH",
+    "RUN_MANIFEST_MISMATCH",
+    "RUN_NOT_TERMINAL",
+    "EVALUATION_PENDING",
+    "EVALUATION_FAILED",
+    "EVIDENCE_UNAVAILABLE",
+    "EVIDENCE_EXPIRED",
+    "EVIDENCE_QUARANTINED",
+    "GRADER_IDENTITY_MISMATCH",
+    "CONTRACT_UNSUPPORTED"
+  ],
+  "forbiddenRequestKeys": [
+    "manifest",
+    "expectedManifestHash",
+    "status",
+    "evaluationStatus",
+    "verdict",
+    "decision",
+    "comparability",
+    "score",
+    "transcript",
+    "targetUrl",
+    "quote",
+    "credits"
+  ],
+  "fixtures": {
+    "request_one_shard": {
+      "request": {
+        "schemaVersion": "aw-manifest-release-gate-request/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "declaredShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    "request_multi_shard": {
+      "request": {
+        "schemaVersion": "aw-manifest-release-gate-request/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "declaredShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          },
+          {
+            "shardId": "shard-001",
+            "shardIdentityHash": "3b4e26299b49dfd5a93b035b1e49efb6f069b1ff032e9f161ff699fa6de94c4e",
+            "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          }
+        ]
+      }
+    },
+    "request_reordered": {
+      "request": {
+        "schemaVersion": "aw-manifest-release-gate-request/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "declaredShards": [
+          {
+            "shardId": "shard-001",
+            "shardIdentityHash": "3b4e26299b49dfd5a93b035b1e49efb6f069b1ff032e9f161ff699fa6de94c4e",
+            "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          },
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          }
+        ]
+      }
+    },
+    "response_pass": {
+      "status": 200,
+      "expected": { "exitCode": 0, "assessment": "passed" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_pass_multi": {
+      "status": 200,
+      "expected": { "exitCode": 0, "assessment": "passed" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-001",
+            "shardIdentityHash": "3b4e26299b49dfd5a93b035b1e49efb6f069b1ff032e9f161ff699fa6de94c4e",
+            "runId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          },
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_block": {
+      "status": 200,
+      "expected": { "exitCode": 10, "assessment": "blocked" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "block",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": ["EVALUATION_FAILED"],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "block"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_incomplete": {
+      "status": 200,
+      "expected": { "exitCode": 11, "assessment": "incomplete" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "incomplete",
+        "coverageComplete": false,
+        "evidenceSource": "server",
+        "reasonCodes": ["EVALUATION_PENDING"],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "pending",
+            "decision": "incomplete"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_incompatible": {
+      "status": 200,
+      "expected": { "exitCode": 2, "assessment": "incompatible" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "incompatible",
+        "coverageComplete": false,
+        "evidenceSource": "server",
+        "reasonCodes": ["GRADER_IDENTITY_MISMATCH"],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "incompatible"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_v1": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "schemaVersion": "aw-manifest-release-policy/1",
+        "documentKind": "manifest_release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "createsBillableRun": false,
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "reasons": [],
+        "expectedShardIds": ["shard-000"],
+        "declaredRunIds": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+        "shards": []
+      }
+    },
+    "response_unknown_version": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/3",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [],
+        "createsBillableRun": false
+      }
+    },
+    "response_html": {
+      "status": 200,
+      "contentType": "text/html",
+      "body": "<html><body>pass</body></html>",
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" }
+    },
+    "response_malformed": {
+      "status": 200,
+      "body": "{not-json",
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" }
+    },
+    "response_empty_resolved": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [],
+        "createsBillableRun": false
+      }
+    },
+    "response_pass_coverage_false": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_RESPONSE_MISMATCH" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": false,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_pass_billable": {
+      "status": 200,
+      "expected": { "code": "CREATES_BILLABLE_RUN" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": true
+      }
+    },
+    "response_nonterminal_pass": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_RESPONSE_MISMATCH" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "running",
+            "evaluationStatus": "pending",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_wrong_manifest": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_wrong_run": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_extra_field": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false,
+        "note": "caller-authoritative extra"
+      }
+    },
+    "response_unknown_reason": {
+      "status": 200,
+      "expected": { "exitCode": 10, "mappedReason": "MANIFEST_GATE_UNKNOWN_REASON" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "block",
+        "coverageComplete": true,
+        "evidenceSource": "server",
+        "reasonCodes": ["TOTALLY_NEW_SERVER_CODE"],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "block"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "response_caller_evidence": {
+      "status": 200,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+      "response": {
+        "documentKind": "aw-manifest-release-policy/2",
+        "manifestHash": "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+        "decision": "pass",
+        "coverageComplete": true,
+        "evidenceSource": "caller",
+        "reasonCodes": [],
+        "resolvedShards": [
+          {
+            "shardId": "shard-000",
+            "shardIdentityHash": "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            "runId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "executionState": "completed",
+            "evaluationStatus": "completed",
+            "decision": "pass"
+          }
+        ],
+        "createsBillableRun": false
+      }
+    },
+    "http_401": {
+      "status": 401,
+      "expected": { "code": "CLOUD_AUTH_REJECTED", "http_status": 401 },
+      "response": { "error": { "code": "UNAUTHORIZED", "message": "Authentication required." } }
+    },
+    "http_403": {
+      "status": 403,
+      "expected": { "code": "CLOUD_AUTH_REJECTED", "http_status": 403 },
+      "response": { "error": { "code": "FORBIDDEN", "message": "Missing action." } }
+    },
+    "http_404": {
+      "status": 404,
+      "expected": { "code": "MANIFEST_GATE_NOT_FOUND", "http_status": 404 },
+      "response": { "error": { "code": "NOT_FOUND", "message": "owned by workspace other-tenant" } }
+    },
+    "http_409": {
+      "status": 409,
+      "expected": { "code": "MANIFEST_GATE_IMMUTABLE_CONFLICT", "http_status": 409 },
+      "response": { "error": { "code": "CONFLICT", "message": "immutable conflict" } }
+    },
+    "http_426": {
+      "status": 426,
+      "expected": { "code": "MANIFEST_GATE_CONTRACT_UNSUPPORTED", "http_status": 426 },
+      "response": { "error": { "code": "UPGRADE_REQUIRED", "message": "v1 is unsupported" } }
+    },
+    "http_429": {
+      "status": 429,
+      "headers": { "Retry-After": "1" },
+      "expected": { "code": "MANIFEST_GATE_RATE_LIMITED", "http_status": 429 },
+      "response": { "error": { "code": "RATE_LIMITED", "message": "slow down" } }
+    },
+    "http_500": {
+      "status": 500,
+      "expected": { "code": "MANIFEST_GATE_UNAVAILABLE", "http_status": 500 },
+      "response": { "error": { "code": "INTERNAL", "message": "boom" } }
+    }
+  }
+}

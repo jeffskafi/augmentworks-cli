@@ -707,6 +707,10 @@ async function main() {
     assert(gateHelp.stdout.includes("--wait"), "packed CLI is missing gate --wait");
     assert(gateHelp.stdout.includes("--timeout-ms"), "packed CLI is missing gate --timeout-ms");
     assert(gateHelp.stdout.includes("--manifest-file"), "packed CLI is missing gate --manifest-file");
+    assert(
+      gateHelp.stdout.includes("aw-manifest-release-policy/2"),
+      "packed CLI is missing v2 whole-suite gate contract"
+    );
     const catalogHelp = execCli(["catalog", "--help"]);
     assert(catalogHelp.stdout.includes("list"), "packed CLI is missing catalog list");
     assert(catalogHelp.stdout.includes("show"), "packed CLI is missing catalog show");

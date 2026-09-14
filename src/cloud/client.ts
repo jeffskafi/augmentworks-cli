@@ -77,16 +77,17 @@ import {
 import { mapInvestigationHttpError } from "../investigation/protocol.js";
 import {
   CompileSuiteSelectionRequestSchema,
-  EvaluateManifestRequestSchema,
-  ManifestReleasePolicyResultSchema,
+  EvaluateManifestGateRequestSchema,
+  MANIFEST_GATE_MAX_BYTES,
+  MANIFEST_GATE_RETRY_AFTER_CAP_MS,
+  MANIFEST_GATE_RETRY_ATTEMPTS,
   SELECTION_PATHS,
   type CompileSuiteSelectionRequest,
-  type EvaluateManifestRequest,
-  type ManifestReleasePolicyResult,
+  type EvaluateManifestGateRequest,
   type SuiteSelectionManifest
 } from "../selection/schema.js";
 import { mapSavedSuiteCompileError, parseCompiledSuiteSelectionManifest } from "../selection/parse.js";
-import { createsBillableCompileError, selectionError } from "../selection/errors.js";
+import { selectionError } from "../selection/errors.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -547,29 +548,52 @@ export class CloudClient {
   }
 
   async evaluateManifestReleasePolicy(
-    request: EvaluateManifestRequest,
+    request: EvaluateManifestGateRequest,
     signal?: AbortSignal
-  ): Promise<ManifestReleasePolicyResult> {
-    const validated = EvaluateManifestRequestSchema.safeParse(request);
+  ): Promise<unknown> {
+    const validated = EvaluateManifestGateRequestSchema.safeParse(request);
     if (!validated.success) {
       throw selectionError(
         "INVALID_MANIFEST_GATE_REQUEST",
-        "The manifest release-gate request does not match aw-suite-selection/1."
+        "The manifest release-gate request does not match aw-manifest-release-gate-request/2."
       );
     }
-    const value = await this.#request(
-      "POST",
-      SELECTION_PATHS.evaluateManifest,
-      validated.data,
-      signal
-    );
-    const parsed = parseResponse(
-      ManifestReleasePolicyResultSchema,
-      value,
-      "manifest release-policy response"
-    );
-    if (parsed.createsBillableRun) throw createsBillableCompileError();
-    return parsed;
+    if (Buffer.byteLength(canonicalize(validated.data), "utf8") > MANIFEST_GATE_MAX_BYTES) {
+      throw selectionError(
+        "MANIFEST_GATE_CONTRACT_UNSUPPORTED",
+        "The identity-only release-gate request exceeds 64 KiB.",
+        { category: "protocol" }
+      );
+    }
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MANIFEST_GATE_RETRY_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.#request(
+          "POST",
+          SELECTION_PATHS.evaluateManifest,
+          validated.data,
+          signal
+        );
+      } catch (error) {
+        lastError = error;
+        const status = error instanceof AwError ? error.details?.["http_status"] : undefined;
+        const retryableHttp =
+          error instanceof AwError &&
+          error.retryable === true &&
+          typeof status === "number" &&
+          (status === 408 || status === 429 || status >= 500);
+        if (!retryableHttp || attempt === MANIFEST_GATE_RETRY_ATTEMPTS - 1 || signal?.aborted === true) {
+          throw error;
+        }
+        const advertised = error.details?.["retry_after_ms"];
+        const wait =
+          typeof advertised === "number" && Number.isFinite(advertised)
+            ? Math.min(Math.max(0, advertised), MANIFEST_GATE_RETRY_AFTER_CAP_MS)
+            : Math.min(100 * 2 ** attempt, 500);
+        await retryDelay(wait, signal);
+      }
+    }
+    throw lastError;
   }
 
   async promoteBaseline(
@@ -831,7 +855,8 @@ export class CloudClient {
         value,
         method,
         path,
-        profileRecoveryUrl(this.apiUrl)
+        profileRecoveryUrl(this.apiUrl),
+        response.headers.get("retry-after")
       );
     }
     if (value === undefined) {
@@ -1014,7 +1039,8 @@ function cloudHttpError(
   value: unknown,
   method?: "GET" | "POST",
   path?: string,
-  recoveryUrl?: string
+  recoveryUrl?: string,
+  retryAfterHeader?: string | null
 ): AwError {
   const mapped =
     method !== undefined && path !== undefined
@@ -1060,6 +1086,8 @@ function cloudHttpError(
   if (method !== undefined) details["http_method"] = method;
   if (path !== undefined) details["http_path"] = path;
   if (setupUrl !== undefined) details["setup_url"] = setupUrl;
+  const retryAfterMs = parseRetryAfterHeaderMs(retryAfterHeader ?? null);
+  if (retryAfterMs !== undefined) details["retry_after_ms"] = retryAfterMs;
   const rejectionFields = typedRejectionDetails(value);
   if (rejectionFields !== undefined) {
     details["create_disposition"] = rejectionFields.create_disposition;
@@ -1211,6 +1239,17 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function parseRetryAfterHeaderMs(header: string | null): number | undefined {
+  if (header === null || header.trim() === "") return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1_000);
+  }
+  const date = Date.parse(header);
+  if (!Number.isFinite(date)) return undefined;
+  return Math.max(0, date - Date.now());
 }
 
 function parseResponse<T>(schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }, value: unknown, label: string): T {
