@@ -98,19 +98,34 @@ import {
 } from "../selection/admit.js";
 import { hostedSelectionUnsupportedLocalError, selectionError } from "../selection/errors.js";
 import {
+  aggregateExecutionExitCode,
+  artifactFromExecution,
+  assertResumeSameShard as assertExecutionResumeSameShard,
+  executionJsonFields,
+  formatSelectionResumeCommand,
+  interruptExecution,
+  markShardAdmitted,
+  markShardBlocked,
+  markShardCompleted,
+  markShardFailed,
+  markShardObserving,
+  markShardQuoted,
+  nextRunnableShard as nextExecutionShard,
+  openSelectionExecution,
+  parseExecutionId,
+  saveSelectionExecution,
+  skipRemainingPendingShards as skipExecutionPendingShards,
+  type OpenedSelectionExecution,
+  type SelectionExecutionKind
+} from "../selection/execution.js";
+import {
   artifactFromProgress,
-  assertResumeSameShard,
   initialProgress,
-  loadProgress,
-  markShardRunning,
-  markShardTerminal,
-  nextRunnableShard,
-  saveProgress,
-  skipRemainingPendingShards,
   writeArtifact
 } from "../selection/progress.js";
 import type {
   SelectionArtifact,
+  SelectionExecution,
   SelectionProgress,
   ShardManifest,
   SuiteSelectionManifest
@@ -127,6 +142,7 @@ export interface TestOptions {
   readonly manifest?: string;
   readonly shard?: string;
   readonly allShards?: boolean;
+  readonly executionId?: string;
   readonly artifactOut?: string;
   readonly open?: boolean;
   readonly json?: boolean;
@@ -140,13 +156,28 @@ export interface TestOptions {
   readonly stateDirectory?: string;
   readonly signal?: AbortSignal;
   readonly handleSignals?: boolean;
+  readonly onSelectionCheckpoint?: (event: SelectionCheckpointEvent) => Promise<void>;
 }
+
+export type SelectionCheckpointEvent =
+  | { readonly phase: "quoted"; readonly quoteId: string; readonly quotedUnits: number }
+  | {
+      readonly phase: "admitted";
+      readonly runId: string;
+      readonly quoteId?: string;
+      readonly quotedUnits?: number;
+    }
+  | { readonly phase: "observing"; readonly runId: string }
+  | { readonly phase: "server_terminal"; readonly runId: string; readonly quoteUnits?: number };
 
 export interface TestResult {
   readonly binding: CreateRunResponse;
   readonly run: RunStatusResponse;
   readonly coverage?: SelectionArtifact;
   readonly quoteUnits?: number;
+  readonly execution?: SelectionExecution;
+  readonly executionKind?: SelectionExecutionKind;
+  readonly aggregateExitCode?: number;
 }
 
 export interface EstimateResult {
@@ -157,8 +188,8 @@ export interface EstimateResult {
 }
 
 export interface SignalHost {
-  on(event: "SIGINT", listener: () => void): unknown;
-  off(event: "SIGINT", listener: () => void): unknown;
+  on(event: "SIGINT" | "SIGTERM", listener: () => void): unknown;
+  off(event: "SIGINT" | "SIGTERM", listener: () => void): unknown;
   exit(code: number): never;
 }
 
@@ -292,6 +323,22 @@ async function executeHostedSelection(
       ...(dependencies.confirm === undefined ? {} : { confirm: dependencies.confirm })
     });
     const request = resolved.request;
+    const quoteId =
+      resolved.quote?.quoteId ??
+      ("quote_id" in request && typeof request.quote_id === "string" ? request.quote_id : undefined);
+    if (resolved.quote !== undefined) {
+      await emitSelectionCheckpoint(options, {
+        phase: "quoted",
+        quoteId: resolved.quote.quoteId,
+        quotedUnits: resolved.quote.executionUnits
+      });
+    } else if (quoteId !== undefined) {
+      await emitSelectionCheckpoint(options, {
+        phase: "quoted",
+        quoteId,
+        quotedUnits: 0
+      });
+    }
     let prepared;
     let binding: CreateRunResponse;
     try {
@@ -316,6 +363,12 @@ async function executeHostedSelection(
     if (intentStore.intent?.phase !== "bound") {
       await intentStore.bind(binding);
     }
+    await emitSelectionCheckpoint(options, {
+      phase: "admitted",
+      runId: binding.run_id,
+      ...(quoteId === undefined ? {} : { quoteId }),
+      ...(resolved.quote === undefined ? {} : { quotedUnits: resolved.quote.executionUnits })
+    });
 
     const dashboard = dashboardUrl(binding.dashboard_url, session.apiOrigin);
     writeLine(
@@ -339,6 +392,11 @@ async function executeHostedSelection(
     if (isTerminal(binding.status)) {
       const run = await session.cloud.getRunStatus(binding.run_id, options.signal);
       await releaseTerminalIfSafe(recovery, binding, run);
+      await emitSelectionCheckpoint(options, {
+        phase: "server_terminal",
+        runId: run.run_id,
+        ...(resolved.quote === undefined ? {} : { quoteUnits: resolved.quote.executionUnits })
+      });
       return {
         binding,
         run,
@@ -362,6 +420,7 @@ async function executeHostedSelection(
       ...(progress === undefined ? {} : { onProgress: progress })
     };
     const runner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
+    await emitSelectionCheckpoint(options, { phase: "observing", runId: binding.run_id });
     const removeSignals =
       options.handleSignals === false
         ? () => undefined
@@ -372,6 +431,11 @@ async function executeHostedSelection(
     try {
       const run = await runner.run();
       await releaseTerminalIfSafe(recovery, binding, run);
+      await emitSelectionCheckpoint(options, {
+        phase: "server_terminal",
+        runId: run.run_id,
+        ...(resolved.quote === undefined ? {} : { quoteUnits: resolved.quote.executionUnits })
+      });
       return {
         binding,
         run,
@@ -383,6 +447,13 @@ async function executeHostedSelection(
   } finally {
     await intentStore.close();
   }
+}
+
+async function emitSelectionCheckpoint(
+  options: TestOptions,
+  event: SelectionCheckpointEvent
+): Promise<void> {
+  await options.onSelectionCheckpoint?.(event);
 }
 
 function usesCompiledSelection(options: TestOptions, selection: HostedSelection): boolean {
@@ -553,106 +624,22 @@ async function runCompiledSelectionTest(
       message: "Doctor found configuration errors."
     });
   }
-  const session = await authenticateHostedSession(options, dependencies);
-  assertMachineHostedAdmission(session.identity, { suite: true });
-  const manifest = await resolveCompiledManifest(options, { ...context, session });
   const stderr = dependencies.stderr ?? process.stderr;
-  writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
   const stateDirectory = options.stateDirectory ?? getStateDirectory(context.env);
   const maxCredits = parseMaxCreditsFlag(options.maxCredits);
 
   if (options.allShards === true) {
-    if (maxCredits === undefined) {
-      throw new AwError({
-        code: "MAX_CREDITS_REQUIRED",
-        category: "config",
-        message:
-          "--all-shards requires a finite aggregate --max-credits ceiling. The CLI will not start additional shards after the consented budget."
-      });
-    }
-    for (const shard of manifest.shards) {
-      assertShardWithinPerRunLimits(manifest, shard);
-    }
-    let progress =
-      (await loadProgress(stateDirectory, manifest.manifestHash)) ??
-      initialProgress(manifest, maxCredits);
-    if (progress.aggregateMaxCredits !== maxCredits && progress.shards.some((shard) => shard.status !== "pending")) {
-      throw selectionError(
-        "SHARD_PROGRESS_BLOCKED",
-        "An in-progress multi-shard run already has a consented aggregate budget. Reuse the original --max-credits value. The CLI will not silently raise consent."
-      );
-    }
-    if (progress.aggregateMaxCredits !== maxCredits) {
-      progress = { ...progress, aggregateMaxCredits: maxCredits, remainingCredits: maxCredits };
-    }
-    let last: TestResult | undefined;
-    while (true) {
-      const next = nextRunnableShard(progress);
-      if (next === undefined) break;
-      assertResumeSameShard(progress, next.shardId);
-      if (
-        next.status !== "running" &&
-        next.status !== "interrupted" &&
-        progress.remainingCredits <= 0
-      ) {
-        progress = skipRemainingPendingShards(progress, "aggregate_budget");
-        await saveProgress(stateDirectory, progress);
-        break;
-      }
-      const shard = selectShard(manifest, next.shardId);
-      progress = markShardRunning(progress, shard.shardId);
-      await saveProgress(stateDirectory, progress);
-      const shardCeiling = String(progress.remainingCredits);
-      try {
-        last = await executeHostedSelection(
-          shardSelectionForContext(shard, context.selection, manifest),
-          { ...options, maxCredits: shardCeiling, allShards: false, shard: shard.shardId },
-          dependencies,
-          context
-        );
-      } catch (error) {
-        const skipped = error instanceof AwError && error.code === "BUDGET_EXCEEDED";
-        progress = markShardTerminal(progress, shard.shardId, skipped ? "skipped" : "interrupted", {
-          stoppedReason: error instanceof AwError ? error.code : "failed"
-        });
-        await saveProgress(stateDirectory, progress);
-        await persistCoverageArtifact(options, context.cwd, stateDirectory, manifest, progress);
-        throw error;
-      }
-      const outcome = hostedExitCode(last.run);
-      if (outcome === EXIT.OK) {
-        if (last.quoteUnits === undefined) {
-          progress = markShardTerminal(progress, shard.shardId, "interrupted", {
-            runId: last.run.run_id,
-            stoppedReason: "quote_units_missing"
-          });
-          await saveProgress(stateDirectory, progress);
-          break;
-        }
-        progress = markShardTerminal(progress, shard.shardId, "completed", {
-          runId: last.run.run_id,
-          quoteUnits: last.quoteUnits
-        });
-        await saveProgress(stateDirectory, progress);
-        continue;
-      }
-      const failedStatus = outcome === EXIT.INTERRUPTED ? "interrupted" : "failed";
-      progress = markShardTerminal(progress, shard.shardId, failedStatus, {
-        runId: last.run.run_id,
-        stoppedReason: `exit_${String(outcome)}`
-      });
-      await saveProgress(stateDirectory, progress);
-      break;
-    }
-    const coverage = await persistCoverageArtifact(options, context.cwd, stateDirectory, manifest, progress);
-    if (last === undefined) {
-      throw selectionError(
-        "SELECTION_EMPTY",
-        "No shard was executed. An incomplete shard set cannot make a whole-suite release decision."
-      );
-    }
-    return { ...last, coverage };
+    return await runAllShardsSelection(options, dependencies, context, {
+      stderr,
+      stateDirectory,
+      maxCredits
+    });
   }
+
+  const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: true });
+  const manifest = await resolveCompiledManifest(options, { ...context, session });
+  writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
 
   const shard = selectShard(manifest, options.shard);
   const result = await executeHostedSelection(
@@ -682,14 +669,405 @@ async function runCompiledSelectionTest(
   return { ...result, coverage };
 }
 
+async function runAllShardsSelection(
+  options: TestOptions,
+  dependencies: TestDependencies,
+  context: {
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly report: DoctorReport;
+    readonly selection: HostedSelection;
+  },
+  extras: {
+    readonly stderr: Pick<NodeJS.WriteStream, "write">;
+    readonly stateDirectory: string;
+    readonly maxCredits: number | undefined;
+  }
+): Promise<TestResult> {
+  if (extras.maxCredits === undefined) {
+    throw new AwError({
+      code: "MAX_CREDITS_REQUIRED",
+      category: "config",
+      message:
+        "--all-shards requires a finite aggregate --max-credits ceiling. The CLI will not start additional shards after the consented budget."
+    });
+  }
+  if (options.executionId !== undefined) parseExecutionId(options.executionId);
+  const localManifest =
+    options.manifest === undefined ? undefined : await loadLocalCompiledManifest(options, context);
+  let session: Awaited<ReturnType<typeof authenticateHostedSession>> | undefined;
+  let manifest = localManifest;
+  if (manifest === undefined) {
+    session = await authenticateHostedSession(options, dependencies);
+    assertMachineHostedAdmission(session.identity, { suite: true });
+    manifest = await resolveCompiledManifest(options, { ...context, session });
+  }
+  writeLine(extras.stderr, formatSelectionHuman(manifest).trimEnd());
+  for (const shard of manifest.shards) {
+    assertShardWithinPerRunLimits(manifest, shard);
+  }
+  const opened = await openSelectionExecution({
+    stateDirectory: extras.stateDirectory,
+    manifest,
+    aggregateMaxCredits: extras.maxCredits,
+    ...(options.executionId === undefined ? {} : { executionId: options.executionId }),
+    ...(options.manifest === undefined ? {} : { manifestPath: options.manifest }),
+    ...(options.yes === undefined ? {} : { yes: options.yes })
+  });
+  writeExecutionLifecycle(extras.stderr, opened);
+  const abort = new AbortController();
+  const signal = combineOptionalSignals(options.signal, abort.signal);
+  let execution = opened.execution;
+  const persist = async (next: SelectionExecution): Promise<SelectionExecution> => {
+    execution = await saveSelectionExecution(opened.paths, next);
+    return execution;
+  };
+  const removeSignals = installSelectionExecutionInterruptHandler({
+    host: dependencies.signals ?? (process as SignalHost),
+    stderr: extras.stderr,
+    abort,
+    checkpoint: async () => {
+      execution = await persist(interruptExecution(execution));
+    },
+    resumeCommand: formatSelectionResumeCommand({
+      executionId: opened.execution.executionId,
+      maxCredits: extras.maxCredits,
+      ...(options.manifest === undefined ? {} : { manifestPath: options.manifest }),
+      ...(options.yes === undefined ? {} : { yes: options.yes })
+    })
+  });
+  try {
+    if (session === undefined) {
+      session = await authenticateHostedSession(options, dependencies);
+      assertMachineHostedAdmission(session.identity, { suite: true });
+    }
+    let last: TestResult | undefined;
+    while (true) {
+      if (abort.signal.aborted) {
+        execution = await persist(interruptExecution(execution));
+        break;
+      }
+      const next = nextExecutionShard(execution);
+      if (next === undefined) break;
+      assertExecutionResumeSameShard(execution, next.shardId);
+      if (next.state === "pending" && execution.remainingCredits <= 0) {
+        execution = await persist(skipExecutionPendingShards(execution, "aggregate_budget"));
+        break;
+      }
+      const shard = selectShard(manifest, next.shardId);
+      if (next.runId !== null && next.state !== "pending") {
+        const recovered = await recoverTerminalShardIfPossible({
+          session,
+          runId: next.runId,
+          shard,
+          quoteUnits: next.quotedUnits,
+          configSha256: context.report.resolvedConfig!.configDigest,
+          signal
+        });
+        if (recovered !== undefined) {
+          execution = await persist(
+            markShardCompleted(execution, shard.shardId, {
+              runId: recovered.run.run_id,
+              chargedUnits: next.quotedUnits,
+              ...(next.quoteId === null ? {} : { quoteId: next.quoteId })
+            })
+          );
+          last = recovered;
+          continue;
+        }
+      }
+      const shardCeiling = String(execution.remainingCredits);
+      try {
+        last = await executeHostedSelection(
+          shardSelectionForContext(shard, context.selection, manifest),
+          {
+            ...options,
+            maxCredits: shardCeiling,
+            allShards: false,
+            shard: shard.shardId,
+            handleSignals: false,
+            signal,
+            onSelectionCheckpoint: async (event) => {
+              if (event.phase === "quoted") {
+                const current = execution.shards.find((entry) => entry.shardId === shard.shardId);
+                execution = await persist(
+                  markShardQuoted(execution, shard.shardId, {
+                    quoteId: event.quoteId,
+                    quotedUnits:
+                      event.quotedUnits > 0 ? event.quotedUnits : current?.quotedUnits ?? 0
+                  })
+                );
+                return;
+              }
+              if (event.phase === "admitted") {
+                execution = await persist(
+                  markShardAdmitted(execution, shard.shardId, {
+                    runId: event.runId,
+                    ...(event.quoteId === undefined ? {} : { quoteId: event.quoteId }),
+                    ...(event.quotedUnits === undefined ? {} : { quotedUnits: event.quotedUnits })
+                  })
+                );
+                return;
+              }
+              if (event.phase === "observing") {
+                execution = await persist(markShardObserving(execution, shard.shardId));
+              }
+            }
+          },
+          dependencies,
+          context
+        );
+      } catch (error) {
+        if (error instanceof AwError && error.code === "BUDGET_EXCEEDED") {
+          execution = await persist(markShardBlocked(execution, shard.shardId));
+          execution = await persist(skipExecutionPendingShards(execution, "aggregate_budget"));
+          await persistCoverageArtifact(options, context.cwd, extras.stateDirectory, manifest, execution);
+          break;
+        }
+        const interrupted = error instanceof AwError && (error.code === "INTERRUPTED" || abort.signal.aborted);
+        execution = await persist(
+          interrupted
+            ? interruptExecution(execution)
+            : markShardFailed(execution, shard.shardId, {
+                ...(last?.run.run_id === undefined ? {} : { runId: last.run.run_id })
+              })
+        );
+        await persistCoverageArtifact(options, context.cwd, extras.stateDirectory, manifest, execution);
+        throw error;
+      }
+      const outcome = hostedExitCode(last.run);
+      if (outcome === EXIT.OK) {
+        if (last.quoteUnits === undefined && next.quotedUnits <= 0) {
+          execution = await persist(interruptExecution(execution));
+          break;
+        }
+        execution = await persist(
+          markShardCompleted(execution, shard.shardId, {
+            runId: last.run.run_id,
+            chargedUnits: last.quoteUnits ?? next.quotedUnits,
+            ...(next.quoteId === null ? {} : { quoteId: next.quoteId })
+          })
+        );
+        continue;
+      }
+      if (outcome === EXIT.INTERRUPTED) {
+        execution = await persist(interruptExecution(execution));
+        break;
+      }
+      execution = await persist(
+        markShardFailed(execution, shard.shardId, {
+          runId: last.run.run_id,
+          chargedUnits: last.quoteUnits ?? next.quotedUnits
+        })
+      );
+      break;
+    }
+    execution = await persist(execution);
+    const coverage = await persistCoverageArtifact(
+      options,
+      context.cwd,
+      extras.stateDirectory,
+      manifest,
+      execution
+    );
+    const aggregateExitCode = aggregateExecutionExitCode(
+      execution,
+      last === undefined ? undefined : hostedExitCode(last.run)
+    );
+    if (last === undefined) {
+      if (execution.state === "interrupted") {
+        throw new AwError({
+          code: "INTERRUPTED",
+          category: "local",
+          message:
+            "The multi-shard execution was interrupted. A resumable checkpoint was written. Resume with --execution-id. The CLI will not claim completion.",
+          details: {
+            execution_id: execution.executionId,
+            manifest_hash: execution.manifestHash,
+            recovery_action: "resume_execution",
+            recovery_command: formatSelectionResumeCommand({
+              executionId: execution.executionId,
+              maxCredits: extras.maxCredits,
+              ...(options.manifest === undefined ? {} : { manifestPath: options.manifest }),
+              ...(options.yes === undefined ? {} : { yes: options.yes })
+            })
+          }
+        });
+      }
+      throw new AwError({
+        code: "EVALUATION_INCOMPLETE",
+        category: "evidence",
+        message:
+          "No shard completed this execution. Incomplete coverage cannot make a whole-suite release decision. Resume with --execution-id or start a new rerun after the attempt is terminal.",
+        details: {
+          execution_id: execution.executionId,
+          manifest_hash: execution.manifestHash,
+          recovery_action: "start_new_execution"
+        }
+      });
+    }
+    return {
+      ...last,
+      coverage,
+      execution,
+      executionKind: opened.kind,
+      aggregateExitCode
+    };
+  } finally {
+    removeSignals();
+    await opened.lock.release().catch(() => undefined);
+  }
+}
+
+async function loadLocalCompiledManifest(
+  options: TestOptions,
+  context: {
+    readonly cwd: string;
+    readonly selection: HostedSelection;
+  }
+): Promise<SuiteSelectionManifest> {
+  const manifest = await loadSuiteSelectionManifest(options.manifest!, context.cwd);
+  const assessmentSelection =
+    context.selection.kind === "assessment" ? context.selection.assessment.document.selection : undefined;
+  admitCompiledSelection(manifest, {
+    requestedSavedSuite: isSavedSuiteSelection(assessmentSelection),
+    ...(assessmentSelection?.suite_version === undefined ? {} : { suiteVersion: assessmentSelection.suite_version }),
+    ...(assessmentSelection?.suite_revision_id === undefined
+      ? {}
+      : { suiteRevisionId: assessmentSelection.suite_revision_id })
+  });
+  return manifest;
+}
+
+function writeExecutionLifecycle(
+  stderr: Pick<NodeJS.WriteStream, "write">,
+  opened: OpenedSelectionExecution
+): void {
+  if (opened.kind === "resumed") {
+    writeLine(
+      stderr,
+      `Resumed execution ${sanitizeTerminal(opened.execution.executionId)}. Interrupted stop reasons do not carry into this attempt.`
+    );
+    writeLine(
+      stderr,
+      `Resume this attempt: ${formatSelectionResumeCommand({
+        executionId: opened.execution.executionId,
+        maxCredits: opened.execution.aggregateMaxCredits
+      })}`
+    );
+    return;
+  }
+  if (opened.kind === "rerun") {
+    writeLine(
+      stderr,
+      `Started a new execution ${sanitizeTerminal(opened.execution.executionId)} for this immutable manifest. Prior terminal shard results were not inherited.`
+    );
+    return;
+  }
+  writeLine(
+    stderr,
+    `Started execution ${sanitizeTerminal(opened.execution.executionId)}. Omit --execution-id after this attempt is terminal to start a new rerun.`
+  );
+}
+
+export function installSelectionExecutionInterruptHandler(options: {
+  readonly host: SignalHost;
+  readonly stderr: Pick<NodeJS.WriteStream, "write">;
+  readonly abort: AbortController;
+  readonly checkpoint: () => Promise<void>;
+  readonly resumeCommand: string;
+}): () => void {
+  let count = 0;
+  let checkpoint: Promise<void> | undefined;
+  const listener = (): void => {
+    count += 1;
+    if (count >= 2) options.host.exit(EXIT.INTERRUPTED);
+    if (checkpoint === undefined) {
+      writeLine(
+        options.stderr,
+        `Interrupted. A resumable checkpoint will be written once. Resume with:\n  ${options.resumeCommand}\nPress Ctrl+C or send SIGTERM again to exit without claiming completion.`
+      );
+      checkpoint = options.checkpoint().catch(() => undefined);
+    }
+    if (!options.abort.signal.aborted) options.abort.abort();
+  };
+  options.host.on("SIGINT", listener);
+  options.host.on("SIGTERM", listener);
+  return () => {
+    options.host.off("SIGINT", listener);
+    options.host.off("SIGTERM", listener);
+  };
+}
+
+function combineOptionalSignals(first: AbortSignal | undefined, second: AbortSignal): AbortSignal {
+  return first === undefined ? second : AbortSignal.any([first, second]);
+}
+
+async function recoverTerminalShardIfPossible(options: {
+  readonly session: Awaited<ReturnType<typeof authenticateHostedSession>>;
+  readonly runId: string;
+  readonly shard: ShardManifest;
+  readonly quoteUnits: number;
+  readonly configSha256: string;
+  readonly signal?: AbortSignal;
+}): Promise<TestResult | undefined> {
+  let run: RunStatusResponse;
+  try {
+    run = await options.session.cloud.getRunStatus(options.runId, options.signal);
+  } catch (error) {
+    if (error instanceof AwError && error.details?.["http_status"] === 404) {
+      throw selectionError(
+        "SELECTION_EXECUTION_RESUME_BLOCKED",
+        `Local execution recorded run ${options.runId}, but the server no longer has that run. Inspect it with run status. No new quote was requested.`
+      );
+    }
+    throw error;
+  }
+  if (!isTerminal(run.status)) return undefined;
+  if (run.dashboard_url === undefined) {
+    throw selectionError(
+      "SELECTION_EXECUTION_RESUME_BLOCKED",
+      `Run ${options.runId} is terminal on the server but has no dashboard URL to recover locally. Inspect it with run status. No new quote was requested.`
+    );
+  }
+  const packet = options.shard.packetBindings[0];
+  const binding: CreateRunResponse = {
+    protocol_version: run.protocol_version,
+    create_request_id: "crq_local_recovered_checkpoint",
+    create_request_sha256: "0".repeat(64),
+    create_disposition: "replayed",
+    run_id: run.run_id,
+    session_id: "recovered",
+    packet: {
+      key: packet?.key ?? "aw-customer-suite",
+      version: packet?.version ?? "1.0.0",
+      sha256: packet?.sha256 ?? "0".repeat(64)
+    },
+    config_sha256: options.configSha256,
+    fencing_epoch: 1,
+    status: run.status,
+    dashboard_url: run.dashboard_url,
+    run_expires_at: new Date(Date.now() + 60_000).toISOString(),
+    credit_state: run.credit_state
+  };
+  return {
+    binding,
+    run,
+    ...(options.quoteUnits > 0 ? { quoteUnits: options.quoteUnits } : {})
+  };
+}
+
 async function persistCoverageArtifact(
   options: TestOptions,
   cwd: string,
   stateDirectory: string,
   manifest: SuiteSelectionManifest,
-  progress: SelectionProgress
+  source: SelectionProgress | SelectionExecution
 ): Promise<SelectionArtifact> {
-  const coverage = artifactFromProgress(manifest, progress);
+  const coverage =
+    "documentKind" in source
+      ? artifactFromExecution(manifest, source)
+      : artifactFromProgress(manifest, source);
   if (options.artifactOut !== undefined) {
     await writeArtifact(resolve(cwd, options.artifactOut), coverage);
   } else {
@@ -1297,6 +1675,10 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       "execute compiled shards in order under one finite aggregate --max-credits ceiling; stops before exceeding consent"
     )
     .option(
+      "--execution-id <uuid>",
+      "resume one unfinished multi-shard attempt by exact id; omit after a terminal run to start a new execution"
+    )
+    .option(
       "--artifact-out <path>",
       "write manifestHash and per-shard run IDs for gate --manifest-file"
     )
@@ -1326,6 +1708,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         manifest?: string;
         shard?: string;
         allShards?: boolean;
+        executionId?: string;
         artifactOut?: string;
         estimate?: boolean;
         maxCredits?: string;
@@ -1392,6 +1775,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 ...(values.manifest === undefined ? {} : { manifest: values.manifest }),
                 ...(values.shard === undefined ? {} : { shard: values.shard }),
                 ...(values.allShards === undefined ? {} : { allShards: values.allShards }),
+                ...(values.executionId === undefined ? {} : { executionId: values.executionId }),
                 ...(values.allowFileCredentials === undefined
                   ? {}
                   : { allowFileCredentials: values.allowFileCredentials }),
@@ -1450,6 +1834,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               ...(values.manifest === undefined ? {} : { manifest: values.manifest }),
               ...(values.shard === undefined ? {} : { shard: values.shard }),
               ...(values.allShards === undefined ? {} : { allShards: values.allShards }),
+              ...(values.executionId === undefined ? {} : { executionId: values.executionId }),
               ...(values.artifactOut === undefined ? {} : { artifactOut: values.artifactOut }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json }),
@@ -1467,7 +1852,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           } else {
             writeHostedResult(stdout, result);
           }
-          const exitCode = hostedExitCode(result.run);
+          const exitCode = result.aggregateExitCode ?? hostedExitCode(result.run);
           if (exitCode !== EXIT.OK) setExitCode(exitCode);
         } catch (error) {
           if (values.json !== true) throw error;
@@ -1479,6 +1864,14 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                   category: "local",
                   message: "The hosted test command could not be completed."
                 });
+          if (
+            awError.code === "SELECTION_RESUME_REQUIRED" ||
+            awError.code === "SELECTION_PROGRESS_MIGRATION_REQUIRED" ||
+            awError.code === "SELECTION_EXECUTION_CORRUPT" ||
+            awError.code === "SELECTION_EXECUTION_TERMINAL"
+          ) {
+            writeLine(stderr, awError.message);
+          }
           stdout.write(
             `${JSON.stringify({
               ok: false,
@@ -1551,6 +1944,7 @@ function assertTestSelection(values: {
   manifest?: string;
   shard?: string;
   allShards?: boolean;
+  executionId?: string;
   artifactOut?: string;
   local?: boolean;
   estimate?: boolean;
@@ -1563,6 +1957,19 @@ function assertTestSelection(values: {
   if (hostedSelection && values.local === true) {
     throw hostedSelectionUnsupportedLocalError();
   }
+  if (values.executionId !== undefined && values.allShards !== true) {
+    throw selectionError(
+      "EXECUTION_ID_REQUIRES_ALL_SHARDS",
+      "--execution-id resumes one multi-shard attempt and can be used only with --all-shards."
+    );
+  }
+  if (values.executionId !== undefined && values.estimate === true) {
+    throw selectionError(
+      "EXECUTION_ID_ESTIMATE_UNSUPPORTED",
+      "--execution-id cannot be used with --estimate. Estimate one shard at a time with --shard."
+    );
+  }
+  if (values.executionId !== undefined) parseExecutionId(values.executionId);
   if (values.shard !== undefined && values.allShards === true) {
     throw selectionError(
       "SHARD_SELECTOR_CONFLICT",
@@ -1741,6 +2148,7 @@ function hostedJsonResult(result: TestResult): Record<string, unknown> {
     ...(result.run.evaluation_status === undefined
       ? {}
       : { evaluation_status: result.run.evaluation_status }),
+    ...(result.execution === undefined ? {} : executionJsonFields(result.execution)),
     ...(result.coverage === undefined ? {} : { coverage: result.coverage })
   };
 }
@@ -1790,6 +2198,32 @@ function writeHostedResult(stdout: Pick<NodeJS.WriteStream, "write">, result: Te
       result.run.outcome == null ? "" : ` (${sanitizeTerminal(result.run.outcome)})`
     }.`
   );
+  if (result.execution !== undefined) {
+    const fields = executionJsonFields(result.execution);
+    writeLine(
+      stdout,
+      `Execution ${sanitizeTerminal(result.execution.executionId)} (${sanitizeTerminal(result.execution.state)}); declared ${String(fields["completed_shard_count"])} / expected ${String(fields["expected_shard_count"])} shards; remaining ${String(fields["remaining_credits"])} of ${String(fields["aggregate_max_credits"])} credits.`
+    );
+    if (result.executionKind === "resumed") {
+      writeLine(stdout, "This output is a resume of the same attempt, not a new rerun.");
+    } else if (result.executionKind === "rerun") {
+      writeLine(stdout, "This output is a new rerun. It does not inherit prior terminal shard results.");
+    }
+    if (fields["recovery_action"] === "resume_execution") {
+      writeLine(
+        stdout,
+        `Resume this attempt: ${formatSelectionResumeCommand({
+          executionId: result.execution.executionId,
+          maxCredits: result.execution.aggregateMaxCredits
+        })}`
+      );
+    } else if (fields["recovery_action"] === "start_new_execution") {
+      writeLine(
+        stdout,
+        "Start a new rerun of this immutable manifest by omitting --execution-id after this attempt is terminal."
+      );
+    }
+  }
   if (result.coverage !== undefined) {
     writeLine(
       stdout,

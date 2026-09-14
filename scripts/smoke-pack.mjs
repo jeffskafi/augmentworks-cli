@@ -720,7 +720,7 @@ async function main() {
     await assertPackedSelectionCompile(join(installedRoot, "dist", "index.js"), consumerDirectory);
     const testHelpSelection = execCli(["test", "--help"]);
     assert(testHelpSelection.stdout.includes("--manifest"), "packed CLI is missing test --manifest");
-    assert(testHelpSelection.stdout.includes("--all-shards"), "packed CLI is missing test --all-shards");
+    assert(testHelpSelection.stdout.includes("--execution-id"), "packed CLI is missing test --execution-id");
     const baselineHelp = execCli(["baseline", "--help"]);
     assert(baselineHelp.stdout.includes("status"), "packed CLI is missing baseline status");
     assert(baselineHelp.stdout.includes("promote"), "packed CLI is missing baseline promote");

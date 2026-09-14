@@ -5,6 +5,8 @@ import type { DeclaredShard, SelectionArtifact, SelectionProgress, SuiteSelectio
 import { SelectionArtifactSchema, SelectionProgressSchema } from "./schema.js";
 import { selectionError } from "./errors.js";
 
+/** v1 manifest-hash progress. Multi-shard attempts persist `aw-selection-execution/2` via `execution.ts`. */
+
 export function progressPath(stateDirectory: string, manifestHash: string): string {
   return join(stateDirectory, "selections", `${manifestHash}.progress.json`);
 }

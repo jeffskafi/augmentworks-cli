@@ -29,7 +29,8 @@ upload, and always-on target cleanup. Untrusted fork pull requests skip the
 secret-bearing job. Do not use `pull_request_target`. `gate` on a finalized
 result is the CI provenance record; unfinished evaluation cannot be green.
 Optional later whole-suite shards use `selection compile`, `test --shard` or
-`--all-shards` with a finite `--max-credits`, then `gate --manifest-file`.
+`--all-shards` with a finite `--max-credits` (resume unfinished attempts with
+`--execution-id`), then `gate --manifest-file`.
 That path does not replace the single-run recipe until declared coverage is
 complete.
 

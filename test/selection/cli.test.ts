@@ -116,6 +116,8 @@ describe("selection and manifest-gate CLI", () => {
     expect(testHelp.stdout).toContain("--manifest");
     expect(testHelp.stdout).toContain("--shard");
     expect(testHelp.stdout).toContain("--all-shards");
+    expect(testHelp.stdout).toContain("--execution-id");
+    expect(testHelp.stdout).toContain("resume");
     expect(testHelp.stdout).toContain("--artifact-out");
 
     const gateHelp = await runSourceCli(["gate", "--help"], { cwd: projectRoot });
