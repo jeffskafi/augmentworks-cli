@@ -105,4 +105,7 @@ Optional assessment YAML `selection` fields (`profile: smoke|release`,
 compiled by the server. Local `test --local` still uses deterministic packets
 only. Catalog counts are not a quote. `--all-shards` requires a finite
 aggregate `--max-credits` and stops before exceeding consent. An incomplete
-declared shard set cannot make a whole-suite gate green.
+declared shard set cannot make a whole-suite gate green. `gate --manifest-file`
+requires `--declared-shards` covering every expected shard, POSTs identity
+only, and exits 0 only for `aw-manifest-release-policy/2` with
+`evidenceSource: server` and exact coverage.
