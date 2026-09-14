@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "aw-manifest-release-gate-request/2",
+  "packageVersion": "aw-feature/1",
+  "algorithm": "sha256",
+  "source": {
+    "linearIssue": "AUG-104",
+    "frozenContract": "AW-AUTHORITATIVE-RELEASE-1",
+    "cliHead": "b6cf0bc6613412fdb4cc8b2f3bd3b803f07a5e36",
+    "consumerFixturesChecksum": "0754c0983f3ee1db8d7d994fe426ddf94d2f0d3090957cab9fcda863a7f7ca3a",
+    "note": "CLI-owned golden fixtures for identity-only v2 whole-suite receipts. Main-side tests may consume contracts/aw-manifest-release-gate-v2.fixtures.json. This is not npm publication or server enablement."
+  },
+  "discoveredPaths": {
+    "evaluateManifest": "POST /v1/release-gates/evaluate-manifest",
+    "evaluateManifestAlias": "POST /api/v1/release-gates/evaluate-manifest"
+  },
+  "cli": {
+    "createsBillableRun": false,
+    "maxBytes": 65536,
+    "minShards": 1,
+    "maxShards": 16,
+    "exitZeroRequires": [
+      "documentKind=aw-manifest-release-policy/2",
+      "evidenceSource=server",
+      "decision=pass",
+      "coverageComplete=true",
+      "exact non-empty identity set",
+      "every resolved shard completed/completed/pass"
+    ]
+  }
+}

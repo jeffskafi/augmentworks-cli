@@ -26,6 +26,16 @@ All notable changes to this project are documented here. The format follows
   `SAVED_SUITE_BINDING_UNSUPPORTED` before quote. Package version remains
   0.3.6; this is source integration, not publication.
 
+- Whole-suite `gate --manifest-file` sends identity-only
+  `aw-manifest-release-gate-request/2` and consumes only
+  `aw-manifest-release-policy/2` receipts. Local preflight refuses
+  empty, non-executable, tampered, or incomplete declarations before
+  authentication. Exit 0 requires `evidenceSource: server`, exact coverage,
+  and every resolved shard terminal/completed/pass. Legacy v1 and
+  malformed bodies fail closed with `MANIFEST_GATE_CONTRACT_UNSUPPORTED`.
+  Existing `--run`/`--baseline` gate behavior is unchanged. Source
+  integration, not npm publication.
+
 ## [0.3.6] - 2026-09-10
 
 Published-line patch for the AUG-82 suite-selection capability fix. Executable

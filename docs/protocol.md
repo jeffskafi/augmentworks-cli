@@ -76,6 +76,7 @@ client sends its version in `X-AugmentWorks-CLI-Version` and refuses redirects.
 | `GET /v1/applications` | List application/environment/baseline identities. Observation only; `createsBillableRun` must be false |
 | `POST /v1/comparisons/evaluate` | Authoritative semantic comparison over an explicit candidate run and baseline pin (`aw-comparison/1` request) |
 | `POST /v1/release-gates/evaluate` | Versioned release-policy decision (`aw-release-policy/1`). HTTP success is not a pass |
+| `POST /v1/release-gates/evaluate-manifest` | Whole-suite identity-only gate (`aw-manifest-release-gate-request/2` → `aw-manifest-release-policy/2`). `/api/v1` alias exists; this CLI uses `/v1`. Exit 0 only for a server-authoritative exact-coverage pass. Legacy v1 never passes |
 | `POST /v1/baselines/{baselineId}/promote` | Explicit authorized baseline promotion with `expectedPromotionRevision`. Never automatic |
 
 `usage` and `billing` GET those billing paths only. They never call create,
@@ -89,6 +90,8 @@ application paths only. They never call `POST /v1/relay/runs`, quote,
 reservation, or retry-evaluation. `--json` writes one object on stdout;
 diagnostics stay on stderr. Process exit follows the server `decision`, not
 transport success. Unknown or unsupported policy states exit `11`, never `0`.
+Whole-suite `gate --manifest-file` additionally requires a v2 server
+receipt; a generic pass or v1 policy document is `MANIFEST_GATE_CONTRACT_UNSUPPORTED`.
 
 `investigation inspect` and `investigation fetch` validate
 `aw-investigation-export/1` without quoting or executing a target. Copied

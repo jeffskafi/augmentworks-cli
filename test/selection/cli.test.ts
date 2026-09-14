@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createTestCommand } from "../../src/commands/test.js";
 import { EXIT } from "../../src/errors.js";
+import { computeManifestIntegrityHash } from "../../src/selection/admit.js";
+import type { SuiteSelectionManifest } from "../../src/selection/schema.js";
 import { runSourceCli } from "../util/cli-process.js";
 import { listenLoopback, readJsonBody, type ListeningServer } from "../util/http-server.js";
 
@@ -121,6 +123,7 @@ describe("selection and manifest-gate CLI", () => {
     const gateHelp = await runSourceCli(["gate", "--help"], { cwd: projectRoot });
     expect(gateHelp.stdout).toContain("--manifest-file");
     expect(gateHelp.stdout).toContain("--declared-shards");
+    expect(gateHelp.stdout).toContain("aw-manifest-release-policy/2");
   });
 
   it("rejects hosted selection flags with --local", async () => {
@@ -276,26 +279,18 @@ describe("selection and manifest-gate CLI", () => {
     expect(paths).not.toContain("POST /v1/billing/quote");
   });
 
-  it("maps an incomplete declared shard set to exit 11 and does not create a run", async () => {
+  it("rejects an incomplete declared shard set before any network call", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "aw-gate-manifest-"));
     temporaryDirectories.push(cwd);
     const compiled = fixture("compile_executable");
-    await writeFile(
-      join(cwd, "suite-selection.manifest.json"),
-      `${JSON.stringify(compiled.response, null, 2)}\n`,
-      "utf8"
-    );
-    const missing = fixture("evaluate_missing_shards");
+    const hashed = {
+      ...(compiled.response as Record<string, unknown>),
+      manifestHash: computeManifestIntegrityHash(compiled.response as SuiteSelectionManifest)
+    };
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(hashed, null, 2)}\n`, "utf8");
     const { server, paths } = await startMock(async (request, response, url) => {
       if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
         send(response, 200, identity());
-        return true;
-      }
-      if (request.method === "POST" && url.pathname === "/v1/release-gates/evaluate-manifest") {
-        const body = (await readJsonBody(request)) as Record<string, unknown>;
-        expect(body["schemaVersion"]).toBe("aw-suite-selection/1");
-        expect(body["declaredShards"]).toEqual([]);
-        send(response, missing.status, missing.response);
         return true;
       }
       return false;
@@ -304,43 +299,29 @@ describe("selection and manifest-gate CLI", () => {
       ["gate", "--manifest-file", "suite-selection.manifest.json", "--json"],
       { cwd, env: runEnv(server.baseUrl) }
     );
-    expect(result.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
-    const payload = JSON.parse(result.stdout) as {
-      ok: boolean;
-      assessment: string;
-      decision: string;
-      coverageComplete: boolean;
-      createsBillableRun: boolean;
-    };
-    expect(payload.ok).toBe(false);
-    expect(payload.assessment).toBe("incomplete");
-    expect(payload.decision).toBe("incomplete");
-    expect(payload.coverageComplete).toBe(false);
-    expect(payload.createsBillableRun).toBe(false);
+    expect(result.exitCode).toBe(EXIT.CONFIG);
+    expect(result.stderr).toContain("MANIFEST_DECLARATION_INCOMPLETE");
+    expect(paths).not.toContain("POST /v1/release-gates/evaluate-manifest");
+    expect(paths).not.toContain("GET /api/v1/cli/auth/me");
     expect(paths).not.toContain("POST /v1/billing/quote");
-    expect(paths.some((path) => path.startsWith("POST /v1/relay/runs"))).toBe(false);
   });
 
-  it("maps a complete server policy pass without starting another run", async () => {
+  it("maps a complete server-authoritative v2 pass without starting another run", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "aw-gate-pass-"));
     temporaryDirectories.push(cwd);
-    const compiled = fixture("compile_executable");
-    const passing = fixture("evaluate_complete_pass");
-    await writeFile(
-      join(cwd, "suite-selection.manifest.json"),
-      `${JSON.stringify(compiled.response, null, 2)}\n`,
-      "utf8"
-    );
+    const compiled = fixture("compile_executable").response as SuiteSelectionManifest;
+    const hashed = { ...compiled, manifestHash: computeManifestIntegrityHash(compiled) };
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(hashed, null, 2)}\n`, "utf8");
     await writeFile(
       join(cwd, "declared-shards.json"),
       `${JSON.stringify({
         schemaVersion: "aw-selection-artifact/1",
-        manifestHash: (compiled.response as { manifestHash: string }).manifestHash,
+        manifestHash: hashed.manifestHash,
         expectedShardIds: ["shard-000"],
         declaredShards: [
           {
             shardId: "shard-000",
-            shardIdentityHash: "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+            shardIdentityHash: hashed.shards[0]?.shardIdentityHash,
             runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
           }
         ],
@@ -357,7 +338,28 @@ describe("selection and manifest-gate CLI", () => {
         return true;
       }
       if (request.method === "POST" && url.pathname === "/v1/release-gates/evaluate-manifest") {
-        send(response, passing.status, passing.response);
+        const body = (await readJsonBody(request)) as Record<string, unknown>;
+        expect(body["schemaVersion"]).toBe("aw-manifest-release-gate-request/2");
+        expect(body).not.toHaveProperty("manifest");
+        send(response, 200, {
+          documentKind: "aw-manifest-release-policy/2",
+          manifestHash: hashed.manifestHash,
+          decision: "pass",
+          coverageComplete: true,
+          evidenceSource: "server",
+          reasonCodes: [],
+          resolvedShards: [
+            {
+              shardId: "shard-000",
+              shardIdentityHash: hashed.shards[0]?.shardIdentityHash,
+              runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              executionState: "completed",
+              evaluationStatus: "completed",
+              decision: "pass"
+            }
+          ],
+          createsBillableRun: false
+        });
         return true;
       }
       return false;
@@ -374,9 +376,10 @@ describe("selection and manifest-gate CLI", () => {
       { cwd, env: runEnv(server.baseUrl) }
     );
     expect(result.exitCode).toBe(0);
-    const payload = JSON.parse(result.stdout) as { assessment: string; decision: string };
+    const payload = JSON.parse(result.stdout) as { assessment: string; decision: string; documentKind: string };
     expect(payload.assessment).toBe("passed");
     expect(payload.decision).toBe("pass");
+    expect(payload.documentKind).toBe("aw-manifest-release-policy/2");
     expect(paths.some((path) => path.startsWith("POST /v1/relay/runs"))).toBe(false);
   });
 });

@@ -1,13 +1,13 @@
 import { EXIT } from "../errors.js";
-import type { ManifestReleasePolicyResult } from "./schema.js";
-import { createsBillableCompileError } from "./errors.js";
+import { createsBillableCompileError, manifestGateResponseMismatchError } from "./errors.js";
+import { mapServerReasonCodes } from "./gate-v2.js";
+import type { ManifestReleasePolicyV2 } from "./schema.js";
 
 export type ManifestGateAssessment =
   | "passed"
   | "blocked"
   | "incomplete"
   | "incompatible"
-  | "evaluator_error"
   | "unsupported";
 
 export interface ManifestGateClassification {
@@ -18,21 +18,32 @@ export interface ManifestGateClassification {
 }
 
 export function classifyManifestReleasePolicy(
-  result: ManifestReleasePolicyResult
+  result: ManifestReleasePolicyV2
 ): ManifestGateClassification {
   if (result.createsBillableRun) {
     throw createsBillableCompileError();
   }
-  const reasonCodes = result.reasons.map((reason) => reason.code);
-  if (reasonCodes.includes("evaluator_error")) {
+  const reasonCodes = mapServerReasonCodes(result.reasonCodes);
+  const allTerminalPass =
+    result.resolvedShards.length > 0 &&
+    result.resolvedShards.every(
+      (shard) =>
+        shard.executionState === "completed" &&
+        shard.evaluationStatus === "completed" &&
+        shard.decision === "pass"
+    );
+  if (result.decision === "pass" && result.coverageComplete && result.evidenceSource === "server") {
+    if (!allTerminalPass || reasonCodes.length > 0) {
+      throw manifestGateResponseMismatchError();
+    }
     return {
       observation: "succeeded",
-      assessment: "evaluator_error",
-      exitCode: EXIT.EVALUATION_ERROR,
+      assessment: "passed",
+      exitCode: EXIT.OK,
       reasonCodes
     };
   }
-  if (result.decision === "incompatible" || reasonCodes.includes("substituted_shard")) {
+  if (result.decision === "incompatible") {
     return {
       observation: "succeeded",
       assessment: "incompatible",
@@ -48,12 +59,7 @@ export function classifyManifestReleasePolicy(
       reasonCodes
     };
   }
-  if (
-    result.decision === "incomplete" ||
-    result.coverageComplete === false ||
-    reasonCodes.includes("missing_shard") ||
-    reasonCodes.includes("incomplete_shard")
-  ) {
+  if (result.decision === "incomplete") {
     return {
       observation: "succeeded",
       assessment: "incomplete",
@@ -61,18 +67,10 @@ export function classifyManifestReleasePolicy(
       reasonCodes
     };
   }
-  if (result.decision === "pass" && result.coverageComplete) {
-    return {
-      observation: "succeeded",
-      assessment: "passed",
-      exitCode: EXIT.OK,
-      reasonCodes
-    };
-  }
   return {
     observation: "succeeded",
-    assessment: "incomplete",
+    assessment: "unsupported",
     exitCode: EXIT.EVALUATION_INCOMPLETE,
-    reasonCodes: [...reasonCodes, "unsupported_decision"]
+    reasonCodes: [...reasonCodes, "MANIFEST_GATE_CONTRACT_UNSUPPORTED"]
   };
 }

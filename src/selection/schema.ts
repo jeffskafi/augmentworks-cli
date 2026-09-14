@@ -52,8 +52,62 @@ export const SELECTION_EXECUTION_SHARD_STATES = [
 
 export const SELECTION_PATHS = {
   compile: "/v1/suite-selections/compile",
-  evaluateManifest: "/v1/release-gates/evaluate-manifest"
+  evaluateManifest: "/v1/release-gates/evaluate-manifest",
+  evaluateManifestAlias: "/api/v1/release-gates/evaluate-manifest"
 } as const;
+
+export const MANIFEST_GATE_REQUEST_SCHEMA_VERSION = "aw-manifest-release-gate-request/2" as const;
+export const MANIFEST_GATE_DOCUMENT_KIND = "aw-manifest-release-policy/2" as const;
+export const MANIFEST_GATE_EVIDENCE_SOURCE = "server" as const;
+export const MANIFEST_GATE_MAX_BYTES = 64 * 1024;
+export const MANIFEST_GATE_MIN_SHARDS = 1 as const;
+export const MANIFEST_GATE_MAX_SHARDS = 16 as const;
+export const MANIFEST_GATE_RETRY_AFTER_CAP_MS = 5_000;
+export const MANIFEST_GATE_RETRY_ATTEMPTS = 3 as const;
+
+export const MANIFEST_GATE_DECISIONS = ["pass", "block", "incomplete", "incompatible"] as const;
+export type ManifestGateDecision = (typeof MANIFEST_GATE_DECISIONS)[number];
+
+export const MANIFEST_GATE_EXECUTION_STATES = [
+  "not_started",
+  "running",
+  "interrupted",
+  "failed",
+  "completed"
+] as const;
+export type ManifestGateExecutionState = (typeof MANIFEST_GATE_EXECUTION_STATES)[number];
+
+export const MANIFEST_GATE_EVALUATION_STATUSES = [
+  "pending",
+  "failed",
+  "unavailable",
+  "completed"
+] as const;
+export type ManifestGateEvaluationStatus = (typeof MANIFEST_GATE_EVALUATION_STATUSES)[number];
+
+export const MANIFEST_GATE_SERVER_REASON_CODES = [
+  "MANIFEST_NOT_FOUND",
+  "MANIFEST_NOT_EXECUTABLE",
+  "MANIFEST_EMPTY",
+  "MANIFEST_EXPIRED",
+  "DECLARATION_DUPLICATE",
+  "DECLARATION_MISSING",
+  "DECLARATION_EXTRA",
+  "SHARD_IDENTITY_MISMATCH",
+  "RUN_NOT_FOUND",
+  "RUN_WORKSPACE_MISMATCH",
+  "RUN_MANIFEST_MISMATCH",
+  "RUN_NOT_TERMINAL",
+  "EVALUATION_PENDING",
+  "EVALUATION_FAILED",
+  "EVIDENCE_UNAVAILABLE",
+  "EVIDENCE_EXPIRED",
+  "EVIDENCE_QUARANTINED",
+  "GRADER_IDENTITY_MISMATCH",
+  "CONTRACT_UNSUPPORTED"
+] as const;
+export type ManifestGateServerReasonCode = (typeof MANIFEST_GATE_SERVER_REASON_CODES)[number];
+export const MANIFEST_GATE_UNKNOWN_REASON = "MANIFEST_GATE_UNKNOWN_REASON" as const;
 
 export const CREATE_RUN_MAX_SELECTED_CASES = 20 as const;
 export const INVENTORY_CASE_BOUND = 48 as const;
@@ -402,6 +456,153 @@ export const ManifestReleasePolicyResultSchema = z
   .passthrough();
 
 export type ManifestReleasePolicyResult = z.infer<typeof ManifestReleasePolicyResultSchema>;
+
+const gateUuid = z
+  .string()
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    "must be a lowercase UUID"
+  );
+const gateReasonCode = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[A-Z][A-Z0-9_]{0,79}$/);
+
+export const ManifestGateDeclaredShardSchema = z
+  .object({
+    shardId: identifier,
+    shardIdentityHash: sha256,
+    runId: gateUuid
+  })
+  .strict();
+
+export type ManifestGateDeclaredShard = z.infer<typeof ManifestGateDeclaredShardSchema>;
+
+export const EvaluateManifestGateRequestSchema = z
+  .object({
+    schemaVersion: z.literal(MANIFEST_GATE_REQUEST_SCHEMA_VERSION),
+    manifestHash: sha256,
+    declaredShards: z
+      .array(ManifestGateDeclaredShardSchema)
+      .min(MANIFEST_GATE_MIN_SHARDS)
+      .max(MANIFEST_GATE_MAX_SHARDS)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const shardIds = value.declaredShards.map((shard) => shard.shardId);
+    const hashes = value.declaredShards.map((shard) => shard.shardIdentityHash);
+    const runIds = value.declaredShards.map((shard) => shard.runId);
+    if (new Set(shardIds).size !== shardIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "declaredShards shardId values must be unique",
+        path: ["declaredShards"]
+      });
+    }
+    if (new Set(hashes).size !== hashes.length) {
+      context.addIssue({
+        code: "custom",
+        message: "declaredShards shardIdentityHash values must be unique",
+        path: ["declaredShards"]
+      });
+    }
+    if (new Set(runIds).size !== runIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "declaredShards runId values must be unique",
+        path: ["declaredShards"]
+      });
+    }
+  });
+
+export type EvaluateManifestGateRequest = z.infer<typeof EvaluateManifestGateRequestSchema>;
+
+export const ManifestGateResolvedShardSchema = z
+  .object({
+    shardId: identifier,
+    shardIdentityHash: sha256,
+    runId: gateUuid,
+    executionState: z.enum(MANIFEST_GATE_EXECUTION_STATES),
+    evaluationStatus: z.enum(MANIFEST_GATE_EVALUATION_STATUSES),
+    decision: z.enum(MANIFEST_GATE_DECISIONS)
+  })
+  .strict();
+
+export type ManifestGateResolvedShard = z.infer<typeof ManifestGateResolvedShardSchema>;
+
+export const ManifestReleasePolicyV2Schema = z
+  .object({
+    documentKind: z.literal(MANIFEST_GATE_DOCUMENT_KIND),
+    manifestHash: sha256,
+    decision: z.enum(MANIFEST_GATE_DECISIONS),
+    coverageComplete: z.boolean(),
+    evidenceSource: z.literal(MANIFEST_GATE_EVIDENCE_SOURCE),
+    reasonCodes: z.array(gateReasonCode).max(64),
+    resolvedShards: z
+      .array(ManifestGateResolvedShardSchema)
+      .min(MANIFEST_GATE_MIN_SHARDS)
+      .max(MANIFEST_GATE_MAX_SHARDS),
+    createsBillableRun: z.boolean()
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const shardIds = value.resolvedShards.map((shard) => shard.shardId);
+    const hashes = value.resolvedShards.map((shard) => shard.shardIdentityHash);
+    const runIds = value.resolvedShards.map((shard) => shard.runId);
+    if (new Set(shardIds).size !== shardIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "resolvedShards shardId values must be unique",
+        path: ["resolvedShards"]
+      });
+    }
+    if (new Set(hashes).size !== hashes.length) {
+      context.addIssue({
+        code: "custom",
+        message: "resolvedShards shardIdentityHash values must be unique",
+        path: ["resolvedShards"]
+      });
+    }
+    if (new Set(runIds).size !== runIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "resolvedShards runId values must be unique",
+        path: ["resolvedShards"]
+      });
+    }
+    if (new Set(value.reasonCodes).size !== value.reasonCodes.length) {
+      context.addIssue({
+        code: "custom",
+        message: "reasonCodes must be unique",
+        path: ["reasonCodes"]
+      });
+    }
+  });
+
+export type ManifestReleasePolicyV2 = z.infer<typeof ManifestReleasePolicyV2Schema>;
+
+export const MANIFEST_GATE_FORBIDDEN_REQUEST_KEYS = [
+  "manifest",
+  "expectedManifestHash",
+  "status",
+  "evaluationStatus",
+  "executionState",
+  "verdict",
+  "decision",
+  "comparability",
+  "score",
+  "transcript",
+  "targetUrl",
+  "target_url",
+  "quote",
+  "credits",
+  "coverageComplete",
+  "reasons",
+  "shards",
+  "resolvedShards",
+  "createsBillableRun"
+] as const;
 
 export const SelectionProgressSchema = z
   .object({

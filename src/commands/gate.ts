@@ -11,17 +11,17 @@ import { selectionError } from "../selection/errors.js";
 export function createGateCommand(dependencies: PolicyCommandDependencies = {}): Command {
   return new Command("gate")
     .description(
-      "Evaluate the hosted release policy for an explicit candidate run and pinned baseline without starting a test"
+      "Evaluate the hosted release policy for an explicit candidate run and pinned baseline, or a server-authoritative whole-suite v2 receipt, without starting a test"
     )
     .option("--run <run-id>", "candidate run ID")
     .option("--baseline <baseline-id>", "pinned baseline ID")
     .option(
       "--manifest-file <path>",
-      "compiled aw-suite-selection/1 manifest; evaluates whole-manifest coverage instead of --run/--baseline"
+      "compiled suite-selection manifest; POSTs identity-only aw-manifest-release-gate-request/2 and exits 0 only for an exact aw-manifest-release-policy/2 server pass"
     )
     .option(
       "--declared-shards <path>",
-      "artifact from test --artifact-out listing per-shard run IDs (required for a complete coverage set)"
+      "artifact from test --artifact-out listing exactly one run UUID per expected shard (required; empty or partial declarations never reach the network)"
     )
     .option("--wait", "wait on the original run's billing status before evaluating the gate")
     .option("--timeout-ms <ms>", "maximum wait in milliseconds when --wait is set", "900000")

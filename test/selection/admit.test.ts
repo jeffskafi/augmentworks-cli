@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EXIT, AwError } from "../../src/errors.js";
-import { classifyManifestReleasePolicy } from "../../src/selection/classify.js";
+import { AwError } from "../../src/errors.js";
+import { parseManifestGateResponse } from "../../src/selection/gate-v2.js";
 import {
   requireExecutableManifest,
   selectShard,
@@ -92,16 +92,34 @@ describe("suite selection admit and gate mapping", () => {
     expect(shard.caseIds).toHaveLength(2);
   });
 
-  it("does not treat an incomplete shard set as a pass", () => {
-    const missing = classifyManifestReleasePolicy(gate("evaluate_missing_shards"));
-    expect(missing.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
-    expect(missing.assessment).toBe("incomplete");
-    const incomplete = classifyManifestReleasePolicy(gate("evaluate_incomplete_run"));
-    expect(incomplete.exitCode).toBe(EXIT.EVALUATION_INCOMPLETE);
-    const substituted = classifyManifestReleasePolicy(gate("evaluate_substituted_shard"));
-    expect(substituted.exitCode).toBe(EXIT.CONFIG);
-    const pass = classifyManifestReleasePolicy(gate("evaluate_complete_pass"));
-    expect(pass.exitCode).toBe(EXIT.OK);
+  it("does not treat a v1 or incomplete caller-authoritative receipt as a pass", () => {
+    const request = {
+      schemaVersion: "aw-manifest-release-gate-request/2" as const,
+      manifestHash: "d408b0ed41c7eddc8fbdfbd4e0737f264f257c43d13794aa88a720b0d82c219f",
+      declaredShards: [
+        {
+          shardId: "shard-000",
+          shardIdentityHash: "2a3f15188a38cfc4982a924a0d38dfa5ef58a0ff921d8e050ee588e95cd83b3d",
+          runId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        }
+      ]
+    };
+    expectCode(
+      () => parseManifestGateResponse(gate("evaluate_missing_shards"), request),
+      "MANIFEST_GATE_CONTRACT_UNSUPPORTED"
+    );
+    expectCode(
+      () => parseManifestGateResponse(gate("evaluate_incomplete_run"), request),
+      "MANIFEST_GATE_CONTRACT_UNSUPPORTED"
+    );
+    expectCode(
+      () => parseManifestGateResponse(gate("evaluate_substituted_shard"), request),
+      "MANIFEST_GATE_CONTRACT_UNSUPPORTED"
+    );
+    expectCode(
+      () => parseManifestGateResponse(gate("evaluate_complete_pass"), request),
+      "MANIFEST_GATE_CONTRACT_UNSUPPORTED"
+    );
   });
 
   it("resumes the interrupted shard and does not start the next one", () => {
