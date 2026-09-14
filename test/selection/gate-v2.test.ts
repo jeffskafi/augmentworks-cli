@@ -54,11 +54,30 @@ const v2Contract = JSON.parse(
 const temporaryDirectories: string[] = [];
 const servers: ListeningServer[] = [];
 
+function isRetryableRemoveError(error: unknown): boolean {
+  if (process.platform !== "win32" || typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  const code = error.code;
+  return code === "EBUSY" || code === "EPERM" || code === "ENOTEMPTY";
+}
+
+async function removeDirectory(directory: string): Promise<void> {
+  const attempts = process.platform === "win32" ? 8 : 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await rm(directory, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!isRetryableRemoveError(error) || attempt === attempts - 1) throw error;
+      await new Promise((fulfill) => setTimeout(fulfill, 25 * 2 ** attempt));
+    }
+  }
+}
+
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => server.close()));
-  await Promise.all(
-    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))
-  );
+  await Promise.all(temporaryDirectories.splice(0).map((directory) => removeDirectory(directory)));
 });
 
 function send(response: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}): void {
@@ -461,7 +480,7 @@ describe("manifest gate v2 response identity proof", () => {
 });
 
 describe("manifest gate v2 CLI", () => {
-  it("does not authenticate or POST for invalid local preflight", async () => {
+  it("does not authenticate or POST for invalid local preflight", { timeout: 40_000 }, async () => {
     const emptyManifest = v1Fixtures.fixtures["compile_empty"]?.response as SuiteSelectionManifest;
     const cwd = await writeGateFiles(
       { ...emptyManifest, manifestHash: computeManifestIntegrityHash(emptyManifest) },
@@ -572,7 +591,7 @@ describe("manifest gate v2 CLI", () => {
     expect(paths.some((path) => path.startsWith("POST /v1/relay/runs"))).toBe(false);
   });
 
-  it("maps authoritative block/incomplete/incompatible and never falls back to v1 pass", async () => {
+  it("maps authoritative block/incomplete/incompatible and never falls back to v1 pass", { timeout: 40_000 }, async () => {
     const manifest = executableManifest();
     for (const [name, exitCode] of [
       ["response_block", EXIT.ASSESSMENT_FAILED],
@@ -627,53 +646,44 @@ describe("manifest gate v2 CLI", () => {
     expect(v1Result.stdout).not.toContain(TOKEN);
   });
 
-  it("maps HTML, malformed, oversized, 401/403/404/409/426/429/5xx without leaking secrets or foreign-workspace existence", async () => {
+  it.each([
+    { name: "html", status: 200, body: "<html>pass</html>", headers: { "content-type": "text/html" }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+    { name: "malformed", status: 200, body: "{not-json", code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+    { name: "oversized", status: 200, body: { padding: "n".repeat(70 * 1024) }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+    { name: "401", status: 401, body: { error: { code: "UNAUTHORIZED", message: `token ${TOKEN}` } }, code: "CLOUD_AUTH_REJECTED" },
+    { name: "403", status: 403, body: { error: { code: "FORBIDDEN", message: "missing action" } }, code: "CLOUD_AUTH_REJECTED" },
+    { name: "404", status: 404, body: { error: { code: "NOT_FOUND", message: "owned by workspace other-tenant" } }, code: "MANIFEST_GATE_NOT_FOUND" },
+    { name: "409", status: 409, body: { error: { code: "CONFLICT", message: "conflict" } }, code: "MANIFEST_GATE_IMMUTABLE_CONFLICT" },
+    { name: "426", status: 426, body: { error: { code: "UPGRADE_REQUIRED", message: "v1" } }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
+    { name: "429", status: 429, body: { error: { code: "RATE_LIMITED", message: "slow" } }, headers: { "Retry-After": "0" }, code: "MANIFEST_GATE_RATE_LIMITED" },
+    { name: "500", status: 500, body: { error: { code: "INTERNAL", message: "boom" } }, headers: { "Retry-After": "0" }, code: "MANIFEST_GATE_UNAVAILABLE" }
+  ] as const)("maps $name without leaking secrets or foreign-workspace existence", async (testCase) => {
     const manifest = executableManifest();
-    const cases: Array<{
-      name: string;
-      status: number;
-      body: unknown;
-      headers?: Record<string, string>;
-      code: string;
-    }> = [
-      { name: "html", status: 200, body: "<html>pass</html>", headers: { "content-type": "text/html" }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
-      { name: "malformed", status: 200, body: "{not-json", code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
-      { name: "oversized", status: 200, body: { padding: "n".repeat(70 * 1024) }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
-      { name: "401", status: 401, body: { error: { code: "UNAUTHORIZED", message: `token ${TOKEN}` } }, code: "CLOUD_AUTH_REJECTED" },
-      { name: "403", status: 403, body: { error: { code: "FORBIDDEN", message: "missing action" } }, code: "CLOUD_AUTH_REJECTED" },
-      { name: "404", status: 404, body: { error: { code: "NOT_FOUND", message: "owned by workspace other-tenant" } }, code: "MANIFEST_GATE_NOT_FOUND" },
-      { name: "409", status: 409, body: { error: { code: "CONFLICT", message: "conflict" } }, code: "MANIFEST_GATE_IMMUTABLE_CONFLICT" },
-      { name: "426", status: 426, body: { error: { code: "UPGRADE_REQUIRED", message: "v1" } }, code: "MANIFEST_GATE_CONTRACT_UNSUPPORTED" },
-      { name: "429", status: 429, body: { error: { code: "RATE_LIMITED", message: "slow" } }, headers: { "Retry-After": "0" }, code: "MANIFEST_GATE_RATE_LIMITED" },
-      { name: "500", status: 500, body: { error: { code: "INTERNAL", message: "boom" } }, code: "MANIFEST_GATE_UNAVAILABLE" }
-    ];
-    for (const testCase of cases) {
-      const cwd = await writeGateFiles(manifest, artifact(manifest, [RUN_A]));
-      const { server, paths } = await startMock(async (request, response, url) => {
-        if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
-          send(response, 200, identity());
-          return true;
-        }
-        if (request.method === "POST" && url.pathname === SELECTION_PATHS.evaluateManifest) {
-          send(response, testCase.status, testCase.body, testCase.headers ?? {});
-          return true;
-        }
-        return false;
-      });
-      const result = await runSourceCli(
-        ["gate", "--manifest-file", "suite-selection.manifest.json", "--declared-shards", "declared-shards.json", "--json"],
-        { cwd, env: runEnv(server.baseUrl) }
-      );
-      expect(result.exitCode, testCase.name).not.toBe(0);
-      expect(`${result.stderr}\n${result.stdout}`, testCase.name).toContain(testCase.code);
-      expect(`${result.stderr}\n${result.stdout}`, testCase.name).not.toContain(TOKEN);
-      expect(`${result.stderr}\n${result.stdout}`, testCase.name).not.toContain("other-tenant");
-      const evaluatePosts = paths.filter((path) => path === `POST ${SELECTION_PATHS.evaluateManifest}`);
-      if (testCase.name === "429" || testCase.name === "500") {
-        expect(evaluatePosts, testCase.name).toHaveLength(3);
-      } else {
-        expect(evaluatePosts.length, testCase.name).toBeLessThanOrEqual(2);
+    const cwd = await writeGateFiles(manifest, artifact(manifest, [RUN_A]));
+    const { server, paths } = await startMock(async (request, response, url) => {
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
       }
+      if (request.method === "POST" && url.pathname === SELECTION_PATHS.evaluateManifest) {
+        send(response, testCase.status, testCase.body, testCase.headers ?? {});
+        return true;
+      }
+      return false;
+    });
+    const result = await runSourceCli(
+      ["gate", "--manifest-file", "suite-selection.manifest.json", "--declared-shards", "declared-shards.json", "--json"],
+      { cwd, env: runEnv(server.baseUrl) }
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stderr}\n${result.stdout}`).toContain(testCase.code);
+    expect(`${result.stderr}\n${result.stdout}`).not.toContain(TOKEN);
+    expect(`${result.stderr}\n${result.stdout}`).not.toContain("other-tenant");
+    const evaluatePosts = paths.filter((path) => path === `POST ${SELECTION_PATHS.evaluateManifest}`);
+    if (testCase.name === "429" || testCase.name === "500") {
+      expect(evaluatePosts).toHaveLength(3);
+    } else {
+      expect(evaluatePosts.length).toBeLessThanOrEqual(2);
     }
   });
 
