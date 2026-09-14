@@ -15,6 +15,7 @@ customer use. Those remain AR05 / [AUG-87](https://linear.app/augmentworks/issue
 | --- | --- |
 | CLI default main at start | `b6cf0bc6613412fdb4cc8b2f3bd3b803f07a5e36` (AUG-104 reviewed head) |
 | Working branch | `cursor/ar03-authoritative-gate-v2-5d39` |
+| Source head after verification | recorded in git on this branch |
 | Frozen contract | [AW-AUTHORITATIVE-RELEASE-1](https://linear.app/augmentworks/document/augmentworks-product-strategy-authoritative-release-evidence-2026-09-22e501c45d79) |
 | Source package | `0.3.6` (unchanged; not a published npm version bump) |
 | Golden fixtures | `contracts/aw-manifest-release-gate-v2.fixtures.json` |
@@ -33,15 +34,15 @@ customer use. Those remain AR05 / [AUG-87](https://linear.app/augmentworks/issue
 
 ## Verification
 
-No production credential, quote, reservation, run, or charge.
+No production credential, quote, reservation, run, or charge. Hosted secrets present in this agent environment were unset for the check/smoke processes so child CLI tests did not inherit `AUGMENTWORKS_API_KEY`.
 
 | Command | Result |
 | --- | --- |
 | `npx tsc --noEmit` | Pass |
-| `npx vitest run test/selection/gate-v2.test.ts test/selection/cli.test.ts test/selection/admit.test.ts test/baseline/cli-release-gate.test.ts test/integration/cli-entry.test.ts test/baseline/classify.test.ts` | 6 files / 60 tests passed |
-| `npm run check` | Recorded after this source lands |
-| `npm run smoke:pack` | Recorded after this source lands |
-| `npm audit --audit-level=high` | Recorded after this source lands |
+| Focused Vitest (`gate-v2`, `cli`, `admit`, `cli-release-gate`, `cli-entry`, `baseline/classify`) | 6 files / 60 tests passed |
+| `npm run check` | Pass: typecheck, 88 files / 834 tests, `tsup` build, discovery/billing/run-report contracts |
+| `npm run smoke:pack` | Pass (66 packed files; packed gate help includes `aw-manifest-release-policy/2`) |
+| `npm audit --audit-level=high` | 0 vulnerabilities |
 
 ## Limitations
 
