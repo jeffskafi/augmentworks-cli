@@ -92,3 +92,44 @@ export function createsBillableCompileError(): AwError {
       "The suite-selection API advertised createsBillableRun. Compile and manifest gating must not start, reserve, or charge a run."
   });
 }
+
+export type SelectionRecoveryAction =
+  | "resume_execution"
+  | "start_new_execution"
+  | "inspect_progress_migration"
+  | "inspect_quarantined_state";
+
+export function selectionResumeRequiredError(details: {
+  readonly executionId: string;
+  readonly manifestHash: string;
+  readonly command: string;
+}): AwError {
+  return selectionError(
+    "SELECTION_RESUME_REQUIRED",
+    `An unfinished multi-shard execution ${details.executionId} already exists for this immutable manifest. Resume that attempt with --execution-id. Omitting the id starts a new rerun only after the attempt is terminal. No quote was requested.\nResume this attempt:\n  ${details.command}\nStart a new rerun only after that execution is terminal; a new execution ID does not inherit prior shard results.`,
+    {
+      details: {
+        execution_id: details.executionId,
+        manifest_hash: details.manifestHash,
+        recovery_action: "resume_execution",
+        recovery_command: details.command
+      }
+    }
+  );
+}
+
+export function selectionProgressMigrationRequiredError(details: {
+  readonly manifestHash: string;
+  readonly reason: string;
+}): AwError {
+  return selectionError(
+    "SELECTION_PROGRESS_MIGRATION_REQUIRED",
+    `${details.reason} The existing aw-selection-progress/1 file was left unchanged. No quote or run was requested.`,
+    {
+      details: {
+        manifest_hash: details.manifestHash,
+        recovery_action: "inspect_progress_migration"
+      }
+    }
+  );
+}

@@ -300,7 +300,9 @@ Public coverage catalog listing is unauthenticated. Compile and shard
 execution are hosted compiler features, not a local pricing engine. Static
 catalog counts are informative. `POST /v1/billing/quote` remains the only
 cost preview. `--all-shards` requires a finite aggregate `--max-credits`
-ceiling and stops before exceeding consent.
+ceiling and stops before exceeding consent. Interrupted multi-shard work
+resumes only with `--execution-id`; omitting that flag after a terminal
+attempt starts a new execution that does not inherit prior shard results.
 
 ```bash
 node dist/index.js catalog list --json
@@ -312,6 +314,17 @@ node dist/index.js selection compile \
 node dist/index.js test \
   --manifest ./suite-selection.manifest.json \
   --shard shard-000 \
+  --max-credits 30 \
+  --yes
+node dist/index.js test \
+  --manifest ./suite-selection.manifest.json \
+  --all-shards \
+  --max-credits 30 \
+  --yes
+node dist/index.js test \
+  --manifest ./suite-selection.manifest.json \
+  --all-shards \
+  --execution-id <uuid> \
   --max-credits 30 \
   --yes
 node dist/index.js gate --manifest-file ./suite-selection.manifest.json --declared-shards ./suite-selection.declared-shards.json --json
@@ -716,7 +729,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `suite validate <file> [--json]` / `suite preview <file> [--json]` | Validate or preview a customer-owned `aw-suite/1` file | Offline; not a price; does not execute a target or an LLM. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
 | `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling. Optional YAML `selection` (smoke/release) is compiled by the server |
-| `test [-c path] --manifest path [--shard id \| --all-shards] [--max-credits n] [--yes] [--artifact-out path]` | Quote or run one compiled shard, or a finite multi-shard driver | Prints exclusions before consent. `--all-shards` requires `--max-credits`. Status/recovery resume the original shard run. Cannot be used with `--local` |
+| `test [-c path] --manifest path [--shard id \| --all-shards] [--execution-id uuid] [--max-credits n] [--yes] [--artifact-out path]` | Quote or run one compiled shard, or a finite multi-shard driver | Prints exclusions before consent. `--all-shards` requires `--max-credits`. Resume an unfinished attempt with `--execution-id`. After it is terminal, omit `--execution-id` to start a new rerun. Cannot be used with `--local` |
 | `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--headless] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local`. `--headless` requires `AUGMENTWORKS_API_KEY` or `AUGMENTWORKS_TOKEN` and never opens a browser |
 | `investigation inspect <file> [--json]` / `investigation fetch --run id --evaluation id --attempt id --criterion id [--out path] [--json]` / `investigation export-regression <file> --out path [--json]` | Inspect or download a safe failure investigation, or export a reviewed `aw-suite/1` regression draft | Observation only. Does not execute a target, shell fragment, evaluator, or quote. Copied commands are data. See `docs/investigation.md` |
 | `test [-c path] --investigation path [--estimate] [--max-credits n] [--yes] [--open]` | Reproduce the exact pinned case from an investigation file | New quote and consent every time. Never selects `latest` or reuses a consumed quote. Cannot be combined with `--local`, `--suite`, `--assessment`, or `--packet` |

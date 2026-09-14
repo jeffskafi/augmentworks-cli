@@ -10,6 +10,45 @@ export const MANIFEST_RELEASE_POLICY_SCHEMA_VERSION = "aw-manifest-release-polic
 export const MANIFEST_RELEASE_POLICY_DOCUMENT_KIND = "manifest_release_policy_result" as const;
 export const SELECTION_PROGRESS_SCHEMA_VERSION = "aw-selection-progress/1" as const;
 export const SELECTION_ARTIFACT_SCHEMA_VERSION = "aw-selection-artifact/1" as const;
+/** Local durable attempt document. Distinct from the immutable suite-selection manifest. */
+export const SELECTION_EXECUTION_DOCUMENT_KIND = "aw-selection-execution/2" as const;
+export const SELECTION_EXECUTION_INDEX_DOCUMENT_KIND = "aw-selection-execution-index/2" as const;
+
+/**
+ * Closed aggregate execution states:
+ * - `running` — this attempt is active (including a fresh start).
+ * - `interrupted` — checkpointed, resumable with `--execution-id`; not a final result.
+ * - `completed` — every expected shard finished this attempt.
+ * - `blocked` — terminal incomplete coverage (including aggregate budget exhaustion).
+ * - `failed` — terminal with at least one failed shard and no in-flight shard.
+ */
+export const SELECTION_EXECUTION_STATES = [
+  "running",
+  "interrupted",
+  "completed",
+  "blocked",
+  "failed"
+] as const;
+
+/**
+ * Closed per-shard execution states:
+ * - `pending` — not yet quoted.
+ * - `quoted` — durable quote id/units recorded; not admitted.
+ * - `admitted` — create/bind recorded a run id; observation may not have started.
+ * - `running` — observation/relay in progress.
+ * - `completed` — this shard finished; charged units are authoritative.
+ * - `blocked` — skipped without a successful completion (budget or stop).
+ * - `failed` — this shard failed; do not treat as coverage.
+ */
+export const SELECTION_EXECUTION_SHARD_STATES = [
+  "pending",
+  "quoted",
+  "admitted",
+  "running",
+  "completed",
+  "blocked",
+  "failed"
+] as const;
 
 export const SELECTION_PATHS = {
   compile: "/v1/suite-selections/compile",
@@ -25,6 +64,11 @@ const identifier = z
   .max(300)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
+const uuid = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+const rfc3339 = z.string().datetime({ offset: true });
+const creditUnits = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const semver = z
   .string()
   .min(1)
@@ -384,6 +428,55 @@ export const SelectionProgressSchema = z
   .strict();
 
 export type SelectionProgress = z.infer<typeof SelectionProgressSchema>;
+
+export const SelectionExecutionStateSchema = z.enum(SELECTION_EXECUTION_STATES);
+export type SelectionExecutionState = z.infer<typeof SelectionExecutionStateSchema>;
+
+export const SelectionExecutionShardStateSchema = z.enum(SELECTION_EXECUTION_SHARD_STATES);
+export type SelectionExecutionShardState = z.infer<typeof SelectionExecutionShardStateSchema>;
+
+export const SelectionExecutionShardSchema = z
+  .object({
+    shardId: identifier,
+    shardIdentityHash: sha256,
+    runId: identifier.nullable(),
+    quoteId: z.string().min(1).max(200).nullable(),
+    quotedUnits: creditUnits,
+    chargedUnits: creditUnits,
+    state: SelectionExecutionShardStateSchema
+  })
+  .strict();
+
+export type SelectionExecutionShard = z.infer<typeof SelectionExecutionShardSchema>;
+
+export const SelectionExecutionSchema = z
+  .object({
+    documentKind: z.literal(SELECTION_EXECUTION_DOCUMENT_KIND),
+    executionId: uuid,
+    manifestHash: sha256,
+    createdAt: rfc3339,
+    updatedAt: rfc3339,
+    aggregateMaxCredits: creditUnits,
+    remainingCredits: creditUnits,
+    state: SelectionExecutionStateSchema,
+    terminalReason: z.string().min(1).max(200).nullable(),
+    shards: z.array(SelectionExecutionShardSchema).max(16)
+  })
+  .strict();
+
+export type SelectionExecution = z.infer<typeof SelectionExecutionSchema>;
+
+export const SelectionExecutionIndexSchema = z
+  .object({
+    documentKind: z.literal(SELECTION_EXECUTION_INDEX_DOCUMENT_KIND),
+    manifestHash: sha256,
+    unfinishedExecutionId: uuid.nullable(),
+    v1Migrated: z.boolean(),
+    updatedAt: rfc3339
+  })
+  .strict();
+
+export type SelectionExecutionIndex = z.infer<typeof SelectionExecutionIndexSchema>;
 
 export const SelectionArtifactSchema = z
   .object({

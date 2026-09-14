@@ -104,5 +104,7 @@ Optional assessment YAML `selection` fields (`profile: smoke|release`,
 `suite_version`, tags, `include_catalog`, requested/excluded case ids) are
 compiled by the server. Local `test --local` still uses deterministic packets
 only. Catalog counts are not a quote. `--all-shards` requires a finite
-aggregate `--max-credits` and stops before exceeding consent. An incomplete
-declared shard set cannot make a whole-suite gate green.
+aggregate `--max-credits` and stops before exceeding consent. Resume an
+unfinished multi-shard attempt with `--execution-id`; omit it after the
+attempt is terminal to start a new rerun. An incomplete declared shard set
+cannot make a whole-suite gate green.

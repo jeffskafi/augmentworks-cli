@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `test --all-shards` persists `aw-selection-execution/2` documents with a
+  cryptographically random `executionId` distinct from the immutable manifest
+  hash. An unfinished attempt refuses a second invocation with
+  `SELECTION_RESUME_REQUIRED` until `--execution-id` is supplied. A terminal
+  attempt plus a later invocation without that flag starts a new empty
+  execution. Local remaining credits are reconciled from unique quoted and
+  charged units; incomplete coverage, including aggregate budget exhaustion,
+  cannot return success. Package version remains 0.3.6; this is source
+  integration, not publication.
+
 - Saved-suite assessments negotiate `aw-suite-selection/2`, validate
   `aw-saved-suite-binding/1`, and carry `suite_id` / `suite_revision_id` /
   `suite_content_hash` through estimate, quote, and create. Catalog compiles
