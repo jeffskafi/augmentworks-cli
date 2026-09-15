@@ -35,7 +35,11 @@ import {
   saveSelectionExecution,
   skipRemainingPendingShards
 } from "../../src/selection/execution.js";
-import { SELECTION_EXECUTION_DOCUMENT_KIND, type SuiteSelectionManifest } from "../../src/selection/schema.js";
+import {
+  SELECTION_EXECUTION_DOCUMENT_KIND,
+  SelectionExecutionSchema,
+  type SuiteSelectionManifest
+} from "../../src/selection/schema.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const fixtures = JSON.parse(
@@ -78,6 +82,43 @@ function twoShardManifest(manifestHash = `b${"c".repeat(63)}`): SuiteSelectionMa
       }
     ]
   };
+}
+
+function threeShardManifest(manifestHash = `b${"c".repeat(63)}`): SuiteSelectionManifest {
+  const compiled = twoShardManifest(manifestHash);
+  const first = compiled.shards[0];
+  if (first === undefined) throw new Error("missing shard");
+  return {
+    ...compiled,
+    shards: [
+      ...compiled.shards,
+      {
+        ...first,
+        shardId: "shard-002",
+        shardIndex: 2,
+        shardIdentityHash: "d".repeat(64)
+      }
+    ]
+  };
+}
+
+function completeShard(
+  execution: ReturnType<typeof initialExecution>,
+  shardId: string,
+  extras: { readonly runId: string; readonly quoteId: string; readonly units: number }
+): ReturnType<typeof initialExecution> {
+  return markShardCompleted(
+    markShardAdmitted(markShardQuoted(execution, shardId, { quoteId: extras.quoteId, quotedUnits: extras.units }), shardId, {
+      runId: extras.runId
+    }),
+    shardId,
+    { chargedUnits: extras.units }
+  );
+}
+
+function expectSecretSafe(value: unknown): void {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  expect(text).not.toMatch(/token|api[_-]?key|authorization|https?:\/\/|raw response|Bearer /i);
 }
 
 function expectCode(error: unknown, code: string): void {
@@ -340,6 +381,142 @@ describe("selection execution IDs", () => {
       quoteId: "same-quote"
     });
     expect(duplicate.remainingCredits).toBe(6);
+    expect(duplicate.shards.reduce((sum, shard) => sum + shard.chargedUnits, 0)).toBe(4);
+  });
+
+  it("rejects a quote id already bound to another shard before another quote", () => {
+    const manifest = threeShardManifest();
+    const execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+      runId: "r1",
+      quoteId: "duplicate-quote",
+      units: 4
+    });
+    expect(execution.remainingCredits).toBe(6);
+    const error = (() => {
+      try {
+        markShardQuoted(execution, "shard-001", { quoteId: "duplicate-quote", quotedUnits: 4 });
+        throw new Error("expected SHARD_PROGRESS_BLOCKED");
+      } catch (caught) {
+        expectCode(caught, "SHARD_PROGRESS_BLOCKED");
+        return caught as AwError;
+      }
+    })();
+    expect(error.message).toMatch(/already bound to shard shard-000/i);
+    expect(error.message).not.toMatch(/duplicate-quote/);
+    expect(error.details).toMatchObject({
+      shard_id: "shard-001",
+      bound_shard_id: "shard-000",
+      recovery_action: "resume_execution"
+    });
+    expect(error.details).not.toHaveProperty("quote_id");
+    expectSecretSafe(error.toSafeJSON());
+    expect(execution.remainingCredits).toBe(6);
+    expect(execution.shards.map((shard) => shard.state)).toEqual(["completed", "pending", "pending"]);
+    expect(nextRunnableShard(execution)?.shardId).toBe("shard-001");
+    const reserved = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+      quoteId: "in-flight-quote",
+      quotedUnits: 4
+    });
+    expect(() =>
+      markShardQuoted(reserved, "shard-001", { quoteId: "in-flight-quote", quotedUnits: 4 })
+    ).toThrow(/SHARD_PROGRESS_BLOCKED|already bound/i);
+    expect(reserved.remainingCredits).toBe(6);
+  });
+
+  it("rejects a run id already bound to another shard before admission or completion", () => {
+    const manifest = twoShardManifest();
+    let execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+      runId: "shared-run",
+      quoteId: "quote-a",
+      units: 4
+    });
+    execution = markShardQuoted(execution, "shard-001", { quoteId: "quote-b", quotedUnits: 4 });
+    expect(() => markShardAdmitted(execution, "shard-001", { runId: "shared-run" })).toThrow(
+      /SHARD_PROGRESS_BLOCKED|already bound to shard shard-000/i
+    );
+    expect(() =>
+      markShardCompleted(execution, "shard-001", { runId: "shared-run", chargedUnits: 4, quoteId: "quote-b" })
+    ).toThrow(/SHARD_PROGRESS_BLOCKED|already bound/i);
+    expect(execution.shards[1]?.state).toBe("quoted");
+    expect(execution.remainingCredits).toBe(2);
+  });
+
+  it("rejects a failed shard's run id if another shard tries to reuse it", () => {
+    const manifest = twoShardManifest();
+    let execution = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+      quoteId: "quote-a",
+      quotedUnits: 4
+    });
+    execution = markShardFailed(markShardAdmitted(execution, "shard-000", { runId: "failed-run" }), "shard-000", {
+      runId: "failed-run"
+    });
+    execution = markShardQuoted(execution, "shard-001", { quoteId: "quote-b", quotedUnits: 4 });
+    expect(() => markShardAdmitted(execution, "shard-001", { runId: "failed-run" })).toThrow(
+      /SHARD_PROGRESS_BLOCKED|already bound to shard shard-000/i
+    );
+  });
+
+  it("still counts each validated shard charge against the aggregate cap", () => {
+    const manifest = threeShardManifest();
+    let execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+      runId: "r1",
+      quoteId: "quote-1",
+      units: 4
+    });
+    execution = completeShard(execution, "shard-001", { runId: "r2", quoteId: "quote-2", units: 4 });
+    expect(execution.remainingCredits).toBe(2);
+    expect(execution.shards.reduce((sum, shard) => sum + shard.chargedUnits, 0)).toBe(8);
+    expect(() =>
+      markShardQuoted(execution, "shard-002", { quoteId: "quote-3", quotedUnits: 6 })
+    ).toThrow(/SELECTION_BUDGET_INVARIANT|underflow/i);
+  });
+
+  it("allows the same shard to replace an unadmitted quote id", () => {
+    const manifest = twoShardManifest();
+    let execution = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+      quoteId: "quote-old",
+      quotedUnits: 4
+    });
+    execution = markShardQuoted(execution, "shard-000", { quoteId: "quote-new", quotedUnits: 4 });
+    execution = markShardQuoted(execution, "shard-001", { quoteId: "quote-old", quotedUnits: 3 });
+    expect(execution.shards[0]?.quoteId).toBe("quote-new");
+    expect(execution.shards[1]?.quoteId).toBe("quote-old");
+    expect(execution.remainingCredits).toBe(3);
+  });
+
+  it("fails schema validation for persisted cross-shard quote or run duplicates", () => {
+    const manifest = twoShardManifest();
+    const valid = completeShard(initialExecution(manifest, 10), "shard-000", {
+      runId: "r1",
+      quoteId: "quote-a",
+      units: 4
+    });
+    const quoteDuplicate = {
+      ...valid,
+      shards: valid.shards.map((shard) =>
+        shard.shardId === "shard-001"
+          ? { ...shard, quoteId: "quote-a", quotedUnits: 4, chargedUnits: 4, state: "completed" as const }
+          : shard
+      )
+    };
+    const runDuplicate = {
+      ...valid,
+      shards: valid.shards.map((shard) =>
+        shard.shardId === "shard-001"
+          ? {
+              ...shard,
+              quoteId: "quote-b",
+              runId: "r1",
+              quotedUnits: 4,
+              chargedUnits: 4,
+              state: "completed" as const
+            }
+          : shard
+      )
+    };
+    expect(SelectionExecutionSchema.safeParse(quoteDuplicate).success).toBe(false);
+    expect(SelectionExecutionSchema.safeParse(runDuplicate).success).toBe(false);
+    expect(SelectionExecutionSchema.safeParse(valid).success).toBe(true);
   });
 
   it("fails closed on negative, overflowing, or missing unit ledgers", () => {
@@ -464,6 +641,45 @@ describe("selection execution IDs", () => {
         }),
       "SELECTION_EXECUTION_CORRUPT"
     );
+    const quarantined = await readdir(join(first.paths.root, "quarantine"));
+    expect(quarantined.length).toBeGreaterThan(0);
+  });
+
+  it("quarantines persisted cross-shard quote duplicates before resume or quote", async () => {
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest();
+    const first = await openSelectionExecution({
+      stateDirectory,
+      manifest,
+      aggregateMaxCredits: 10,
+      createExecutionId: () => "11111111-1111-4111-8111-111111111111"
+    });
+    const quoted = markShardQuoted(first.execution, "shard-000", { quoteId: "shared-quote", quotedUnits: 4 });
+    await saveSelectionExecution(first.paths, quoted);
+    const file = executionDocumentPath(first.paths, first.execution.executionId);
+    const raw = JSON.parse(await readFile(file, "utf8")) as {
+      shards: Array<{ shardId: string; quoteId: string | null; quotedUnits: number; state: string }>;
+    };
+    raw.shards = raw.shards.map((shard) =>
+      shard.shardId === "shard-001"
+        ? { ...shard, quoteId: "shared-quote", quotedUnits: 4, state: "quoted" }
+        : shard
+    );
+    await writeFile(file, `${JSON.stringify(raw)}\n`, { mode: 0o600 });
+    await first.lock.release();
+    const error = await expectAsyncCode(
+      () =>
+        openSelectionExecution({
+          stateDirectory,
+          manifest,
+          aggregateMaxCredits: 10,
+          executionId: first.execution.executionId
+        }),
+      "SELECTION_EXECUTION_CORRUPT"
+    );
+    expect(error.message).toMatch(/schema validation/i);
+    expectSecretSafe(error.toSafeJSON());
+    expect(error.details).not.toHaveProperty("quote_id");
     const quarantined = await readdir(join(first.paths.root, "quarantine"));
     expect(quarantined.length).toBeGreaterThan(0);
   });
@@ -666,6 +882,80 @@ describe("selection execution CLI", () => {
       }
     });
     expect(doctor.stdout).not.toContain("sk-");
+  });
+
+  it("refuses a persisted cross-shard quote duplicate before authenticate or quote", async () => {
+    const cwd = await stateDir();
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest(baseManifest().manifestHash);
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
+    const opened = await openSelectionExecution({
+      stateDirectory,
+      manifest,
+      aggregateMaxCredits: 10,
+      manifestPath: "suite-selection.manifest.json"
+    });
+    await saveSelectionExecution(
+      opened.paths,
+      markShardQuoted(opened.execution, "shard-000", { quoteId: "shared-quote", quotedUnits: 4 })
+    );
+    const file = executionDocumentPath(opened.paths, opened.execution.executionId);
+    const raw = JSON.parse(await readFile(file, "utf8")) as {
+      shards: Array<{ shardId: string; quoteId: string | null; quotedUnits: number; state: string }>;
+    };
+    raw.shards = raw.shards.map((shard) =>
+      shard.shardId === "shard-001"
+        ? { ...shard, quoteId: "shared-quote", quotedUnits: 4, state: "quoted" }
+        : shard
+    );
+    await writeFile(file, `${JSON.stringify(raw)}\n`, { mode: 0o600 });
+    await opened.lock.release();
+    let authenticated = false;
+    const error = await expectAsyncCode(
+      () =>
+        runTest(
+          {
+            manifest: "suite-selection.manifest.json",
+            allShards: true,
+            executionId: opened.execution.executionId,
+            maxCredits: "10",
+            yes: true,
+            json: true,
+            cwd,
+            stateDirectory,
+            handleSignals: false,
+            env: { CI: "1", AUGMENTWORKS_API_KEY: "sk-secret-test-key" }
+          },
+          {
+            doctor: doctorFor(),
+            accessToken: async () => {
+              authenticated = true;
+              return "token";
+            },
+            identity: async () => {
+              authenticated = true;
+              return {
+                subject: "user-1",
+                workspaceId: "workspace-1",
+                connectorId: "connector-1",
+                scopes: ["connector:identity", "connector:run"]
+              };
+            },
+            cloud: () => {
+              authenticated = true;
+              throw new Error("cloud must not initialize");
+            },
+            stdout: { write: () => true },
+            stderr: { write: () => true }
+          }
+        ),
+      "SELECTION_EXECUTION_CORRUPT"
+    );
+    expect(authenticated).toBe(false);
+    expect(error.message).toMatch(/schema validation|quarantined/i);
+    expectSecretSafe(error.toSafeJSON());
+    expect(JSON.stringify(error.toSafeJSON())).not.toContain("sk-secret-test-key");
+    expect(JSON.stringify(error.toSafeJSON())).not.toContain("shared-quote");
   });
 });
 

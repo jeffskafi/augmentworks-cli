@@ -650,6 +650,43 @@ export const SelectionExecutionShardSchema = z
 
 export type SelectionExecutionShard = z.infer<typeof SelectionExecutionShardSchema>;
 
+export type ExecutionShardBinding = {
+  readonly shardId: string;
+  readonly quoteId: string | null;
+  readonly runId: string | null;
+};
+
+export type CrossShardBindingDuplicate = {
+  readonly field: "quoteId" | "runId";
+  readonly firstShardId: string;
+  readonly secondShardId: string;
+};
+
+/** Non-null quoteId and runId values are exclusive to one shard ID. */
+export function findCrossShardBindingDuplicate(
+  shards: readonly ExecutionShardBinding[]
+): CrossShardBindingDuplicate | undefined {
+  const quoteOwners = new Map<string, string>();
+  const runOwners = new Map<string, string>();
+  for (const shard of shards) {
+    if (shard.quoteId !== null) {
+      const owner = quoteOwners.get(shard.quoteId);
+      if (owner !== undefined && owner !== shard.shardId) {
+        return { field: "quoteId", firstShardId: owner, secondShardId: shard.shardId };
+      }
+      quoteOwners.set(shard.quoteId, shard.shardId);
+    }
+    if (shard.runId !== null) {
+      const owner = runOwners.get(shard.runId);
+      if (owner !== undefined && owner !== shard.shardId) {
+        return { field: "runId", firstShardId: owner, secondShardId: shard.shardId };
+      }
+      runOwners.set(shard.runId, shard.shardId);
+    }
+  }
+  return undefined;
+}
+
 export const SelectionExecutionSchema = z
   .object({
     documentKind: z.literal(SELECTION_EXECUTION_DOCUMENT_KIND),
@@ -663,7 +700,27 @@ export const SelectionExecutionSchema = z
     terminalReason: z.string().min(1).max(200).nullable(),
     shards: z.array(SelectionExecutionShardSchema).max(16)
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const shardIds = value.shards.map((shard) => shard.shardId);
+    if (new Set(shardIds).size !== shardIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "shards shardId values must be unique",
+        path: ["shards"]
+      });
+    }
+    const duplicate = findCrossShardBindingDuplicate(value.shards);
+    if (duplicate === undefined) return;
+    context.addIssue({
+      code: "custom",
+      message:
+        duplicate.field === "quoteId"
+          ? "non-null quoteId values must be unique across shards"
+          : "non-null runId values must be unique across shards",
+      path: ["shards"]
+    });
+  });
 
 export type SelectionExecution = z.infer<typeof SelectionExecutionSchema>;
 
