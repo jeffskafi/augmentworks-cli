@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Multi-shard `aw-selection-execution/2` now rejects a non-null `quoteId` or
+  `runId` already bound to a different shard before another quote, admission, or
+  ledger reconcile. Same-shard poll/retry completions stay idempotent and count
+  once. Charged and reserved totals are the sum of validated per-shard bindings,
+  so a replayed hosted identifier cannot undercount `--max-credits`. Persisted
+  documents with cross-shard duplicates fail closed as
+  `SELECTION_EXECUTION_CORRUPT`. Package version remains 0.3.6; this is source
+  integration, not publication.
+
 ### Added
 
 - `test --all-shards` persists `aw-selection-execution/2` documents with a

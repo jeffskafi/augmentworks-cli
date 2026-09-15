@@ -31,6 +31,7 @@ import {
   SelectionExecutionIndexSchema,
   SelectionExecutionSchema,
   SelectionProgressSchema,
+  findCrossShardBindingDuplicate,
   type SelectionArtifact,
   type SelectionExecution,
   type SelectionExecutionIndex,
@@ -996,12 +997,30 @@ function mapShard(
   if (!execution.shards.some((shard) => shard.shardId === shardId)) {
     throw selectionError("SHARD_NOT_FOUND", `Shard ${shardId} is not in this execution.`);
   }
-  const next = reconcileExecution({
+  const shards = execution.shards.map((shard) => (shard.shardId === shardId ? mapper(shard) : shard));
+  assertExclusiveShardBindings(shards);
+  return reconcileExecution({
     ...execution,
     updatedAt: isoNow(now),
-    shards: execution.shards.map((shard) => (shard.shardId === shardId ? mapper(shard) : shard))
+    shards
   });
-  return next;
+}
+
+function assertExclusiveShardBindings(shards: readonly SelectionExecutionShard[]): void {
+  const duplicate = findCrossShardBindingDuplicate(shards);
+  if (duplicate === undefined) return;
+  const field = duplicate.field === "quoteId" ? "Quote" : "Run";
+  throw selectionError(
+    "SHARD_PROGRESS_BLOCKED",
+    `${field} identifier is already bound to shard ${duplicate.firstShardId}. Retry idempotency applies only to the same shard. The CLI will not bind shard ${duplicate.secondShardId} or continue quoting.`,
+    {
+      details: {
+        shard_id: duplicate.secondShardId,
+        bound_shard_id: duplicate.firstShardId,
+        recovery_action: "resume_execution"
+      }
+    }
+  );
 }
 
 function reconcileExecution(
@@ -1038,16 +1057,14 @@ function ledgerUnits(execution: SelectionExecution): { reserved: number; charged
   let charged = 0;
   for (const shard of execution.shards) {
     if (IN_FLIGHT_SHARD_STATES.has(shard.state)) {
-      const key = shard.quoteId ?? `reserved:${shard.shardId}`;
-      if (reservedKeys.has(key)) continue;
-      reservedKeys.add(key);
+      if (reservedKeys.has(shard.shardId)) continue;
+      reservedKeys.add(shard.shardId);
       reserved += shard.quotedUnits;
       continue;
     }
     if (shard.chargedUnits <= 0) continue;
-    const key = shard.quoteId ?? `charged:${shard.shardId}`;
-    if (chargedKeys.has(key)) continue;
-    chargedKeys.add(key);
+    if (chargedKeys.has(shard.shardId)) continue;
+    chargedKeys.add(shard.shardId);
     charged += shard.chargedUnits;
   }
   return { reserved, charged };
