@@ -98,21 +98,21 @@ describe("first-dollar registry acceptance handoff", () => {
     expect(JSON.stringify(evidence)).not.toMatch(/npx --yes @augmentworks\/cli@0\.3\.2\b/u);
   });
 
-  it("does not treat packaged identity as a live 0.3.6 registry probe", async () => {
+  it("does not treat packaged identity as a live 0.3.7 registry probe", async () => {
     const evidence = JSON.parse(await readFile(firstDollarUrl, "utf8")) as FirstDollarEvidence;
     const registryIdentity = evidence.checks.find(
       (check) => check.name === "registry-tarball-gitHead-integrity"
     );
 
     expect(PUBLISHED_PACKAGE_VERIFIED).toBe(true);
-    expect(LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION).toBe("0.3.5");
+    expect(LAST_VERIFIED_PUBLISHED_PACKAGE_VERSION).toBe("0.3.6");
     expect(LAST_VERIFIED_PUBLISHED_GIT_HEAD).toBe(
-      "11570f6cf883ec6e6743e010c35134bb485234dd"
+      "a9b927a2413305003f817c20e9c5df277512f83e"
     );
     expect(LAST_VERIFIED_PUBLISHED_INTEGRITY).toBe(
-      "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ=="
+      "sha512-idDM/kYfDCzDu+iaSqzZjEchyui9I8r1krUFdZ8BmVtZIye2D5WbHFpbYaNzuwjPvV7gCk1XixLwu1kuROXfwA=="
     );
-    expect(LAST_VERIFIED_PUBLISHED_AT).toBe("2026-09-09T02:56:49.964Z");
+    expect(LAST_VERIFIED_PUBLISHED_AT).toBe("2026-09-10T16:26:29.450Z");
     expect(REGISTRY_0_3_3_GIT_HEAD).toBe("4a08ea0d352f2515e725cb9ca946807112422436");
     expect(registryIdentity?.status).toBe("pass");
     expect(evidence.cli.gitHead).not.toBeNull();
@@ -126,28 +126,24 @@ describe("first-dollar registry acceptance handoff", () => {
 });
 
 describe("published registry evidence record", () => {
-  it("keeps this package identity separate from last independently inspected 0.3.5", async () => {
+  it("keeps this package identity separate from last independently inspected 0.3.6", async () => {
     const record = JSON.parse(await readFile(registryEvidenceUrl, "utf8")) as PublishedRegistryEvidence;
 
     expect(record.schemaVersion).toBe("aw-cli-registry-evidence/1");
-    expect(record.lastIndependentlyInspected.version).toBe("0.3.5");
+    expect(record.lastIndependentlyInspected.version).toBe("0.3.6");
     expect(record.lastIndependentlyInspected.gitHead).toBe(
-      "11570f6cf883ec6e6743e010c35134bb485234dd"
-    );
-    expect(record.lastIndependentlyInspected.integrity).toBe(
-      "sha512-WyS9d2lSPhX26ONyxISbN9ncsDoR3JBQjkr6DLaJPl6IrksBg8zxpxawABb4iLZ4ugqlu7TA9J623nqua9dlwQ=="
-    );
-    expect(record.lastIndependentlyInspected.verifiedAt).toBe("2026-09-09T02:56:49.964Z");
-    expect(record.thisPackageIdentity.version).toBe(SOURCE_PACKAGE_VERSION);
-    expect(record.thisPackageIdentity.version).toBe("0.3.6");
-    expect(record.thisPackageIdentity.gitHead).toBe(
       "a9b927a2413305003f817c20e9c5df277512f83e"
     );
-    expect(record.thisPackageIdentity.integrity).toBe(
+    expect(record.lastIndependentlyInspected.integrity).toBe(
       "sha512-idDM/kYfDCzDu+iaSqzZjEchyui9I8r1krUFdZ8BmVtZIye2D5WbHFpbYaNzuwjPvV7gCk1XixLwu1kuROXfwA=="
     );
-    expect(record.thisPackageIdentity.verifiedAt).toBe("2026-09-10T16:26:29.450Z");
-    expect(record.thisPackageIdentity.status).toBe("independently-inspected");
-    expect(record.thisPackageIdentity.gitHead).not.toBe(record.lastIndependentlyInspected.gitHead);
+    expect(record.lastIndependentlyInspected.verifiedAt).toBe("2026-09-10T16:26:29.450Z");
+    expect(record.thisPackageIdentity.version).toBe(SOURCE_PACKAGE_VERSION);
+    expect(record.thisPackageIdentity.version).toBe("0.3.7");
+    expect(record.thisPackageIdentity.gitHead).toBeNull();
+    expect(record.thisPackageIdentity.integrity).toBeNull();
+    expect(record.thisPackageIdentity.verifiedAt).toBeNull();
+    expect(record.thisPackageIdentity.status).toBe("pending-protected-publish");
+    expect(record.thisPackageIdentity.version).not.toBe(record.lastIndependentlyInspected.version);
   });
 });

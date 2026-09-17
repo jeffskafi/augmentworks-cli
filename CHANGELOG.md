@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-09-17
+
+Published-line package for native customer-suite upload translation, saved-suite
+v2 binding, authoritative v2 whole-suite gate receipts, durable execution IDs,
+cross-shard quote uniqueness, and non-destructive generated `.env` guidance.
+Executable npx pins match this tarball after the protected `v0.3.7` publish.
+Do not overwrite or relabel `@augmentworks/cli@0.3.6`. Independent inspection
+of 0.3.6 is recorded in `docs/feature-readiness/published-registry-evidence.json`.
+`published_package_verified` is published-line identity, not a live registry
+probe of this exact tarball.
+
 ### Fixed
 
 - Customer-suite uploads now translate local `aw-suite/1` authoring into the
@@ -15,7 +26,6 @@ All notable changes to this project are documented here. The format follows
   Machine credentials stop before the forbidden suite write, and unsupported
   deterministic observations fail before upload rather than being omitted.
   Producer schema and fixture bytes are pinned to main `7ee82d2f`.
-  Package version remains 0.3.6; this source fix requires a new published release.
 
 - Multi-shard `aw-selection-execution/2` now rejects a non-null `quoteId` or
   `runId` already bound to a different shard before another quote, admission, or
@@ -23,8 +33,12 @@ All notable changes to this project are documented here. The format follows
   once. Charged and reserved totals are the sum of validated per-shard bindings,
   so a replayed hosted identifier cannot undercount `--max-credits`. Persisted
   documents with cross-shard duplicates fail closed as
-  `SELECTION_EXECUTION_CORRUPT`. Package version remains 0.3.6; this is source
-  integration, not publication.
+  `SELECTION_EXECUTION_CORRUPT`.
+
+- Generated `OWN-TARGET.md` and clone-example setup no longer unconditionally
+  copy `.env.example` over an existing `.env`. Init still creates a mode-0600
+  `.env` when missing and never replaces an existing file. Missing-file
+  recovery is copy-if-absent.
 
 ### Added
 
@@ -35,16 +49,14 @@ All notable changes to this project are documented here. The format follows
   attempt plus a later invocation without that flag starts a new empty
   execution. Local remaining credits are reconciled from unique quoted and
   charged units; incomplete coverage, including aggregate budget exhaustion,
-  cannot return success. Package version remains 0.3.6; this is source
-  integration, not publication.
+  cannot return success.
 
 - Saved-suite assessments negotiate `aw-suite-selection/2`, validate
   `aw-saved-suite-binding/1`, and carry `suite_id` / `suite_revision_id` /
   `suite_content_hash` through estimate, quote, and create. Catalog compiles
   still omit `acceptedManifestVersions` and keep `aw-suite-selection/1`.
   A v1 or HTTP 400 response to a requested saved-suite compile fails with
-  `SAVED_SUITE_BINDING_UNSUPPORTED` before quote. Package version remains
-  0.3.6; this is source integration, not publication.
+  `SAVED_SUITE_BINDING_UNSUPPORTED` before quote.
 
 - Whole-suite `gate --manifest-file` sends identity-only
   `aw-manifest-release-gate-request/2` and consumes only
@@ -53,8 +65,7 @@ All notable changes to this project are documented here. The format follows
   authentication. Exit 0 requires `evidenceSource: server`, exact coverage,
   and every resolved shard terminal/completed/pass. Legacy v1 and
   malformed bodies fail closed with `MANIFEST_GATE_CONTRACT_UNSUPPORTED`.
-  Existing `--run`/`--baseline` gate behavior is unchanged. Source
-  integration, not npm publication.
+  Existing `--run`/`--baseline` gate behavior is unchanged.
 
 ## [0.3.6] - 2026-09-10
 
@@ -361,6 +372,7 @@ This repository does not overwrite or relabel 0.3.3.
 - Refund-agent mock target, public documentation, schema, tests, packed-package
   smoke test, CI, and npm trusted-publishing workflow.
 
+[0.3.7]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.7
 [0.3.6]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.6
 [0.3.5]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.5
 [0.3.4]: https://www.npmjs.com/package/%40augmentworks%2Fcli/v/0.3.4

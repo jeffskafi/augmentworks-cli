@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "@augmentworks/cli",
-    "version": "0.3.6",
+    "version": "0.3.7",
     "releaseStatus": "development"
   },
   "runtime": {

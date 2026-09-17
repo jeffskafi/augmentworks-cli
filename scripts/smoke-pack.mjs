@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { access, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1086,6 +1087,28 @@ async function main() {
       access(join(responseDirectory, "OWN-TARGET.md"), fsConstants.R_OK),
       access(join(responseDirectory, "fixtures", "send-response.json"), fsConstants.R_OK)
     ]);
+    const generatedOwnTarget = await readFile(join(responseDirectory, "OWN-TARGET.md"), "utf8");
+    assert(
+      !/^(?:cp(?:\s+-f)?\s+\.env\.example\s+\.env|copy(?:\s+\/Y)?\s+\.env\.example\s+\.env)\s*$/m.test(
+        generatedOwnTarget
+      ),
+      "generated OWN-TARGET.md must not unconditionally overwrite .env"
+    );
+    const sentinelDirectory = join(consumerDirectory, "env-sentinel");
+    await mkdir(sentinelDirectory, { recursive: true });
+    const sentinelPath = join(sentinelDirectory, ".env");
+    await writeFile(sentinelPath, "CHATBOT_API_KEY=sentinel-existing-value\n", { mode: 0o600 });
+    const sentinelBefore = createHash("sha256").update(await readFile(sentinelPath)).digest("hex");
+    execCli(["init", "--agent"], { cwd: sentinelDirectory });
+    const sentinelAfterInit = createHash("sha256").update(await readFile(sentinelPath)).digest("hex");
+    assert(sentinelAfterInit === sentinelBefore, "init --agent must preserve an existing .env");
+    const sentinelGuide = await readFile(join(sentinelDirectory, "OWN-TARGET.md"), "utf8");
+    assert(
+      !/^(?:cp(?:\s+-f)?\s+\.env\.example\s+\.env|copy(?:\s+\/Y)?\s+\.env\.example\s+\.env)\s*$/m.test(
+        sentinelGuide
+      ),
+      "init-generated OWN-TARGET.md must not instruct an unconditional .env overwrite"
+    );
     const responseDoctor = execCli(["doctor", "-c", "augmentworks.yaml", "--offline"], {
       cwd: responseDirectory,
       env: {
