@@ -15,6 +15,7 @@ import { resolveConfig } from "../../src/config/resolve.js";
 import type { AugmentWorksConfig, ResolvedConfig } from "../../src/config/types.js";
 import { canonicalize, sha256 } from "../../src/util/canonical.js";
 import { loadCustomerSuiteFile } from "../../src/suite/load.js";
+import { NativeSuiteSourceSchema, nativeSuiteContentHash, nativeSuiteSource } from "../../src/suite/native.js";
 
 const fixtures = JSON.parse(
   await readFile(
@@ -135,6 +136,30 @@ function hostedCloud(fetchMock: typeof fetch) {
 }
 
 describe("hosted customer suite admission", () => {
+  it("never uploads a suite or quotes with a machine key that can only read suites", async () => {
+    const cwd = await projectDir();
+    const fetchMock = vi.fn<typeof fetch>();
+    await expect(runEstimate({ cwd, suite: "faq-non-commerce.yaml", env: { AUGMENTWORKS_API_URL: "http://127.0.0.1:8787" } }, {
+      doctor: doctorFor(), accessToken: async () => "token",
+      identity: async () => ({ ...identity(), principalKind: "machine", actions: ["suite:read", "run:execute"] }),
+      cloud: hostedCloud(fetchMock)
+    })).rejects.toMatchObject({ code: "SUITE_WRITE_REQUIRES_USER" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a native suite revision from another workspace before quote", async () => {
+    const cwd = await projectDir();
+    const loaded = await loadCustomerSuiteFile("faq-non-commerce.yaml", cwd);
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json({
+      suiteId: loaded.document.suiteId, suiteRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      canonicalHash: nativeSuiteContentHash(nativeSuiteSource(loaded)), workspaceId: "22222222-2222-4222-8222-222222222222"
+    }));
+    await expect(runEstimate({ cwd, suite: "faq-non-commerce.yaml", env: { AUGMENTWORKS_API_URL: "http://127.0.0.1:8787" } }, {
+      doctor: doctorFor(), accessToken: async () => "token", identity: async () => identity(), cloud: hostedCloud(fetchMock)
+    })).rejects.toMatchObject({ code: "SUITE_WORKSPACE_MISMATCH" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("pins the server-accepted revision through estimate and admission", async () => {
     const cwd = await projectDir();
     const loaded = await loadCustomerSuiteFile("faq-non-commerce.yaml", cwd);
@@ -146,11 +171,13 @@ describe("hosted customer suite admission", () => {
       paths.push(`${init?.method ?? "GET"} ${url.pathname}`);
       const body = init?.body === undefined ? undefined : (JSON.parse(String(init.body)) as Record<string, unknown>);
       if (url.pathname === "/v1/suites") {
+        expect(NativeSuiteSourceSchema.safeParse(body).success).toBe(true);
+        expect(body).not.toHaveProperty("document");
         return Response.json({
           suiteId: "customer.faq.non_commerce",
-          revisionId: "rev_pinned_1",
-          contentHash: loaded.contentHash,
-          schemaVersion: "aw-suite/1"
+          suiteRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          canonicalHash: nativeSuiteContentHash(nativeSuiteSource(loaded)),
+          schemaVersion: "aw-customer-suite/1"
         });
       }
       if (url.pathname === "/v1/billing/capabilities") {
@@ -170,7 +197,7 @@ describe("hosted customer suite admission", () => {
           create_disposition: "created",
           run_id: "run-suite",
           session_id: "session-1",
-          packet: { key: "customer-owned-suite", version: "1.0.0", sha256: "a".repeat(64) },
+          packet: { key: "aw-customer-suite", version: "1.0.0", sha256: "a".repeat(64) },
           config_sha256: request["config_sha256"],
           fencing_epoch: 1,
           status: "completed",
@@ -209,8 +236,9 @@ describe("hosted customer suite admission", () => {
     expect(estimate.advertisedCapabilities).not.toHaveProperty("multi_turn");
     const estimateAssessment = quoteBodies[0]?.["assessment"] as Record<string, unknown>;
     expect(estimateAssessment["suite_id"]).toBe("customer.faq.non_commerce");
-    expect(estimateAssessment["suite_revision_id"]).toBe("rev_pinned_1");
-    expect(estimateAssessment["suite_content_hash"]).toBe(loaded.contentHash);
+    expect(estimateAssessment["suite_revision_id"]).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(estimateAssessment["suite_content_hash"]).toBe(nativeSuiteContentHash(nativeSuiteSource(loaded)));
+    expect(estimateAssessment["selected_scenario_ids"]).toEqual(loaded.document.cases.map((item) => `aw-customer-suite/1.0.0/${item.caseId}`));
 
     await runTest(
       {
@@ -230,9 +258,9 @@ describe("hosted customer suite admission", () => {
       }
     );
     const admitted = createBodies[0]?.["assessment"] as Record<string, unknown>;
-    expect(admitted["suite_revision_id"]).toBe("rev_pinned_1");
-    expect(admitted["suite_content_hash"]).toBe(loaded.contentHash);
-    expect(createBodies[0]?.["packet"]).toEqual({ key: "customer-owned-suite", version: "1.0.0" });
+    expect(admitted["suite_revision_id"]).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(admitted["suite_content_hash"]).toBe(nativeSuiteContentHash(nativeSuiteSource(loaded)));
+    expect(createBodies[0]?.["packet"]).toEqual({ key: "aw-customer-suite", version: "1.0.0" });
     expect(paths.filter((path) => path.includes("/v1/relay/runs") && path.endsWith("/v1/relay/runs")).length).toBe(1);
   });
 
@@ -244,10 +272,12 @@ describe("hosted customer suite admission", () => {
       const url = new URL(String(input));
       const body = init?.body === undefined ? undefined : (JSON.parse(String(init.body)) as Record<string, unknown>);
       if (url.pathname === "/v1/suites") {
+        expect(NativeSuiteSourceSchema.safeParse(body).success).toBe(true);
+        expect(body).not.toHaveProperty("document");
         return Response.json({
           suiteId: "customer.faq.non_commerce",
-          revisionId: "rev_pinned_1",
-          contentHash: loaded.contentHash
+          suiteRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          canonicalHash: nativeSuiteContentHash(nativeSuiteSource(loaded))
         });
       }
       if (url.pathname === "/v1/billing/capabilities") {

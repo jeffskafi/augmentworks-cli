@@ -1,0 +1,1168 @@
+{
+  "schemaVersion": "aw-feature/1",
+  "packageVersion": "aw-feature/1",
+  "localPacketSchemas": [
+    "aw-packet/0.1",
+    "aw-packet/0.2"
+  ],
+  "hostedCustomerSuiteSchema": "aw-customer-suite/1",
+  "billingSchemaOnDefaultMain": "aw-billing/1",
+  "runtimeEnforced": false,
+  "fixtures": {
+    "suite_14_day_policy": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-customer-suite/1",
+        "documentKind": "customer_suite_source",
+        "suiteId": "synthetic-returns-14d",
+        "displayName": "Synthetic 14-day returns",
+        "description": "Customer-owned FAQ and policy cases. Synthetic catalog only.",
+        "syntheticOnly": true,
+        "conversationMode": "single_turn",
+        "tags": [
+          "returns",
+          "faq",
+          "synthetic"
+        ],
+        "references": [
+          {
+            "id": "policy-returns-14d",
+            "kind": "approved_policy",
+            "sourceLabel": "Synthetic unused-item returns",
+            "content": "Unused synthetic catalog items may be returned within 14 days of delivery."
+          }
+        ],
+        "cases": [
+          {
+            "caseId": "returns-window",
+            "displayName": "Return window fact",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Unused synthetic catalog items may be returned within 14 days."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "returns-window/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer conveys the bound 14-day unused return window without substituting a 30-day rule.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              },
+              {
+                "criterionId": "returns-window/clarity",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "advisory",
+                "statement": "The required fact is easy to locate.",
+                "passConditions": [
+                  "The required fact is easy to locate."
+                ],
+                "failConditions": [
+                  "The required fact is buried in unrelated hedging."
+                ],
+                "allowedAlternatives": [],
+                "requiredEvidenceKinds": [
+                  "assistant_response"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "unknown-aisle-refusal",
+            "displayName": "Permitted refusal",
+            "description": "Refuse a warehouse location that is not in the bound policy.",
+            "tags": [
+              "groundedness"
+            ],
+            "repetitions": 1,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "Which warehouse aisle stores unused synthetic catalog item A?"
+              }
+            ],
+            "expected": {
+              "kind": "permitted_refusal",
+              "facts": [],
+              "permittedRefusal": {
+                "mustRefuse": true,
+                "allowedAlternatives": [
+                  "States the aisle is not in the available knowledge."
+                ]
+              }
+            },
+            "criteria": [
+              {
+                "criterionId": "unknown-aisle-refusal/no-invention",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The response does not invent a specific aisle.",
+                "passConditions": [
+                  "Does not name a specific aisle as fact"
+                ],
+                "failConditions": [
+                  "Invent a specific aisle or location"
+                ],
+                "allowedAlternatives": [
+                  "Offers to connect the user to a human."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          }
+        ]
+      }
+    },
+    "suite_multi_turn_session": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-customer-suite/1",
+        "documentKind": "customer_suite_source",
+        "suiteId": "synthetic-returns-followup",
+        "displayName": "Synthetic 14-day returns",
+        "description": "Customer-owned FAQ and policy cases. Synthetic catalog only.",
+        "syntheticOnly": true,
+        "conversationMode": "explicit_session_v1",
+        "tags": [
+          "returns",
+          "faq",
+          "synthetic"
+        ],
+        "references": [
+          {
+            "id": "policy-returns-14d",
+            "kind": "approved_policy",
+            "sourceLabel": "Synthetic unused-item returns",
+            "content": "Unused synthetic catalog items may be returned within 14 days of delivery."
+          }
+        ],
+        "cases": [
+          {
+            "caseId": "returns-followup",
+            "displayName": "Follow-up restocking fee",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "explicit_session_v1",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": true
+            },
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              },
+              {
+                "content": "And is there a restocking fee for that?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Unused synthetic catalog items may be returned within 14 days."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "returns-window/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer conveys the bound 14-day unused return window without substituting a 30-day rule.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              },
+              {
+                "criterionId": "returns-window/clarity",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "advisory",
+                "statement": "The required fact is easy to locate.",
+                "passConditions": [
+                  "The required fact is easy to locate."
+                ],
+                "failConditions": [
+                  "The required fact is buried in unrelated hedging."
+                ],
+                "allowedAlternatives": [],
+                "requiredEvidenceKinds": [
+                  "assistant_response"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          }
+        ]
+      }
+    },
+    "criterion_semantic_only_failure": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-criterion-detail/1",
+        "documentKind": "criterion_detail",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "33333333-3333-4333-8333-333333333333",
+          "caseId": "returns-window",
+          "repetitionIndex": 0,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/33333333-3333-4333-8333-333333333333/returns-window/facts"
+        },
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "executionState": "completed",
+        "judgmentState": "complete",
+        "cleanupState": "completed",
+        "criterionKind": "llm_rubric",
+        "requirement": "required",
+        "verdict": "fail",
+        "requirementOutcome": "fail",
+        "storedRationale": "The assistant stated a 30-day window. The bound policy is 14 days.",
+        "evidenceRefs": [
+          {
+            "evidenceId": "assistant-1",
+            "startChar": 0,
+            "endChar": 42,
+            "truncated": false,
+            "missing": false
+          }
+        ],
+        "rubricVersion": "1.0.0",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "hiddenChainOfThoughtPresent": false,
+        "createsBillableRun": false
+      }
+    },
+    "criterion_repeated_id_attempt_one": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-criterion-detail/1",
+        "documentKind": "criterion_detail",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "33333333-3333-4333-8333-333333333333",
+          "caseId": "returns-window",
+          "repetitionIndex": 0,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/33333333-3333-4333-8333-333333333333/returns-window/facts"
+        },
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "executionState": "completed",
+        "judgmentState": "complete",
+        "cleanupState": "completed",
+        "criterionKind": "llm_rubric",
+        "requirement": "required",
+        "verdict": "pass",
+        "requirementOutcome": "pass",
+        "storedRationale": "Repetition 0 stated the 14-day window.",
+        "evidenceRefs": [
+          {
+            "evidenceId": "assistant-1",
+            "startChar": 0,
+            "endChar": 42,
+            "truncated": false,
+            "missing": false
+          }
+        ],
+        "rubricVersion": "1.0.0",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "hiddenChainOfThoughtPresent": false,
+        "createsBillableRun": false
+      }
+    },
+    "criterion_repeated_id_attempt_two": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-criterion-detail/1",
+        "documentKind": "criterion_detail",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "44444444-4444-4444-8444-444444444444",
+          "caseId": "returns-window",
+          "repetitionIndex": 1,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/44444444-4444-4444-8444-444444444444/returns-window/facts"
+        },
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "executionState": "completed",
+        "judgmentState": "complete",
+        "cleanupState": "completed",
+        "criterionKind": "llm_rubric",
+        "requirement": "required",
+        "verdict": "fail",
+        "requirementOutcome": "fail",
+        "storedRationale": "Repetition 1 stated a 30-day window. Same criterionId, distinct attempt.",
+        "evidenceRefs": [
+          {
+            "evidenceId": "assistant-1",
+            "startChar": 0,
+            "endChar": 42,
+            "truncated": false,
+            "missing": false
+          }
+        ],
+        "rubricVersion": "1.0.0",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "hiddenChainOfThoughtPresent": false,
+        "createsBillableRun": false
+      }
+    },
+    "criterion_partial_judging": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-criterion-detail/1",
+        "documentKind": "criterion_detail",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "33333333-3333-4333-8333-333333333333",
+          "caseId": "returns-window",
+          "repetitionIndex": 0,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/33333333-3333-4333-8333-333333333333/returns-window/facts"
+        },
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "executionState": "completed",
+        "judgmentState": "pending",
+        "cleanupState": "completed",
+        "criterionKind": "llm_rubric",
+        "requirement": "required",
+        "verdict": null,
+        "requirementOutcome": "not_run",
+        "storedRationale": "",
+        "evidenceRefs": [
+          {
+            "evidenceId": "assistant-1",
+            "truncated": false,
+            "missing": true
+          }
+        ],
+        "rubricVersion": "1.0.0",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "hiddenChainOfThoughtPresent": false,
+        "createsBillableRun": false
+      }
+    },
+    "criterion_pending_marked_pass": {
+      "valid": false,
+      "expectedCode": "pending_not_pass",
+      "document": {
+        "schemaVersion": "aw-criterion-detail/1",
+        "documentKind": "criterion_detail",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "33333333-3333-4333-8333-333333333333",
+          "caseId": "returns-window",
+          "repetitionIndex": 0,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/33333333-3333-4333-8333-333333333333/returns-window/facts"
+        },
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "executionState": "completed",
+        "judgmentState": "pending",
+        "cleanupState": "completed",
+        "criterionKind": "llm_rubric",
+        "requirement": "required",
+        "verdict": "pass",
+        "requirementOutcome": "pass",
+        "storedRationale": "The assistant stated a 30-day window. The bound policy is 14 days.",
+        "evidenceRefs": [
+          {
+            "evidenceId": "assistant-1",
+            "startChar": 0,
+            "endChar": 42,
+            "truncated": false,
+            "missing": false
+          }
+        ],
+        "rubricVersion": "1.0.0",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "hiddenChainOfThoughtPresent": false,
+        "createsBillableRun": false
+      }
+    },
+    "feedback_attempt_two": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-judgment-feedback/1",
+        "documentKind": "feedback_request",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "44444444-4444-4444-8444-444444444444",
+          "caseId": "returns-window",
+          "repetitionIndex": 1,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/44444444-4444-4444-8444-444444444444/returns-window/facts"
+        },
+        "category": "disagree",
+        "proposedVerdict": "pass",
+        "note": "The 14-day fact was present in repetition 1.",
+        "submissionIdempotencyKey": "feedback-rep1-returns-window-facts",
+        "doesNotMutateMachineVerdict": true
+      }
+    },
+    "feedback_saved_attempt_two": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-judgment-feedback/1",
+        "documentKind": "feedback_response",
+        "feedbackId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "44444444-4444-4444-8444-444444444444",
+          "caseId": "returns-window",
+          "repetitionIndex": 1,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/44444444-4444-4444-8444-444444444444/returns-window/facts"
+        },
+        "category": "disagree",
+        "proposedVerdict": "pass",
+        "note": "The 14-day fact was present in repetition 1.",
+        "authorPrincipalKind": "owner",
+        "createdAt": "2026-09-06T12:00:00Z",
+        "reviewState": "open",
+        "machineVerdictUnchanged": true,
+        "createsBillableRun": false
+      }
+    },
+    "application_environment": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-application-identity/1",
+        "documentKind": "application_environment",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "applicationId": "77777777-7777-4777-8777-777777777777",
+        "applicationName": "Synthetic refund chatbot",
+        "environmentId": "88888888-8888-4888-8888-888888888888",
+        "environmentName": "staging",
+        "targetUrlOmitted": true,
+        "secretsOmitted": true
+      }
+    },
+    "baseline_record": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-baseline/1",
+        "documentKind": "baseline_record",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "name": "staging-main",
+        "applicationId": "77777777-7777-4777-8777-777777777777",
+        "environmentId": "88888888-8888-4888-8888-888888888888",
+        "suiteId": "synthetic-returns-14d",
+        "suiteRevisionId": "66666666-6666-4666-8666-666666666666",
+        "semanticRevisionHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "runId": "22222222-2222-4222-8222-222222222222",
+        "evaluationId": "55555555-5555-4555-8555-555555555555",
+        "evaluationRevision": 1,
+        "snapshotHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "build": {
+          "label": "build-1",
+          "gitCommit": "59f6ff515b08dda739d4f5c2f679bf9dd92b40a9",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "promotedByPrincipalKind": "owner",
+        "promotionRevision": 1,
+        "createdAt": "2026-09-06T12:00:00Z"
+      }
+    },
+    "release_changed_build_compatible": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-2",
+          "gitCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "compatible",
+        "compatibilityReasons": [
+          "compatible_build_change_only"
+        ],
+        "coverageChange": "none",
+        "evaluationStatus": "complete",
+        "comparedCases": [
+          {
+            "caseId": "returns-window",
+            "criterionId": "returns-window/facts",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": "fail",
+            "candidateOutcome": "fail",
+            "category": "persistent_required_failure"
+          }
+        ],
+        "decision": "pass",
+        "createsBillableRun": false
+      }
+    },
+    "release_incompatible_rubric": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-1",
+          "gitCommit": "59f6ff515b08dda739d4f5c2f679bf9dd92b40a9",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "incompatible",
+        "compatibilityReasons": [
+          "grader_or_rubric_changed"
+        ],
+        "coverageChange": "none",
+        "evaluationStatus": "complete",
+        "comparedCases": [],
+        "decision": "incompatible",
+        "createsBillableRun": false
+      }
+    },
+    "release_added_cases": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-2",
+          "gitCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "compatible",
+        "compatibilityReasons": [
+          "compatible_build_change_only"
+        ],
+        "coverageChange": "added_cases",
+        "evaluationStatus": "complete",
+        "comparedCases": [
+          {
+            "caseId": "returns-window",
+            "criterionId": "returns-window/facts",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": "pass",
+            "candidateOutcome": "pass",
+            "category": null
+          },
+          {
+            "caseId": "unknown-aisle-refusal",
+            "criterionId": "unknown-aisle-refusal/no-invention",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": null,
+            "candidateOutcome": "pass",
+            "category": "added_case"
+          }
+        ],
+        "decision": "pass",
+        "createsBillableRun": false
+      }
+    },
+    "release_removed_cases": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-2",
+          "gitCommit": "cccccccccccccccccccccccccccccccccccccccc",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "compatible",
+        "compatibilityReasons": [
+          "compatible_build_change_only"
+        ],
+        "coverageChange": "removed_cases",
+        "evaluationStatus": "complete",
+        "comparedCases": [
+          {
+            "caseId": "unknown-aisle-refusal",
+            "criterionId": "unknown-aisle-refusal/no-invention",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": "pass",
+            "candidateOutcome": null,
+            "category": "removed_case"
+          }
+        ],
+        "decision": "incomplete",
+        "createsBillableRun": false
+      }
+    },
+    "release_partial_not_pass": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-2",
+          "gitCommit": "dddddddddddddddddddddddddddddddddddddddd",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "incomplete",
+        "compatibilityReasons": [
+          "evaluation_incomplete"
+        ],
+        "coverageChange": "none",
+        "evaluationStatus": "partial",
+        "comparedCases": [
+          {
+            "caseId": "returns-window",
+            "criterionId": "returns-window/facts",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": "pass",
+            "candidateOutcome": "not_run",
+            "category": null
+          }
+        ],
+        "decision": "incomplete",
+        "createsBillableRun": false
+      }
+    },
+    "release_partial_marked_pass": {
+      "valid": false,
+      "expectedCode": "pending_not_pass",
+      "document": {
+        "schemaVersion": "aw-release-policy/1",
+        "documentKind": "release_policy_result",
+        "policyVersion": "aw-release-policy/1",
+        "existingFailurePolicy": "report_do_not_block",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "baselineId": "99999999-9999-4999-8999-999999999999",
+        "candidateRunId": "22222222-2222-4222-8222-222222222222",
+        "candidateEvaluationId": "55555555-5555-4555-8555-555555555555",
+        "candidateEvaluationRevision": 1,
+        "candidateBuild": {
+          "label": "build-2",
+          "gitCommit": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "createdAt": "2026-09-06T12:00:00Z"
+        },
+        "comparability": "compatible",
+        "compatibilityReasons": [
+          "compatible_build_change_only"
+        ],
+        "coverageChange": "none",
+        "evaluationStatus": "partial",
+        "comparedCases": [
+          {
+            "caseId": "returns-window",
+            "criterionId": "returns-window/facts",
+            "repetitionIndex": 0,
+            "requirement": "required",
+            "baselineOutcome": "pass",
+            "candidateOutcome": "not_run",
+            "category": null
+          }
+        ],
+        "decision": "pass",
+        "createsBillableRun": false
+      }
+    },
+    "permission_matrix": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-permission-matrix/1",
+        "documentKind": "permission_matrix",
+        "runtimeEnforced": false,
+        "grantsNoRuntimePermission": true,
+        "principalKinds": [
+          "owner",
+          "member",
+          "machine",
+          "platform_operator"
+        ],
+        "actions": [
+          "suite:read",
+          "suite:write",
+          "run:execute",
+          "run:cancel",
+          "run:read",
+          "evaluation:read",
+          "criterion_detail:read",
+          "feedback:write",
+          "export:investigation",
+          "billing:read",
+          "billing:purchase",
+          "billing:manage_subscription",
+          "member:invite",
+          "member:remove",
+          "owner:transfer",
+          "publish:create",
+          "publish:revoke",
+          "baseline:create",
+          "baseline:promote",
+          "credential:issue",
+          "credential:revoke",
+          "workspace:close"
+        ],
+        "privilegedActions": [
+          "billing:purchase",
+          "billing:manage_subscription",
+          "member:invite",
+          "member:remove",
+          "owner:transfer",
+          "publish:create",
+          "publish:revoke",
+          "baseline:create",
+          "baseline:promote",
+          "credential:issue",
+          "credential:revoke",
+          "workspace:close"
+        ],
+        "machineAllowedActions": [
+          "suite:read",
+          "run:execute",
+          "run:cancel",
+          "run:read",
+          "evaluation:read",
+          "criterion_detail:read",
+          "export:investigation",
+          "billing:read"
+        ],
+        "currentOwnerPolicy": [
+          "suite:read",
+          "suite:write",
+          "run:execute",
+          "run:cancel",
+          "run:read",
+          "evaluation:read",
+          "criterion_detail:read",
+          "feedback:write",
+          "export:investigation",
+          "billing:read",
+          "billing:purchase",
+          "billing:manage_subscription",
+          "member:invite",
+          "member:remove",
+          "owner:transfer",
+          "publish:create",
+          "publish:revoke",
+          "baseline:create",
+          "baseline:promote",
+          "credential:issue",
+          "credential:revoke",
+          "workspace:close"
+        ],
+        "currentMemberPolicy": [
+          "suite:read",
+          "run:read",
+          "evaluation:read",
+          "criterion_detail:read",
+          "feedback:write",
+          "export:investigation"
+        ],
+        "w03MemberExpansionCandidates": [
+          "suite:write",
+          "run:execute",
+          "run:cancel"
+        ],
+        "consumingTickets": {
+          "C02": "AUG-19 implements machine credential enforcement against this matrix and the current owner policy. It must not wait for W03.",
+          "W03": "AUG-29 consumes this matrix and may enable member expansion candidates. It must not rename actions or replace this vocabulary."
+        },
+        "notes": [
+          "Contract-only definitions do not grant new runtime permissions.",
+          "There is no viewer role in the current membership model; do not invent one here.",
+          "Platform operator stays outside workspace membership.",
+          "Machine principals are not membership rows and must never receive privileged actions."
+        ]
+      }
+    },
+    "conversation_single_turn": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-conversation-capability/1",
+        "documentKind": "conversation_capability",
+        "capabilityVersion": "aw-conversation-capability/1",
+        "mode": "single_turn",
+        "reservedModes": [
+          "messages_history_v1"
+        ],
+        "attemptId": "33333333-3333-4333-8333-333333333333",
+        "conversationId": "33333333-3333-4333-8333-333333333333",
+        "turns": [
+          {
+            "turnIndex": 0,
+            "requestIdempotencyKey": "33333333-3333-4333-8333-333333333333:turn:0",
+            "content": "What is the return window?"
+          }
+        ],
+        "resumeOfAttemptId": null,
+        "isolatesFreshRepetition": true,
+        "targetMaintainsServerContext": false,
+        "connectorAdvertisesMultiTurn": false
+      }
+    },
+    "conversation_explicit_session": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-conversation-capability/1",
+        "documentKind": "conversation_capability",
+        "capabilityVersion": "aw-conversation-capability/1",
+        "mode": "explicit_session_v1",
+        "reservedModes": [
+          "messages_history_v1"
+        ],
+        "attemptId": "33333333-3333-4333-8333-333333333333",
+        "conversationId": "33333333-3333-4333-8333-333333333333",
+        "turns": [
+          {
+            "turnIndex": 0,
+            "requestIdempotencyKey": "33333333-3333-4333-8333-333333333333:turn:0",
+            "content": "What is the return window?"
+          },
+          {
+            "turnIndex": 1,
+            "requestIdempotencyKey": "33333333-3333-4333-8333-333333333333:turn:1",
+            "content": "And is there a restocking fee for that?"
+          }
+        ],
+        "resumeOfAttemptId": null,
+        "isolatesFreshRepetition": true,
+        "targetMaintainsServerContext": true,
+        "connectorAdvertisesMultiTurn": true
+      }
+    },
+    "conversation_resume": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-conversation-capability/1",
+        "documentKind": "conversation_capability",
+        "capabilityVersion": "aw-conversation-capability/1",
+        "mode": "explicit_session_v1",
+        "reservedModes": [
+          "messages_history_v1"
+        ],
+        "attemptId": "33333333-3333-4333-8333-333333333333",
+        "conversationId": "33333333-3333-4333-8333-333333333333",
+        "turns": [
+          {
+            "turnIndex": 0,
+            "requestIdempotencyKey": "33333333-3333-4333-8333-333333333333:turn:0",
+            "content": "What is the return window?"
+          },
+          {
+            "turnIndex": 1,
+            "requestIdempotencyKey": "33333333-3333-4333-8333-333333333333:turn:1",
+            "content": "And is there a restocking fee for that?"
+          }
+        ],
+        "resumeOfAttemptId": "33333333-3333-4333-8333-333333333333",
+        "isolatesFreshRepetition": true,
+        "targetMaintainsServerContext": true,
+        "connectorAdvertisesMultiTurn": true
+      }
+    },
+    "conversation_fresh_repetition": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-conversation-capability/1",
+        "documentKind": "conversation_capability",
+        "capabilityVersion": "aw-conversation-capability/1",
+        "mode": "explicit_session_v1",
+        "reservedModes": [
+          "messages_history_v1"
+        ],
+        "attemptId": "44444444-4444-4444-8444-444444444444",
+        "conversationId": "44444444-4444-4444-8444-444444444444",
+        "turns": [
+          {
+            "turnIndex": 0,
+            "requestIdempotencyKey": "44444444-4444-4444-8444-444444444444:turn:0",
+            "content": "What is the return window?"
+          },
+          {
+            "turnIndex": 1,
+            "requestIdempotencyKey": "44444444-4444-4444-8444-444444444444:turn:1",
+            "content": "And is there a restocking fee for that?"
+          }
+        ],
+        "resumeOfAttemptId": null,
+        "isolatesFreshRepetition": true,
+        "targetMaintainsServerContext": true,
+        "connectorAdvertisesMultiTurn": true
+      }
+    },
+    "investigation_export": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-investigation-export/1",
+        "documentKind": "investigation_export",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "44444444-4444-4444-8444-444444444444",
+          "caseId": "returns-window",
+          "repetitionIndex": 1,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/44444444-4444-4444-8444-444444444444/returns-window/facts"
+        },
+        "caseVersion": "1.0.0",
+        "sanitizedInput": "What is the return window for unused items in the synthetic catalog?",
+        "expectedSummary": "Unused synthetic catalog items may be returned within 14 days.",
+        "actualSummary": "The assistant stated a 30-day window.",
+        "executionState": "completed",
+        "judgmentState": "complete",
+        "cleanupState": "not_required",
+        "referenceIds": [
+          "policy-returns-14d"
+        ],
+        "rubricVersion": "1.0.0",
+        "reproductionPrerequisites": [
+          "Pinned suite revision synthetic-returns-14d",
+          "Single-turn connector; no session mapping required"
+        ],
+        "prerequisitesComplete": true,
+        "pinnedSuiteRevisionId": "66666666-6666-4666-8666-666666666666",
+        "evidenceTruncated": false,
+        "evidenceMissing": false,
+        "secretsOmitted": true,
+        "hiddenChainOfThoughtPresent": false,
+        "publishesShareLink": false,
+        "createsBillableRun": false
+      }
+    },
+    "issue_proposal": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-issue-proposal/1",
+        "documentKind": "issue_proposal",
+        "proposalId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "occurrence": {
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "22222222-2222-4222-8222-222222222222",
+          "evaluationId": "55555555-5555-4555-8555-555555555555",
+          "evaluationRevision": 1,
+          "attemptId": "44444444-4444-4444-8444-444444444444",
+          "caseId": "returns-window",
+          "repetitionIndex": 1,
+          "attemptNumber": 1,
+          "criterionId": "returns-window/facts",
+          "occurrenceKey": "11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222/55555555-5555-4555-8555-555555555555/r1/44444444-4444-4444-8444-444444444444/returns-window/facts"
+        },
+        "title": "Synthetic 14-day return window stated as 30 days",
+        "bodyMarkdown": "Criterion `returns-window/facts` failed on repetition 1. Bound policy is 14 days.",
+        "provider": "unspecified",
+        "externalWritePerformed": false,
+        "createsBillableRun": false
+      }
+    },
+    "error_duplicate_case_identity": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-feature-error/1",
+        "documentKind": "feature_error",
+        "packageVersion": "aw-feature/1",
+        "error": {
+          "code": "duplicate_case_id",
+          "message": "Case IDs must be unique within a suite.",
+          "retryable": false,
+          "details": [
+            {
+              "path": "cases",
+              "code": "duplicate_case_id",
+              "message": "duplicate_case_id"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "adversarial": {
+    "duplicate_case_id": {
+      "expectedCode": "duplicate_case_id"
+    },
+    "duplicate_criterion_id": {
+      "expectedCode": "duplicate_criterion_id"
+    },
+    "too_many_turns": {
+      "expectedCode": "invalid_request"
+    },
+    "executable_property": {
+      "expectedCode": "invalid_request"
+    },
+    "missing_reference": {
+      "expectedCode": "missing_required_reference"
+    }
+  }
+}

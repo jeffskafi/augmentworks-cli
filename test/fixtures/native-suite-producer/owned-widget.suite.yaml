@@ -1,0 +1,123 @@
+# Owned widget fixture suite. Synthetic Northstar Desk Widget only.
+# Not Chatling. Do not point this file at a third-party website.
+# Hosted judging credentials must never appear here.
+schema_version: aw-suite/1
+suite_id: owned-widget.fixture.pilot
+title: Owned widget fixture informational pilot
+description: >
+  Three single-turn cases against the owned Northstar Desk Widget fixture.
+  Case owned-widget.starter-price is a deliberate negative control: the widget
+  is programmed to contradict the bound Starter price so evidence and hosted
+  grading can be checked. This suite is authorized only for the isolated
+  synthetic fixture.
+tags:
+  - fixture
+  - owned-widget
+  - synthetic
+synthetic_only: true
+references:
+  - id: owned-widget-policy
+    kind: reference_facts
+    path: references/owned-widget-policy.md
+cases:
+  - case_id: owned-widget.free-plan
+    name: Free plan inclusions
+    tags: [free, facts]
+    repetitions: 1
+    turns:
+      - content: >
+          What does the owned widget fixture free plan include, particularly AI
+          credits, number of agents, and knowledge-base capacity?
+    expected:
+      facts:
+        - The Free plan includes 40 AI credits each month
+        - The Free plan includes 1 agent
+        - The Free plan includes 80,000 knowledge-base characters
+        - AI credits are not a universal message count
+    criteria:
+      - criterion_id: owned-widget.free-plan.facts
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          The assistant states that the Free plan includes 40 AI credits per
+          month, 1 agent, and 80,000 knowledge-base characters. Equivalent
+          wording is acceptable. Do not treat AI credits as a universal
+          message allotment. Welcome or placeholder text is not an answer.
+        reference_ids: [owned-widget-policy]
+        pass_conditions:
+          - Names 40 AI credits, 1 agent, and 80,000 knowledge-base characters
+        fail_conditions:
+          - Invents a different credit, agent, or character allotment
+      - criterion_id: owned-widget.free-plan.completeness
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          The assistant covers credits, agent count, and knowledge-base
+          capacity. Omitting any of the three is incomplete even if the
+          mentioned facts are correct.
+        reference_ids: [owned-widget-policy]
+    reference_ids: [owned-widget-policy]
+  - case_id: owned-widget.starter-price
+    name: Starter monthly versus annual price (deliberate negative control)
+    tags: [starter, price, negative-control]
+    repetitions: 1
+    turns:
+      - content: >
+          What does the Starter plan cost if I pay monthly versus annually?
+          Please distinguish the monthly price from the total annual charge.
+    expected:
+      facts:
+        - Starter costs $12 per month when billed monthly
+        - Starter billed annually is $108 for the year
+        - The annual monthly equivalent is $9
+    criteria:
+      - criterion_id: owned-widget.starter-price.facts
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          The assistant distinguishes the $12 monthly price from the $108
+          total annual charge ($9 per month). Accurate rounding of 12 times
+          $9 is acceptable. A $99 monthly or $1,188 annual figure contradicts
+          the bound fixture policy and must fail. This case is a labeled
+          negative control.
+        reference_ids: [owned-widget-policy]
+        fail_conditions:
+          - States $99 per month or $1,188 per year as the Starter price
+      - criterion_id: owned-widget.starter-price.completeness
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          The assistant reports both the monthly price and the total annual
+          charge, not only a monthly equivalent.
+        reference_ids: [owned-widget-policy]
+    reference_ids: [owned-widget-policy]
+  - case_id: owned-widget.kb-sync
+    name: Knowledge-base auto-sync Starter versus Growth
+    tags: [sync]
+    repetitions: 1
+    turns:
+      - content: >
+          How often does the knowledge base automatically sync on Starter
+          compared with Growth?
+    expected:
+      facts:
+        - Starter knowledge-base auto-sync is every 3 days
+        - Growth knowledge-base auto-sync is every 12 hours
+    criteria:
+      - criterion_id: owned-widget.kb-sync.facts
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          The assistant says Starter auto-syncs every 3 days and Growth
+          auto-syncs every 12 hours. Equivalent wording is acceptable.
+          Weekly-versus-daily Chatling figures would be incorrect for this
+          fixture.
+        reference_ids: [owned-widget-policy]
+      - criterion_id: owned-widget.kb-sync.completeness
+        requirement: required
+        kind: llm_rubric
+        statement: >
+          Both Starter and Growth frequencies are present. Naming only one
+          plan is incomplete.
+        reference_ids: [owned-widget-policy]
+    reference_ids: [owned-widget-policy]

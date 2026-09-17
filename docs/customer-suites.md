@@ -6,9 +6,11 @@ quote, never execute a target, and never call an LLM. A hosted
 `test --suite` pins an immutable server revision, then uses the existing
 quote / `--max-credits` / `--yes` consent path.
 
-This command is in the `0.3.6` package. From a clone after `npm ci` and
-`npm run build`, use `node dist/index.js`. Installed npx pins match this
-package version. Do not pin immutable npm `0.3.3`.
+The command exists in `0.3.6`, but its hosted wire compatibility fix is
+currently unreleased source. From this fixed clone after `npm ci` and
+`npm run build`, use `node dist/index.js`. A new immutable npm release must
+be published and verified before automation pins adopt this fix. Do not
+assume existing registry `0.3.6` contains it.
 
 ## Commands
 
@@ -25,6 +27,24 @@ node dist/index.js test --suite examples/customer-suites/faq-non-commerce.yaml -
 create a run, reserve credits, or execute a target. Local preview counts are
 not an authoritative price.
 
+Both `--estimate --suite` and `test --suite` require an authorized **user
+connector grant** (`AUGMENTWORKS_TOKEN`; optional
+`AUGMENTWORKS_REFRESH_TOKEN`). Unset `AUGMENTWORKS_API_KEY` when choosing that
+credential. Machine API keys deliberately cannot create suites: they fail
+before upload with `SUITE_WRITE_REQUIRES_USER`. Use an already saved immutable
+revision through an assessment's `selection.suite_revision_id` or an exact
+compiled manifest for machine execution. Do not grant `suite:write` to a
+machine key as a workaround. Saved-suite v2 is also unreleased source until
+its publication gate is completed.
+
+The CLI translates authoring data into the server's native
+`aw-customer-suite/1` source document. Local preview `content_hash` remains
+the authoring identity used to detect changed files. Hosted
+`suite_content_hash` is the separate native canonical hash verified against
+the server response. Scenario IDs become
+`aw-customer-suite/1.0.0/<case_id>`; criterion IDs are unchanged. No source
+file is relabeled and no live-target permission is implied by this adapter.
+
 Noninteractive admission still requires a finite `--max-credits` ceiling.
 `--yes` is not an unlimited budget. The CLI does not prompt, open a browser,
 or raise limits silently.
@@ -37,11 +57,20 @@ Unsupported schema versions, duplicate case IDs, missing references,
 credential-like keys, executable scripts, and `history_array_v1` fail
 **before** any network call.
 
-Limits match hosted admission: 64 KiB suite file, 64 KiB / 16 references,
+Local authoring limits: 64 KiB suite file, 64 KiB / 16 references,
 20 cases, 20 turns, 3 repetitions, 16 criteria/tags/facts/observations.
 
-Supported deterministic observations in this CLI: `policy.window_days`,
-`policy.permitted_refusal`. Other observation keys are rejected locally.
+Hosted source is additionally validated against the pinned producer schema
+before upload: at most 3 turns per case, 12 facts/conditions, 2,000-character
+descriptions/statements, 1,000-character facts/conditions, and 160-character
+case IDs. Values are rejected, never silently truncated.
+
+Offline authoring preview recognizes `policy.window_days` and
+`policy.permitted_refusal`, but the current hosted data-only customer-suite
+producer does **not** execute deterministic observations. Such suites fail
+with `SUITE_HOSTED_OBSERVATION_UNSUPPORTED` before upload. Keep deterministic
+checks in the existing local packet path; author supported response-only
+semantic criteria for this hosted path.
 
 Conversation capability is **not** inferred from a multi-turn case. Hosted
 `multi_turn` is advertised only when `augmentworks.yaml` declares
@@ -54,7 +83,7 @@ mode). A multi-turn suite against a single-turn connector fails with
 | File | What it covers |
 | --- | --- |
 | `examples/customer-suites/faq-non-commerce.yaml` | Five synthetic FAQ cases (status page, hours, password reset, data export, accessibility). No commerce or return-window facts. |
-| `examples/customer-suites/returns-14-day.yaml` | 14-day return window, including a follow-up that must not switch to the curated 30-day pack. Requires session mode at run time. |
+| `examples/customer-suites/returns-14-day.yaml` | Offline authoring/preview example including multi-turn and deterministic observations. The current hosted producer rejects its observations; it is not a hosted acceptance fixture. |
 
 Packed installs include the same files under `assets/customer-suites/`.
 

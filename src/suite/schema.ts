@@ -4,7 +4,7 @@ export const SUITE_SCHEMA_VERSION = "aw-suite/1" as const;
 export const FEATURE_PACKAGE_VERSION = "aw-feature/1" as const;
 export const FEATURE_ERROR_SCHEMA_VERSION = "aw-feature-error/1" as const;
 export const CUSTOMER_OWNED_SUITE_PACKET = {
-  key: "customer-owned-suite",
+  key: "aw-customer-suite",
   version: "1.0.0"
 } as const;
 export const SUITE_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/;
