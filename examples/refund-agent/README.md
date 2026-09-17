@@ -11,7 +11,7 @@ demonstration, not a realistic support agent or a substitute for AugmentWorks'
 private hosted packet `support-refunds@0.1.0` and managed scoring.
 
 This directory is **not included in the npm tarball**. Clone the CLI repository
-for the example server. This `@augmentworks/cli@0.3.6` package supports `--local`,
+for the example server. This `@augmentworks/cli@0.3.7` package supports `--local`,
 hosted `--assessment`, packaged `demo`, `init --starter stateful`, `usage`,
 `billing`, `preview-mapping`, `probe`, and `--estimate` via npx. The refund-agent
 example directory is still not in the npm tarball.
@@ -28,8 +28,8 @@ cd augmentworks-cli/examples/refund-agent
 From this directory, start the target:
 
 ```bash
-cp .env.example .env
-# Windows: copy .env.example .env
+[ -f .env ] || cp .env.example .env
+# Windows: if not exist .env copy .env.example .env
 node --env-file=.env server.mjs
 ```
 
@@ -38,7 +38,7 @@ side-effect-free `GET /health` endpoint. In another terminal, from this
 directory, run the complete local assessment:
 
 ```bash
-npx --yes @augmentworks/cli@0.3.6 doctor \
+npx --yes @augmentworks/cli@0.3.7 doctor \
   -c augmentworks.yaml
 ```
 
@@ -62,7 +62,7 @@ node dist/index.js probe -c augmentworks.yaml --yes
 ```
 
 ```bash
-npx --yes @augmentworks/cli@0.3.6 test \
+npx --yes @augmentworks/cli@0.3.7 test \
   --local \
   -c augmentworks.yaml \
   --packet support-refunds-starter@0.1.0 \
@@ -88,9 +88,9 @@ hosted `test` command resumes an active bound intent or follows the remaining
 baseline/remediation allowance. There is no `--rerun` flag.
 
 ```bash
-npx --yes @augmentworks/cli@0.3.6 login
+npx --yes @augmentworks/cli@0.3.7 login
 
-npx --yes @augmentworks/cli@0.3.6 test \
+npx --yes @augmentworks/cli@0.3.7 test \
   -c augmentworks.yaml \
   --packet support-refunds@0.1.0 \
   --open

@@ -7,7 +7,7 @@ Response-only JSON chat is the other supported pattern (`--starter
 response-quality`). Streaming, WebSocket, history-array multi-turn, and
 connector marketplaces are not supported.
 
-This 0.3.6 package generates these files and includes `probe`. Do not pin
+This 0.3.7 package generates these files and includes `probe`. Do not pin
 immutable npm `0.3.3`. If you built this repository, substitute
 `node dist/index.js` for `augmentworks` below.
 
@@ -34,7 +34,11 @@ The fixture server:
 ## Commands
 
 ```bash
-cp .env.example .env
+# Edit the local .env that init created or preserved.
+# Do not run `cp .env.example .env` after init: that overwrites a preserved file.
+# If you passed --no-env and .env is missing:
+[ -f .env ] || cp .env.example .env
+# Windows: if not exist .env copy .env.example .env
 # Set CHATBOT_API_KEY locally. Never commit .env.
 
 node --env-file=.env server.mjs

@@ -6,11 +6,12 @@ quote, never execute a target, and never call an LLM. A hosted
 `test --suite` pins an immutable server revision, then uses the existing
 quote / `--max-credits` / `--yes` consent path.
 
-The command exists in `0.3.6`, but its hosted wire compatibility fix is
-currently unreleased source. From this fixed clone after `npm ci` and
-`npm run build`, use `node dist/index.js`. A new immutable npm release must
-be published and verified before automation pins adopt this fix. Do not
-assume existing registry `0.3.6` contains it.
+The command exists in this `0.3.7` package. Native hosted
+`aw-customer-suite/1` upload translation is source on this revision and is
+not in immutable registry `0.3.6`. From this clone after `npm ci` and
+`npm run build`, use `node dist/index.js`. A protected `v0.3.7` publish must
+complete before automation pins adopt this tarball. Do not assume existing
+registry `0.3.6` contains the upload translation.
 
 ## Commands
 
