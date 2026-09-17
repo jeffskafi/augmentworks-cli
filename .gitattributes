@@ -21,3 +21,5 @@ contracts/aw-manifest-release-gate-v2.lock.json text eol=lf
 contracts/aw-suite-v1.lock.json text eol=lf
 contracts/aw-feature-v1.producer.schema.json text eol=lf
 contracts/aw-feature-v1.producer.fixtures.json text eol=lf
+test/fixtures/native-suite-producer/owned-widget.suite.yaml text eol=lf
+test/fixtures/native-suite-producer/references/owned-widget-policy.md text eol=lf
