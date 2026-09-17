@@ -60,6 +60,14 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function canonicalSuiteJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalSuiteJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalSuiteJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function parseArgs(argv) {
   const options = {
     source: "registry",
@@ -726,14 +734,20 @@ cases:
       }
       if (request.method === "POST" && url.pathname === "/v1/suites") {
         const raw = await readBody(request);
-        let contentHash = "a".repeat(64);
-        try {
-          const parsed = JSON.parse(raw.toString("utf8"));
-          if (typeof parsed.contentHash === "string") contentHash = parsed.contentHash;
-        } catch {
-          // Keep the placeholder hash when the body is not JSON.
+        const parsed = JSON.parse(raw.toString("utf8"));
+        if (parsed.schemaVersion === "aw-customer-suite/1" && parsed.documentKind === "customer_suite_source") {
+          json(response, 201, {
+            ...parsed,
+            documentKind: "customer_suite_revision",
+            workspaceId: WORKSPACE,
+            suiteRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            canonicalHash: sha256(canonicalSuiteJson(parsed))
+          });
+          return;
         }
-        json(response, 200, { suiteId: "customer.own_chatbot.faq", revisionId: "rev_core_1", contentHash });
+        // Preserve explicit registry inspection of older artifacts; never use a placeholder hash.
+        assert(typeof parsed.contentHash === "string", "suite fixture received neither native source nor legacy hash envelope");
+        json(response, 200, { suiteId: "customer.own_chatbot.faq", revisionId: "rev_core_1", contentHash: parsed.contentHash });
         return;
       }
       if (request.method === "POST" && url.pathname === "/v1/billing/quote") {

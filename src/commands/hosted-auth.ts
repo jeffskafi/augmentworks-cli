@@ -187,7 +187,7 @@ export function machineActionDeniedError(missing: readonly string[]): AwError {
     category: "auth",
     message:
       missing.includes(FEATURE_ACTIONS.runExecute)
-        ? `This machine credential cannot admit hosted work (missing ${listed}). Report-only keys may export a retained report but cannot quote, reserve, or start a run. Issue a CI key with run:execute (and suite:read for --suite). Machine keys cannot buy credits or administer the workspace.`
+        ? `This machine credential cannot admit hosted work (missing ${listed}). Report-only keys may export a retained report but cannot quote, reserve, or start a run. Issue a CI key with run:execute and suite:read for saved-suite execution. Uploading --suite requires a user connector grant. Machine keys cannot buy credits or administer the workspace.`
         : `This machine credential is missing required actions: ${listed}. No quote, reservation, or run was created.`
   });
 }

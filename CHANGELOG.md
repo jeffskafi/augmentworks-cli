@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Customer-suite uploads now translate local `aw-suite/1` authoring into the
+  actual hosted `aw-customer-suite/1` source document. Admission pins the
+  native canonical hash, `suiteRevisionId`, `aw-customer-suite` packet, and
+  fully qualified scenario IDs. The authoring hash still detects local edits.
+  Machine credentials stop before the forbidden suite write, and unsupported
+  deterministic observations fail before upload rather than being omitted.
+  Producer schema and fixture bytes are pinned to main `7ee82d2f`.
+  Package version remains 0.3.6; this source fix requires a new published release.
+
 - Multi-shard `aw-selection-execution/2` now rejects a non-null `quoteId` or
   `runId` already bound to a different shard before another quote, admission, or
   ledger reconcile. Same-shard poll/retry completions stay idempotent and count

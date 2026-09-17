@@ -124,9 +124,10 @@ jobs:
             echo "whoami JSON must not contain credential material." >&2
             exit 1
           fi
-          "${AW[@]}" test --suite own-chatbot.suite.yaml --estimate --json --headless > .augmentworks/ci/estimate.json
+          # Machine keys execute assessments; uploading --suite requires a user grant.
+          "${AW[@]}" test --assessment augmentworks.assessment.yaml --estimate --json --headless > .augmentworks/ci/estimate.json
           set +e
-          "${AW[@]}" test --suite own-chatbot.suite.yaml --max-credits 30 --yes --json --headless > .augmentworks/ci/test.json
+          "${AW[@]}" test --assessment augmentworks.assessment.yaml --max-credits 30 --yes --json --headless > .augmentworks/ci/test.json
           admit_code=$?
           set -e
           run_id="$(node -e "

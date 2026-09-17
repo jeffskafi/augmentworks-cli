@@ -35,11 +35,11 @@ export function suiteCreateFields(
 ): CreateRunAssessment {
   const evaluationMode = suiteEvaluationMode(loaded.document);
   return {
-    plan_hash: loaded.contentHash,
+    plan_hash: pin.contentHash,
     profile: "custom",
     evaluation_mode: evaluationMode,
     disclosure_version: evaluationMode === "hybrid" ? DISCLOSURE_VERSION : null,
-    selected_scenario_ids: loaded.document.cases.map((suiteCase) => suiteCase.caseId),
+    selected_scenario_ids: loaded.document.cases.map((suiteCase) => `${CUSTOMER_OWNED_SUITE_PACKET.key}/${CUSTOMER_OWNED_SUITE_PACKET.version}/${suiteCase.caseId}`),
     packet_bindings: [
       {
         key: CUSTOMER_OWNED_SUITE_PACKET.key,

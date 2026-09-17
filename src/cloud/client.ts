@@ -46,12 +46,8 @@ import {
 } from "../billing/validate.js";
 import { BILLING_PRIMARY_PATHS } from "../billing/protocol.js";
 import type { BillingCapabilities, BillingQuote, BillingRunStatus, BillingUsage } from "../billing/protocol.js";
+import { NativeSuiteSourceSchema, nativeSuiteContentHash } from "../suite/native.js";
 import {
-  FEATURE_PACKAGE_VERSION,
-  SUITE_SCHEMA_VERSION
-} from "../suite/schema.js";
-import {
-  SuiteCreateRequestSchema,
   SuiteCreateResponseSchema,
   SuiteRevisionReadSchema,
   normalizeSuiteIdentity,
@@ -397,18 +393,12 @@ export class CloudClient {
     },
     signal?: AbortSignal
   ): Promise<SuiteCreateResponse> {
-    const body = {
-      schemaVersion: SUITE_SCHEMA_VERSION,
-      packageVersion: FEATURE_PACKAGE_VERSION,
-      contentHash: request.contentHash,
-      document: request.document
-    };
-    const validated = SuiteCreateRequestSchema.safeParse(body);
-    if (!validated.success) {
+    const validated = NativeSuiteSourceSchema.safeParse(request.document);
+    if (!validated.success || nativeSuiteContentHash(validated.data as Record<string, unknown>) !== request.contentHash) {
       throw new AwError({
         code: "INVALID_SUITE_REQUEST",
         category: "protocol",
-        message: "The customer suite create request does not match aw-suite/1."
+        message: "The customer suite create request does not match the hosted aw-customer-suite/1 source contract."
       });
     }
     const value = await this.#request("POST", "/v1/suites", validated.data, signal);

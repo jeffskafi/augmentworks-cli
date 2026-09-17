@@ -86,6 +86,7 @@ import {
   type LocalTestDependencies
 } from "./local-test.js";
 import { compileHostedSelection } from "./selection.js";
+import { nativeSuiteContentHash, nativeSuiteSource } from "../suite/native.js";
 import { formatSelectionHuman } from "../selection/format.js";
 import { compileRequestFromAssessment, isSavedSuiteSelection, selectionAdvertisementFromResolved } from "../selection/request.js";
 import { loadSuiteSelectionManifest } from "../selection/load.js";
@@ -1262,18 +1263,26 @@ async function pinCustomerSuite(options: {
   localPlanHash: string;
   pin: SuiteRevisionPin;
 }> {
+  if (options.session.identity.principalKind === "machine") {
+    throw suiteError("SUITE_WRITE_REQUIRES_USER", "Uploading --suite requires a user connector grant. Machine keys may execute an existing immutable revision using --assessment with selection.suite_revision_id, or --manifest. No suite, quote, or run was created.");
+  }
+  const nativeDocument = nativeSuiteSource(options.suite);
+  const nativeHash = nativeSuiteContentHash(nativeDocument);
   const created = await options.session.cloud.createSuiteRevision(
     {
-      contentHash: options.suite.contentHash,
-      document: options.suite.canonicalDocument
+      contentHash: nativeHash,
+      document: nativeDocument
     },
     options.signal
   );
-  if (created.contentHash !== options.suite.contentHash) {
+  if (created["workspaceId"] !== undefined && created["workspaceId"] !== options.session.identity.workspaceId) {
+    throw suiteError("SUITE_WORKSPACE_MISMATCH", "The saved suite belongs to a different workspace. No quote or run was created.");
+  }
+  if (created.contentHash !== nativeHash || created.suiteId !== options.suite.document.suiteId) {
     throw suiteError(
       "SUITE_REVISION_HASH_MISMATCH",
       "The server-accepted suite content hash does not match the locally validated file. Admission will not pin a different revision.",
-      { localHash: options.suite.contentHash, serverHash: created.contentHash }
+      { localHash: nativeHash, serverHash: created.contentHash }
     );
   }
   const current = await loadCustomerSuiteFile(options.suite.sourcePath, options.cwd);

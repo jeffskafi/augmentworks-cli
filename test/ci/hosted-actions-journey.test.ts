@@ -436,8 +436,8 @@ describe("hosted GitHub Actions recipe", () => {
     const result = await runPackedCli(
       [
         "test",
-        "--suite",
-        "own-chatbot.suite.yaml",
+        "--assessment",
+        "augmentworks.assessment.yaml",
         "--max-credits",
         "30",
         "--yes",
@@ -457,7 +457,7 @@ describe("hosted GitHub Actions recipe", () => {
         send(response, 200, ciIdentity(executeActions));
         return true;
       }
-      if (request.method === "POST" && url.pathname === "/v1/suites") {
+      if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
         send(response, 500, { error: { code: "NOT_FOUND", message: "upstream failed" } });
         return true;
       }
@@ -467,8 +467,8 @@ describe("hosted GitHub Actions recipe", () => {
     const result = await runPackedCli(
       [
         "test",
-        "--suite",
-        "own-chatbot.suite.yaml",
+        "--assessment",
+        "augmentworks.assessment.yaml",
         "--max-credits",
         "30",
         "--yes",
@@ -479,6 +479,7 @@ describe("hosted GitHub Actions recipe", () => {
     );
     expect(result.exitCode).not.toBe(EXIT.OK);
     expect(result.exitCode).not.toBe(EXIT.ASSESSMENT_FAILED);
+    expect(paths).toContain("GET /v1/billing/capabilities");
     expect(paths.some((path) => path.startsWith("POST /v1/relay/runs"))).toBe(false);
     expect(paths).not.toContain("POST /v1/billing/quote");
   });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { FEATURE_ERROR_SCHEMA_VERSION, SUITE_CONTENT_HASH_PATTERN, SUITE_SCHEMA_VERSION } from "./schema.js";
+import { FEATURE_ERROR_SCHEMA_VERSION, SUITE_CONTENT_HASH_PATTERN } from "./schema.js";
+import { NativeSuiteSourceSchema } from "./native.js";
 
 const SHA256_HEX = z.string().regex(SUITE_CONTENT_HASH_PATTERN);
 const identifier = z
@@ -9,14 +10,7 @@ const identifier = z
   .max(300)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
 
-export const SuiteCreateRequestSchema = z
-  .object({
-    schemaVersion: z.literal(SUITE_SCHEMA_VERSION),
-    packageVersion: z.string().min(1).max(80).optional(),
-    contentHash: SHA256_HEX,
-    document: z.unknown()
-  })
-  .strict();
+export const SuiteCreateRequestSchema = NativeSuiteSourceSchema;
 
 export type SuiteCreateRequest = z.infer<typeof SuiteCreateRequestSchema>;
 
@@ -50,8 +44,8 @@ export function normalizeSuiteIdentity(value: unknown): unknown {
   return {
     ...record,
     suiteId: record["suiteId"] ?? record["suite_id"],
-    revisionId: record["revisionId"] ?? record["revision_id"],
-    contentHash: record["contentHash"] ?? record["content_hash"],
+    revisionId: record["suiteRevisionId"] ?? record["revisionId"] ?? record["revision_id"],
+    contentHash: record["canonicalHash"] ?? record["contentHash"] ?? record["content_hash"],
     canonicalDocument: record["canonicalDocument"] ?? record["canonical_document"] ?? record["document"]
   };
 }
