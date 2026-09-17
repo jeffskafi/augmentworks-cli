@@ -18,3 +18,6 @@ contracts/aw-suite-selection-v1.fixtures.json text eol=lf
 contracts/aw-suite-selection-v1.lock.json text eol=lf
 contracts/aw-manifest-release-gate-v2.fixtures.json text eol=lf
 contracts/aw-manifest-release-gate-v2.lock.json text eol=lf
+contracts/aw-suite-v1.lock.json text eol=lf
+contracts/aw-feature-v1.producer.schema.json text eol=lf
+contracts/aw-feature-v1.producer.fixtures.json text eol=lf
