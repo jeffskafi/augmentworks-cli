@@ -3,6 +3,7 @@
   "$id": "schemas/v1/customer-suite.schema.json",
   "title": "AugmentWorks customer-owned hosted suite",
   "description": "Authoring schema for aw-suite/1 and aw-suite/2 YAML or JSON files. Snake_case keys are rewritten to the camelCase canonical document before validation. Local preview and preflight are not a price and do not execute a target or an LLM. aw-suite/2 does not authorize a live origin by itself.",
+  "type": "object",
   "oneOf": [
     {
       "title": "aw-suite/1 synthetic",

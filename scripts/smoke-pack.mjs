@@ -748,6 +748,17 @@ async function main() {
     for (const kind of ["local-packet", "local-result", "customer-suite", "investigation-export"]) {
       const localSchema = JSON.parse(execCli(["schema", "--kind", kind, "--compact"]).stdout);
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
+      if (kind === "customer-suite") {
+        assert(
+          Array.isArray(localSchema.oneOf) && localSchema.oneOf.length === 2,
+          "customer-suite schema is missing the v1/v2 oneOf"
+        );
+        const versions = localSchema.oneOf.map((choice) => choice?.properties?.schema_version?.const);
+        assert(
+          versions.includes("aw-suite/1") && versions.includes("aw-suite/2"),
+          "customer-suite schema does not advertise aw-suite/1 and aw-suite/2"
+        );
+      }
     }
 
     execCli(["init", "--starter", "workflow"], { cwd: assessmentDirectory });
