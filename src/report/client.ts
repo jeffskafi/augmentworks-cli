@@ -31,9 +31,15 @@ import {
   ReportErrorSchema,
   RunReportSchema,
   reportPath,
+  liveInformationalReportPath,
+  LIVE_INFORMATIONAL_REPORT_SCOPE,
+  RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION,
+  LiveInformationalReportSchema,
+  LiveInformationalReportErrorSchema,
   type CriterionDetail,
   type EvaluationBinding,
   type ExportDiagnostic,
+  type LiveInformationalReport,
   type RunReport,
   type RunReportAttempt,
   type RunReportExport
@@ -90,6 +96,22 @@ export async function exportHostedRunReport(
     const remapped = remapAuthError(error, options.credentialSource ?? "environment");
     if (remapped instanceof AwError) {
       return failureExport(remapped);
+    }
+    throw remapped;
+  }
+}
+
+export async function exportHostedLiveInformationalReport(
+  runId: string,
+  options: RunReportClientOptions
+): Promise<LiveInformationalReport | Record<string, unknown>> {
+  const client = new RunReportClient(options);
+  try {
+    return await client.exportLiveInformational(runId);
+  } catch (error) {
+    const remapped = remapAuthError(error, options.credentialSource ?? "environment");
+    if (remapped instanceof AwError) {
+      return liveFailureExport(remapped);
     }
     throw remapped;
   }
@@ -195,6 +217,22 @@ export function failureExport(error: AwError): RunReportExport {
   };
 }
 
+export function liveFailureExport(error: AwError): Record<string, unknown> {
+  return {
+    schemaVersion: RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION,
+    retrieved: false,
+    complete: false,
+    error: {
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      ...(typeof error.details?.["http_status"] === "number"
+        ? { httpStatus: error.details["http_status"] }
+        : {})
+    }
+  };
+}
+
 class RunReportClient {
   readonly apiOrigin: URL;
   readonly #accessTokenProvider: AccessTokenProvider;
@@ -217,6 +255,43 @@ class RunReportClient {
     this.#signal = options.signal;
     this.#expectedWorkspaceId = options.expectedWorkspaceId;
     this.#retryBudgetMs = REPORT_RETRY_BUDGET_MS;
+  }
+
+  async exportLiveInformational(runId: string): Promise<LiveInformationalReport> {
+    const url = this.#sameOriginUrl(liveInformationalReportPath(runId));
+    const payload = await this.#getJson(url);
+    const parsed = LiveInformationalReportSchema.safeParse(payload);
+    if (!parsed.success) {
+      const errorEnvelope = LiveInformationalReportErrorSchema.safeParse(payload);
+      if (errorEnvelope.success) {
+        throw new ReportProtocolError({
+          code: errorEnvelope.data.error.code,
+          message: errorEnvelope.data.error.message,
+          retryable: errorEnvelope.data.error.retryable,
+          category: "relay"
+        });
+      }
+      const v1 = RunReportSchema.safeParse(payload);
+      throw new ReportProtocolError({
+        code: "REPORT_SCOPE_SCHEMA_INVALID",
+        message: v1.success
+          ? "AugmentWorks returned aw-run-report/1 for --scope live-informational. The live overlay must be requested and parsed separately."
+          : "AugmentWorks returned a report that does not match aw-run-report-live-scope/1."
+      });
+    }
+    if (parsed.data.runId !== runId) {
+      throw new ReportProtocolError({
+        code: "REPORT_ID_MISMATCH",
+        message: "The live informational report runId does not match the requested run."
+      });
+    }
+    if (this.#expectedWorkspaceId !== undefined && parsed.data.workspaceId !== this.#expectedWorkspaceId) {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: `A live informational report workspaceId did not match the authenticated workspace. Retry: augmentworks run report ${runId} --scope ${LIVE_INFORMATIONAL_REPORT_SCOPE} --json. Do not start another billed assessment.`
+      });
+    }
+    return parsed.data;
   }
 
   async exportRun(runId: string): Promise<RunReportExport> {

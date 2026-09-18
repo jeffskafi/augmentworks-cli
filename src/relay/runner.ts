@@ -14,6 +14,7 @@ import { canonicalize } from "../util/canonical.js";
 import { LIMITS } from "../util/limits.js";
 import { RelayJournal, type JournalCompletion } from "./journal.js";
 import type { JournalRunDeadline } from "./journal.js";
+import { assertLiveCommandAllowed, type LiveExecutionPolicy } from "../suite/live-policy.js";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 const CLEANUP_RETRY_DELAYS_MS = [100, 250] as const;
@@ -34,6 +35,7 @@ export interface RelayRunnerOptions {
   cancellationDrainMs?: number;
   signal?: AbortSignal;
   onProgress?: (event: RelayProgressEvent) => void;
+  livePolicy?: LiveExecutionPolicy;
 }
 
 export type RelayProgressEvent =
@@ -70,6 +72,7 @@ export class RelayRunner {
   #deadline: JournalRunDeadline | undefined;
   #purgeJournalOnClose = false;
   #running = false;
+  readonly #livePolicy: LiveExecutionPolicy | undefined;
 
   constructor(options: RelayRunnerOptions) {
     this.#cloud = options.cloud;
@@ -88,6 +91,7 @@ export class RelayRunner {
     this.#cancellationDrainMs = options.cancellationDrainMs ?? 60_000;
     this.#signal = options.signal;
     this.#onProgress = options.onProgress;
+    this.#livePolicy = options.livePolicy;
   }
 
   get cancelRequested(): boolean {
@@ -194,10 +198,14 @@ export class RelayRunner {
   async #processCommand(command: RelayCommand): Promise<void> {
     const durable = this.#journal.state(command.command_id);
     this.#validateCommand(command, durable !== undefined);
+    if (this.#livePolicy !== undefined && durable?.started !== true) {
+      assertLiveCommandAllowed(command, this.#livePolicy, this.#journal);
+    }
     let state = await this.#journal.accept(command);
     let replayed = durable !== undefined;
     const wasStarted = state.started;
-    const idempotent = this.#isIdempotent(command.kind);
+    const idempotent =
+      this.#livePolicy !== undefined && command.kind === "send" ? false : this.#isIdempotent(command.kind);
     const expired = Date.parse(command.expires_at) <= this.#now().getTime();
 
     if (state.completion === undefined && expired) {

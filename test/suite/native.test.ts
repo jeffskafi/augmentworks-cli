@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { NativeSuiteSourceSchema, nativeSuiteContentHash, nativeSuiteSource } from "../../src/suite/native.js";
+import {
+  NativeSuiteSourceSchema,
+  nativeSuiteContentHash,
+  nativeSuiteSource,
+  parseNativeSuiteCreateDocument
+} from "../../src/suite/native.js";
 import { loadCustomerSuiteFile } from "../../src/suite/load.js";
 import { suiteCreateFields } from "../../src/suite/admit.js";
 import { normalizeSuiteIdentity, SuiteCreateResponseSchema } from "../../src/suite/protocol.js";
@@ -37,6 +42,9 @@ describe("real hosted customer-suite producer contract", () => {
     // Golden independently sealed/materialized/compiled by augmentworks@7ee82d2f:
     // source + hybrid packet schemas passed, 3 executions/commands/judge jobs, no exclusions.
     expect(nativeSuiteContentHash(source)).toBe("bc5a3edd26a26879a2d9684768fcb3930bbb71604b5005cfab560863e1654377");
+    expect(nativeSuiteContentHash(parseNativeSuiteCreateDocument(source))).toBe(
+      "bc5a3edd26a26879a2d9684768fcb3930bbb71604b5005cfab560863e1654377"
+    );
     expect(nativeSuiteContentHash(source)).not.toBe(loaded.contentHash);
     const fields = suiteCreateFields(loaded, { suiteId: loaded.document.suiteId, revisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", contentHash: nativeSuiteContentHash(source) });
     expect(fields.packet_bindings).toEqual([{ key: "aw-customer-suite", version: "1.0.0" }]);
@@ -75,5 +83,19 @@ describe("real hosted customer-suite producer contract", () => {
     expect(native.revisionId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(native.contentHash).toBe("a".repeat(64));
     expect(SuiteCreateResponseSchema.parse(normalizeSuiteIdentity({ suite_id: "demo", revision_id: "legacy", content_hash: "b".repeat(64) })).revisionId).toBe("legacy");
+  });
+
+  it("keeps the synthetic v1 producer hash frozen while live suites use aw-customer-suite/2", async () => {
+    const synthetic = await loadCustomerSuiteFile(repoFile("test/fixtures/native-suite-producer/owned-widget.suite.yaml"));
+    expect(nativeSuiteContentHash(nativeSuiteSource(synthetic))).toBe(
+      "bc5a3edd26a26879a2d9684768fcb3930bbb71604b5005cfab560863e1654377"
+    );
+    const live = await loadCustomerSuiteFile(repoFile("test/fixtures/customer-suites/live-informational.yaml"));
+    const liveSource = nativeSuiteSource(live);
+    expect(liveSource["schemaVersion"]).toBe("aw-customer-suite/2");
+    expect(liveSource["syntheticOnly"]).toBe(false);
+    expect(nativeSuiteContentHash(liveSource)).not.toBe(
+      "bc5a3edd26a26879a2d9684768fcb3930bbb71604b5005cfab560863e1654377"
+    );
   });
 });

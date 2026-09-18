@@ -421,4 +421,15 @@ describe("hosted suite files in local mode", () => {
       })
     ).rejects.toMatchObject({ code: "HOSTED_SUITE_UNSUPPORTED_LOCAL" });
   });
+
+  it("rejects a live informational packet instead of executing it locally", async () => {
+    await expect(
+      loadLocalPacket({
+        reference: resolve(
+          fileURLToPath(new URL("../..", import.meta.url)),
+          "test/fixtures/customer-suites/live-informational.packet.json"
+        )
+      })
+    ).rejects.toMatchObject({ code: "LIVE_PACKET_UNSUPPORTED_LOCAL" });
+  });
 });

@@ -1,12 +1,29 @@
 import { z } from "zod";
 
+import { LiveTargetContractSchema, LIVE_MAX_CASES } from "./live-target.js";
+
 export const SUITE_SCHEMA_VERSION = "aw-suite/1" as const;
+export const SUITE_SCHEMA_VERSION_V2 = "aw-suite/2" as const;
 export const FEATURE_PACKAGE_VERSION = "aw-feature/1" as const;
 export const FEATURE_ERROR_SCHEMA_VERSION = "aw-feature-error/1" as const;
 export const CUSTOMER_OWNED_SUITE_PACKET = {
   key: "aw-customer-suite",
   version: "1.0.0"
 } as const;
+export const CUSTOMER_OWNED_SUITE_PACKET_V2 = {
+  key: "aw-customer-suite",
+  version: "2.0.0"
+} as const;
+export const SUPPORTED_SUITE_SCHEMA_VERSIONS = [
+  SUITE_SCHEMA_VERSION,
+  SUITE_SCHEMA_VERSION_V2
+] as const;
+export const LIVE_SUITE_REFERENCE_KINDS = [
+  "approved_policy",
+  "reference_answer",
+  "reference_facts",
+  "allowed_escalation_route"
+] as const;
 export const SUITE_CONTENT_HASH_PATTERN = /^[a-f0-9]{64}$/;
 export const SUPPORTED_DETERMINISTIC_OBSERVATIONS = [
   "policy.window_days",
@@ -138,19 +155,32 @@ export const SuiteReferenceSchema = z
     }
   });
 
-export const CustomerSuiteSchema = z
+const LiveSuiteReferenceSchema = z
   .object({
-    schemaVersion: z.literal(SUITE_SCHEMA_VERSION),
-    suiteId: identifier,
-    title: z.string().min(1).max(200),
-    description: z.string().min(1).max(4_000).optional(),
-    tags: tagsSchema.optional(),
-    syntheticOnly: z.literal(true).optional(),
-    references: z.array(SuiteReferenceSchema).max(MAX_SUITE_REFERENCE_ENTRIES).optional(),
-    cases: z.array(SuiteCaseSchema).min(1).max(MAX_SUITE_CASES)
+    id: identifier,
+    kind: z.enum(LIVE_SUITE_REFERENCE_KINDS).default("reference_facts"),
+    path: relativeReferencePath.optional(),
+    content: z.string().max(16_000).optional()
   })
   .strict()
-  .superRefine((suite, context) => {
+  .superRefine((value, context) => {
+    if (value.path === undefined && (value.content === undefined || value.content.trim() === "")) {
+      context.addIssue({
+        code: "custom",
+        message: "each reference needs a path or inline content",
+        path: ["path"]
+      });
+    }
+  });
+
+function refineCustomerSuiteDocument(
+  suite: {
+    cases: z.infer<typeof SuiteCaseSchema>[];
+    references?: Array<{ id: string }> | undefined;
+  },
+  context: z.RefinementCtx,
+  options: { readonly live: boolean }
+): void {
     const caseIds = new Map<string, number>();
     const criterionIds = new Map<string, string>();
     const referenceIds = new Set((suite.references ?? []).map((entry) => entry.id));
@@ -219,14 +249,113 @@ export const CustomerSuiteSchema = z
           });
         }
       }
+      if (options.live) {
+        if (suiteCase.turns.length !== 1) {
+          context.addIssue({
+            code: "custom",
+            message: "live informational cases must be exactly one turn",
+            path: ["cases", caseIndex, "turns"]
+          });
+        }
+        if ((suiteCase.repetitions ?? 1) !== 1) {
+          context.addIssue({
+            code: "custom",
+            message: "live informational cases admit one repetition",
+            path: ["cases", caseIndex, "repetitions"]
+          });
+        }
+        if ((suiteCase.observations?.length ?? 0) > 0) {
+          context.addIssue({
+            code: "custom",
+            message: "live informational cases cannot declare observations",
+            path: ["cases", caseIndex, "observations"]
+          });
+        }
+        for (const [criterionIndex, criterion] of suiteCase.criteria.entries()) {
+          if (criterion.kind !== "llm_rubric") {
+            context.addIssue({
+              code: "custom",
+              message: "live informational cases require response-only llm_rubric criteria",
+              path: ["cases", caseIndex, "criteria", criterionIndex, "kind"]
+            });
+          }
+        }
+      }
+    }
+}
+
+const LIVE_FORBIDDEN_CONTENT =
+  /prompt\s*injection|jailbreak|penetration\s*test|security\s*prob|exploit|ssn\b|social security|credit card|password dump|pii\b/iu;
+
+export const CustomerSuiteV1Schema = z
+  .object({
+    schemaVersion: z.literal(SUITE_SCHEMA_VERSION),
+    suiteId: identifier,
+    title: z.string().min(1).max(200),
+    description: z.string().min(1).max(4_000).optional(),
+    tags: tagsSchema.optional(),
+    syntheticOnly: z.literal(true).optional(),
+    references: z.array(SuiteReferenceSchema).max(MAX_SUITE_REFERENCE_ENTRIES).optional(),
+    cases: z.array(SuiteCaseSchema).min(1).max(MAX_SUITE_CASES)
+  })
+  .strict()
+  .superRefine((suite, context) => refineCustomerSuiteDocument(suite, context, { live: false }));
+
+export const CustomerSuiteV2Schema = z
+  .object({
+    schemaVersion: z.literal(SUITE_SCHEMA_VERSION_V2),
+    suiteId: identifier,
+    title: z.string().min(1).max(200),
+    description: z.string().min(1).max(4_000).optional(),
+    tags: tagsSchema.optional(),
+    syntheticOnly: z.literal(false),
+    liveTarget: LiveTargetContractSchema,
+    references: z.array(LiveSuiteReferenceSchema).max(MAX_SUITE_REFERENCE_ENTRIES).optional(),
+    cases: z.array(SuiteCaseSchema).min(1).max(LIVE_MAX_CASES)
+  })
+  .strict()
+  .superRefine((suite, context) => {
+    refineCustomerSuiteDocument(suite, context, { live: true });
+    const texts = [
+      suite.title,
+      suite.description ?? "",
+      ...suite.cases.flatMap((suiteCase) => [
+        suiteCase.name ?? "",
+        ...suiteCase.turns.map((turn) => turn.content),
+        ...suiteCase.expected.facts,
+        ...suiteCase.criteria.map((criterion) => criterion.statement)
+      ])
+    ];
+    if (texts.some((text) => LIVE_FORBIDDEN_CONTENT.test(text))) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "live informational suites cannot include prompt injection, security probing, transactions, or sensitive personal data",
+        path: ["cases"]
+      });
     }
   });
 
+export const CustomerSuiteSchema = z.discriminatedUnion("schemaVersion", [
+  CustomerSuiteV1Schema,
+  CustomerSuiteV2Schema
+]);
+
+export type CustomerSuiteV1 = z.infer<typeof CustomerSuiteV1Schema>;
+export type CustomerSuiteV2 = z.infer<typeof CustomerSuiteV2Schema>;
 export type CustomerSuite = z.infer<typeof CustomerSuiteSchema>;
 export type SuiteCase = z.infer<typeof SuiteCaseSchema>;
 export type SuiteCriterion = z.infer<typeof SuiteCriterionSchema>;
 export type SuiteReference = z.infer<typeof SuiteReferenceSchema>;
 export type SuiteObservation = z.infer<typeof SuiteObservationSchema>;
+
+export function isLiveCustomerSuite(suite: CustomerSuite): suite is CustomerSuiteV2 {
+  return suite.schemaVersion === SUITE_SCHEMA_VERSION_V2;
+}
+
+export function isSupportedSuiteSchemaVersion(version: string): boolean {
+  return (SUPPORTED_SUITE_SCHEMA_VERSIONS as readonly string[]).includes(version);
+}
 
 const AUTHORING_KEY_MAP: Readonly<Record<string, string>> = {
   schema_version: "schemaVersion",
@@ -237,7 +366,12 @@ const AUTHORING_KEY_MAP: Readonly<Record<string, string>> = {
   reference_ids: "referenceIds",
   pass_conditions: "passConditions",
   fail_conditions: "failConditions",
-  synthetic_only: "syntheticOnly"
+  synthetic_only: "syntheticOnly",
+  live_target: "liveTarget",
+  authorization_kind: "authorizationKind",
+  authorization_ref: "authorizationRef",
+  expires_at: "expiresAt",
+  max_messages: "maxMessages"
 };
 
 export function rewriteAuthoringKeys(value: unknown): unknown {

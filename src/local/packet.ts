@@ -12,8 +12,9 @@ import starterPacketJson from "../../packets/support-refunds-starter/0.1.0/packe
 import { AwError } from "../errors.js";
 import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { LIMITS } from "../util/limits.js";
-import { hostedSuiteUnsupportedLocalError } from "../suite/errors.js";
+import { hostedSuiteUnsupportedLocalError, livePacketUnsupportedLocalError } from "../suite/errors.js";
 import { looksLikeCustomerSuiteDocument, sourceLooksLikeCustomerSuite } from "../suite/schema.js";
+import { looksLikeLivePacketDocument } from "../suite/live-target.js";
 import { sha256Json } from "./canonical.js";
 import type {
   LocalJson,
@@ -250,6 +251,9 @@ export interface LoadLocalPacketOptions {
 export function parseLocalPacket(value: unknown): PacketManifest {
   if (looksLikeCustomerSuiteDocument(value)) {
     throw hostedSuiteUnsupportedLocalError("this file");
+  }
+  if (looksLikeLivePacketDocument(value)) {
+    throw livePacketUnsupportedLocalError("this file");
   }
   if (!isLocalJson(value)) {
     throw packetError(

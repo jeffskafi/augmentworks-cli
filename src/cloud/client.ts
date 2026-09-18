@@ -46,7 +46,8 @@ import {
 } from "../billing/validate.js";
 import { BILLING_PRIMARY_PATHS } from "../billing/protocol.js";
 import type { BillingCapabilities, BillingQuote, BillingRunStatus, BillingUsage } from "../billing/protocol.js";
-import { NativeSuiteSourceSchema, nativeSuiteContentHash } from "../suite/native.js";
+import { nativeSuiteContentHash, parseNativeSuiteCreateDocument } from "../suite/native.js";
+import { LIVE_ERROR_CODES, liveRecoveryCopy, type LiveErrorCode } from "../suite/live-target.js";
 import {
   SuiteCreateResponseSchema,
   SuiteRevisionReadSchema,
@@ -393,15 +394,25 @@ export class CloudClient {
     },
     signal?: AbortSignal
   ): Promise<SuiteCreateResponse> {
-    const validated = NativeSuiteSourceSchema.safeParse(request.document);
-    if (!validated.success || nativeSuiteContentHash(validated.data as Record<string, unknown>) !== request.contentHash) {
+    let validated: Record<string, unknown>;
+    try {
+      validated = parseNativeSuiteCreateDocument(request.document);
+    } catch (error) {
+      if (error instanceof AwError) throw error;
       throw new AwError({
         code: "INVALID_SUITE_REQUEST",
         category: "protocol",
-        message: "The customer suite create request does not match the hosted aw-customer-suite/1 source contract."
+        message: "The customer suite create request does not match the hosted aw-customer-suite/1 or aw-customer-suite/2 source contract."
       });
     }
-    const value = await this.#request("POST", "/v1/suites", validated.data, signal);
+    if (nativeSuiteContentHash(validated) !== request.contentHash) {
+      throw new AwError({
+        code: "INVALID_SUITE_REQUEST",
+        category: "protocol",
+        message: "The customer suite create request does not match the hosted aw-customer-suite/1 or aw-customer-suite/2 source contract."
+      });
+    }
+    const value = await this.#request("POST", "/v1/suites", validated, signal);
     return parseResponse(
       SuiteCreateResponseSchema,
       normalizeSuiteIdentity(value),
@@ -1048,7 +1059,6 @@ function cloudHttpError(
     featureError === undefined
       ? safeServerError(value)
       : { code: featureError.code, message: featureError.message };
-  const category = status === 401 || status === 403 ? "auth" : status === 409 || status === 410 ? "protocol" : "relay";
   const code =
     serverError?.code ??
     (status === 401 || status === 403
@@ -1058,13 +1068,22 @@ function cloudHttpError(
         : status === 410
           ? "COMMAND_EXPIRED"
           : "CLOUD_REQUEST_FAILED");
+  const liveCode = isLiveErrorCode(code);
+  const category = liveCode
+    ? "config"
+    : status === 401 || status === 403
+      ? "auth"
+      : status === 409 || status === 410
+        ? "protocol"
+        : "relay";
   const setupUrl = serverError?.setupUrl;
   const disclosureMissing = isDisclosureError(code);
-  const message =
+  const rawMessage =
     serverError?.message ??
     (category === "auth"
       ? "AugmentWorks rejected the connector credential."
       : "The AugmentWorks relay rejected the request.");
+  const message = liveCode ? liveRecoveryCopy(code, rawMessage) : rawMessage;
   const disclosureSuffix = disclosureMissing
     ? setupUrl === undefined
       ? " Complete the authenticated judging disclosure, then re-run the same test command. Target work was not started."
@@ -1091,6 +1110,10 @@ function cloudHttpError(
     retryable: status === 408 || status === 429 || status >= 500,
     details
   });
+}
+
+function isLiveErrorCode(code: string): code is LiveErrorCode {
+  return (LIVE_ERROR_CODES as readonly string[]).includes(code);
 }
 
 function isDisclosureError(code: string): boolean {

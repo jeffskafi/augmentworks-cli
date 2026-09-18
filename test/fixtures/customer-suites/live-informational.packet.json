@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "aw-packet/live-informational-1",
+  "syntheticOnly": false,
+  "liveTarget": {
+    "schemaVersion": "aw-live-target/1",
+    "mode": "informational",
+    "origin": "https://support.example.com",
+    "authorizationKind": "owned_target",
+    "authorizationRef": "fixture-pilot-approval",
+    "expiresAt": "2099-12-31T23:59:59Z",
+    "maxMessages": 3
+  }
+}

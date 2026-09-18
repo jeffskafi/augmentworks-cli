@@ -31,3 +31,10 @@ export function hostedSuiteUnsupportedLocalError(path: string): AwError {
     `Local deterministic execution cannot run customer-owned hosted suites (${path}). Validate and preview with \`augmentworks suite validate\` / \`suite preview\`, or run hosted with \`augmentworks test --suite\`.`
   );
 }
+
+export function livePacketUnsupportedLocalError(path: string): AwError {
+  return suiteError(
+    "LIVE_PACKET_UNSUPPORTED_LOCAL",
+    `Local mode cannot execute a live informational packet (${path}). Validate and preflight offline with \`augmentworks suite validate\` / \`suite preflight\`, then run hosted with \`augmentworks test --suite\`. Do not relabel the target as synthetic.`
+  );
+}

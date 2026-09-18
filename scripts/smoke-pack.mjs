@@ -956,6 +956,37 @@ async function main() {
       );
     }
 
+    process.stdout.write("[pack smoke] checking offline live-informational preflight from source fixture\n");
+    assert(suiteHelp.stdout.includes("preflight"), "packed CLI is missing suite preflight");
+    const liveFixture = join(projectRoot, "test", "fixtures", "customer-suites", "live-informational.yaml");
+    const liveValidate = execCli(["suite", "validate", liveFixture, "--json"], {
+      env: {
+        AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+        AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+      }
+    });
+    const liveValidateReport = JSON.parse(liveValidate.stdout);
+    assert(liveValidateReport.ok === true, "source live-informational suite validate failed");
+    assert(liveValidateReport.schemaVersion === "aw-suite/2", "live fixture schema was not aw-suite/2");
+    assert(liveValidateReport.syntheticOnly === false, "live fixture was marked synthetic_only");
+    const livePreflight = execCli(["suite", "preflight", liveFixture, "--json"], {
+      env: {
+        AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+        AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used",
+        AUGMENTWORKS_QA_WORKSPACE_ID: "ws_pack_smoke_live"
+      }
+    });
+    const livePreflightReport = JSON.parse(livePreflight.stdout);
+    assert(livePreflightReport.ok === true, "source live-informational suite preflight failed");
+    assert(livePreflightReport.buysCredits === false, "live preflight bought credits");
+    assert(livePreflightReport.localPreview?.executesTarget === false, "live preflight executed a target");
+    assert(livePreflightReport.overlay === "aw-packet/live-informational-1", "live preflight omitted the packet overlay");
+    assert(livePreflightReport.liveTarget?.origin === "https://support.example.com", "live preflight omitted the approved origin");
+    assert(
+      !livePreflight.stdout.includes("poison-hosted-token-must-not-be-used"),
+      "hosted credential leaked into live preflight stdout"
+    );
+
     process.stdout.write("[pack smoke] checking offline investigation inspect from packed CLI\n");
     const packedInvestigations = join(installedRoot, "assets", "investigations");
     for (const sample of ["response-only.json", "stateful.json"]) {

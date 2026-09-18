@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const RUN_REPORT_SCHEMA_VERSION = "aw-run-report/1" as const;
 export const RUN_REPORT_EXPORT_SCHEMA_VERSION = "aw-run-report-export/1" as const;
+export const RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION = "aw-run-report-live-scope/1" as const;
+export const LIVE_INFORMATIONAL_REPORT_SCOPE = "live-informational" as const;
 export const CRITERION_DETAIL_SCHEMA_VERSION = "aw-criterion-detail-read/1" as const;
 
 export const REPORT_PATH_TEMPLATE = "/v1/relay/runs/{runId}/report";
@@ -275,6 +277,53 @@ export type ExportDiagnostic = z.infer<typeof ExportDiagnosticSchema>;
 export type RunReportExport = z.infer<typeof RunReportExportSchema>;
 export type ReportErrorEnvelope = z.infer<typeof ReportErrorSchema>;
 
+export const LiveInformationalReportSchema = z
+  .object({
+    schemaVersion: z.literal(RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION),
+    runId: identifier,
+    workspaceId: identifier,
+    asOf: timestamp,
+    executionMode: z.literal("informational"),
+    assessmentKind: z.literal("bounded_informational_assessment"),
+    approvedOrigin: z.string().min(8).max(2_048),
+    authorizationKind: z.enum(["owned_target", "written_permission"]),
+    authorizationRef: z.string().min(1).max(200),
+    authorizationHash: sha256,
+    liveTargetHash: sha256,
+    suiteId: identifier,
+    suiteRevisionId: identifier,
+    suiteContentHash: sha256,
+    packetOverlay: z.literal("aw-packet/live-informational-1"),
+    packetHash: sha256.nullable(),
+    allowedMessages: z.number().int().min(1).max(3),
+    dispatchedMessages: z.number().int().min(0).max(3),
+    indeterminateSends: z.number().int().min(0).max(3),
+    completedSends: z.number().int().min(0).max(3),
+    expiresAt: z.string().min(1).max(64),
+    createsBillableRun: z.literal(false)
+  })
+  .strict();
+
+export const LiveInformationalReportErrorSchema = z
+  .object({
+    schemaVersion: z.literal(RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION),
+    error: z
+      .object({
+        code: z.string().min(1).max(80),
+        message: z.string().min(1).max(500),
+        retryable: z.boolean()
+      })
+      .strict()
+  })
+  .strict();
+
+export type LiveInformationalReport = z.infer<typeof LiveInformationalReportSchema>;
+export type LiveInformationalReportError = z.infer<typeof LiveInformationalReportErrorSchema>;
+
 export function reportPath(runId: string): string {
   return `/v1/relay/runs/${encodeURIComponent(runId)}/report`;
+}
+
+export function liveInformationalReportPath(runId: string): string {
+  return `${reportPath(runId)}?scope=${LIVE_INFORMATIONAL_REPORT_SCOPE}`;
 }
