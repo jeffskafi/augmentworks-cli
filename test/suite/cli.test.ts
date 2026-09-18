@@ -17,7 +17,7 @@ describe("suite CLI", () => {
     expect(help.stdout).toContain("validate");
     expect(help.stdout).toContain("preview");
     expect(help.stdout).toContain("preflight");
-    expect(help.stdout).toMatch(/without calling a target\s+or an LLM/);
+    expect(help.stdout).toMatch(/without\s+calling a target\s+or an LLM/);
     expect(help.stdout).not.toContain("http://");
   });
 
