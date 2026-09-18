@@ -17,6 +17,18 @@ export function formatSuitePreview(preview: SuitePreview): string {
     `  projected_turns: ${String(preview.projectedTurnCount)}`,
     `  requires_multi_turn: ${yn(preview.requiresMultiTurn)} (target conversation.strategy must be explicit_session_v1 at run time; this preview does not advertise multi_turn)`,
     `  evaluation_mode: ${preview.evaluationMode}`,
+    `  synthetic_only: ${yn(preview.syntheticOnly)}`,
+    ...(preview.liveTarget === null
+      ? []
+      : [
+          `  live_mode: ${preview.liveTarget.mode}`,
+          `  approved_origin: ${preview.liveTarget.origin}`,
+          `  authorization_kind: ${preview.liveTarget.authorizationKind}`,
+          `  authorization_ref: ${preview.liveTarget.authorizationRef}`,
+          `  expires_at: ${preview.liveTarget.expiresAt}`,
+          `  permitted_messages: ${String(preview.liveTarget.maxMessages)}`,
+          `  packet: ${preview.packet.key}@${preview.packet.version}`
+        ]),
     `  tags: ${preview.tags.length > 0 ? preview.tags.join(", ") : "(none)"}`,
     `  references: ${String(preview.references.length)}`,
     `  supported_deterministic_observations: ${preview.supportedDeterministicObservations.join(", ")}`,
@@ -86,6 +98,13 @@ export function formatSuiteValidate(preview: SuitePreview): string {
     `  content_hash: ${preview.contentHash}`,
     `  projected_attempts: ${String(preview.projectedAttemptCount)}`,
     `  projected_turns: ${String(preview.projectedTurnCount)}`,
+    ...(preview.liveTarget === null
+      ? []
+      : [
+          `  approved_origin: ${preview.liveTarget.origin}`,
+          `  expires_at: ${preview.liveTarget.expiresAt}`,
+          `  permitted_messages: ${String(preview.liveTarget.maxMessages)}`
+        ]),
     "  Local preview is not an authoritative price and does not execute a target or an LLM."
   ].join("\n");
 }

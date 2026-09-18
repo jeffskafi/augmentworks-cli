@@ -11,14 +11,17 @@ import { AwError } from "../errors.js";
 import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { canonicalize, sha256 } from "../util/canonical.js";
 import { suiteError } from "./errors.js";
+import { canonicalLiveTarget } from "./live-target.js";
 import {
   CustomerSuiteSchema,
   MAX_SUITE_FILE_BYTES,
   MAX_SUITE_REFERENCE_BYTES_TOTAL,
   customerSuiteSchemaVersion,
+  isSupportedSuiteSchemaVersion,
   policyWindowContradiction,
   rewriteAuthoringKeys,
   SUITE_SCHEMA_VERSION,
+  SUITE_SCHEMA_VERSION_V2,
   type CustomerSuite,
   type SuiteReference
 } from "./schema.js";
@@ -300,6 +303,7 @@ function canonicalSuiteDocument(
     ...(document.description === undefined ? {} : { description: document.description }),
     ...(document.tags === undefined ? {} : { tags: document.tags }),
     ...(document.syntheticOnly === undefined ? {} : { syntheticOnly: document.syntheticOnly }),
+    ...("liveTarget" in document ? { liveTarget: canonicalLiveTarget(document.liveTarget) } : {}),
     cases: document.cases,
     references: references.map((reference) => ({
       id: reference.id,
@@ -320,6 +324,13 @@ function classifySchemaFailure(issues: readonly z.ZodIssue[]): string {
   if (issues.some((issue) => /unsupported deterministic observation/i.test(issue.message))) {
     return "SUITE_UNSUPPORTED_FEATURE";
   }
+  if (
+    issues.some((issue) =>
+      /live informational|canonical HTTPS origin|live origin|one turn|one repetition/i.test(issue.message)
+    )
+  ) {
+    return "LIVE_TARGET_SCOPE_MISMATCH";
+  }
   return "SUITE_INVALID_FIELD";
 }
 
@@ -335,21 +346,21 @@ export async function loadCustomerSuiteFile(filePath: string, cwd = process.cwd(
   if (version === "aw-assessment-file/1") {
     throw suiteError(
       "SUITE_ASSESSMENT_FILE",
-      "This file is an aw-assessment-file/1 assessment, not a customer suite. Use --assessment, or author an aw-suite/1 file.",
+      "This file is an aw-assessment-file/1 assessment, not a customer suite. Use --assessment, or author an aw-suite/1 or aw-suite/2 file.",
       { path: absolute }
     );
   }
   if (typeof version === "string" && version.startsWith("aw-packet/")) {
     throw suiteError(
       "SUITE_PACKET_FILE",
-      "This file is a local packet, not a customer suite. Use test --local --packet, or author an aw-suite/1 file.",
+      "This file is a local packet, not a customer suite. Use test --local --packet, or author an aw-suite/1 or aw-suite/2 file.",
       { path: absolute }
     );
   }
-  if (typeof version === "string" && version !== SUITE_SCHEMA_VERSION) {
+  if (typeof version === "string" && !isSupportedSuiteSchemaVersion(version)) {
     throw suiteError(
       "SUITE_UNSUPPORTED_SCHEMA",
-      `Unsupported schema version "${version}". This CLI admits ${SUITE_SCHEMA_VERSION} only.`,
+      `Unsupported schema version "${version}". This CLI admits ${SUITE_SCHEMA_VERSION} and ${SUITE_SCHEMA_VERSION_V2} only.`,
       {
         path: absolute,
         ...(firstLineOf(text, "schema_version") === undefined && firstLineOf(text, "schemaVersion") === undefined
@@ -361,7 +372,7 @@ export async function loadCustomerSuiteFile(filePath: string, cwd = process.cwd(
   if (UNSUPPORTED_FEATURE.test(text)) {
     throw suiteError(
       "SUITE_UNSUPPORTED_FEATURE",
-      "Unsupported hosted suite feature (executable script, history_array_v1, or similar). aw-suite/1 admits YAML/JSON cases, references, tags, criteria, and deterministic observations only.",
+      "Unsupported hosted suite feature (executable script, history_array_v1, or similar). Customer suites admit YAML/JSON cases, references, tags, criteria, and (for aw-suite/1) deterministic observations only.",
       { path: absolute }
     );
   }

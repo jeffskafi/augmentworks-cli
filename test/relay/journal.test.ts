@@ -194,4 +194,28 @@ describe("RelayJournal", () => {
     await recovered.close({ purge: true });
     await expect(lstat(path)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("counts started sends, including indeterminate outcomes, toward the live dispatch cap", async () => {
+    const journal = await new RelayJournal({
+      runId: "run-1",
+      stateDirectory: await temporaryDirectory()
+    }).open();
+    const first = relayCommand("send");
+    await journal.accept(first);
+    expect(journal.dispatchedSendCount()).toBe(0);
+    await journal.markStarted(first.command_id);
+    expect(journal.dispatchedSendCount()).toBe(1);
+    await journal.recordFailure(
+      first.command_id,
+      { code: "OUTCOME_INDETERMINATE", safe_message: "timeout after dispatch", retryable: false },
+      "outcome_indeterminate"
+    );
+    expect(journal.dispatchedSendCount()).toBe(1);
+    await journal.acknowledge(first.command_id);
+    const second = relayCommand("observe", { command_id: "command-observe-2", sequence: 2 });
+    await journal.accept(second);
+    await journal.markStarted(second.command_id);
+    expect(journal.dispatchedSendCount()).toBe(1);
+    await journal.close();
+  });
 });

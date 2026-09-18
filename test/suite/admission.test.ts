@@ -405,4 +405,138 @@ describe("hosted customer suite admission", () => {
     ).rejects.toMatchObject({ code: "CONVERSATION_CAPABILITY_INCOMPATIBLE" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("matches the approved live origin before quoting and rejects a wrong origin with zero suite HTTP", async () => {
+    const cwd = await projectDir();
+    const liveSource = await readFile(
+      resolve(projectRoot, "test/fixtures/customer-suites/live-informational.yaml"),
+      "utf8"
+    );
+    await writeFile(resolve(cwd, "live-informational.yaml"), liveSource, "utf8");
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      throw new Error(`unexpected ${String(input)}`);
+    });
+    const wrong = resolveConfig(
+      {
+        version: 1,
+        target: {
+          name: "live",
+          connector: "http",
+          base_url: "https://other.example.com",
+          operations: {
+            send: {
+              method: "POST",
+              path: "/chat",
+              request: { message: "$input.message.content" },
+              response: { content: "$.answer" }
+            }
+          }
+        }
+      },
+      "/tmp/augmentworks.yaml",
+      "/tmp",
+      {}
+    );
+    await expect(
+      runEstimate(
+        {
+          cwd,
+          suite: "live-informational.yaml",
+          env: { AUGMENTWORKS_API_URL: "http://127.0.0.1:8787" }
+        },
+        {
+          doctor: async () => {
+            if (wrong.resolvedConfig === undefined) {
+              throw new Error("expected wrong-origin config to resolve");
+            }
+            return {
+              ok: true as const,
+              configPath: "/tmp/augmentworks.yaml",
+              offline: true as const,
+              diagnostics: [],
+              resolvedConfig: wrong.resolvedConfig
+            };
+          },
+          accessToken: async () => "token",
+          identity: async () => identity(),
+          cloud: hostedCloud(fetchMock)
+        }
+      )
+    ).rejects.toMatchObject({ code: "LIVE_TARGET_SCOPE_MISMATCH" });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const approved = resolveConfig(
+      {
+        version: 1,
+        target: {
+          name: "live",
+          connector: "http",
+          base_url: "https://support.example.com",
+          operations: {
+            send: {
+              method: "POST",
+              path: "/chat",
+              request: { message: "$input.message.content" },
+              response: { content: "$.answer" }
+            }
+          }
+        }
+      },
+      "/tmp/augmentworks.yaml",
+      "/tmp",
+      {}
+    );
+    const loaded = await loadCustomerSuiteFile("live-informational.yaml", cwd);
+    const liveBodies: Array<Record<string, unknown>> = [];
+    const liveFetch = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      const body = init?.body === undefined ? undefined : (JSON.parse(String(init.body)) as Record<string, unknown>);
+      if (url.pathname === "/v1/suites") {
+        liveBodies.push(body ?? {});
+        return Response.json({
+          suiteId: loaded.document.suiteId,
+          suiteRevisionId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          canonicalHash: nativeSuiteContentHash(nativeSuiteSource(loaded)),
+          schemaVersion: "aw-customer-suite/2"
+        });
+      }
+      if (url.pathname === "/v1/billing/capabilities") {
+        return Response.json(fixtures.fixtures["eligible_trial"]?.response);
+      }
+      if (url.pathname === "/v1/billing/quote") {
+        return Response.json(fixtures.fixtures["quote_success_with_balance"]?.response);
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const estimate = await runEstimate(
+      {
+        cwd,
+        suite: "live-informational.yaml",
+        env: { AUGMENTWORKS_API_URL: "http://127.0.0.1:8787" }
+      },
+        {
+          doctor: async () => {
+            if (approved.resolvedConfig === undefined) {
+              throw new Error("expected approved origin config to resolve");
+            }
+            return {
+              ok: true as const,
+              configPath: "/tmp/augmentworks.yaml",
+              offline: true as const,
+              diagnostics: [],
+              resolvedConfig: approved.resolvedConfig
+            };
+          },
+        accessToken: async () => "token",
+        identity: async () => identity(),
+        cloud: hostedCloud(liveFetch)
+      }
+    );
+    expect(liveBodies[0]).toMatchObject({
+      schemaVersion: "aw-customer-suite/2",
+      syntheticOnly: false,
+      packetOverlay: "aw-packet/live-informational-1"
+    });
+    expect(estimate.quote.executionUnits).toBeGreaterThan(0);
+  });
 });

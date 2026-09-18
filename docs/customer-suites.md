@@ -6,6 +6,12 @@ quote, never execute a target, and never call an LLM. A hosted
 `test --suite` pins an immutable server revision, then uses the existing
 quote / `--max-credits` / `--yes` consent path.
 
+This package also admits versioned `aw-suite/2` live-informational files for
+offline validate/preview/preflight and hosted quote checks. Submitting an
+`aw-suite/2` file does **not** authorize a live origin. Server admission stays
+fail-closed behind `AUGMENTWORKS_LIVE_TARGET_PILOT_ALLOWLIST`. Do not relabel a
+live target as synthetic.
+
 The command exists in this `0.3.7` package. Native hosted
 `aw-customer-suite/1` upload translation is source on this revision and is
 not in immutable registry `0.3.6`. From this clone after `npm ci` and
@@ -19,6 +25,7 @@ registry `0.3.6` contains the upload translation.
 node dist/index.js suite validate examples/customer-suites/faq-non-commerce.yaml
 node dist/index.js suite preview examples/customer-suites/returns-14-day.yaml
 node dist/index.js suite preview examples/customer-suites/faq-non-commerce.yaml --json
+node dist/index.js suite preflight test/fixtures/customer-suites/live-informational.yaml
 node dist/index.js schema --kind customer-suite
 node dist/index.js test --suite examples/customer-suites/faq-non-commerce.yaml --estimate
 node dist/index.js test --suite examples/customer-suites/faq-non-commerce.yaml --max-credits 30 --yes
@@ -54,6 +61,9 @@ or raise limits silently.
 
 YAML or JSON. Snake_case keys (`schema_version`, `suite_id`, `case_id`) are
 rewritten to the camelCase canonical document (`schemaVersion: aw-suite/1`).
+`aw-suite/2` additionally requires `synthetic_only: false` and a complete
+`aw-live-target/1` contract (exact canonical HTTPS origin, authorization
+reference, expiry, and `max_messages` 1–3). Live cases are single-turn only.
 Unsupported schema versions, duplicate case IDs, missing references,
 credential-like keys, executable scripts, and `history_array_v1` fail
 **before** any network call.
@@ -93,7 +103,7 @@ Packed installs include the same files under `assets/customer-suites/`.
 | Capability | Local `test --local --packet` | Hosted `test --suite` |
 | --- | --- | --- |
 | Format | `aw-packet/0.1` JSON | `aw-suite/1` YAML/JSON |
-| Offline validate/preview | Packet parse only | `suite validate` / `suite preview` |
+| Offline validate/preview/preflight | Packet parse only | `suite validate` / `suite preview` / `suite preflight` |
 | LLM rubric / hybrid | Rejected (`UNSUPPORTED_LOCAL_GRADER`) | Quoted hosted judging |
 | Customer-owned cases | Private deterministic packet | Immutable suite revision |
 | Quote / `--max-credits` | Not used | Required for admission |

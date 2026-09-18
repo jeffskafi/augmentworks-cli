@@ -321,6 +321,14 @@ export class RelayJournal {
     return [...outstanding];
   }
 
+  dispatchedSendCount(): number {
+    let count = 0;
+    for (const state of this.#states.values()) {
+      if (state.accepted.kind === "send" && state.started) count += 1;
+    }
+    return count;
+  }
+
   async accept(command: RelayCommand): Promise<JournalCommandState> {
     this.#assertOpen();
     const requestSha256 = sha256(canonicalize(command));

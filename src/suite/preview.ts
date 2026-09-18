@@ -1,5 +1,6 @@
 import {
   SUPPORTED_DETERMINISTIC_OBSERVATIONS,
+  isLiveCustomerSuite,
   projectedAttemptCount,
   projectedTurnCount,
   suiteEvaluationMode,
@@ -7,6 +8,7 @@ import {
   type CustomerSuite,
   type SuiteCase
 } from "./schema.js";
+import { suitePacketBinding } from "./admit.js";
 import type { LoadedCustomerSuite } from "./load.js";
 
 export type SuiteCasePreview = {
@@ -38,6 +40,17 @@ export type SuitePreview = {
   readonly requiresMultiTurn: boolean;
   readonly evaluationMode: "deterministic" | "hybrid";
   readonly tags: readonly string[];
+  readonly syntheticOnly: boolean;
+  readonly liveTarget: {
+    readonly schemaVersion: string;
+    readonly mode: "informational";
+    readonly origin: string;
+    readonly authorizationKind: string;
+    readonly authorizationRef: string;
+    readonly expiresAt: string;
+    readonly maxMessages: number;
+  } | null;
+  readonly packet: { readonly key: string; readonly version: string };
   readonly references: ReadonlyArray<{
     readonly id: string;
     readonly kind: string;
@@ -77,6 +90,7 @@ function previewCase(suiteCase: SuiteCase): SuiteCasePreview {
 
 export function previewCustomerSuite(loaded: LoadedCustomerSuite): SuitePreview {
   const document: CustomerSuite = loaded.document;
+  const live = isLiveCustomerSuite(document);
   return {
     schemaVersion: document.schemaVersion,
     suiteId: document.suiteId,
@@ -89,6 +103,19 @@ export function previewCustomerSuite(loaded: LoadedCustomerSuite): SuitePreview 
     requiresMultiTurn: suiteRequiresMultiTurn(document),
     evaluationMode: suiteEvaluationMode(document),
     tags: document.tags ?? [],
+    syntheticOnly: !live,
+    liveTarget: live
+      ? {
+          schemaVersion: document.liveTarget.schemaVersion,
+          mode: document.liveTarget.mode,
+          origin: document.liveTarget.origin,
+          authorizationKind: document.liveTarget.authorizationKind,
+          authorizationRef: document.liveTarget.authorizationRef,
+          expiresAt: document.liveTarget.expiresAt,
+          maxMessages: document.liveTarget.maxMessages
+        }
+      : null,
+    packet: suitePacketBinding(loaded),
     references: loaded.references.map((reference) => ({
       id: reference.id,
       kind: reference.kind,

@@ -1,0 +1,25 @@
+schema_version: aw-suite/2
+suite_id: live.informational.multi-turn
+title: Live extra turns
+synthetic_only: false
+live_target:
+  schema_version: aw-live-target/1
+  mode: informational
+  origin: https://support.example.com
+  authorization_kind: owned_target
+  authorization_ref: fixture-pilot-approval
+  expires_at: "2099-12-31T23:59:59Z"
+  max_messages: 3
+cases:
+  - case_id: live.extra.turns
+    turns:
+      - content: What are your weekday support hours?
+      - content: Can you also list the starter plan price?
+    expected:
+      facts:
+        - Weekday support hours are 9:00-17:00 UTC.
+    criteria:
+      - criterion_id: live.extra.turns.required
+        requirement: required
+        kind: llm_rubric
+        statement: Live cases must stay single-turn.

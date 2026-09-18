@@ -1,5 +1,5 @@
 import { AwError } from "../errors.js";
-import { CustomerSuiteSchema, type CustomerSuite } from "../suite/schema.js";
+import { CustomerSuiteV1Schema, type CustomerSuite } from "../suite/schema.js";
 import { suiteCreateFields, type SuiteRevisionPin } from "../suite/admit.js";
 import type { LoadedCustomerSuite, LoadedSuiteReference } from "../suite/load.js";
 import { sha256 } from "../util/canonical.js";
@@ -54,7 +54,7 @@ function loadedReferences(document: CustomerSuite): LoadedSuiteReference[] {
 
 export function parsePinnedSuiteDocument(value: unknown): CustomerSuite {
   const rewritten = stripReferenceHash(value);
-  const parsed = CustomerSuiteSchema.safeParse(rewritten);
+  const parsed = CustomerSuiteV1Schema.safeParse(rewritten);
   if (!parsed.success) {
     throw investigationError(
       "PINNED_REVISION_INVALID",

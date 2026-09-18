@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Coordinated live-informational CLI contract for [AUG-112](https://linear.app/augmentworks/issue/AUG-112/maincli-add-authorized-live-informational-assessments-with-truthful)
+  / [AUG-124](https://linear.app/augmentworks/issue/AUG-124/cli-land-the-missing-aug-112-live-informational-client-handoff).
+  `suite validate` / `preview` / `preflight` admit `aw-suite/2` and
+  `aw-customer-suite/2` offline. Exact approved HTTPS origin, expiry,
+  send-only operations, and the dispatched-message cap are enforced before
+  quote and send. Live packets are rejected in `--local`. `run report --scope
+  live-informational` requests `aw-run-report-live-scope/1` without mutating
+  synthetic `aw-run-report/1`. Source merge does not enable a production
+  allowlist, publish the CLI, or authorize any third-party origin.
+  Synthetic `aw-suite/1` hashes and packets stay frozen.
+
 ## [0.3.7] - 2026-09-17
 
 Published-line package for native customer-suite upload translation, saved-suite

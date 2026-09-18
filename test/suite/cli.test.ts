@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTestCommand } from "../../src/commands/test.js";
 import { EXIT } from "../../src/errors.js";
-import { SOURCE_SUITE_PREVIEW_COMMAND, SOURCE_SUITE_VALIDATE_COMMAND } from "../../src/release.js";
+import { SOURCE_SUITE_PREFLIGHT_COMMAND, SOURCE_SUITE_PREVIEW_COMMAND, SOURCE_SUITE_VALIDATE_COMMAND } from "../../src/release.js";
 import { runSourceCli } from "../util/cli-process.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -16,7 +16,8 @@ describe("suite CLI", () => {
     expect(help.exitCode).toBe(0);
     expect(help.stdout).toContain("validate");
     expect(help.stdout).toContain("preview");
-    expect(help.stdout).toMatch(/without calling a target\s+or an LLM/);
+    expect(help.stdout).toContain("preflight");
+    expect(help.stdout).toMatch(/without\s+calling a target\s+or an LLM/);
     expect(help.stdout).not.toContain("http://");
   });
 
@@ -124,6 +125,32 @@ describe("suite CLI", () => {
   it("documents source suite commands without unpublished npx", () => {
     expect(SOURCE_SUITE_VALIDATE_COMMAND).toContain("node dist/index.js");
     expect(SOURCE_SUITE_PREVIEW_COMMAND).toContain("node dist/index.js");
+    expect(SOURCE_SUITE_PREFLIGHT_COMMAND).toContain("live-informational.yaml");
     expect(SOURCE_SUITE_VALIDATE_COMMAND).not.toContain("@0.3.3");
+  });
+
+  it("validates the live-informational fixture and still rejects aw-suite/3", async () => {
+    const live = await runSourceCli(
+      ["suite", "validate", "test/fixtures/customer-suites/live-informational.yaml", "--json"],
+      {
+        cwd: projectRoot,
+        env: {
+          AUGMENTWORKS_API_URL: "http://127.0.0.1:1",
+          AUGMENTWORKS_TOKEN: "poison-hosted-token-must-not-be-used"
+        }
+      }
+    );
+    expect(live.exitCode).toBe(0);
+    const payload = JSON.parse(live.stdout) as { schemaVersion: string; syntheticOnly: boolean };
+    expect(payload.schemaVersion).toBe("aw-suite/2");
+    expect(payload.syntheticOnly).toBe(false);
+
+    const preflight = await runSourceCli(
+      ["suite", "preflight", "test/fixtures/customer-suites/live-informational.yaml"],
+      { cwd: projectRoot }
+    );
+    expect(preflight.exitCode).toBe(0);
+    expect(preflight.stdout).toContain("zero target messages, zero credits");
+    expect(preflight.stdout).toContain("buys_credits: no");
   });
 });

@@ -2,39 +2,105 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "schemas/v1/customer-suite.schema.json",
   "title": "AugmentWorks customer-owned hosted suite",
-  "description": "Authoring schema for aw-suite/1 YAML or JSON files. Snake_case keys are rewritten to the camelCase canonical document before validation. Local preview is not a price and does not execute a target or an LLM.",
+  "description": "Authoring schema for aw-suite/1 and aw-suite/2 YAML or JSON files. Snake_case keys are rewritten to the camelCase canonical document before validation. Local preview and preflight are not a price and do not execute a target or an LLM. aw-suite/2 does not authorize a live origin by itself.",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["schema_version", "suite_id", "title", "cases"],
-  "properties": {
-    "schema_version": { "const": "aw-suite/1" },
-    "suite_id": { "$ref": "#/$defs/identifier" },
-    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
-    "description": { "type": "string", "minLength": 1, "maxLength": 4000 },
-    "tags": {
-      "type": "array",
-      "maxItems": 16,
-      "items": { "$ref": "#/$defs/identifier" }
+  "oneOf": [
+    {
+      "title": "aw-suite/1 synthetic",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "suite_id", "title", "cases"],
+      "properties": {
+        "schema_version": { "const": "aw-suite/1" },
+        "suite_id": { "$ref": "#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "synthetic_only": { "const": true },
+        "references": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/case" }
+        }
+      }
     },
-    "synthetic_only": { "const": true },
-    "references": {
-      "type": "array",
-      "maxItems": 16,
-      "items": { "$ref": "#/$defs/reference" }
-    },
-    "cases": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 20,
-      "items": { "$ref": "#/$defs/case" }
+    {
+      "title": "aw-suite/2 live informational",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "suite_id", "title", "synthetic_only", "live_target", "cases"],
+      "properties": {
+        "schema_version": { "const": "aw-suite/2" },
+        "suite_id": { "$ref": "#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "synthetic_only": { "const": false },
+        "live_target": { "$ref": "#/$defs/live_target" },
+        "references": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/live_reference" }
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/live_case" }
+        }
+      }
     }
-  },
+  ],
   "$defs": {
     "identifier": {
       "type": "string",
       "minLength": 1,
       "maxLength": 300,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "live_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "mode",
+        "origin",
+        "authorization_kind",
+        "authorization_ref",
+        "expires_at",
+        "max_messages"
+      ],
+      "properties": {
+        "schema_version": { "const": "aw-live-target/1" },
+        "mode": { "const": "informational" },
+        "origin": { "type": "string", "minLength": 8, "maxLength": 2048 },
+        "authorization_kind": { "type": "string", "enum": ["owned_target", "written_permission"] },
+        "authorization_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        },
+        "max_messages": { "type": "integer", "minimum": 1, "maximum": 3 }
+      }
     },
     "reference": {
       "type": "object",
@@ -50,6 +116,30 @@
             "reference_facts",
             "allowed_escalation_route",
             "synthetic_fixture_facts"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*\\.(?:md|txt)$"
+        },
+        "content": { "type": "string", "maxLength": 16000 }
+      }
+    },
+    "live_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "approved_policy",
+            "reference_answer",
+            "reference_facts",
+            "allowed_escalation_route"
           ]
         },
         "path": {
@@ -131,6 +221,58 @@
         }
       }
     },
+    "live_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "turns", "expected", "criteria"],
+      "properties": {
+        "case_id": { "$ref": "#/$defs/identifier" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["content"],
+            "properties": {
+              "content": { "type": "string", "minLength": 1, "maxLength": 8000 }
+            }
+          }
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["facts"],
+          "properties": {
+            "facts": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+            },
+            "permitted_refusal": { "type": "boolean" }
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/live_criterion" }
+        },
+        "repetitions": { "const": 1 },
+        "reference_ids": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
     "criterion": {
       "type": "object",
       "additionalProperties": false,
@@ -139,6 +281,32 @@
         "criterion_id": { "$ref": "#/$defs/identifier" },
         "requirement": { "type": "string", "enum": ["required", "advisory"] },
         "kind": { "type": "string", "enum": ["llm_rubric", "deterministic"] },
+        "statement": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "reference_ids": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "pass_conditions": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "fail_conditions": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "live_criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "requirement", "kind", "statement"],
+      "properties": {
+        "criterion_id": { "$ref": "#/$defs/identifier" },
+        "requirement": { "type": "string", "enum": ["required", "advisory"] },
+        "kind": { "const": "llm_rubric" },
         "statement": { "type": "string", "minLength": 1, "maxLength": 4000 },
         "reference_ids": {
           "type": "array",

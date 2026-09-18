@@ -260,6 +260,11 @@ export const SOURCE_SUITE_PREVIEW_COMMAND = formatSourceCli([
   "preview",
   "examples/customer-suites/returns-14-day.yaml"
 ]);
+export const SOURCE_SUITE_PREFLIGHT_COMMAND = formatSourceCli([
+  "suite",
+  "preflight",
+  "test/fixtures/customer-suites/live-informational.yaml"
+]);
 export const SOURCE_SUITE_TEST_COMMAND = formatWrappedCommand("node dist/index.js", "test", [
   "--suite examples/customer-suites/faq-non-commerce.yaml",
   "--max-credits 30",

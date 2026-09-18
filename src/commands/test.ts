@@ -87,6 +87,7 @@ import {
 } from "./local-test.js";
 import { compileHostedSelection } from "./selection.js";
 import { nativeSuiteContentHash, nativeSuiteSource } from "../suite/native.js";
+import { assertLiveSuiteReadyForQuote, liveExecutionPolicyFromSuite } from "../suite/live-policy.js";
 import { formatSelectionHuman } from "../selection/format.js";
 import { compileRequestFromAssessment, isSavedSuiteSelection, selectionAdvertisementFromResolved } from "../selection/request.js";
 import { loadSuiteSelectionManifest } from "../selection/load.js";
@@ -412,13 +413,16 @@ async function executeHostedSelection(
       (options.json === true
         ? undefined
         : (event: RelayProgressEvent) => writeProgress(stderr, event));
+    const livePolicy =
+      selection.kind === "suite" ? liveExecutionPolicyFromSuite(selection.suite.document) : undefined;
     const runnerOptions: ConstructorParameters<typeof RelayRunner>[0] = {
       cloud: session.cloud,
       connector,
       binding,
       stateDirectory,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      ...(progress === undefined ? {} : { onProgress: progress })
+      ...(progress === undefined ? {} : { onProgress: progress }),
+      ...(livePolicy === undefined ? {} : { livePolicy })
     };
     const runner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
     await emitSelectionCheckpoint(options, { phase: "observing", runId: binding.run_id });
@@ -1230,7 +1234,8 @@ async function loadHostedSelection(
         `Suite ${suite.document.suiteId} requires deterministic observations, but this connector does not advertise observation. Configure target.operations.observe. No quote, reservation, or run was created.`
       );
     }
-    return { kind: "suite", packet: suitePacketBinding(), suite };
+    assertLiveSuiteReadyForQuote(suite.document, resolved);
+    return { kind: "suite", packet: suitePacketBinding(suite), suite };
   }
   if (options.assessment !== undefined) {
     const assessment = await loadAssessmentFile({
@@ -1667,7 +1672,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
     .option("--assessment <path>", HOSTED_ASSESSMENT_OPTION_HELP)
     .option(
       "--suite <path>",
-      "customer-owned hosted suite file (aw-suite/1). Admission uses the server-accepted revision, not a later file edit"
+      "customer-owned hosted suite file (aw-suite/1 or aw-suite/2). Admission uses the server-accepted revision, not a later file edit"
     )
     .option(
       "--investigation <path>",

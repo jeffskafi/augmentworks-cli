@@ -1,0 +1,65 @@
+schema_version: aw-suite/2
+suite_id: live.informational.fixture
+title: Bounded live informational fixture
+description: Offline fixture for authorized live-informational CLI handoff. Not permission for the origin.
+synthetic_only: false
+live_target:
+  schema_version: aw-live-target/1
+  mode: informational
+  origin: https://support.example.com
+  authorization_kind: owned_target
+  authorization_ref: fixture-pilot-approval
+  expires_at: "2099-12-31T23:59:59Z"
+  max_messages: 3
+tags:
+  - live-informational
+references:
+  - id: live.kb
+    kind: reference_facts
+    content: |
+      Support hours are 9:00-17:00 UTC on weekdays.
+      The starter plan is listed as $99 per month.
+      Knowledge-base articles sync once per day.
+cases:
+  - case_id: live.hours
+    name: Support hours
+    turns:
+      - content: What are your weekday support hours?
+    expected:
+      facts:
+        - Weekday support hours are 9:00-17:00 UTC.
+    criteria:
+      - criterion_id: live.hours.required
+        requirement: required
+        kind: llm_rubric
+        statement: The answer must state weekday support hours of 9:00-17:00 UTC.
+        reference_ids:
+          - live.kb
+  - case_id: live.starter-price
+    name: Starter price
+    turns:
+      - content: How much is the starter plan per month?
+    expected:
+      facts:
+        - The starter plan is $99 per month.
+    criteria:
+      - criterion_id: live.starter-price.required
+        requirement: required
+        kind: llm_rubric
+        statement: The answer must state the starter plan price as $99 per month.
+        reference_ids:
+          - live.kb
+  - case_id: live.kb-sync
+    name: Knowledge-base sync
+    turns:
+      - content: How often do knowledge-base articles sync?
+    expected:
+      facts:
+        - Knowledge-base articles sync once per day.
+    criteria:
+      - criterion_id: live.kb-sync.required
+        requirement: required
+        kind: llm_rubric
+        statement: The answer must say knowledge-base articles sync once per day.
+        reference_ids:
+          - live.kb
