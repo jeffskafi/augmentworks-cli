@@ -20,6 +20,7 @@ import {
 import { loadDeclaredShardsFile } from "./progress.js";
 import { loadManifestForReleaseGate } from "./load.js";
 import { selectionError } from "./errors.js";
+import { admitManifestWorkspace } from "./admit.js";
 
 export interface ManifestGateOptions extends HostedAuthOptions {
   readonly manifestFile?: string;
@@ -63,6 +64,7 @@ export async function runManifestReleaseGate(
         : await loadDeclaredShardsFile(resolve(cwd, values.declaredShards));
     const request = buildManifestGateRequest(manifest, declared);
     const session = await authenticateHostedSession(values, dependencies);
+    admitManifestWorkspace(manifest, session.tenant);
     if (values.wait === true) {
       const timeoutMs = parseTimeoutMs(values.timeoutMs);
       for (const shard of request.declaredShards) {

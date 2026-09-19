@@ -259,6 +259,25 @@ assessment after verifying the original configuration. `--cancel` requests
 cancellation and drains cleanup. Those three flags are mutually exclusive. Do
 not delete journal files, and there is no `--force-delete`.
 
+### Multi-shard selection used another workspace or an old progress file
+
+`test --all-shards` binds the local execution to one API origin, workspace, and
+connector (`aw-selection-execution/3`). Resume the same `--execution-id` with
+that original workspace. A later login, API-key, or connector switch is
+`SELECTION_TENANT_MISMATCH` (JSON `code`, exit `3`) and does not quote, admit,
+or call the target for another tenant. `--json` does not invent a verdict.
+
+Spent `aw-selection-progress/1` files and unbound `aw-selection-execution/2`
+documents are not rewritten with whichever user is logged in now. The CLI
+returns `SELECTION_LEGACY_UNBOUND` (exit `2`), leaves the file unchanged, and
+lists recorded original run IDs for authorized observation only. Start a new
+execution only after you have reconciled those runs. Unused all-pending v1
+progress may be marked migrated without charging.
+
+This pinning lives in unpublished source `0.3.7`. Independently inspected npm
+`@augmentworks/cli@0.3.6` still persists unbound `/2` documents. Do not treat
+source merge as a registry publish.
+
 If the hosted service does not yet support reconciliation, `recover` keeps local
 state and reports that limitation. Re-running the same `test` command remains
 the resume path while the create-replay window is open.

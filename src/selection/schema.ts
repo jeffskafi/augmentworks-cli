@@ -11,8 +11,10 @@ export const MANIFEST_RELEASE_POLICY_DOCUMENT_KIND = "manifest_release_policy_re
 export const SELECTION_PROGRESS_SCHEMA_VERSION = "aw-selection-progress/1" as const;
 export const SELECTION_ARTIFACT_SCHEMA_VERSION = "aw-selection-artifact/1" as const;
 /** Local durable attempt document. Distinct from the immutable suite-selection manifest. */
-export const SELECTION_EXECUTION_DOCUMENT_KIND = "aw-selection-execution/2" as const;
-export const SELECTION_EXECUTION_INDEX_DOCUMENT_KIND = "aw-selection-execution-index/2" as const;
+export const SELECTION_EXECUTION_DOCUMENT_KIND = "aw-selection-execution/3" as const;
+export const SELECTION_EXECUTION_DOCUMENT_KIND_V2 = "aw-selection-execution/2" as const;
+export const SELECTION_EXECUTION_INDEX_DOCUMENT_KIND = "aw-selection-execution-index/3" as const;
+export const SELECTION_EXECUTION_INDEX_DOCUMENT_KIND_V2 = "aw-selection-execution-index/2" as const;
 
 /**
  * Closed aggregate execution states:
@@ -117,6 +119,25 @@ const identifier = z
   .min(1)
   .max(300)
   .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/);
+/** Opaque workspace/connector identity. Matches `RunIntentTenantBinding`; never tokens. */
+const tenantIdentifier = z
+  .string()
+  .min(1)
+  .max(300)
+  .regex(/^[^\u0000-\u001f\u007f]+$/u);
+export const RunIntentTenantBindingSchema = z
+  .object({
+    workspace_id: tenantIdentifier,
+    connector_id: tenantIdentifier
+  })
+  .strict();
+export const SelectionExecutionTenantSchema = z
+  .object({
+    api_origin: z.string().url(),
+    tenant: RunIntentTenantBindingSchema
+  })
+  .strict();
+export type SelectionExecutionTenant = z.infer<typeof SelectionExecutionTenantSchema>;
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const uuid = z
   .string()
@@ -687,42 +708,63 @@ export function findCrossShardBindingDuplicate(
   return undefined;
 }
 
+const selectionExecutionFields = {
+  executionId: uuid,
+  manifestHash: sha256,
+  createdAt: rfc3339,
+  updatedAt: rfc3339,
+  aggregateMaxCredits: creditUnits,
+  remainingCredits: creditUnits,
+  state: SelectionExecutionStateSchema,
+  terminalReason: z.string().min(1).max(200).nullable(),
+  shards: z.array(SelectionExecutionShardSchema).max(16)
+} as const;
+
+function refineExclusiveShardBindings(
+  value: { readonly shards: readonly ExecutionShardBinding[] },
+  context: z.RefinementCtx
+): void {
+  const shardIds = value.shards.map((shard) => shard.shardId);
+  if (new Set(shardIds).size !== shardIds.length) {
+    context.addIssue({
+      code: "custom",
+      message: "shards shardId values must be unique",
+      path: ["shards"]
+    });
+  }
+  const duplicate = findCrossShardBindingDuplicate(value.shards);
+  if (duplicate === undefined) return;
+  context.addIssue({
+    code: "custom",
+    message:
+      duplicate.field === "quoteId"
+        ? "non-null quoteId values must be unique across shards"
+        : "non-null runId values must be unique across shards",
+    path: ["shards"]
+  });
+}
+
 export const SelectionExecutionSchema = z
   .object({
     documentKind: z.literal(SELECTION_EXECUTION_DOCUMENT_KIND),
-    executionId: uuid,
-    manifestHash: sha256,
-    createdAt: rfc3339,
-    updatedAt: rfc3339,
-    aggregateMaxCredits: creditUnits,
-    remainingCredits: creditUnits,
-    state: SelectionExecutionStateSchema,
-    terminalReason: z.string().min(1).max(200).nullable(),
-    shards: z.array(SelectionExecutionShardSchema).max(16)
+    ...selectionExecutionFields,
+    ...SelectionExecutionTenantSchema.shape
   })
   .strict()
-  .superRefine((value, context) => {
-    const shardIds = value.shards.map((shard) => shard.shardId);
-    if (new Set(shardIds).size !== shardIds.length) {
-      context.addIssue({
-        code: "custom",
-        message: "shards shardId values must be unique",
-        path: ["shards"]
-      });
-    }
-    const duplicate = findCrossShardBindingDuplicate(value.shards);
-    if (duplicate === undefined) return;
-    context.addIssue({
-      code: "custom",
-      message:
-        duplicate.field === "quoteId"
-          ? "non-null quoteId values must be unique across shards"
-          : "non-null runId values must be unique across shards",
-      path: ["shards"]
-    });
-  });
+  .superRefine(refineExclusiveShardBindings);
 
 export type SelectionExecution = z.infer<typeof SelectionExecutionSchema>;
+
+/** Pre-MT11 documents. Fail closed: never relabel with the current login. */
+export const LegacySelectionExecutionSchema = z
+  .object({
+    documentKind: z.literal(SELECTION_EXECUTION_DOCUMENT_KIND_V2),
+    ...selectionExecutionFields
+  })
+  .strict()
+  .superRefine(refineExclusiveShardBindings);
+
+export type LegacySelectionExecution = z.infer<typeof LegacySelectionExecutionSchema>;
 
 export const SelectionExecutionIndexSchema = z
   .object({
@@ -730,11 +772,24 @@ export const SelectionExecutionIndexSchema = z
     manifestHash: sha256,
     unfinishedExecutionId: uuid.nullable(),
     v1Migrated: z.boolean(),
-    updatedAt: rfc3339
+    updatedAt: rfc3339,
+    ...SelectionExecutionTenantSchema.shape
   })
   .strict();
 
 export type SelectionExecutionIndex = z.infer<typeof SelectionExecutionIndexSchema>;
+
+export const LegacySelectionExecutionIndexSchema = z
+  .object({
+    documentKind: z.literal(SELECTION_EXECUTION_INDEX_DOCUMENT_KIND_V2),
+    manifestHash: sha256,
+    unfinishedExecutionId: uuid.nullable(),
+    v1Migrated: z.boolean(),
+    updatedAt: rfc3339
+  })
+  .strict();
+
+export type LegacySelectionExecutionIndex = z.infer<typeof LegacySelectionExecutionIndexSchema>;
 
 export const SelectionArtifactSchema = z
   .object({

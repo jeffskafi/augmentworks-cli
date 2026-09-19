@@ -302,8 +302,12 @@ execution are hosted compiler features, not a local pricing engine. Static
 catalog counts are informative. `POST /v1/billing/quote` remains the only
 cost preview. `--all-shards` requires a finite aggregate `--max-credits`
 ceiling and stops before exceeding consent. Interrupted multi-shard work
-resumes only with `--execution-id`; omitting that flag after a terminal
-attempt starts a new execution that does not inherit prior shard results.
+resumes only with `--execution-id` against the original API origin, workspace,
+and connector. A login switch is `SELECTION_TENANT_MISMATCH` and does not quote
+the next shard. Omitting `--execution-id` after a terminal attempt starts a new
+execution that does not inherit prior shard results. Unbound
+`aw-selection-execution/2` or spent `aw-selection-progress/1` files are not
+migrated onto the current login (`SELECTION_LEGACY_UNBOUND`).
 
 ```bash
 node dist/index.js catalog list --json

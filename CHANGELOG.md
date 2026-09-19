@@ -19,6 +19,18 @@ All notable changes to this project are documented here. The format follows
   allowlist, publish the CLI, or authorize any third-party origin.
   Synthetic `aw-suite/1` hashes and packets stay frozen.
 
+- Multi-shard `test --all-shards` pins one authenticated API origin, workspace,
+  and connector for the whole execution, including resume and later shards
+  ([AUG-137](https://linear.app/augmentworks/issue/AUG-137/cli-mt11-pin-every-shard-and-resumed-selection-to-one-workspace-and)
+  / MT11). Local documents are `aw-selection-execution/3` with opaque
+  `RunIntentTenantBinding` identity only (never access or refresh tokens).
+  A login switch or foreign-workspace manifest fails with
+  `SELECTION_TENANT_MISMATCH` before another quote, create, or target call.
+  Unbound `aw-selection-execution/2` and spent `aw-selection-progress/1` files
+  fail closed as `SELECTION_LEGACY_UNBOUND` and are not relabeled with the
+  current login. This is source `0.3.7` work; npm latest remains independently
+  inspected `0.3.6` until the protected publish.
+
 ## [0.3.7] - 2026-09-17
 
 Published-line package for native customer-suite upload translation, saved-suite
