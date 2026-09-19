@@ -145,8 +145,12 @@ Optional assessment YAML `selection` fields (`profile: smoke|release`,
 compiled by the server. Local `test --local` still uses deterministic packets
 only. Catalog counts are not a quote. `--all-shards` requires a finite
 aggregate `--max-credits` and stops before exceeding consent. Resume an
-unfinished multi-shard attempt with `--execution-id`; omit it after the
-attempt is terminal to start a new rerun. An incomplete declared shard set
+unfinished multi-shard attempt with `--execution-id` using the original
+workspace and connector; omit it after the attempt is terminal to start a new
+rerun. A login switch between shards is `SELECTION_TENANT_MISMATCH` and does
+not quote the next shard. Unbound `aw-selection-execution/2` and spent
+`aw-selection-progress/1` files fail closed as `SELECTION_LEGACY_UNBOUND`
+instead of inheriting the current login. An incomplete declared shard set
 cannot make a whole-suite gate green. `gate --manifest-file`
 requires `--declared-shards` covering every expected shard, POSTs identity
 only, and exits 0 only for `aw-manifest-release-policy/2` with

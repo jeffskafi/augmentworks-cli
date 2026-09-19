@@ -93,6 +93,7 @@ import { compileRequestFromAssessment, isSavedSuiteSelection, selectionAdvertise
 import { loadSuiteSelectionManifest } from "../selection/load.js";
 import {
   admitCompiledSelection,
+  admitManifestWorkspace,
   assertShardWithinPerRunLimits,
   savedSuitePinFromManifest,
   selectShard,
@@ -103,6 +104,7 @@ import {
   aggregateExecutionExitCode,
   artifactFromExecution,
   assertResumeSameShard as assertExecutionResumeSameShard,
+  assertSelectionExecutionPreflight,
   executionJsonFields,
   formatSelectionResumeCommand,
   interruptExecution,
@@ -120,6 +122,10 @@ import {
   type OpenedSelectionExecution,
   type SelectionExecutionKind
 } from "../selection/execution.js";
+import {
+  assertSessionMatchesSelectionTenant,
+  selectionTenantFromSession
+} from "../selection/tenant.js";
 import {
   artifactFromProgress,
   initialProgress,
@@ -250,6 +256,7 @@ async function executeHostedSelection(
     readonly cwd: string;
     readonly env: NodeJS.ProcessEnv;
     readonly report: DoctorReport;
+    readonly pinnedSession?: Awaited<ReturnType<typeof authenticateHostedSession>>;
   }
 ): Promise<TestResult> {
   const { cwd, env, report } = context;
@@ -276,7 +283,14 @@ async function executeHostedSelection(
           : "Noninteractive hosted tests require --max-credits N. The CLI will not start billed work without an explicit ceiling."
     });
   }
-  const session = await authenticateHostedSession(options, dependencies);
+  const session =
+    context.pinnedSession ?? (await authenticateHostedSession(options, dependencies));
+  if (context.pinnedSession !== undefined) {
+    assertSessionMatchesSelectionTenant(
+      selectionTenantFromSession(context.pinnedSession),
+      session
+    );
+  }
   assertMachineHostedAdmission(session.identity, {
     suite: selection.kind === "suite" || selection.kind === "shard"
   });
@@ -487,6 +501,7 @@ async function resolveCompiledManifest(
       context.selection.kind === "assessment" ? context.selection.assessment.document.selection : undefined;
     admitCompiledSelection(manifest, {
       requestedSavedSuite: isSavedSuiteSelection(assessmentSelection),
+      tenant: selectionTenantFromSession(context.session),
       ...(assessmentSelection?.suite_version === undefined ? {} : { suiteVersion: assessmentSelection.suite_version }),
       ...(assessmentSelection?.suite_revision_id === undefined
         ? {}
@@ -513,13 +528,15 @@ async function resolveCompiledManifest(
   );
   const selection = context.selection.assessment.document.selection;
   const suiteVersion = selection.suite_version;
-  return compileHostedSelection({
+  const compiled = await compileHostedSelection({
     request,
     session: context.session,
     ...(suiteVersion === undefined ? {} : { suiteVersion }),
     ...(selection.suite_revision_id === undefined ? {} : { suiteRevisionId: selection.suite_revision_id }),
     ...(options.signal === undefined ? {} : { signal: options.signal })
   });
+  admitManifestWorkspace(compiled, context.session.tenant);
+  return compiled;
 }
 
 function shardSelectionForContext(
@@ -586,6 +603,7 @@ async function runCompiledSelectionEstimate(
   const session = await authenticateHostedSession(options, dependencies);
   assertMachineHostedAdmission(session.identity, { suite: true });
   const manifest = await resolveCompiledManifest(options, { ...context, session });
+  admitManifestWorkspace(manifest, session.tenant);
   const stderr = dependencies.stderr ?? process.stderr;
   writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
   const shard = selectShard(manifest, options.shard);
@@ -644,6 +662,7 @@ async function runCompiledSelectionTest(
   const session = await authenticateHostedSession(options, dependencies);
   assertMachineHostedAdmission(session.identity, { suite: true });
   const manifest = await resolveCompiledManifest(options, { ...context, session });
+  admitManifestWorkspace(manifest, session.tenant);
   writeLine(stderr, formatSelectionHuman(manifest).trimEnd());
 
   const shard = selectShard(manifest, options.shard);
@@ -651,7 +670,7 @@ async function runCompiledSelectionTest(
     shardSelectionForContext(shard, context.selection, manifest),
     options,
     dependencies,
-    context
+    { ...context, pinnedSession: session }
   );
   const progress: SelectionProgress = {
     ...initialProgress(manifest, maxCredits ?? 0),
@@ -700,13 +719,21 @@ async function runAllShardsSelection(
   if (options.executionId !== undefined) parseExecutionId(options.executionId);
   const localManifest =
     options.manifest === undefined ? undefined : await loadLocalCompiledManifest(options, context);
-  let session: Awaited<ReturnType<typeof authenticateHostedSession>> | undefined;
-  let manifest = localManifest;
-  if (manifest === undefined) {
-    session = await authenticateHostedSession(options, dependencies);
-    assertMachineHostedAdmission(session.identity, { suite: true });
-    manifest = await resolveCompiledManifest(options, { ...context, session });
+  if (localManifest !== undefined) {
+    await assertSelectionExecutionPreflight({
+      stateDirectory: extras.stateDirectory,
+      manifest: localManifest,
+      aggregateMaxCredits: extras.maxCredits,
+      ...(options.executionId === undefined ? {} : { executionId: options.executionId }),
+      ...(options.manifest === undefined ? {} : { manifestPath: options.manifest }),
+      ...(options.yes === undefined ? {} : { yes: options.yes })
+    });
   }
+  const session = await authenticateHostedSession(options, dependencies);
+  assertMachineHostedAdmission(session.identity, { suite: true });
+  const manifest =
+    localManifest ?? (await resolveCompiledManifest(options, { ...context, session }));
+  admitManifestWorkspace(manifest, session.tenant);
   writeLine(extras.stderr, formatSelectionHuman(manifest).trimEnd());
   for (const shard of manifest.shards) {
     assertShardWithinPerRunLimits(manifest, shard);
@@ -715,6 +742,7 @@ async function runAllShardsSelection(
     stateDirectory: extras.stateDirectory,
     manifest,
     aggregateMaxCredits: extras.maxCredits,
+    tenant: selectionTenantFromSession(session),
     ...(options.executionId === undefined ? {} : { executionId: options.executionId }),
     ...(options.manifest === undefined ? {} : { manifestPath: options.manifest }),
     ...(options.yes === undefined ? {} : { yes: options.yes })
@@ -742,10 +770,7 @@ async function runAllShardsSelection(
     })
   });
   try {
-    if (session === undefined) {
-      session = await authenticateHostedSession(options, dependencies);
-      assertMachineHostedAdmission(session.identity, { suite: true });
-    }
+    const pinnedTenant = selectionTenantFromSession(session);
     let last: TestResult | undefined;
     while (true) {
       if (abort.signal.aborted) {
@@ -760,9 +785,26 @@ async function runAllShardsSelection(
         break;
       }
       const shard = selectShard(manifest, next.shardId);
+      let shardSession: Awaited<ReturnType<typeof authenticateHostedSession>>;
+      try {
+        shardSession = await authenticateHostedSession(options, dependencies);
+        assertMachineHostedAdmission(shardSession.identity, { suite: true });
+        assertSessionMatchesSelectionTenant(pinnedTenant, shardSession, {
+          executionId: execution.executionId,
+          recoveryAction: "resume_execution"
+        });
+      } catch (error) {
+        if (
+          error instanceof AwError &&
+          (error.code === "SELECTION_TENANT_MISMATCH" || error.code === "AUTH_TENANT_CHANGED")
+        ) {
+          execution = await persist(interruptExecution(execution));
+        }
+        throw error;
+      }
       if (next.runId !== null && next.state !== "pending") {
         const recovered = await recoverTerminalShardIfPossible({
-          session,
+          session: shardSession,
           runId: next.runId,
           shard,
           quoteUnits: next.quotedUnits,
@@ -820,7 +862,7 @@ async function runAllShardsSelection(
             }
           },
           dependencies,
-          context
+          { ...context, pinnedSession: shardSession }
         );
       } catch (error) {
         if (error instanceof AwError && error.code === "BUDGET_EXCEEDED") {
@@ -1882,7 +1924,9 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
             awError.code === "SELECTION_RESUME_REQUIRED" ||
             awError.code === "SELECTION_PROGRESS_MIGRATION_REQUIRED" ||
             awError.code === "SELECTION_EXECUTION_CORRUPT" ||
-            awError.code === "SELECTION_EXECUTION_TERMINAL"
+            awError.code === "SELECTION_EXECUTION_TERMINAL" ||
+            awError.code === "SELECTION_TENANT_MISMATCH" ||
+            awError.code === "SELECTION_LEGACY_UNBOUND"
           ) {
             writeLine(stderr, awError.message);
           }

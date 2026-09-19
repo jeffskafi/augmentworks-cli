@@ -136,6 +136,50 @@ export function selectionProgressMigrationRequiredError(details: {
   );
 }
 
+export function selectionTenantMismatchError(details: {
+  readonly message: string;
+  readonly expectedWorkspaceId: string;
+  readonly actualWorkspaceId: string;
+  readonly executionId?: string;
+  readonly recoveryAction?: "resume_execution" | "start_new_execution" | "inspect_legacy_unbound";
+}): AwError {
+  return selectionError("SELECTION_TENANT_MISMATCH", details.message, {
+    category: "auth",
+    details: {
+      expected_workspace_id: details.expectedWorkspaceId,
+      actual_workspace_id: details.actualWorkspaceId,
+      recovery_action: details.recoveryAction ?? "resume_execution",
+      ...(details.executionId === undefined ? {} : { execution_id: details.executionId })
+    }
+  });
+}
+
+export function selectionLegacyUnboundError(details: {
+  readonly manifestHash: string;
+  readonly executionId?: string;
+  readonly originalRunIds?: readonly string[];
+  readonly reason?: string;
+}): AwError {
+  const recorded =
+    details.originalRunIds !== undefined && details.originalRunIds.length > 0
+      ? ` Recorded original run IDs for authorized observation only: ${details.originalRunIds.join(", ")}.`
+      : "";
+  return selectionError(
+    "SELECTION_LEGACY_UNBOUND",
+    `${details.reason ?? "This local selection execution has no tenant binding."} The CLI will not relabel it with the current login, quote, admit, or replay charges. Observe recorded runs with the original workspace or start a new execution after safe reconciliation.${recorded}`,
+    {
+      details: {
+        manifest_hash: details.manifestHash,
+        recovery_action: "inspect_legacy_unbound",
+        ...(details.executionId === undefined ? {} : { execution_id: details.executionId }),
+        ...(details.originalRunIds === undefined || details.originalRunIds.length === 0
+          ? {}
+          : { original_run_ids: details.originalRunIds.join(",") })
+      }
+    }
+  );
+}
+
 export function manifestNotExecutableError(reason?: string): AwError {
   const detail = reason !== undefined && reason.trim() !== "" ? ` ${reason}` : "";
   return selectionError(

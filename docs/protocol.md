@@ -225,6 +225,14 @@ credential can read its exact run. An unbound legacy intent cannot prove which
 connector may already own its create ID and therefore fails closed without
 sending a create request.
 
+Multi-shard `test --all-shards` additionally persists
+`aw-selection-execution/3` with the same opaque workspace/connector binding plus
+normalized API origin. Every shard and resume must match that pin
+(`SELECTION_TENANT_MISMATCH`). Unbound `/2` execution documents and spent
+`aw-selection-progress/1` files fail closed (`SELECTION_LEGACY_UNBOUND`) and are
+not charged or relabeled. Per-shard run-intent retirement does not clear the
+selection pin. Tokens are never written to these documents.
+
 The intent is removed only after the runner or a status GET returns an
 authoritative `completed`, `failed`, or `cancelled` **target execution** status
 and local cleanup or acknowledgements are complete. Pending background grading

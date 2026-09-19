@@ -21,26 +21,38 @@ import { isExpectedWindowsDirectorySyncError } from "../relay/run-intent.js";
 import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import {
   selectionError,
+  selectionLegacyUnboundError,
   selectionProgressMigrationRequiredError,
   selectionResumeRequiredError
 } from "./errors.js";
 import {
   SELECTION_ARTIFACT_SCHEMA_VERSION,
   SELECTION_EXECUTION_DOCUMENT_KIND,
+  SELECTION_EXECUTION_DOCUMENT_KIND_V2,
   SELECTION_EXECUTION_INDEX_DOCUMENT_KIND,
+  SELECTION_EXECUTION_INDEX_DOCUMENT_KIND_V2,
+  LegacySelectionExecutionIndexSchema,
+  LegacySelectionExecutionSchema,
   SelectionExecutionIndexSchema,
   SelectionExecutionSchema,
   SelectionProgressSchema,
   findCrossShardBindingDuplicate,
+  type LegacySelectionExecution,
   type SelectionArtifact,
   type SelectionExecution,
   type SelectionExecutionIndex,
   type SelectionExecutionShard,
   type SelectionExecutionShardState,
   type SelectionExecutionState,
+  type SelectionExecutionTenant,
   type SelectionProgress,
   type SuiteSelectionManifest
 } from "./schema.js";
+import {
+  assertSelectionTenantMatch,
+  originalRunIdsFromShards,
+  parseSelectionTenant
+} from "./tenant.js";
 
 export const EXECUTION_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -82,12 +94,37 @@ export type ResolveSelectionExecutionInput = SelectionExecutionClock & {
   readonly stateDirectory: string;
   readonly manifest: SuiteSelectionManifest;
   readonly aggregateMaxCredits: number;
+  readonly tenant?: SelectionExecutionTenant;
+  readonly executionId?: string;
+  readonly manifestPath?: string;
+  readonly yes?: boolean;
+};
+
+export type SelectionExecutionPreflightInput = SelectionExecutionClock & {
+  readonly stateDirectory: string;
+  readonly manifest: SuiteSelectionManifest;
+  readonly aggregateMaxCredits: number;
   readonly executionId?: string;
   readonly manifestPath?: string;
   readonly yes?: boolean;
 };
 
 type LoadedDocument<T> = { readonly status: "missing" } | { readonly status: "ok"; readonly value: T };
+
+type AnyExecutionRecord =
+  | { readonly version: "current"; readonly execution: SelectionExecution }
+  | { readonly version: "legacy"; readonly execution: LegacySelectionExecution };
+
+type LoadedIndex = {
+  readonly documentKind: string;
+  readonly manifestHash: string;
+  readonly unfinishedExecutionId: string | null;
+  readonly v1Migrated: boolean;
+  readonly updatedAt: string;
+  readonly api_origin?: string;
+  readonly tenant?: SelectionExecution["tenant"];
+  readonly binding?: SelectionExecutionTenant;
+};
 
 export function parseExecutionId(value: string): string {
   const trimmed = value.trim();
@@ -132,9 +169,10 @@ export function formatSelectionResumeCommand(options: {
 export function initialExecution(
   manifest: SuiteSelectionManifest,
   aggregateMaxCredits: number,
-  options: SelectionExecutionClock = {}
+  options: SelectionExecutionClock & { readonly tenant: SelectionExecutionTenant }
 ): SelectionExecution {
   const timestamp = isoNow(options.now);
+  const tenant = parseSelectionTenant(options.tenant);
   return reconcileExecution(
     {
       documentKind: SELECTION_EXECUTION_DOCUMENT_KIND,
@@ -146,6 +184,8 @@ export function initialExecution(
       remainingCredits: aggregateMaxCredits,
       state: "running",
       terminalReason: null,
+      api_origin: tenant.api_origin,
+      tenant: tenant.tenant,
       shards: manifest.shards.map((shard) => ({
         shardId: shard.shardId,
         shardIdentityHash: shard.shardIdentityHash,
@@ -541,7 +581,8 @@ export function executionJsonFields(execution: SelectionExecution): Record<strin
     charged_units: coverage.chargedUnits,
     remaining_credits: coverage.remainingCredits,
     execution_state: execution.state,
-    recovery_action: recoveryAction
+    recovery_action: recoveryAction,
+    workspace_id: execution.tenant.workspace_id
   };
 }
 
@@ -556,43 +597,52 @@ export function executionPaths(stateDirectory: string, manifestHash: string): Se
   };
 }
 
+export async function assertSelectionExecutionPreflight(
+  input: SelectionExecutionPreflightInput
+): Promise<void> {
+  const paths = executionPaths(input.stateDirectory, input.manifest.manifestHash);
+  await ensureExecutionDirectories(paths.root);
+  const lock = await acquireSelectionExecutionLock(paths, input.now);
+  try {
+    await prepareSelectionExecutionStore(input, paths);
+    if (input.executionId !== undefined) {
+      await inspectRequestedExecution(input, paths);
+      return;
+    }
+    await throwIfUnfinishedSelection(input, paths, await readIndex(paths));
+  } finally {
+    await lock.release().catch(() => undefined);
+  }
+}
+
 export async function openSelectionExecution(
   input: ResolveSelectionExecutionInput
 ): Promise<OpenedSelectionExecution> {
+  const tenant = requireInputTenant(input);
   const manifestHash = input.manifest.manifestHash;
   const paths = executionPaths(input.stateDirectory, manifestHash);
   await ensureExecutionDirectories(paths.root);
-  const lock = await acquireSecureLock({
-    path: join(paths.root, "lock"),
-    label: "selection execution",
-    errorCodes: {
-      locked: "SELECTION_EXECUTION_LOCKED",
-      unsafe: "UNSAFE_SELECTION_EXECUTION",
-      unknownOwner: "SELECTION_EXECUTION_LOCK_OWNER_UNKNOWN",
-      foreignOwner: "SELECTION_EXECUTION_LOCK_FOREIGN_OWNER",
-      changed: "SELECTION_EXECUTION_LOCK_CHANGED"
-    },
-    ...(input.now === undefined ? {} : { now: input.now })
-  });
+  const lock = await acquireSelectionExecutionLock(paths, input.now);
   try {
-    const index = await readIndex(paths);
-    await migrateV1IfNeeded(input, paths, index);
-    if (!Number.isSafeInteger(input.aggregateMaxCredits) || input.aggregateMaxCredits < 0) {
-      throw budgetInvariantError("aggregateMaxCredits must be a finite nonnegative integer.");
-    }
-    const latestIndex = (await readIndex(paths)) ?? emptyIndex(manifestHash, input.now);
+    await prepareSelectionExecutionStore(input, paths);
+    const latestIndex = (await readIndex(paths)) ?? emptyIndex(manifestHash, tenant, input.now);
     if (input.executionId !== undefined) {
-      return await openRequestedExecution(input, paths, lock);
+      return await openRequestedExecution({ ...input, tenant }, paths, lock);
     }
     const unfinishedId = await unresolvedExecutionId(paths, latestIndex);
     if (unfinishedId !== null) {
-      const unfinished = await readExecutionFile(paths, unfinishedId);
+      const unfinished = await readAnyExecutionFile(paths, unfinishedId);
+      throwIfLegacyUnbound(unfinished, manifestHash);
+      assertSelectionTenantMatch(executionTenant(unfinished.execution as SelectionExecution), tenant, {
+        executionId: unfinished.execution.executionId,
+        recoveryAction: "resume_execution"
+      });
       throw selectionResumeRequiredError({
-        executionId: unfinished.executionId,
+        executionId: unfinished.execution.executionId,
         manifestHash,
         command: formatSelectionResumeCommand({
-          executionId: unfinished.executionId,
-          maxCredits: unfinished.aggregateMaxCredits,
+          executionId: unfinished.execution.executionId,
+          maxCredits: unfinished.execution.aggregateMaxCredits,
           ...(input.manifestPath === undefined ? {} : { manifestPath: input.manifestPath }),
           ...(input.yes === undefined ? {} : { yes: input.yes })
         })
@@ -600,7 +650,7 @@ export async function openSelectionExecution(
     }
     const created = await persistOpened(
       paths,
-      initialExecution(input.manifest, input.aggregateMaxCredits, input),
+      initialExecution(input.manifest, input.aggregateMaxCredits, { ...input, tenant }),
       input.now
     );
     const kind: SelectionExecutionKind = (await hasTerminalReceipt(paths, created.executionId))
@@ -625,20 +675,9 @@ export async function readExecutionFile(
   paths: SelectionExecutionPaths,
   executionId: string
 ): Promise<SelectionExecution> {
-  const id = parseExecutionId(executionId);
-  const path = executionDocumentPath(paths, id);
-  const loaded = await readJsonFile(path, (raw) => {
-    const parsed = SelectionExecutionSchema.safeParse(raw);
-    if (!parsed.success) return undefined;
-    return parsed.data;
-  });
-  if (loaded.status === "missing") {
-    throw selectionError(
-      "SELECTION_EXECUTION_NOT_FOUND",
-      `No local execution ${id} exists for this manifest. Confirm --execution-id before quoting.`
-    );
-  }
-  return reconcileExecution(normalizeExecution(loaded.value), { strict: true });
+  const loaded = await readAnyExecutionFile(paths, executionId);
+  throwIfLegacyUnbound(loaded, loaded.execution.manifestHash);
+  return reconcileExecution(normalizeExecution(loaded.execution as SelectionExecution), { strict: true });
 }
 
 export function executionDocumentPath(paths: SelectionExecutionPaths, executionId: string): string {
@@ -646,18 +685,26 @@ export function executionDocumentPath(paths: SelectionExecutionPaths, executionI
 }
 
 async function openRequestedExecution(
-  input: ResolveSelectionExecutionInput,
+  input: ResolveSelectionExecutionInput & { readonly tenant: SelectionExecutionTenant },
   paths: SelectionExecutionPaths,
   lock: SecureLockHandle
 ): Promise<OpenedSelectionExecution> {
   const executionId = parseExecutionId(input.executionId!);
-  const execution = await readExecutionFile(paths, executionId);
+  const loaded = await readAnyExecutionFile(paths, executionId);
+  throwIfLegacyUnbound(loaded, input.manifest.manifestHash);
+  const execution = reconcileExecution(normalizeExecution(loaded.execution as SelectionExecution), {
+    strict: true
+  });
   if (execution.manifestHash !== input.manifest.manifestHash) {
     throw selectionError(
       "SELECTION_EXECUTION_MANIFEST_MISMATCH",
       "That --execution-id is bound to a different immutable manifest. No quote was requested."
     );
   }
+  assertSelectionTenantMatch(executionTenant(execution), input.tenant, {
+    executionId: execution.executionId,
+    recoveryAction: "resume_execution"
+  });
   assertShardsMatchManifest(execution, input.manifest);
   if (isTerminalExecutionState(execution.state)) {
     throw selectionError(
@@ -684,11 +731,11 @@ async function openRequestedExecution(
 
 async function unresolvedExecutionId(
   paths: SelectionExecutionPaths,
-  index: SelectionExecutionIndex
+  index: LoadedIndex
 ): Promise<string | null> {
   if (index.unfinishedExecutionId !== null) {
-    const current = await readExecutionFile(paths, index.unfinishedExecutionId);
-    if (isUnfinishedExecutionState(current.state)) return current.executionId;
+    const current = await readAnyExecutionFile(paths, index.unfinishedExecutionId);
+    if (isUnfinishedExecutionState(current.execution.state)) return current.execution.executionId;
   }
   const unfinished = await listUnfinishedExecutions(paths);
   if (unfinished.length > 1) {
@@ -698,10 +745,10 @@ async function unresolvedExecutionId(
       { details: { recovery_action: "inspect_quarantined_state" } }
     );
   }
-  return unfinished[0]?.executionId ?? null;
+  return unfinished[0]?.execution.executionId ?? null;
 }
 
-async function listUnfinishedExecutions(paths: SelectionExecutionPaths): Promise<SelectionExecution[]> {
+async function listUnfinishedExecutions(paths: SelectionExecutionPaths): Promise<AnyExecutionRecord[]> {
   const directory = join(paths.root, "executions");
   let names: string[];
   try {
@@ -710,17 +757,14 @@ async function listUnfinishedExecutions(paths: SelectionExecutionPaths): Promise
     if (isErrorCode(error, "ENOENT")) return [];
     throw error;
   }
-  const unfinished: SelectionExecution[] = [];
+  const unfinished: AnyExecutionRecord[] = [];
   for (const name of names) {
     if (!name.endsWith(".json") || name.startsWith(".")) continue;
     const id = name.slice(0, -".json".length);
     if (!EXECUTION_ID_PATTERN.test(id)) continue;
-    const loaded = await readJsonFile(join(directory, name), (raw) => {
-      const parsed = SelectionExecutionSchema.safeParse(raw);
-      return parsed.success ? parsed.data : undefined;
-    });
-    if (loaded.status === "ok" && isUnfinishedExecutionState(loaded.value.state)) {
-      unfinished.push(normalizeExecution(loaded.value));
+    const loaded = await readJsonFile(join(directory, name), parseAnyExecution);
+    if (loaded.status === "ok" && isUnfinishedExecutionState(loaded.value.execution.state)) {
+      unfinished.push(loaded.value);
     }
   }
   return unfinished;
@@ -741,16 +785,13 @@ async function hasTerminalReceipt(paths: SelectionExecutionPaths, exceptId: stri
     if (id === exceptId) continue;
     const loaded = await readJsonFile(
       join(directory, name),
-      (raw) => {
-        const parsed = SelectionExecutionSchema.safeParse(raw);
-        return parsed.success ? parsed.data : undefined;
-      },
+      parseAnyExecution,
       { quarantine: false, quarantineOnSchemaFailure: false }
     );
     if (
       loaded.status === "ok" &&
       loaded.value !== undefined &&
-      isTerminalExecutionState(loaded.value.state)
+      isTerminalExecutionState(loaded.value.execution.state)
     ) {
       return true;
     }
@@ -759,9 +800,9 @@ async function hasTerminalReceipt(paths: SelectionExecutionPaths, exceptId: stri
 }
 
 async function migrateV1IfNeeded(
-  input: ResolveSelectionExecutionInput,
+  input: ResolveSelectionExecutionInput | SelectionExecutionPreflightInput,
   paths: SelectionExecutionPaths,
-  index: SelectionExecutionIndex | undefined
+  index: LoadedIndex | undefined
 ): Promise<void> {
   if (index?.v1Migrated === true) return;
   const loaded = await readV1Progress(paths.v1Progress);
@@ -774,7 +815,7 @@ async function migrateV1IfNeeded(
     throw selectionProgressMigrationRequiredError({
       manifestHash: input.manifest.manifestHash,
       reason:
-        "A v2 execution document occupies the v1 progress path. The CLI will not interpret it as aw-selection-progress/1 or start a new charge."
+        "A tenant-bound execution document occupies the v1 progress path. The CLI will not interpret it as aw-selection-progress/1 or start a new charge."
     });
   }
   if (progress === "invalid") {
@@ -783,7 +824,7 @@ async function migrateV1IfNeeded(
       reason: "The v1 progress file is present but not an unambiguous aw-selection-progress/1 document."
     });
   }
-  const migrated = migrateUnambiguousV1(progress, input);
+  const migrated = classifyUnambiguousV1(progress);
   if (migrated === undefined) {
     throw selectionProgressMigrationRequiredError({
       manifestHash: input.manifest.manifestHash,
@@ -792,25 +833,18 @@ async function migrateV1IfNeeded(
     });
   }
   if (migrated === "unused") {
-    await writeIndex(
-      paths,
-      {
-        documentKind: SELECTION_EXECUTION_INDEX_DOCUMENT_KIND,
-        manifestHash: input.manifest.manifestHash,
-        unfinishedExecutionId: index?.unfinishedExecutionId ?? null,
-        v1Migrated: true,
-        updatedAt: isoNow(input.now)
-      }
-    );
+    await markV1Migrated(paths, index, input);
     return;
   }
-  await persistOpened(paths, migrated, input.now, true);
+  throw selectionLegacyUnboundError({
+    manifestHash: input.manifest.manifestHash,
+    originalRunIds: originalRunIdsFromShards(progress.shards),
+    reason:
+      "An aw-selection-progress/1 file records spend or runs without a tenant binding. The file was left unchanged."
+  });
 }
 
-function migrateUnambiguousV1(
-  progress: SelectionProgress,
-  input: ResolveSelectionExecutionInput
-): SelectionExecution | "unused" | undefined {
+function classifyUnambiguousV1(progress: SelectionProgress): "unused" | "legacy" | undefined {
   const shardIds = progress.shards.map((shard) => shard.shardId);
   if (new Set(shardIds).size !== shardIds.length) return undefined;
   const inFlight = progress.shards.filter(
@@ -835,106 +869,7 @@ function migrateUnambiguousV1(
   if (completedUnits > progress.aggregateMaxCredits) return undefined;
   if (progress.remainingCredits !== progress.aggregateMaxCredits - completedUnits) return undefined;
   if (progress.remainingCredits < 0) return undefined;
-
-  const timestamp = isoNow(input.now);
-  const shards: SelectionExecutionShard[] = progress.shards.map((shard) => {
-    const units = shard.quoteUnits ?? 0;
-    if (shard.status === "pending") {
-      return emptyShard(shard.shardId, shard.shardIdentityHash);
-    }
-    if (shard.status === "running" || shard.status === "interrupted") {
-      return {
-        shardId: shard.shardId,
-        shardIdentityHash: shard.shardIdentityHash,
-        runId: shard.runId ?? null,
-        quoteId: null,
-        quotedUnits: units,
-        chargedUnits: 0,
-        state: shard.runId === undefined ? "quoted" : "running"
-      };
-    }
-    if (shard.status === "completed") {
-      return {
-        shardId: shard.shardId,
-        shardIdentityHash: shard.shardIdentityHash,
-        runId: shard.runId ?? null,
-        quoteId: null,
-        quotedUnits: units,
-        chargedUnits: units,
-        state: "completed"
-      };
-    }
-    if (shard.status === "skipped") {
-      return {
-        ...emptyShard(shard.shardId, shard.shardIdentityHash),
-        state: "blocked"
-      };
-    }
-    return {
-      shardId: shard.shardId,
-      shardIdentityHash: shard.shardIdentityHash,
-      runId: shard.runId ?? null,
-      quoteId: null,
-      quotedUnits: units,
-      chargedUnits: 0,
-      state: "failed"
-    };
-  });
-  const candidate: SelectionExecution = {
-    documentKind: SELECTION_EXECUTION_DOCUMENT_KIND,
-    executionId: (input.createExecutionId ?? randomUUID)().toLowerCase(),
-    manifestHash: progress.manifestHash,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    aggregateMaxCredits: progress.aggregateMaxCredits,
-    remainingCredits: progress.remainingCredits,
-    state: "running",
-    terminalReason: null,
-    shards
-  };
-  try {
-    assertShardsMatchManifest(candidate, input.manifest);
-  } catch {
-    return undefined;
-  }
-  const finalized = finalizeMigratedV1(candidate, progress);
-  try {
-    return reconcileExecution(finalized, { strict: true });
-  } catch {
-    return undefined;
-  }
-}
-
-function finalizeMigratedV1(
-  execution: SelectionExecution,
-  progress: SelectionProgress
-): SelectionExecution {
-  if (progress.stoppedReason === "aggregate_budget") {
-    return skipRemainingPendingShards(execution, "aggregate_budget");
-  }
-  if (
-    hasOpenShardWork(execution) ||
-    progress.shards.some((shard) => shard.status === "interrupted")
-  ) {
-    return {
-      ...execution,
-      state: "interrupted",
-      terminalReason: null
-    };
-  }
-  return finalizeExecution(execution);
-}
-
-function emptyShard(shardId: string, shardIdentityHash: string): SelectionExecutionShard {
-  return {
-    shardId,
-    shardIdentityHash,
-    runId: null,
-    quoteId: null,
-    quotedUnits: 0,
-    chargedUnits: 0,
-    state: "pending"
-  };
+  return "legacy";
 }
 
 async function readV1Progress(
@@ -949,7 +884,11 @@ async function readV1Progress(
     { quarantineOnSchemaFailure: false }
   );
   if (loaded.status === "missing") return loaded;
-  if (isRecord(loaded.value) && loaded.value["documentKind"] === SELECTION_EXECUTION_DOCUMENT_KIND) {
+  if (
+    isRecord(loaded.value) &&
+    (loaded.value["documentKind"] === SELECTION_EXECUTION_DOCUMENT_KIND ||
+      loaded.value["documentKind"] === SELECTION_EXECUTION_DOCUMENT_KIND_V2)
+  ) {
     return { status: "ok", value: "v2-in-v1-path" };
   }
   const parsed = SelectionProgressSchema.safeParse(loaded.value);
@@ -1090,7 +1029,9 @@ async function persistOpened(
       ? reconciled.executionId
       : null,
     v1Migrated: migrated,
-    updatedAt: isoNow(now)
+    updatedAt: isoNow(now),
+    api_origin: reconciled.api_origin,
+    tenant: reconciled.tenant
   });
   return reconciled;
 }
@@ -1100,22 +1041,219 @@ async function writeIndex(paths: SelectionExecutionPaths, index: SelectionExecut
   await writeJsonAtomic(paths.index, parsed);
 }
 
-async function readIndex(paths: SelectionExecutionPaths): Promise<SelectionExecutionIndex | undefined> {
-  const loaded = await readJsonFile(paths.index, (raw) => {
-    const parsed = SelectionExecutionIndexSchema.safeParse(raw);
-    return parsed.success ? parsed.data : undefined;
-  });
+async function readIndex(paths: SelectionExecutionPaths): Promise<LoadedIndex | undefined> {
+  const loaded = await readJsonFile(paths.index, parseAnyIndex);
   return loaded.status === "missing" ? undefined : loaded.value;
 }
 
-function emptyIndex(manifestHash: string, now?: () => Date): SelectionExecutionIndex {
+function emptyIndex(
+  manifestHash: string,
+  tenant: SelectionExecutionTenant,
+  now?: () => Date
+): LoadedIndex {
+  const binding = parseSelectionTenant(tenant);
   return {
     documentKind: SELECTION_EXECUTION_INDEX_DOCUMENT_KIND,
     manifestHash,
     unfinishedExecutionId: null,
     v1Migrated: false,
-    updatedAt: isoNow(now)
+    updatedAt: isoNow(now),
+    api_origin: binding.api_origin,
+    tenant: binding.tenant,
+    binding
   };
+}
+
+function requireInputTenant(input: ResolveSelectionExecutionInput): SelectionExecutionTenant {
+  if (input.tenant === undefined) {
+    throw selectionTenantMismatchErrorFromMissing();
+  }
+  return parseSelectionTenant(input.tenant);
+}
+
+function selectionTenantMismatchErrorFromMissing(): never {
+  throw selectionError(
+    "SELECTION_TENANT_MISMATCH",
+    "A hosted multi-shard execution requires a pinned API origin, workspace, and connector before any local mutation. No quote was requested.",
+    { category: "auth", details: { recovery_action: "start_new_execution" } }
+  );
+}
+
+function executionTenant(execution: SelectionExecution): SelectionExecutionTenant {
+  return parseSelectionTenant({
+    api_origin: execution.api_origin,
+    tenant: execution.tenant
+  });
+}
+
+function parseAnyExecution(raw: unknown): AnyExecutionRecord | undefined {
+  const current = SelectionExecutionSchema.safeParse(raw);
+  if (current.success) return { version: "current", execution: current.data };
+  const legacy = LegacySelectionExecutionSchema.safeParse(raw);
+  if (legacy.success) return { version: "legacy", execution: legacy.data };
+  return undefined;
+}
+
+function parseAnyIndex(raw: unknown): LoadedIndex | undefined {
+  const current = SelectionExecutionIndexSchema.safeParse(raw);
+  if (current.success) {
+    return {
+      ...current.data,
+      binding: {
+        api_origin: current.data.api_origin,
+        tenant: current.data.tenant
+      }
+    };
+  }
+  const legacy = LegacySelectionExecutionIndexSchema.safeParse(raw);
+  if (!legacy.success) return undefined;
+  return { ...legacy.data };
+}
+
+async function acquireSelectionExecutionLock(
+  paths: SelectionExecutionPaths,
+  now?: () => Date
+): Promise<SecureLockHandle> {
+  return acquireSecureLock({
+    path: join(paths.root, "lock"),
+    label: "selection execution",
+    errorCodes: {
+      locked: "SELECTION_EXECUTION_LOCKED",
+      unsafe: "UNSAFE_SELECTION_EXECUTION",
+      unknownOwner: "SELECTION_EXECUTION_LOCK_OWNER_UNKNOWN",
+      foreignOwner: "SELECTION_EXECUTION_LOCK_FOREIGN_OWNER",
+      changed: "SELECTION_EXECUTION_LOCK_CHANGED"
+    },
+    ...(now === undefined ? {} : { now })
+  });
+}
+
+async function prepareSelectionExecutionStore(
+  input: ResolveSelectionExecutionInput | SelectionExecutionPreflightInput,
+  paths: SelectionExecutionPaths
+): Promise<void> {
+  const index = await readIndex(paths);
+  await migrateV1IfNeeded(input, paths, index);
+  if (!Number.isSafeInteger(input.aggregateMaxCredits) || input.aggregateMaxCredits < 0) {
+    throw budgetInvariantError("aggregateMaxCredits must be a finite nonnegative integer.");
+  }
+}
+
+async function inspectRequestedExecution(
+  input: SelectionExecutionPreflightInput,
+  paths: SelectionExecutionPaths
+): Promise<void> {
+  const loaded = await readAnyExecutionFile(paths, parseExecutionId(input.executionId!));
+  throwIfLegacyUnbound(loaded, input.manifest.manifestHash);
+  const execution = loaded.execution as SelectionExecution;
+  if (execution.manifestHash !== input.manifest.manifestHash) {
+    throw selectionError(
+      "SELECTION_EXECUTION_MANIFEST_MISMATCH",
+      "That --execution-id is bound to a different immutable manifest. No quote was requested."
+    );
+  }
+  assertShardsMatchManifest(execution, input.manifest);
+  if (isTerminalExecutionState(execution.state)) {
+    throw selectionError(
+      "SELECTION_EXECUTION_TERMINAL",
+      `Execution ${execution.executionId} already finished. Omit --execution-id to start a new rerun that does not inherit prior shard results.`,
+      {
+        details: {
+          execution_id: execution.executionId,
+          manifest_hash: execution.manifestHash,
+          recovery_action: "start_new_execution"
+        }
+      }
+    );
+  }
+  if (execution.aggregateMaxCredits !== input.aggregateMaxCredits) {
+    throw selectionError(
+      "SHARD_PROGRESS_BLOCKED",
+      "An in-progress multi-shard run already has a consented aggregate budget. Reuse the original --max-credits value. The CLI will not silently raise consent."
+    );
+  }
+}
+
+async function throwIfUnfinishedSelection(
+  input: SelectionExecutionPreflightInput,
+  paths: SelectionExecutionPaths,
+  index: LoadedIndex | undefined
+): Promise<void> {
+  const latestIndex = index ?? {
+    documentKind: SELECTION_EXECUTION_INDEX_DOCUMENT_KIND_V2,
+    manifestHash: input.manifest.manifestHash,
+    unfinishedExecutionId: null,
+    v1Migrated: false,
+    updatedAt: isoNow(input.now)
+  };
+  const unfinishedId = await unresolvedExecutionId(paths, latestIndex);
+  if (unfinishedId === null) return;
+  const unfinished = await readAnyExecutionFile(paths, unfinishedId);
+  throwIfLegacyUnbound(unfinished, input.manifest.manifestHash);
+  throw selectionResumeRequiredError({
+    executionId: unfinished.execution.executionId,
+    manifestHash: input.manifest.manifestHash,
+    command: formatSelectionResumeCommand({
+      executionId: unfinished.execution.executionId,
+      maxCredits: unfinished.execution.aggregateMaxCredits,
+      ...(input.manifestPath === undefined ? {} : { manifestPath: input.manifestPath }),
+      ...(input.yes === undefined ? {} : { yes: input.yes })
+    })
+  });
+}
+
+function throwIfLegacyUnbound(loaded: AnyExecutionRecord, manifestHash: string): void {
+  if (loaded.version !== "legacy") return;
+  throw selectionLegacyUnboundError({
+    manifestHash,
+    executionId: loaded.execution.executionId,
+    originalRunIds: originalRunIdsFromShards(loaded.execution.shards),
+    reason: "This aw-selection-execution/2 document has no tenant binding."
+  });
+}
+
+async function readAnyExecutionFile(
+  paths: SelectionExecutionPaths,
+  executionId: string
+): Promise<AnyExecutionRecord> {
+  const id = parseExecutionId(executionId);
+  const path = executionDocumentPath(paths, id);
+  const loaded = await readJsonFile(path, parseAnyExecution);
+  if (loaded.status === "missing") {
+    throw selectionError(
+      "SELECTION_EXECUTION_NOT_FOUND",
+      `No local execution ${id} exists for this manifest. Confirm --execution-id before quoting.`
+    );
+  }
+  return loaded.value;
+}
+
+async function markV1Migrated(
+  paths: SelectionExecutionPaths,
+  index: LoadedIndex | undefined,
+  input: ResolveSelectionExecutionInput | SelectionExecutionPreflightInput
+): Promise<void> {
+  const tenant = "tenant" in input ? input.tenant : undefined;
+  if (tenant !== undefined) {
+    const binding = parseSelectionTenant(tenant);
+    await writeIndex(paths, {
+      documentKind: SELECTION_EXECUTION_INDEX_DOCUMENT_KIND,
+      manifestHash: input.manifest.manifestHash,
+      unfinishedExecutionId: index?.unfinishedExecutionId ?? null,
+      v1Migrated: true,
+      updatedAt: isoNow(input.now),
+      api_origin: binding.api_origin,
+      tenant: binding.tenant
+    });
+    return;
+  }
+  await writeJsonAtomic(paths.index, {
+    documentKind: SELECTION_EXECUTION_INDEX_DOCUMENT_KIND_V2,
+    manifestHash: input.manifest.manifestHash,
+    unfinishedExecutionId: index?.unfinishedExecutionId ?? null,
+    v1Migrated: true,
+    updatedAt: isoNow(input.now)
+  });
 }
 
 async function ensureExecutionDirectories(root: string): Promise<void> {

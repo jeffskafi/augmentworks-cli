@@ -8,6 +8,7 @@ import {
   type ShardManifest,
   type SuiteSelectionManifest
 } from "./schema.js";
+import type { RunIntentTenantBinding } from "../relay/run-intent.js";
 import {
   emptySelectionError,
   perRunExpandedLimitError,
@@ -17,6 +18,10 @@ import {
   selectionError,
   unexecutableSelectionError
 } from "./errors.js";
+import {
+  assertManifestWorkspace as assertPinnedManifestWorkspace,
+  type SelectionExecutionTenant
+} from "./tenant.js";
 
 export function requireExecutableManifest(manifest: SuiteSelectionManifest): void {
   if (manifest.createsBillableRun) {
@@ -158,9 +163,13 @@ export function admitCompiledSelection(
     readonly requestedSavedSuite: boolean;
     readonly suiteVersion?: string;
     readonly suiteRevisionId?: string;
+    readonly tenant?: RunIntentTenantBinding | SelectionExecutionTenant;
   }
 ): void {
   requirePinnedSelectionVersion(manifest, options.suiteVersion);
+  if (options.tenant !== undefined) {
+    assertPinnedManifestWorkspace(manifest, options.tenant);
+  }
   if (options.requestedSavedSuite && manifest.schemaVersion !== SUITE_SELECTION_SCHEMA_VERSION_V2) {
     throw savedSuiteBindingUnsupportedError();
   }
@@ -177,6 +186,13 @@ export function admitCompiledSelection(
       });
     }
   }
+}
+
+export function admitManifestWorkspace(
+  manifest: SuiteSelectionManifest,
+  tenant: RunIntentTenantBinding | SelectionExecutionTenant
+): void {
+  assertPinnedManifestWorkspace(manifest, tenant);
 }
 
 export function savedSuitePinFromManifest(manifest: SuiteSelectionManifest): {

@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { CloudClient } from "../../src/cloud/client.js";
 import {
   createTestCommand,
   installSelectionExecutionInterruptHandler,
@@ -14,6 +15,8 @@ import {
 import { resolveConfig } from "../../src/config/resolve.js";
 import type { AugmentWorksConfig } from "../../src/config/types.js";
 import { AwError, EXIT } from "../../src/errors.js";
+import { canonicalize, sha256 } from "../../src/util/canonical.js";
+import { admitManifestWorkspace } from "../../src/selection/admit.js";
 import {
   aggregateExecutionExitCode,
   artifactFromExecution,
@@ -37,6 +40,7 @@ import {
 } from "../../src/selection/execution.js";
 import {
   SELECTION_EXECUTION_DOCUMENT_KIND,
+  SELECTION_EXECUTION_DOCUMENT_KIND_V2,
   SelectionExecutionSchema,
   type SuiteSelectionManifest
 } from "../../src/selection/schema.js";
@@ -45,6 +49,13 @@ const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const fixtures = JSON.parse(
   await readFile(resolve(projectRoot, "contracts/aw-suite-selection-v1.fixtures.json"), "utf8")
 ) as { fixtures: Record<string, { response: unknown }> };
+const billingFixtures = JSON.parse(
+  await readFile(resolve(projectRoot, "contracts/aw-billing-v1.fixtures.json"), "utf8")
+) as { fixtures: Record<string, { response: unknown }> };
+
+const FIXTURE_WORKSPACE = "11111111-1111-4111-8111-111111111111";
+const OTHER_WORKSPACE = "22222222-2222-4222-8222-222222222222";
+const FIXTURE_CONNECTOR = "connector-1";
 
 const temporaryDirectories: string[] = [];
 
@@ -100,6 +111,39 @@ function threeShardManifest(manifestHash = `b${"c".repeat(63)}`): SuiteSelection
       }
     ]
   };
+}
+
+function fixtureTenant(
+  workspaceId = FIXTURE_WORKSPACE,
+  extras: { readonly apiOrigin?: string; readonly connectorId?: string } = {}
+) {
+  return {
+    api_origin: extras.apiOrigin ?? "http://127.0.0.1/",
+    tenant: {
+      workspace_id: workspaceId,
+      connector_id: extras.connectorId ?? FIXTURE_CONNECTOR
+    }
+  };
+}
+
+function startExecution(
+  manifest: SuiteSelectionManifest,
+  aggregateMaxCredits: number,
+  options: { readonly now?: () => Date; readonly createExecutionId?: () => string } = {}
+) {
+  return initialExecution(manifest, aggregateMaxCredits, {
+    tenant: fixtureTenant(),
+    ...options
+  });
+}
+
+async function openExec(
+  input: Parameters<typeof openSelectionExecution>[0]
+): ReturnType<typeof openSelectionExecution> {
+  return openSelectionExecution({
+    tenant: fixtureTenant(),
+    ...input
+  });
 }
 
 function completeShard(
@@ -169,7 +213,7 @@ describe("selection execution IDs", () => {
   it("creates a cryptographically random execution id for a fresh attempt", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const opened = await openSelectionExecution({
+    const opened = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 20
@@ -186,7 +230,7 @@ describe("selection execution IDs", () => {
   it("starts a new empty execution after a terminal attempt on the same manifest", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({
+    const first = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 20,
@@ -206,7 +250,7 @@ describe("selection execution IDs", () => {
     expect(saved.terminalReason).toBeNull();
     await first.lock.release();
 
-    const second = await openSelectionExecution({
+    const second = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 20,
@@ -222,13 +266,13 @@ describe("selection execution IDs", () => {
 
   it("keeps different manifests from colliding", async () => {
     const stateDirectory = await stateDir();
-    const a = await openSelectionExecution({
+    const a = await openExec({
       stateDirectory,
       manifest: twoShardManifest("a".repeat(64)),
       aggregateMaxCredits: 8,
       createExecutionId: () => "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     });
-    const b = await openSelectionExecution({
+    const b = await openExec({
       stateDirectory,
       manifest: twoShardManifest("d".repeat(64)),
       aggregateMaxCredits: 8,
@@ -243,7 +287,7 @@ describe("selection execution IDs", () => {
   it("refuses a second invocation without --execution-id while an attempt is unfinished", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({
+    const first = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 20,
@@ -252,7 +296,7 @@ describe("selection execution IDs", () => {
     await first.lock.release();
     const error = await expectAsyncCode(
       () =>
-        openSelectionExecution({
+        openExec({
           stateDirectory,
           manifest,
           aggregateMaxCredits: 20,
@@ -270,7 +314,7 @@ describe("selection execution IDs", () => {
   it("resumes only the exact execution id and clears interrupted terminal reason", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({
+    const first = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 12
@@ -285,7 +329,7 @@ describe("selection execution IDs", () => {
 
     await expectAsyncCode(
       () =>
-        openSelectionExecution({
+        openExec({
           stateDirectory,
           manifest,
           aggregateMaxCredits: 12,
@@ -294,7 +338,7 @@ describe("selection execution IDs", () => {
       "SELECTION_EXECUTION_NOT_FOUND"
     );
 
-    const resumed = await openSelectionExecution({
+    const resumed = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 12,
@@ -310,7 +354,7 @@ describe("selection execution IDs", () => {
 
   it("does not requote or double-subtract completed shards", async () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 10);
+    let execution = startExecution(manifest, 10);
     execution = markShardQuoted(execution, "shard-000", { quoteId: "quote-1", quotedUnits: 4 });
     execution = markShardAdmitted(execution, "shard-000", { runId: "run-1" });
     execution = markShardCompleted(execution, "shard-000", { runId: "run-1", chargedUnits: 4 });
@@ -323,7 +367,7 @@ describe("selection execution IDs", () => {
 
   it("restores durable units for a recovered terminal shard and advances coverage", () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 10);
+    let execution = startExecution(manifest, 10);
     execution = markShardQuoted(execution, "shard-000", { quoteId: "quote-1", quotedUnits: 4 });
     execution = markShardAdmitted(execution, "shard-000", { runId: "run-1" });
     execution = markShardCompleted(execution, "shard-000", {
@@ -341,13 +385,13 @@ describe("selection execution IDs", () => {
 
   it("treats exact budget coverage as complete and budget exhaustion with a pending shard as incomplete", () => {
     const manifest = twoShardManifest();
-    let exact = initialExecution(manifest, 8);
+    let exact = startExecution(manifest, 8);
     exact = markShardCompleted(markShardAdmitted(markShardQuoted(exact, "shard-000", { quoteId: "q1", quotedUnits: 4 }), "shard-000", { runId: "r1" }), "shard-000", { chargedUnits: 4 });
     exact = markShardCompleted(markShardAdmitted(markShardQuoted(exact, "shard-001", { quoteId: "q2", quotedUnits: 4 }), "shard-001", { runId: "r2" }), "shard-001", { chargedUnits: 4 });
     expect(exact.remainingCredits).toBe(0);
     expect(aggregateExecutionExitCode(exact, EXIT.OK)).toBe(EXIT.OK);
 
-    let exhausted = initialExecution(manifest, 4);
+    let exhausted = startExecution(manifest, 4);
     exhausted = markShardCompleted(markShardAdmitted(markShardQuoted(exhausted, "shard-000", { quoteId: "q1", quotedUnits: 4 }), "shard-000", { runId: "r1" }), "shard-000", { chargedUnits: 4 });
     exhausted = skipRemainingPendingShards(exhausted, "aggregate_budget");
     expect(exhausted.state).toBe("blocked");
@@ -358,7 +402,7 @@ describe("selection execution IDs", () => {
 
   it("does not let a last-shard pass mask missing coverage", () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 4);
+    let execution = startExecution(manifest, 4);
     execution = markShardCompleted(
       markShardAdmitted(markShardQuoted(execution, "shard-000", { quoteId: "q1", quotedUnits: 4 }), "shard-000", {
         runId: "r1"
@@ -372,7 +416,7 @@ describe("selection execution IDs", () => {
 
   it("counts unique quote ids once across duplicate poll/retry completions", () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 10);
+    let execution = startExecution(manifest, 10);
     execution = markShardQuoted(execution, "shard-000", { quoteId: "same-quote", quotedUnits: 4 });
     execution = markShardCompleted(execution, "shard-000", { runId: "run-1", chargedUnits: 4, quoteId: "same-quote" });
     const duplicate = markShardCompleted(execution, "shard-000", {
@@ -386,7 +430,7 @@ describe("selection execution IDs", () => {
 
   it("rejects a quote id already bound to another shard before another quote", () => {
     const manifest = threeShardManifest();
-    const execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+    const execution = completeShard(startExecution(manifest, 10), "shard-000", {
       runId: "r1",
       quoteId: "duplicate-quote",
       units: 4
@@ -413,7 +457,7 @@ describe("selection execution IDs", () => {
     expect(execution.remainingCredits).toBe(6);
     expect(execution.shards.map((shard) => shard.state)).toEqual(["completed", "pending", "pending"]);
     expect(nextRunnableShard(execution)?.shardId).toBe("shard-001");
-    const reserved = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+    const reserved = markShardQuoted(startExecution(manifest, 10), "shard-000", {
       quoteId: "in-flight-quote",
       quotedUnits: 4
     });
@@ -425,7 +469,7 @@ describe("selection execution IDs", () => {
 
   it("rejects a run id already bound to another shard before admission or completion", () => {
     const manifest = twoShardManifest();
-    let execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+    let execution = completeShard(startExecution(manifest, 10), "shard-000", {
       runId: "shared-run",
       quoteId: "quote-a",
       units: 4
@@ -443,7 +487,7 @@ describe("selection execution IDs", () => {
 
   it("rejects a failed shard's run id if another shard tries to reuse it", () => {
     const manifest = twoShardManifest();
-    let execution = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+    let execution = markShardQuoted(startExecution(manifest, 10), "shard-000", {
       quoteId: "quote-a",
       quotedUnits: 4
     });
@@ -458,7 +502,7 @@ describe("selection execution IDs", () => {
 
   it("still counts each validated shard charge against the aggregate cap", () => {
     const manifest = threeShardManifest();
-    let execution = completeShard(initialExecution(manifest, 10), "shard-000", {
+    let execution = completeShard(startExecution(manifest, 10), "shard-000", {
       runId: "r1",
       quoteId: "quote-1",
       units: 4
@@ -473,7 +517,7 @@ describe("selection execution IDs", () => {
 
   it("allows the same shard to replace an unadmitted quote id", () => {
     const manifest = twoShardManifest();
-    let execution = markShardQuoted(initialExecution(manifest, 10), "shard-000", {
+    let execution = markShardQuoted(startExecution(manifest, 10), "shard-000", {
       quoteId: "quote-old",
       quotedUnits: 4
     });
@@ -486,7 +530,7 @@ describe("selection execution IDs", () => {
 
   it("fails schema validation for persisted cross-shard quote or run duplicates", () => {
     const manifest = twoShardManifest();
-    const valid = completeShard(initialExecution(manifest, 10), "shard-000", {
+    const valid = completeShard(startExecution(manifest, 10), "shard-000", {
       runId: "r1",
       quoteId: "quote-a",
       units: 4
@@ -521,7 +565,7 @@ describe("selection execution IDs", () => {
 
   it("fails closed on negative, overflowing, or missing unit ledgers", () => {
     const manifest = twoShardManifest();
-    const execution = initialExecution(manifest, 4);
+    const execution = startExecution(manifest, 4);
     expect(() =>
       markShardQuoted(execution, "shard-000", { quoteId: "q", quotedUnits: -1 })
     ).toThrow(/SELECTION_BUDGET_INVARIANT|quotedUnits/);
@@ -532,7 +576,7 @@ describe("selection execution IDs", () => {
 
   it("maps mixed pass/block/failure to a stable failed aggregate exit", () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 20);
+    let execution = startExecution(manifest, 20);
     execution = markShardCompleted(
       markShardAdmitted(markShardQuoted(execution, "shard-000", { quoteId: "q1", quotedUnits: 4 }), "shard-000", {
         runId: "r1"
@@ -544,7 +588,7 @@ describe("selection execution IDs", () => {
     expect(aggregateExecutionExitCode(execution)).toBe(EXIT.ASSESSMENT_FAILED);
   });
 
-  it("migrates an unambiguous v1 progress file once and keeps the original file", async () => {
+  it("fails closed on an unambiguous v1 progress file instead of relabeling the current login", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest(baseManifest().manifestHash);
     const first = manifest.shards[0]!;
@@ -573,22 +617,17 @@ describe("selection execution IDs", () => {
     await mkdir(join(stateDirectory, "selections"), { recursive: true, mode: 0o700 });
     await writeFile(paths.v1Progress, `${JSON.stringify(v1)}\n`, { mode: 0o600 });
     const error = await expectAsyncCode(
-      () => openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 8 }),
-      "SELECTION_RESUME_REQUIRED"
+      () => openExec({ stateDirectory, manifest, aggregateMaxCredits: 8 }),
+      "SELECTION_LEGACY_UNBOUND"
     );
     expect(JSON.parse(await readFile(paths.v1Progress, "utf8"))).toMatchObject({
       schemaVersion: "aw-selection-progress/1"
     });
-    expect(error.details?.["execution_id"]).toEqual(expect.any(String));
-    const resumed = await openSelectionExecution({
-      stateDirectory,
-      manifest,
-      aggregateMaxCredits: 8,
-      executionId: String(error.details?.["execution_id"])
-    });
-    expect(resumed.execution.shards[0]?.chargedUnits).toBe(4);
-    expect(resumed.execution.remainingCredits).toBe(4);
-    await resumed.lock.release();
+    expect(error.details?.["original_run_ids"]).toBe("run-1");
+    expect(error.details?.["recovery_action"]).toBe("inspect_legacy_unbound");
+    expectSecretSafe(error.toSafeJSON());
+    const executionsDir = join(paths.root, "executions");
+    await expect(readdir(executionsDir)).resolves.toEqual([]);
   });
 
   it("refuses an ambiguous v1 progress file before any caller can quote", async () => {
@@ -619,7 +658,7 @@ describe("selection execution IDs", () => {
     await mkdir(join(stateDirectory, "selections"), { recursive: true, mode: 0o700 });
     await writeFile(paths.v1Progress, `${JSON.stringify(v1)}\n`, { mode: 0o600 });
     await expectAsyncCode(
-      () => openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 }),
+      () => openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 }),
       "SELECTION_PROGRESS_MIGRATION_REQUIRED"
     );
   });
@@ -627,13 +666,13 @@ describe("selection execution IDs", () => {
   it("quarantines truncated JSON and does not silently discard it", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 });
+    const first = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 });
     const file = executionDocumentPath(first.paths, first.execution.executionId);
     await first.lock.release();
     await writeFile(file, '{"documentKind":"aw-selection-execution/2"', { mode: 0o600 });
     await expectAsyncCode(
       () =>
-        openSelectionExecution({
+        openExec({
           stateDirectory,
           manifest,
           aggregateMaxCredits: 4,
@@ -648,7 +687,7 @@ describe("selection execution IDs", () => {
   it("quarantines persisted cross-shard quote duplicates before resume or quote", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({
+    const first = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 10,
@@ -669,7 +708,7 @@ describe("selection execution IDs", () => {
     await first.lock.release();
     const error = await expectAsyncCode(
       () =>
-        openSelectionExecution({
+        openExec({
           stateDirectory,
           manifest,
           aggregateMaxCredits: 10,
@@ -688,7 +727,7 @@ describe("selection execution IDs", () => {
     if (process.platform === "win32") return;
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 });
+    const first = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 });
     await first.lock.release();
     const target = join(stateDirectory, "other.json");
     await writeFile(target, "{}\n", { mode: 0o600 });
@@ -701,7 +740,7 @@ describe("selection execution IDs", () => {
     }
     await expectAsyncCode(
       () =>
-        openSelectionExecution({
+        openExec({
           stateDirectory,
           manifest,
           aggregateMaxCredits: 4,
@@ -714,9 +753,9 @@ describe("selection execution IDs", () => {
   it("contends safely when another invocation holds the execution lock", async () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const first = await openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 });
+    const first = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 });
     await expectAsyncCode(
-      () => openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 }),
+      () => openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 }),
       "SELECTION_EXECUTION_LOCKED"
     );
     await first.lock.release();
@@ -726,19 +765,23 @@ describe("selection execution IDs", () => {
     if (process.platform === "win32") return;
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest();
-    const opened = await openSelectionExecution({ stateDirectory, manifest, aggregateMaxCredits: 4 });
+    const opened = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 4 });
     const file = executionDocumentPath(opened.paths, opened.execution.executionId);
     expect((await lstat(file)).mode & 0o777).toBe(0o600);
     expect((await lstat(opened.paths.root)).mode & 0o777).toBe(0o700);
     const raw = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
     expect(raw["documentKind"]).toBe(SELECTION_EXECUTION_DOCUMENT_KIND);
-    expect(JSON.stringify(raw)).not.toMatch(/token|api[_-]?key|authorization/i);
+    expect(raw["tenant"]).toEqual({
+      workspace_id: FIXTURE_WORKSPACE,
+      connector_id: FIXTURE_CONNECTOR
+    });
+    expect(JSON.stringify(raw)).not.toMatch(/token|api[_-]?key|authorization|refresh/i);
     await opened.lock.release();
   });
 
   it("writes a single interrupted checkpoint then aborts without claiming completion", () => {
     const manifest = twoShardManifest();
-    let execution = markShardQuoted(initialExecution(manifest, 4), "shard-000", {
+    let execution = markShardQuoted(startExecution(manifest, 4), "shard-000", {
       quoteId: "quote-int",
       quotedUnits: 2
     });
@@ -823,7 +866,7 @@ describe("selection execution CLI", () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest(baseManifest().manifestHash);
     await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
-    const opened = await openSelectionExecution({
+    const opened = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 20,
@@ -889,7 +932,7 @@ describe("selection execution CLI", () => {
     const stateDirectory = await stateDir();
     const manifest = twoShardManifest(baseManifest().manifestHash);
     await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
-    const opened = await openSelectionExecution({
+    const opened = await openExec({
       stateDirectory,
       manifest,
       aggregateMaxCredits: 10,
@@ -977,7 +1020,7 @@ describe("execution helpers", () => {
 
   it("resumes interrupt-before-quote through observation checkpoints", () => {
     const manifest = twoShardManifest();
-    let execution = initialExecution(manifest, 20);
+    let execution = startExecution(manifest, 20);
     expect(nextRunnableShard(execution)?.state).toBe("pending");
     execution = markShardQuoted(execution, "shard-000", { quoteId: randomUUID(), quotedUnits: 3 });
     expect(nextRunnableShard(execution)?.state).toBe("quoted");
@@ -987,5 +1030,446 @@ describe("execution helpers", () => {
     expect(execution.state).toBe("running");
     expect(execution.terminalReason).toBeNull();
     expect(nextRunnableShard(execution)?.runId).toBe("run-obs");
+  });
+});
+
+describe("selection execution tenant pinning", () => {
+  function hostedIdentity(
+    workspaceId = FIXTURE_WORKSPACE,
+    connectorId = FIXTURE_CONNECTOR
+  ) {
+    return {
+      subject: "user-1",
+      workspaceId,
+      workspaceName: "Fixture workspace",
+      connectorId,
+      scopes: ["connector:identity", "connector:run"]
+    };
+  }
+
+  function createRunJson(
+    request: Record<string, unknown>,
+    runId: string,
+    origin: URL
+  ): Record<string, unknown> {
+    return {
+      protocol_version: "aw-relay/0.3",
+      create_request_id: request["create_request_id"],
+      create_request_sha256: sha256(canonicalize(request)),
+      create_disposition: "created",
+      run_id: runId,
+      session_id: "session-1",
+      packet: { key: "aw-customer-suite", version: "1.0.0", sha256: "a".repeat(64) },
+      config_sha256: request["config_sha256"],
+      fencing_epoch: 1,
+      status: "completed",
+      dashboard_url: `${origin.origin}/portal/runs/${runId}`,
+      run_expires_at: "2099-09-06T00:00:00.000Z",
+      credit_state: "reserved"
+    };
+  }
+
+  function runStatusJson(runId: string, origin: URL): Record<string, unknown> {
+    return {
+      protocol_version: "aw-relay/0.1",
+      run_id: runId,
+      status: "completed",
+      credit_state: "reserved",
+      outcome: "passed",
+      dashboard_url: `${origin.origin}/portal/runs/${runId}`
+    };
+  }
+
+  it("requires a versioned tenant binding on aw-selection-execution/3 and rejects /2 as current", () => {
+    const bound = startExecution(twoShardManifest(), 10);
+    expect(SelectionExecutionSchema.safeParse(bound).success).toBe(true);
+    const { api_origin: _origin, tenant: _tenant, ...rest } = bound;
+    const unbound = { ...rest, documentKind: SELECTION_EXECUTION_DOCUMENT_KIND_V2 };
+    expect(SelectionExecutionSchema.safeParse(unbound).success).toBe(false);
+    expect(bound.tenant.workspace_id).toBe(FIXTURE_WORKSPACE);
+    expect(JSON.stringify(bound)).not.toMatch(/access_token|refresh_token|Bearer /i);
+  });
+
+  it("rejects a credential switch on resume before any quote and keeps the original run binding", async () => {
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest();
+    const first = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 20 });
+    const admitted = markShardAdmitted(
+      markShardQuoted(first.execution, "shard-000", { quoteId: "quote-keep", quotedUnits: 4 }),
+      "shard-000",
+      { runId: "run-keep" }
+    );
+    await saveSelectionExecution(first.paths, interruptExecution(admitted));
+    await first.lock.release();
+    await expectAsyncCode(
+      () =>
+        openSelectionExecution({
+          stateDirectory,
+          manifest,
+          aggregateMaxCredits: 20,
+          executionId: first.execution.executionId,
+          tenant: fixtureTenant(OTHER_WORKSPACE)
+        }),
+      "SELECTION_TENANT_MISMATCH"
+    );
+    const resumed = await openExec({
+      stateDirectory,
+      manifest,
+      aggregateMaxCredits: 20,
+      executionId: first.execution.executionId
+    });
+    expect(resumed.execution.shards[0]?.runId).toBe("run-keep");
+    expect(resumed.execution.shards[0]?.quoteId).toBe("quote-keep");
+    expect(resumed.execution.tenant.workspace_id).toBe(FIXTURE_WORKSPACE);
+    expect(resumed.execution.remainingCredits).toBe(16);
+    await resumed.lock.release();
+  });
+
+  it("fails closed on a legacy unbound /2 document instead of relabeling the current login", async () => {
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest();
+    const first = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 8 });
+    const file = executionDocumentPath(first.paths, first.execution.executionId);
+    const raw = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    delete raw["api_origin"];
+    delete raw["tenant"];
+    raw["documentKind"] = SELECTION_EXECUTION_DOCUMENT_KIND_V2;
+    await writeFile(file, `${JSON.stringify(raw)}\n`, { mode: 0o600 });
+    await first.lock.release();
+    const error = await expectAsyncCode(
+      () =>
+        openExec({
+          stateDirectory,
+          manifest,
+          aggregateMaxCredits: 8,
+          executionId: first.execution.executionId
+        }),
+      "SELECTION_LEGACY_UNBOUND"
+    );
+    expect(error.details?.["execution_id"]).toBe(first.execution.executionId);
+    expect(error.message).toMatch(/will not relabel/i);
+    expectSecretSafe(error.toSafeJSON());
+    const reread = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
+    expect(reread["documentKind"]).toBe(SELECTION_EXECUTION_DOCUMENT_KIND_V2);
+    expect(reread["tenant"]).toBeUndefined();
+  });
+
+  it("denies a foreign-workspace compiled manifest before quote, including catalog shards", () => {
+    const manifest = twoShardManifest();
+    expect(manifest.workspaceId).toBe(FIXTURE_WORKSPACE);
+    try {
+      admitManifestWorkspace(manifest, fixtureTenant(OTHER_WORKSPACE).tenant);
+      throw new Error("expected SELECTION_TENANT_MISMATCH");
+    } catch (error) {
+      expectCode(error, "SELECTION_TENANT_MISMATCH");
+      const details = (error as AwError).details;
+      expect(details?.["expected_workspace_id"]).toBe(FIXTURE_WORKSPACE);
+      expect(details?.["actual_workspace_id"]).toBe(OTHER_WORKSPACE);
+      expectSecretSafe((error as AwError).toSafeJSON());
+    }
+  });
+
+  it("rejects a credential swap after shard 1 with zero later quotes, creates, or target calls", async () => {
+    const cwd = await stateDir();
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest(baseManifest().manifestHash);
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
+    const counts = { quote: 0, create: 0, target: 0, capabilities: 0 };
+    let workspaceId = FIXTURE_WORKSPACE;
+    const apiOrigin = new URL("http://127.0.0.1:8787/");
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/billing/capabilities") {
+        counts.capabilities += 1;
+        return Response.json(billingFixtures.fixtures["eligible_trial"]?.response);
+      }
+      if (url.pathname === "/v1/billing/quote") {
+        counts.quote += 1;
+        return Response.json(billingFixtures.fixtures["quote_success_with_balance"]?.response);
+      }
+      if (url.pathname === "/v1/relay/runs" && (init?.method ?? "GET") === "POST") {
+        counts.create += 1;
+        const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json(createRunJson(request, "run-shard-0", apiOrigin));
+      }
+      if (url.pathname === "/v1/relay/runs/run-shard-0") {
+        workspaceId = OTHER_WORKSPACE;
+        return Response.json(runStatusJson("run-shard-0", apiOrigin));
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const error = await expectAsyncCode(
+      () =>
+        runTest(
+          {
+            manifest: "suite-selection.manifest.json",
+            allShards: true,
+            maxCredits: "100",
+            yes: true,
+            cwd,
+            stateDirectory,
+            handleSignals: false,
+            env: {
+              CI: "1",
+              AUGMENTWORKS_API_URL: apiOrigin.origin,
+              AUGMENTWORKS_API_KEY: "",
+              AUGMENTWORKS_TOKEN: "token"
+            }
+          },
+          {
+            doctor: doctorFor(),
+            apiOrigin: () => apiOrigin,
+            accessToken: async () => "token",
+            identity: async () => hostedIdentity(workspaceId),
+            cloud: (options) =>
+              new CloudClient({
+                apiUrl: options.apiOrigin,
+                accessToken: options.accessToken,
+                accessTokenProvider: options.accessTokenProvider,
+                fetch: fetchMock
+              }),
+            connector: () => {
+              counts.target += 1;
+              throw new Error("target must not be constructed");
+            },
+            stdout: { write: () => true },
+            stderr: { write: () => true }
+          }
+        ),
+      "SELECTION_TENANT_MISMATCH"
+    );
+    expect(counts).toEqual({ quote: 1, create: 1, target: 0, capabilities: 1 });
+    expect(error.details?.["expected_workspace_id"]).toBe(FIXTURE_WORKSPACE);
+    expect(error.details?.["actual_workspace_id"]).toBe(OTHER_WORKSPACE);
+    expectSecretSafe(error.toSafeJSON());
+    const paths = executionPaths(stateDirectory, manifest.manifestHash);
+    const names = await readdir(join(paths.root, "executions"));
+    const saved = JSON.parse(
+      await readFile(join(paths.root, "executions", names[0]!), "utf8")
+    ) as {
+      remainingCredits: number;
+      state: string;
+      tenant: { workspace_id: string };
+      shards: Array<{ state: string; runId: string | null }>;
+    };
+    expect(saved.tenant.workspace_id).toBe(FIXTURE_WORKSPACE);
+    expect(saved.remainingCredits).toBe(70);
+    expect(saved.shards[0]?.state).toBe("completed");
+    expect(saved.shards[0]?.runId).toBe("run-shard-0");
+    expect(saved.shards[1]?.state).toBe("pending");
+    expect(saved.state).toBe("interrupted");
+    expect(error.category).toBe("auth");
+    expect(error.toSafeJSON()["code"]).toBe("SELECTION_TENANT_MISMATCH");
+  });
+
+  it("allows a same-tenant token rotation and still refuses a later connector switch", async () => {
+    const cwd = await stateDir();
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest(baseManifest().manifestHash);
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
+    let connectorId = FIXTURE_CONNECTOR;
+    let tokens = 0;
+    const apiOrigin = new URL("http://127.0.0.1:8787/");
+    const counts = { quote: 0, create: 0 };
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/billing/capabilities") {
+        return Response.json(billingFixtures.fixtures["eligible_trial"]?.response);
+      }
+      if (url.pathname === "/v1/billing/quote") {
+        counts.quote += 1;
+        const quote = billingFixtures.fixtures["quote_success_with_balance"]?.response;
+        return Response.json({
+          ...((quote ?? {}) as object),
+          quoteId: counts.quote === 1 ? "55555555-5555-4555-8555-555555555555" : "66666666-6666-4666-8666-666666666666",
+          executionUnits: 4
+        });
+      }
+      if (url.pathname === "/v1/relay/runs" && (init?.method ?? "GET") === "POST") {
+        counts.create += 1;
+        const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        const runId = counts.create === 1 ? "run-rot-0" : "run-rot-1";
+        return Response.json(createRunJson(request, runId, apiOrigin));
+      }
+      if (url.pathname.startsWith("/v1/relay/runs/run-rot-")) {
+        const runId = url.pathname.split("/").pop()!;
+        connectorId = "connector-other";
+        return Response.json(runStatusJson(runId, apiOrigin));
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const error = await expectAsyncCode(
+      () =>
+        runTest(
+          {
+            manifest: "suite-selection.manifest.json",
+            allShards: true,
+            maxCredits: "20",
+            yes: true,
+            cwd,
+            stateDirectory,
+            handleSignals: false,
+            env: { CI: "1", AUGMENTWORKS_API_URL: apiOrigin.origin }
+          },
+          {
+            doctor: doctorFor(),
+            apiOrigin: () => apiOrigin,
+            accessToken: async () => {
+              tokens += 1;
+              return `rotated-token-${String(tokens)}`;
+            },
+            identity: async () => hostedIdentity(FIXTURE_WORKSPACE, connectorId),
+            cloud: (options) =>
+              new CloudClient({
+                apiUrl: options.apiOrigin,
+                accessToken: options.accessToken,
+                accessTokenProvider: options.accessTokenProvider,
+                fetch: fetchMock
+              }),
+            connector: () => {
+              throw new Error("target must not be constructed");
+            },
+            stdout: { write: () => true },
+            stderr: { write: () => true }
+          }
+        ),
+      "SELECTION_TENANT_MISMATCH"
+    );
+    expect(counts.quote).toBe(1);
+    expect(counts.create).toBe(1);
+    expect(error.details?.["expected_workspace_id"]).toBe(FIXTURE_WORKSPACE);
+    expectSecretSafe(error.toSafeJSON());
+  });
+
+  it("denies a foreign-workspace manifest after authenticate and before any quote", async () => {
+    const cwd = await stateDir();
+    const stateDirectory = await stateDir();
+    const manifest = {
+      ...twoShardManifest(baseManifest().manifestHash),
+      workspaceId: OTHER_WORKSPACE
+    };
+    await writeFile(join(cwd, "suite-selection.manifest.json"), `${JSON.stringify(manifest)}\n`, "utf8");
+    const counts = { quote: 0, create: 0, target: 0 };
+    const apiOrigin = new URL("http://127.0.0.1:8787/");
+    const error = await expectAsyncCode(
+      () =>
+        runTest(
+          {
+            manifest: "suite-selection.manifest.json",
+            allShards: true,
+            maxCredits: "20",
+            yes: true,
+            cwd,
+            stateDirectory,
+            handleSignals: false,
+            env: { CI: "1", AUGMENTWORKS_API_URL: apiOrigin.origin }
+          },
+          {
+            doctor: doctorFor(),
+            apiOrigin: () => apiOrigin,
+            accessToken: async () => "token",
+            identity: async () => hostedIdentity(),
+            cloud: (options) =>
+              new CloudClient({
+                apiUrl: options.apiOrigin,
+                accessToken: options.accessToken,
+                accessTokenProvider: options.accessTokenProvider,
+                fetch: async (input) => {
+                  const url = new URL(String(input));
+                  if (url.pathname === "/v1/billing/quote") counts.quote += 1;
+                  if (url.pathname === "/v1/relay/runs") counts.create += 1;
+                  throw new Error(`unexpected ${url.pathname}`);
+                }
+              }),
+            connector: () => {
+              counts.target += 1;
+              throw new Error("target must not be constructed");
+            },
+            stdout: { write: () => true },
+            stderr: { write: () => true }
+          }
+        ),
+      "SELECTION_TENANT_MISMATCH"
+    );
+    expect(counts).toEqual({ quote: 0, create: 0, target: 0 });
+    expect(error.details?.["expected_workspace_id"]).toBe(OTHER_WORKSPACE);
+    expect(error.details?.["actual_workspace_id"]).toBe(FIXTURE_WORKSPACE);
+    expectSecretSafe(error.toSafeJSON());
+  });
+
+  it("marks unused all-pending v1 progress migrated without quoting or relabeling spend", async () => {
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest(baseManifest().manifestHash);
+    const first = manifest.shards[0]!;
+    const v1 = {
+      schemaVersion: "aw-selection-progress/1",
+      manifestHash: manifest.manifestHash,
+      aggregateMaxCredits: 8,
+      remainingCredits: 8,
+      stoppedReason: null,
+      shards: [
+        {
+          shardId: first.shardId,
+          shardIdentityHash: first.shardIdentityHash,
+          status: "pending"
+        },
+        {
+          shardId: "shard-001",
+          shardIdentityHash: "c".repeat(64),
+          status: "pending"
+        }
+      ]
+    };
+    const paths = executionPaths(stateDirectory, manifest.manifestHash);
+    await mkdir(join(stateDirectory, "selections"), { recursive: true, mode: 0o700 });
+    await writeFile(paths.v1Progress, `${JSON.stringify(v1)}\n`, { mode: 0o600 });
+    const opened = await openExec({ stateDirectory, manifest, aggregateMaxCredits: 8 });
+    expect(opened.kind).toBe("created");
+    expect(opened.execution.tenant.workspace_id).toBe(FIXTURE_WORKSPACE);
+    expect(opened.execution.shards.every((shard) => shard.state === "pending")).toBe(true);
+    expect(opened.execution.remainingCredits).toBe(8);
+    const index = JSON.parse(await readFile(paths.index, "utf8")) as {
+      documentKind: string;
+      v1Migrated: boolean;
+      tenant: { workspace_id: string };
+    };
+    expect(index.documentKind).toBe("aw-selection-execution-index/3");
+    expect(index.v1Migrated).toBe(true);
+    expect(index.tenant.workspace_id).toBe(FIXTURE_WORKSPACE);
+    await opened.lock.release();
+  });
+
+  it("allows a new execution after a terminal attempt when the current tenant differs", async () => {
+    const stateDirectory = await stateDir();
+    const manifest = twoShardManifest();
+    const first = await openExec({
+      stateDirectory,
+      manifest,
+      aggregateMaxCredits: 8,
+      createExecutionId: () => "11111111-1111-4111-8111-111111111111"
+    });
+    let execution = completeShard(first.execution, "shard-000", {
+      runId: "run-a",
+      quoteId: "quote-a",
+      units: 4
+    });
+    execution = completeShard(execution, "shard-001", {
+      runId: "run-b",
+      quoteId: "quote-b",
+      units: 4
+    });
+    await saveSelectionExecution(first.paths, execution);
+    await first.lock.release();
+    const second = await openSelectionExecution({
+      stateDirectory,
+      manifest,
+      aggregateMaxCredits: 8,
+      tenant: fixtureTenant(OTHER_WORKSPACE),
+      createExecutionId: () => "22222222-2222-4222-8222-222222222222"
+    });
+    expect(second.kind).toBe("rerun");
+    expect(second.execution.tenant.workspace_id).toBe(OTHER_WORKSPACE);
+    expect(second.execution.shards.every((shard) => shard.runId === null)).toBe(true);
+    await second.lock.release();
   });
 });
