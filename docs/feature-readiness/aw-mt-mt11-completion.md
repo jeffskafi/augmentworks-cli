@@ -17,7 +17,7 @@ this merge.
 | CLI default main at start | `e36352fafb96e1ba4a7462bd571a4188befc962b` (issue-cited audit head) |
 | Working branch | `cursor/mt11-selection-tenant-pin-b1f4` |
 | Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/55 |
-| Source head after verification | recorded in git on this branch after the verification commit |
+| Source head after verification | `e06a184f48f52e53896038d5558859df4e4e2bf4` (CI-green implementation + local check/pack note) |
 | Frozen contract | [AW-MULTITENANCY-1](https://linear.app/augmentworks/document/aw-multitenancy-1-gap-analysis-contracts-and-implementation-plan-2026-09482fb6b45f) |
 | Source package | `0.3.7` (unpublished; npm latest at ticket write was `0.3.6`) |
 | Schema / artifact version | `aw-selection-execution/3` and `aw-selection-execution-index/3` |
@@ -69,6 +69,7 @@ fixtures and disposable temp directories only.
 | `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN -u AUGMENTWORKS_API_URL npm run check` | Pass: typecheck, 92 files / 910 tests, `tsup` build, discovery/billing/run-report contracts. Inherited hosted secrets were unset so child CLI tests did not see `AUTH_ENV_CONFLICT`. |
 | `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN -u AUGMENTWORKS_API_URL npm run smoke:pack` | Pass (68 packed files, 533062 compressed bytes). Local packed core-release `releaseReady=false` (registry-identity and live-authorized-environment not_run). |
 | `check:billing-contract` / `check:run-report-contract` | Pass; prove vendored hashes only (`aw-billing/1` schema `3097c7aa…`, fixtures `a4b9234b…`; `aw-run-report/1` schema `7726ec27…`, fixtures `febd2626…`) |
+| GitHub Actions on `e06a184` | Pass: 9/9 (Node 20/22/24 × ubuntu, macos, windows) |
 
 Negative authorization checks assert zero later quotes/creates/target calls and
 unchanged remaining credits after a credential swap (shard 1 completed, shard 2
