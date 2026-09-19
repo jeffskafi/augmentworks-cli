@@ -16,6 +16,8 @@ this merge.
 | --- | --- |
 | CLI default main at start | `e36352fafb96e1ba4a7462bd571a4188befc962b` (issue-cited audit head) |
 | Working branch | `cursor/mt11-selection-tenant-pin-b1f4` |
+| Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/55 |
+| Source head after verification | recorded in git on this branch after the verification commit |
 | Frozen contract | [AW-MULTITENANCY-1](https://linear.app/augmentworks/document/aw-multitenancy-1-gap-analysis-contracts-and-implementation-plan-2026-09482fb6b45f) |
 | Source package | `0.3.7` (unpublished; npm latest at ticket write was `0.3.6`) |
 | Schema / artifact version | `aw-selection-execution/3` and `aw-selection-execution-index/3` |
@@ -61,11 +63,12 @@ fixtures and disposable temp directories only.
 
 | Command | Result |
 | --- | --- |
-| `npm test -- test/selection/execution.test.ts test/selection/saved-suite.test.ts test/run-intent/boundary.test.ts test/billing/cli-quote.test.ts` | Pass: 4 files / 76 tests |
+| `npx tsc --noEmit` | Pass |
 | `npx vitest run test/selection/execution.test.ts` | Pass (43 tests), including credential-swap, resume mismatch, token-rotation connector switch, foreign-workspace manifest, unused v1, and fail-closed `/2` |
-| `npx tsc --noEmit` / `npm run check` | Recorded after this note is committed |
-| `npm run smoke:pack` | Recorded after this note is committed |
-| `check:billing-contract` / `check:run-report-contract` | Covered by `npm run check`; prove vendored hashes only |
+| `npm test -- test/selection/execution.test.ts test/selection/saved-suite.test.ts test/run-intent/boundary.test.ts test/billing/cli-quote.test.ts` | Pass: 4 files / 76 tests |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN -u AUGMENTWORKS_API_URL npm run check` | Pass: typecheck, 92 files / 910 tests, `tsup` build, discovery/billing/run-report contracts. Inherited hosted secrets were unset so child CLI tests did not see `AUTH_ENV_CONFLICT`. |
+| `env -u AUGMENTWORKS_API_KEY -u AUGMENTWORKS_TOKEN -u AUGMENTWORKS_API_URL npm run smoke:pack` | Pass (68 packed files, 533062 compressed bytes). Local packed core-release `releaseReady=false` (registry-identity and live-authorized-environment not_run). |
+| `check:billing-contract` / `check:run-report-contract` | Pass; prove vendored hashes only (`aw-billing/1` schema `3097c7aa…`, fixtures `a4b9234b…`; `aw-run-report/1` schema `7726ec27…`, fixtures `febd2626…`) |
 
 Negative authorization checks assert zero later quotes/creates/target calls and
 unchanged remaining credits after a credential swap (shard 1 completed, shard 2
