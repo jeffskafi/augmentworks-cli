@@ -32,6 +32,7 @@ export interface InvestigationCommandOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly allowFileCredentials?: boolean;
+  readonly workspace?: string;
   readonly signal?: AbortSignal;
 }
 

@@ -654,6 +654,18 @@ async function main() {
       "packed test --help still claims published 0.3.2 protocol"
     );
     assert(testHelp.stdout.includes("--suite"), "packed CLI is missing test --suite");
+    assert(testHelp.stdout.includes("--workspace"), "packed CLI is missing test --workspace");
+
+    const loginHelp = execCli(["login", "--help"]);
+    assert(loginHelp.stdout.includes("--workspace"), "packed CLI is missing login --workspace");
+    const whoamiHelp = execCli(["whoami", "--help"]);
+    assert(whoamiHelp.stdout.includes("--workspace"), "packed CLI is missing whoami --workspace");
+    const usageHelp = execCli(["usage", "--help"]);
+    assert(usageHelp.stdout.includes("--workspace"), "packed CLI is missing usage --workspace");
+    const doctorHelpWorkspace = execCli(["doctor", "--help"]);
+    assert(!doctorHelpWorkspace.stdout.includes("--workspace"), "packed doctor --help advertised --workspace");
+    const demoHelpWorkspace = execCli(["demo", "--help"]);
+    assert(!demoHelpWorkspace.stdout.includes("--workspace"), "packed demo --help advertised --workspace");
 
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");

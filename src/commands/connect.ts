@@ -2,13 +2,7 @@ import { resolve } from "node:path";
 
 import { Command } from "commander";
 
-import { getApiOrigin } from "../auth/api-origin.js";
-import {
-  createAccessTokenManager,
-  resolveAccessToken
-} from "../auth/credential-store.js";
-import type { AccessTokenProvider } from "../auth/types.js";
-import { CloudClient } from "../cloud/client.js";
+import { addWorkspaceOption, formatWorkspaceLabel } from "../auth/workspace-expectation.js";
 import {
   RELAY_PROTOCOL_VERSION,
   type ConnectorSessionResponse,
@@ -23,17 +17,18 @@ import { AwError, EXIT, sanitizeTerminal } from "../errors.js";
 import { RelayRunner, type RelayProgressEvent } from "../relay/runner.js";
 import { assertAllowedBrowserUrl, openBrowserUrl, type BrowserOpener } from "../system/browser.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
+import {
+  authenticateHostedSession,
+  type HostedAuthDependencies,
+  type HostedAuthOptions
+} from "./hosted-auth.js";
 import type { SignalHost } from "./test.js";
 
-export interface ConnectOptions {
+export interface ConnectOptions extends HostedAuthOptions {
   readonly config?: string;
   readonly open?: boolean;
   readonly json?: boolean;
-  readonly allowFileCredentials?: boolean;
-  readonly cwd?: string;
-  readonly env?: NodeJS.ProcessEnv;
   readonly stateDirectory?: string;
-  readonly signal?: AbortSignal;
   readonly handleSignals?: boolean;
 }
 
@@ -43,20 +38,12 @@ export interface ConnectResult {
   readonly status: "closed";
 }
 
-export interface ConnectDependencies {
+export interface ConnectDependencies extends HostedAuthDependencies {
   readonly doctor?: (options: Parameters<typeof runDoctor>[0]) => Promise<DoctorReport>;
-  readonly apiOrigin?: (env: NodeJS.ProcessEnv) => URL;
-  readonly accessToken?: (options: Parameters<typeof resolveAccessToken>[0]) => Promise<string>;
-  readonly cloud?: (options: {
-    apiOrigin: URL;
-    accessToken: string;
-    accessTokenProvider: AccessTokenProvider;
-  }) => CloudClient;
   readonly connector?: (config: ResolvedConfig) => HttpConnector;
   readonly runner?: (options: ConstructorParameters<typeof RelayRunner>[0]) => RelayRunner;
   readonly openBrowser?: BrowserOpener;
   readonly stdout?: Pick<NodeJS.WriteStream, "write">;
-  readonly stderr?: Pick<NodeJS.WriteStream, "write">;
   readonly signals?: SignalHost;
   readonly onProgress?: (event: RelayProgressEvent) => void;
 }
@@ -82,24 +69,9 @@ export async function runConnect(
     });
   }
 
-  const apiOrigin = (dependencies.apiOrigin ?? getApiOrigin)(env);
-  const accessTokenOptions = {
-    apiOrigin,
-    env,
-    ...(options.allowFileCredentials === undefined
-      ? {}
-      : { allowFileFallback: options.allowFileCredentials }),
-    onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
-  };
-  const accessTokenProvider: AccessTokenProvider =
-    dependencies.accessToken === undefined
-      ? (await createAccessTokenManager(accessTokenOptions)).getAccessToken
-      : async (request = {}) =>
-          await dependencies.accessToken!({ ...accessTokenOptions, ...request });
-  const accessToken = await accessTokenProvider();
-  const cloud =
-    dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
-    new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
+  const hosted = await authenticateHostedSession(options, dependencies);
+  const apiOrigin = hosted.apiOrigin;
+  const cloud = hosted.cloud;
   const request: CreateSessionRequest = {
     protocol_version: RELAY_PROTOCOL_VERSION,
     config_sha256: report.resolvedConfig.configDigest,
@@ -112,6 +84,7 @@ export async function runConnect(
   const session = await cloud.createConnectorSession(request, options.signal);
   const dashboard = validateDashboard(session.dashboard_url, apiOrigin);
   const stderr = dependencies.stderr ?? process.stderr;
+  writeLine(stderr, `Authenticated ${formatWorkspaceLabel(hosted.identity)}.`);
   writeLine(stderr, `Connected. Dashboard: ${dashboard.toString()}`);
   if (options.open === true) {
     try {
@@ -224,20 +197,22 @@ export async function runConnect(
 }
 
 export function createConnectCommand(dependencies: ConnectDependencies = {}): Command {
-  return new Command("connect")
-    .description("Keep the local connector online for dashboard-started assessments")
-    .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
-    .option("--open", "open the connector dashboard")
-    .option("--json", "emit a final JSON session summary")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(async (values: {
+  return addWorkspaceOption(
+    new Command("connect")
+      .description("Keep the local connector online for dashboard-started assessments")
+      .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
+      .option("--open", "open the connector dashboard")
+      .option("--json", "emit a final JSON session summary")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(async (values: {
       config: string;
       open?: boolean;
       json?: boolean;
       allowFileCredentials?: boolean;
+      workspace?: string;
     }) => {
       const result = await runConnect(
         {
@@ -246,7 +221,8 @@ export function createConnectCommand(dependencies: ConnectDependencies = {}): Co
           ...(values.json === undefined ? {} : { json: values.json }),
           ...(values.allowFileCredentials === undefined
             ? {}
-            : { allowFileCredentials: values.allowFileCredentials })
+            : { allowFileCredentials: values.allowFileCredentials }),
+          ...(values.workspace === undefined ? {} : { workspace: values.workspace })
         },
         dependencies
       );

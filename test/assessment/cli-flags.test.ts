@@ -30,6 +30,7 @@ describe("assessment CLI flags", () => {
     expect(testHelp.stdout).toContain("--investigation");
     expect(testHelp.stdout).toContain("--manifest");
     expect(testHelp.stdout).toContain("--local");
+    expect(testHelp.stdout).toContain("--workspace");
     expect(testHelp.stdout).toContain(HOSTED_ASSESSMENT_OPTION_HELP);
     expect(testHelp.stdout).not.toMatch(/source 0\.3\.3/u);
     expect(testHelp.stdout).not.toMatch(/published 0\.3\.2 uses aw-relay\/0\.2/u);

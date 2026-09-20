@@ -8,6 +8,10 @@ import type { BillingUsage } from "../billing/protocol.js";
 import { assertSafeBillingPageUrl, assertUsageWorkspace } from "../billing/validate.js";
 import { AwError, exitCodeFor, sanitizeTerminal } from "../errors.js";
 import {
+  addWorkspaceOption,
+  formatWorkspaceLabel
+} from "../auth/workspace-expectation.js";
+import {
   authenticateHostedSession,
   type HostedAuthDependencies,
   type HostedAuthOptions,
@@ -68,12 +72,13 @@ export async function runUsage(
 }
 
 export function createUsageCommand(dependencies: UsageDependencies = {}): Command {
-  return new Command("usage")
-    .description(
-      "Show authenticated workspace execution-credit usage, including trial, purchased, and monthly lots when the server advertises them"
-    )
-    .option("--json", "write one machine-readable usage object to stdout")
-    .action(async (values: UsageOptions) => {
+  return addWorkspaceOption(
+    new Command("usage")
+      .description(
+        "Show authenticated workspace execution-credit usage, including trial, purchased, and monthly lots when the server advertises them"
+      )
+      .option("--json", "write one machine-readable usage object to stdout")
+  ).action(async (values: UsageOptions) => {
       const stdout = dependencies.stdout ?? console.log;
       const json = values.json === true;
       try {
@@ -84,7 +89,7 @@ export function createUsageCommand(dependencies: UsageDependencies = {}): Comman
           stdout(
             formatUsageHuman({
               usage: result.usage,
-              workspaceLabel: result.identity.workspaceName ?? result.usage.workspaceId,
+              workspaceLabel: formatWorkspaceLabel(result.identity),
               apiOrigin: result.apiOrigin
             }).trimEnd()
           );

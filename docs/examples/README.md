@@ -22,7 +22,7 @@ See `../walkthrough-draft.md`. Do not fabricate a recording.
 ## Hosted CI (this 0.3.7 package)
 
 `github-actions-hosted.yml` is the maintained customer GitHub Actions recipe:
-scoped `AUGMENTWORKS_API_KEY`, isolated synthetic target, offline doctor and
+scoped `AUGMENTWORKS_API_KEY`, expected `AUGMENTWORKS_WORKSPACE_ID`, isolated synthetic target, offline doctor and
 mapping validation, quoted `--max-credits --yes --headless` suite admission,
 `run wait` on the original ID, `gate`, a credential-free step summary, artifact
 upload, and always-on target cleanup. Untrusted fork pull requests skip the

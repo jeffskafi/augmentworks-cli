@@ -184,6 +184,20 @@ with `AUTH_REQUIRED` and does not load a keychain. A machine key missing
 `CHATBOT_API_KEY` authenticates only the synthetic target. Putting an
 AugmentWorks API key in `bearer_env` will not authorize hosted report reads.
 
+### `WORKSPACE_MISMATCH` or `WORKSPACE_CONFIG_CONFLICT`
+
+`--workspace` and `AUGMENTWORKS_WORKSPACE_ID` select the company workspace a
+hosted command may use. If both are set and differ, the CLI exits `2` with
+`WORKSPACE_CONFIG_CONFLICT` before contacting the network. An invalid UUID is
+`INVALID_WORKSPACE_ID` (exit `2`) and is never ignored.
+
+If the resolved credential's `/auth/me` workspace does not match, the CLI exits
+`3` with `WORKSPACE_MISMATCH` and prints safe expected/actual IDs. It does not
+quote, upload, retarget a machine key, or fall back to another stored login.
+Failed selected `login` leaves the previous origin slot unchanged. `test --local
+--workspace` is `LOCAL_WORKSPACE_UNSUPPORTED` (exit `2`); the environment
+variable is ignored in local mode.
+
 ### `CREDENTIAL_STORE_UNAVAILABLE`
 
 On macOS, confirm that `/usr/bin/security` is present and the login Keychain is

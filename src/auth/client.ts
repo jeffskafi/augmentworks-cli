@@ -8,6 +8,7 @@ import {
   type StoredCredential,
   type TokenResponse
 } from "./types.js";
+import { EXPECTED_WORKSPACE_QUERY, workspaceOauthMismatchError } from "./workspace-expectation.js";
 
 export const AUTH_ENDPOINTS = {
   authorize: "/api/v1/cli/auth/authorize",
@@ -64,6 +65,7 @@ export class CloudAuthClient {
     readonly state: string;
     readonly codeChallenge: string;
     readonly scopes: readonly string[];
+    readonly expectedWorkspaceId?: string;
   }): URL {
     if (
       input.redirectUri.protocol !== "http:" ||
@@ -85,6 +87,9 @@ export class CloudAuthClient {
     url.searchParams.set("state", input.state);
     url.searchParams.set("code_challenge", input.codeChallenge);
     url.searchParams.set("code_challenge_method", "S256");
+    if (input.expectedWorkspaceId !== undefined) {
+      url.searchParams.set(EXPECTED_WORKSPACE_QUERY, input.expectedWorkspaceId);
+    }
     return url;
   }
 
@@ -105,14 +110,21 @@ export class CloudAuthClient {
     return this.#toStoredCredential(token);
   }
 
-  async startDeviceAuthorization(scopes: readonly string[]): Promise<DeviceAuthorization> {
+  async startDeviceAuthorization(
+    scopes: readonly string[],
+    options: { readonly expectedWorkspaceId?: string } = {}
+  ): Promise<DeviceAuthorization> {
+    const form = new URLSearchParams({
+      client_id: CLI_OAUTH_CLIENT_ID,
+      scope: scopes.join(" ")
+    });
+    if (options.expectedWorkspaceId !== undefined) {
+      form.set(EXPECTED_WORKSPACE_QUERY, options.expectedWorkspaceId);
+    }
     const response = await this.#request(AUTH_ENDPOINTS.device, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: CLI_OAUTH_CLIENT_ID,
-        scope: scopes.join(" ")
-      }).toString()
+      body: form.toString()
     });
     const body = await parseJsonObject(response);
     if (!response.ok) throw authResponseError(response.status, body);
@@ -171,6 +183,9 @@ export class CloudAuthClient {
           category: "auth",
           message: AUTH_USER_MESSAGES.denied
         });
+      }
+      if (oauthError === "workspace_mismatch") {
+        throw workspaceOauthMismatchError();
       }
       if (oauthError === "expired_token") break;
       throw authResponseError(response.status, body);
@@ -450,6 +465,9 @@ async function readBoundedText(response: Response): Promise<string> {
 
 function authResponseError(status: number, body: Record<string, unknown>): AwError {
   const error = optionalString(body, "error");
+  if (error === "workspace_mismatch") {
+    return workspaceOauthMismatchError();
+  }
   if (status === 401 || error === "invalid_token" || error === "invalid_grant") {
     return new AwError({
       code: "TOKEN_REVOKED",

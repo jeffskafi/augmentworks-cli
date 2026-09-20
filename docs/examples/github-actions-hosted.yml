@@ -16,6 +16,7 @@
 #
 # Secrets (repository, not environment):
 #   AUGMENTWORKS_API_KEY     scoped machine key (required)
+#   AUGMENTWORKS_WORKSPACE_ID expected workspace UUID (required for hosted steps)
 #   AUGMENTWORKS_BASELINE_ID explicit pin (required; the CLI will not invent one)
 #   AUGMENTWORKS_API_URL     optional; omit in production (trusted origin only)
 #
@@ -58,6 +59,7 @@ jobs:
     timeout-minutes: 20
     env:
       AUGMENTWORKS_API_KEY: ${{ secrets.AUGMENTWORKS_API_KEY }}
+      AUGMENTWORKS_WORKSPACE_ID: ${{ secrets.AUGMENTWORKS_WORKSPACE_ID }}
       AUGMENTWORKS_BASELINE_ID: ${{ secrets.AUGMENTWORKS_BASELINE_ID }}
       AUGMENTWORKS_API_URL: ${{ secrets.AUGMENTWORKS_API_URL }}
       AUGMENTWORKS_HEADLESS: "1"
@@ -76,6 +78,10 @@ jobs:
           if [ -z "$AUGMENTWORKS_API_KEY" ]; then
             echo "Set repository secret AUGMENTWORKS_API_KEY to a scoped workspace machine key." >&2
             exit 3
+          fi
+          if [ -z "$AUGMENTWORKS_WORKSPACE_ID" ]; then
+            echo "Set repository secret AUGMENTWORKS_WORKSPACE_ID to the expected workspace UUID." >&2
+            exit 2
           fi
           if [ -z "$AUGMENTWORKS_BASELINE_ID" ]; then
             echo "Set AUGMENTWORKS_BASELINE_ID to an explicit pin. The CLI will not invent or promote one." >&2

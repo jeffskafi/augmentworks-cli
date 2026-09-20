@@ -143,13 +143,19 @@ the configured endpoint.
   or refresh token, and it does not persist credentials. Differing nonempty
   `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail before network
   access.
+- Hosted commands accept `--workspace` / `AUGMENTWORKS_WORKSPACE_ID`. A
+  credential that resolves to a different workspace fails `WORKSPACE_MISMATCH`
+  before the first tenant request. The CLI does not retarget machine keys or
+  fall back to another stored login. Local commands ignore the environment
+  variable and reject `--workspace`.
 - `AUGMENTWORKS_TOKEN` is reserved for connector tokens and development
   integration harnesses when API-key mode is absent; the v0.1 interactive auth
   service does not issue a long-lived CI credential. Prefer a workspace API
   key for unattended hosted CI and report export. Do not run `logout` as routine automation
   cleanup; it revokes reusable credentials.
 - GitHub Actions hosted CI uses `docs/examples/github-actions-hosted.yml`:
-  one scoped `AUGMENTWORKS_API_KEY`, `--headless`, a finite `--max-credits`
+  one scoped `AUGMENTWORKS_API_KEY`, expected `AUGMENTWORKS_WORKSPACE_ID`,
+  `--headless`, a finite `--max-credits`
   ceiling, and `gate` on the original run. Fork pull requests skip
   secret-bearing jobs. Do not use `pull_request_target`. Machine keys must not
   purchase credits or administer the workspace. Summaries and uploaded

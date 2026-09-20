@@ -102,6 +102,30 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toMatch(/never\s+load a keychain/);
   });
 
+  it("documents --workspace on hosted commands and rejects it on local-only help", async () => {
+    const login = await runSourceCli(["login", "--help"], { cwd: projectRoot });
+    const whoami = await runSourceCli(["whoami", "--help"], { cwd: projectRoot });
+    const usage = await runSourceCli(["usage", "--help"], { cwd: projectRoot });
+    const testHelp = await runSourceCli(["test", "--help"], { cwd: projectRoot });
+    const runHelp = await runSourceCli(["run", "report", "--help"], { cwd: projectRoot });
+    const fetchHelp = await runSourceCli(["investigation", "fetch", "--help"], { cwd: projectRoot });
+    expect(login.stdout).toContain("--workspace");
+    expect(whoami.stdout).toContain("--workspace");
+    expect(usage.stdout).toContain("--workspace");
+    expect(testHelp.stdout).toContain("--workspace");
+    expect(runHelp.stdout).toContain("--workspace");
+    expect(fetchHelp.stdout).toContain("--workspace");
+
+    const doctor = await runSourceCli(["doctor", "--help"], { cwd: projectRoot });
+    const demo = await runSourceCli(["demo", "--help"], { cwd: projectRoot });
+    const inspect = await runSourceCli(["investigation", "inspect", "--help"], { cwd: projectRoot });
+    const suiteValidate = await runSourceCli(["suite", "validate", "--help"], { cwd: projectRoot });
+    expect(doctor.stdout).not.toContain("--workspace");
+    expect(demo.stdout).not.toContain("--workspace");
+    expect(inspect.stdout).not.toContain("--workspace");
+    expect(suiteValidate.stdout).not.toContain("--workspace");
+  });
+
   it("documents probe as an explicit bounded target check", async () => {
     const result = await runSourceCli(["probe", "--help"], { cwd: projectRoot });
 

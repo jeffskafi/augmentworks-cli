@@ -66,6 +66,12 @@ describe("long-running command authentication lifecycle", () => {
         }),
         apiOrigin: () => apiOrigin,
         accessToken,
+        identity: async () => ({
+          subject: "user-1",
+          workspaceId: "workspace-1",
+          connectorId: "connector-1",
+          scopes: ["connector:identity", "connector:run"]
+        }),
         cloud: ({ accessToken: initial, accessTokenProvider }) =>
           new CloudClient({
             apiUrl: apiOrigin,

@@ -22,6 +22,7 @@ import {
   authenticateHostedSession,
   type HostedAuthDependencies
 } from "./hosted-auth.js";
+import { addWorkspaceOption } from "../auth/workspace-expectation.js";
 import { installRelayInterruptHandler, type SignalHost } from "./test.js";
 
 export interface RecoverOptions {
@@ -31,6 +32,7 @@ export interface RecoverOptions {
   readonly cancel?: boolean;
   readonly json?: boolean;
   readonly allowFileCredentials?: boolean;
+  readonly workspace?: string;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly stateDirectory?: string;
@@ -135,18 +137,19 @@ export async function runRecover(
 }
 
 export function createRecoverCommand(dependencies: RecoverDependencies = {}): Command {
-  return new Command("recover")
-    .description("Inspect or recover a hosted assessment without creating a new run")
-    .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
-    .option("--retire", "retire a proven uncreated create or a terminal local execution intent")
-    .option("--resume", "resume the recorded assessment after verifying the local target binding")
-    .option("--cancel", "request cancellation and drain cleanup for the recorded assessment")
-    .option("--json", "write a machine-readable recovery report")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(
+  return addWorkspaceOption(
+    new Command("recover")
+      .description("Inspect or recover a hosted assessment without creating a new run")
+      .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
+      .option("--retire", "retire a proven uncreated create or a terminal local execution intent")
+      .option("--resume", "resume the recorded assessment after verifying the local target binding")
+      .option("--cancel", "request cancellation and drain cleanup for the recorded assessment")
+      .option("--json", "write a machine-readable recovery report")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(
       async (values: {
         config: string;
         retire?: boolean;
@@ -154,6 +157,7 @@ export function createRecoverCommand(dependencies: RecoverDependencies = {}): Co
         cancel?: boolean;
         json?: boolean;
         allowFileCredentials?: boolean;
+        workspace?: string;
       }) => {
         const stdout = dependencies.stdout ?? process.stdout;
         const stderr = dependencies.stderr ?? process.stderr;
@@ -171,7 +175,8 @@ export function createRecoverCommand(dependencies: RecoverDependencies = {}): Co
             ...(values.json === true ? { json: true } : {}),
             ...(values.allowFileCredentials === undefined
               ? {}
-              : { allowFileCredentials: values.allowFileCredentials })
+              : { allowFileCredentials: values.allowFileCredentials }),
+            ...(values.workspace === undefined ? {} : { workspace: values.workspace })
           },
           { ...dependencies, stdout, stderr }
         );
