@@ -15,6 +15,16 @@ import {
   type LoginResult,
   type StoredCredential
 } from "../auth/types.js";
+import {
+  addWorkspaceOption,
+  assertExpectedWorkspace,
+  formatConnectorLabel,
+  formatOverriddenApiOriginLine,
+  formatWorkspaceLabel,
+  parseWorkspaceExpectation,
+  workspaceMismatchError,
+  type WorkspaceExpectation
+} from "../auth/workspace-expectation.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
 import { LOGIN_NEXT_STEPS } from "../release.js";
 import { openBrowserUrl, type BrowserOpener } from "../system/browser.js";
@@ -25,6 +35,7 @@ export interface LoginOptions {
   readonly allowFileCredentials?: boolean;
   readonly json?: boolean;
   readonly signal?: AbortSignal;
+  readonly workspace?: string;
 }
 
 export interface LoginDependencies {
@@ -41,6 +52,10 @@ export async function runLogin(
   dependencies: LoginDependencies = {}
 ): Promise<LoginResult> {
   const env = dependencies.env ?? process.env;
+  const expected = parseWorkspaceExpectation({
+    ...(options.workspace === undefined ? {} : { flag: options.workspace }),
+    env
+  });
   const apiOrigin = dependencies.client?.apiOrigin ?? getApiOrigin(env);
   const client = dependencies.client ?? new CloudAuthClient({ apiOrigin });
   const stdout = dependencies.stdout ?? console.log;
@@ -54,12 +69,13 @@ export async function runLogin(
     } catch (cause) {
       throw remapAuthError(cause, environmentCredential.source);
     }
+    assertExpectedWorkspace(identity, expected);
     const result = {
       credential: environmentCredential.credential,
       identity,
       source: environmentCredential.source
     };
-    writeLoginResult(result, options.json === true, stdout, stderr);
+    writeLoginResult(result, options.json === true, stdout, stderr, apiOrigin, env);
     return result;
   }
 
@@ -71,7 +87,9 @@ export async function runLogin(
 
   let credential: StoredCredential;
   if (options.device === true) {
-    const authorization = await client.startDeviceAuthorization(DEFAULT_AUTH_SCOPES);
+    const authorization = await client.startDeviceAuthorization(DEFAULT_AUTH_SCOPES, {
+      ...(expected === undefined ? {} : { expectedWorkspaceId: expected.workspaceId })
+    });
     const url = authorization.verificationUriComplete ?? authorization.verificationUri;
     stderr(`Open ${sanitizeTerminal(url.toString())}`);
     stderr(`Enter code: ${sanitizeTerminal(authorization.userCode)}`);
@@ -94,30 +112,52 @@ export async function runLogin(
           ? async () => undefined
           : async (url) => await openWithManualFallback(url, opener, stderr),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      onAuthorizationUrl: (url) => stderr(`Open ${sanitizeTerminal(url.toString())}`)
+      onAuthorizationUrl: (url) => stderr(`Open ${sanitizeTerminal(url.toString())}`),
+      ...(expected === undefined ? {} : { expectedWorkspaceId: expected.workspaceId })
     });
   }
 
-  const identity = await client.me(credential.accessToken);
+  const identity = await verifyLoginIdentity(client, credential, expected);
   await store.save(credential);
   const result = { credential, identity, source: store.kind };
-  writeLoginResult(result, options.json === true, stdout, stderr);
+  writeLoginResult(result, options.json === true, stdout, stderr, apiOrigin, env);
   return result;
 }
 
+async function verifyLoginIdentity(
+  client: CloudAuthClient,
+  credential: StoredCredential,
+  expected: WorkspaceExpectation | undefined
+): Promise<AuthIdentity> {
+  const identity = await client.me(credential.accessToken);
+  if (expected === undefined) return identity;
+  if (identity.workspaceId.trim().toLowerCase() === expected.workspaceId) return identity;
+  try {
+    await client.revoke(credential.accessToken);
+  } catch {
+    // The unused grant is best-effort; never overwrite the previous stored credential.
+  }
+  throw workspaceMismatchError({
+    expectedWorkspaceId: expected.workspaceId,
+    actualWorkspaceId: identity.workspaceId,
+    compatibility: true
+  });
+}
+
 export function createLoginCommand(dependencies: LoginDependencies = {}): Command {
-  return new Command("login")
-    .description("Authenticate this connector with AugmentWorks")
-    .option("--device", "use device authorization for SSH or headless environments")
-    .option("--no-open", "print the authorization URL without opening a browser")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .option("--json", "write the authenticated identity as JSON")
-    .action(async (values: LoginOptions) => {
-      await runLogin(values, dependencies);
-    });
+  return addWorkspaceOption(
+    new Command("login")
+      .description("Authenticate this connector with AugmentWorks")
+      .option("--device", "use device authorization for SSH or headless environments")
+      .option("--no-open", "print the authorization URL without opening a browser")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+      .option("--json", "write the authenticated identity as JSON")
+  ).action(async (values: LoginOptions) => {
+    await runLogin(values, dependencies);
+  });
 }
 
 async function openWithManualFallback(
@@ -151,22 +191,33 @@ function writeLoginResult(
   result: { readonly identity: AuthIdentity; readonly source: "environment" | "api_key" | "native" | "file" },
   json: boolean,
   stdout: (message: string) => void,
-  stderr: (message: string) => void
+  stderr: (message: string) => void,
+  apiOrigin: URL,
+  env: NodeJS.ProcessEnv
 ): void {
   if (json) {
     stdout(
       JSON.stringify({
         authenticated: true,
         source: result.source,
-        identity: identityJson(result.identity)
+        identity: identityJson(result.identity),
+        ...overriddenOriginJson(apiOrigin, env)
       })
     );
     return;
   }
-  const connector = result.identity.connectorName ?? result.identity.connectorId;
-  const workspace = result.identity.workspaceName ?? result.identity.workspaceId;
-  stderr(`Connected ${sanitizeTerminal(connector)} to ${sanitizeTerminal(workspace)}.`);
+  const connector = formatConnectorLabel(result.identity);
+  const workspace = formatWorkspaceLabel(result.identity);
+  stderr(`Connected ${connector} to ${workspace}.`);
+  const originLine = formatOverriddenApiOriginLine(apiOrigin, env);
+  if (originLine !== undefined) stderr(originLine);
   stderr(LOGIN_NEXT_STEPS);
+}
+
+function overriddenOriginJson(apiOrigin: URL, env: NodeJS.ProcessEnv): Record<string, unknown> {
+  const origin = formatOverriddenApiOriginLine(apiOrigin, env);
+  if (origin === undefined) return {};
+  return { api_origin: apiOrigin.origin };
 }
 
 export function identityJson(identity: AuthIdentity): Record<string, unknown> {

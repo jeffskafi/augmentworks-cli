@@ -3,7 +3,8 @@ import { getApiOrigin } from "../auth/api-origin.js";
 import {
   createAccessTokenManager,
   inspectCredentialEnvironment,
-  resolveAccessToken
+  resolveAccessToken,
+  type CredentialRefreshLock
 } from "../auth/credential-store.js";
 import {
   FEATURE_ACTIONS,
@@ -11,8 +12,13 @@ import {
   MACHINE_SUITE_EXECUTE_ACTIONS,
   type AccessTokenProvider,
   type AuthIdentity,
-  type CredentialSource
+  type CredentialSource,
+  type CredentialStore
 } from "../auth/types.js";
+import {
+  assertExpectedWorkspace,
+  parseWorkspaceExpectation
+} from "../auth/workspace-expectation.js";
 import { CloudClient } from "../cloud/client.js";
 import { AwError, sanitizeTerminal } from "../errors.js";
 import type { RunIntentTenantBinding } from "../relay/run-intent.js";
@@ -23,6 +29,7 @@ export interface HostedAuthOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly signal?: AbortSignal;
+  readonly workspace?: string;
 }
 
 export interface HostedAuthDependencies {
@@ -39,6 +46,10 @@ export interface HostedAuthDependencies {
     accessTokenProvider: AccessTokenProvider;
   }) => CloudClient;
   readonly stderr?: Pick<NodeJS.WriteStream, "write">;
+  readonly authClient?: CloudAuthClient;
+  readonly store?: CredentialStore;
+  readonly now?: () => number;
+  readonly refreshLock?: CredentialRefreshLock;
 }
 
 export interface HostedAuthSession {
@@ -48,6 +59,7 @@ export interface HostedAuthSession {
   readonly cloud: CloudClient;
   readonly source: CredentialSource;
   readonly accessTokenProvider: AccessTokenProvider;
+  readonly expectedWorkspaceId?: string;
 }
 
 export async function authenticateHostedSession(
@@ -55,6 +67,10 @@ export async function authenticateHostedSession(
   dependencies: HostedAuthDependencies = {}
 ): Promise<HostedAuthSession> {
   const env = options.env ?? process.env;
+  const expected = parseWorkspaceExpectation({
+    ...(options.workspace === undefined ? {} : { flag: options.workspace }),
+    env
+  });
   const inspected = inspectCredentialEnvironment(env);
   if (
     isHeadlessEnvironment(env, options) &&
@@ -70,11 +86,18 @@ export async function authenticateHostedSession(
     ...(options.allowFileCredentials === undefined
       ? {}
       : { allowFileFallback: options.allowFileCredentials }),
+    ...(dependencies.store === undefined ? {} : { store: dependencies.store }),
+    ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
+    ...(dependencies.refreshLock === undefined ? {} : { refreshLock: dependencies.refreshLock }),
     onWarning: (message: string) => writeLine(dependencies.stderr ?? process.stderr, message)
   };
+  const authClient = dependencies.authClient ?? new CloudAuthClient({ apiOrigin });
   const manager =
     dependencies.accessToken === undefined
-      ? await createAccessTokenManager(accessTokenOptions)
+      ? await createAccessTokenManager({
+          ...accessTokenOptions,
+          client: authClient
+        })
       : undefined;
   const source: CredentialSource =
     manager?.source ?? (inspected.mode === "api_key" ? "api_key" : "environment");
@@ -86,7 +109,6 @@ export async function authenticateHostedSession(
             ...request
           })
       : manager.getAccessToken;
-  const authClient = new CloudAuthClient({ apiOrigin });
   const lookupIdentity =
     dependencies.identity ??
     (async (identityOptions: { readonly accessToken: string; readonly signal?: AbortSignal }) =>
@@ -119,6 +141,7 @@ export async function authenticateHostedSession(
       ...(options.signal === undefined ? {} : { signal: options.signal })
     });
   }
+  assertExpectedWorkspace(identity, expected);
   const tenant = tenantBinding(identity);
   let verifiedAccessToken = accessToken;
   const accessTokenProvider: AccessTokenProvider = async (request = {}) => {
@@ -130,13 +153,22 @@ export async function authenticateHostedSession(
       ...(request.signal === undefined ? {} : { signal: request.signal })
     });
     assertSameTenant(tenant, currentIdentity);
+    assertExpectedWorkspace(currentIdentity, expected);
     verifiedAccessToken = current;
     return current;
   };
   const cloud =
     dependencies.cloud?.({ apiOrigin, accessToken, accessTokenProvider }) ??
     new CloudClient({ apiUrl: apiOrigin, accessToken, accessTokenProvider });
-  return { apiOrigin, identity, tenant, cloud, source, accessTokenProvider };
+  return {
+    apiOrigin,
+    identity,
+    tenant,
+    cloud,
+    source,
+    accessTokenProvider,
+    ...(expected === undefined ? {} : { expectedWorkspaceId: expected.workspaceId })
+  };
 }
 
 export function tenantBinding(identity: AuthIdentity): RunIntentTenantBinding {

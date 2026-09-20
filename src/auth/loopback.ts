@@ -11,6 +11,7 @@ import type { BrowserOpener } from "../system/browser.js";
 import { AUTH_USER_MESSAGES, type CloudAuthClient } from "./client.js";
 import { createPkcePair, randomUrlSafeString } from "./pkce.js";
 import { DEFAULT_AUTH_SCOPES, type StoredCredential } from "./types.js";
+import { workspaceOauthMismatchError } from "./workspace-expectation.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const DEFAULT_CALLBACK_TIMEOUT_MS = 10 * 60 * 1_000;
@@ -21,6 +22,7 @@ export interface LoopbackLoginOptions {
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
   readonly onAuthorizationUrl?: (url: URL) => void;
+  readonly expectedWorkspaceId?: string;
 }
 
 export async function loginWithLoopback(
@@ -30,7 +32,7 @@ export async function loginWithLoopback(
   const state = randomUrlSafeString();
   const callbackPath = `/oauth/callback/${randomUrlSafeString(16)}`;
   const pkce = createPkcePair();
-  const callback = deferredCallback(state, callbackPath, options.signal);
+  const callback = deferredCallback(state, callbackPath, options.signal, options.expectedWorkspaceId);
   const server = createServer(callback.handler);
   const redirectUri = await listen(server, callbackPath);
 
@@ -39,7 +41,10 @@ export async function loginWithLoopback(
       redirectUri,
       state,
       codeChallenge: pkce.challenge,
-      scopes: options.scopes ?? DEFAULT_AUTH_SCOPES
+      scopes: options.scopes ?? DEFAULT_AUTH_SCOPES,
+      ...(options.expectedWorkspaceId === undefined
+        ? {}
+        : { expectedWorkspaceId: options.expectedWorkspaceId })
     });
     options.onAuthorizationUrl?.(authorizationUrl);
     const codePromise = withTimeout(
@@ -65,7 +70,8 @@ export async function loginWithLoopback(
 function deferredCallback(
   expectedState: string,
   callbackPath: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  expectedWorkspaceId?: string
 ): {
   readonly promise: Promise<string>;
   readonly handler: (request: IncomingMessage, response: ServerResponse) => void;
@@ -145,6 +151,11 @@ function deferredCallback(
       }
       if (error !== null) {
         response.writeHead(403, { "content-type": "text/plain; charset=utf-8", ...noStore });
+        if (error === "workspace_mismatch") {
+          response.end("The selected workspace did not match the expected workspace.");
+          rejectOnce(workspaceOauthMismatchError(expectedWorkspaceId));
+          return;
+        }
         response.end(
           error === "access_denied" ? AUTH_USER_MESSAGES.denied : AUTH_USER_MESSAGES.incomplete
         );

@@ -14,6 +14,7 @@ import { BILLING_PORTAL_LINK_V1, capabilityIsAvailable } from "../billing/protoc
 import { assertSafeBillingPageUrl } from "../billing/validate.js";
 import { AwError, exitCodeFor, sanitizeTerminal } from "../errors.js";
 import { openBrowserUrl, type BrowserOpener } from "../system/browser.js";
+import { addWorkspaceOption, formatWorkspaceLabel } from "../auth/workspace-expectation.js";
 import {
   authenticateHostedSession,
   type HostedAuthDependencies
@@ -61,14 +62,15 @@ export async function runBilling(
 }
 
 export function createBillingCommand(dependencies: BillingDependencies = {}): Command {
-  return new Command("billing")
-    .description(
-      "Open or print the first-party workspace billing page. Does not create subscriptions, cancellations, or collect payment methods"
-    )
-    .option("--json", "write one machine-readable billing navigation object to stdout without opening a browser")
-    .option("--print", "print the first-party billing URL without opening a browser")
-    .option("--open", "open the first-party billing page in a browser")
-    .action(async (values: BillingOptions) => {
+  return addWorkspaceOption(
+    new Command("billing")
+      .description(
+        "Open or print the first-party workspace billing page. Does not create subscriptions, cancellations, or collect payment methods"
+      )
+      .option("--json", "write one machine-readable billing navigation object to stdout without opening a browser")
+      .option("--print", "print the first-party billing URL without opening a browser")
+      .option("--open", "open the first-party billing page in a browser")
+  ).action(async (values: BillingOptions) => {
       const stdout = dependencies.stdout ?? console.log;
       const stderr = dependencies.stderr ?? console.error;
       const json = values.json === true;
@@ -85,9 +87,10 @@ export function createBillingCommand(dependencies: BillingDependencies = {}): Co
           stdout(
             formatBillingHuman({
               usage: result.usage,
-              workspaceLabel: result.identity.workspaceName ?? result.usage.workspaceId,
+              workspaceLabel: formatWorkspaceLabel(result.identity),
               billingPageUrl: result.billingPageUrl,
-              openedBrowser: result.openedBrowser
+              openedBrowser: result.openedBrowser,
+              apiOrigin: result.apiOrigin
             }).trimEnd()
           );
         }

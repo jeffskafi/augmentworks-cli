@@ -23,6 +23,7 @@ import {
   type SuiteSelectionManifest
 } from "../selection/schema.js";
 import { hostedSelectionUnsupportedLocalError, selectionError } from "../selection/errors.js";
+import { addWorkspaceOption } from "../auth/workspace-expectation.js";
 import {
   admitCompiledSelection,
   assertShardWithinPerRunLimits,
@@ -53,29 +54,30 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
   const stderr = dependencies.stderr ?? process.stderr;
   const cwd = (): string => dependencies.cwd?.() ?? process.cwd();
 
-  selection
-    .command("compile")
-    .description(
-      "Ask the server compiler for included/excluded/incompatible cases and bounded shards. Not a quote."
-    )
-    .option(
-      "-c, --config <path>",
-      "connector YAML for advertised lifecycle, observation, and conversation capabilities; a missing default file is capability-free single-turn",
-      "augmentworks.yaml"
-    )
-    .option("--assessment <path>", "assessment file with optional smoke/release selection fields")
-    .option("--profile <profile>", "smoke or release (overrides assessment selection.profile)")
-    .option("--include-catalog", "include the public catalog inventory when no suite_revision_id is set")
-    .option("--include-tags <tags>", "comma-separated include tags")
-    .option("--exclude-tags <tags>", "comma-separated exclude tags")
-    .option("--out <path>", "write the immutable compile document as JSON")
-    .option("--json", "write machine-readable compile output")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .option("--local", "rejected; compile is hosted-only")
-    .action(
+  addWorkspaceOption(
+    selection
+      .command("compile")
+      .description(
+        "Ask the server compiler for included/excluded/incompatible cases and bounded shards. Not a quote."
+      )
+      .option(
+        "-c, --config <path>",
+        "connector YAML for advertised lifecycle, observation, and conversation capabilities; a missing default file is capability-free single-turn",
+        "augmentworks.yaml"
+      )
+      .option("--assessment <path>", "assessment file with optional smoke/release selection fields")
+      .option("--profile <profile>", "smoke or release (overrides assessment selection.profile)")
+      .option("--include-catalog", "include the public catalog inventory when no suite_revision_id is set")
+      .option("--include-tags <tags>", "comma-separated include tags")
+      .option("--exclude-tags <tags>", "comma-separated exclude tags")
+      .option("--out <path>", "write the immutable compile document as JSON")
+      .option("--json", "write machine-readable compile output")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+      .option("--local", "rejected; compile is hosted-only")
+  ).action(
       async (
         values: {
           config: string;
@@ -88,6 +90,7 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
           json?: boolean;
           allowFileCredentials?: boolean;
           local?: boolean;
+          workspace?: string;
         },
         command: Command
       ) => {
@@ -114,6 +117,7 @@ export function createSelectionCommand(dependencies: SelectionCommandDependencie
           ...(values.allowFileCredentials === undefined
             ? {}
             : { allowFileCredentials: values.allowFileCredentials }),
+          ...(values.workspace === undefined ? {} : { workspace: values.workspace }),
           ...(dependencies.env === undefined ? {} : { env: dependencies.env })
         };
         const session = await authenticateHostedSession(authOptions, dependencies);

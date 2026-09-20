@@ -445,4 +445,73 @@ describe("augmentworks usage CLI", () => {
     expect(usageCalls).toBe(2);
     expect(JSON.parse(result.stdout)).toMatchObject({ availableUnits: 200, ok: true });
   });
+
+  it("fails WORKSPACE_MISMATCH before usage after /auth/me", async () => {
+    const cwd = await emptyCwd();
+    const { server, paths } = await startMock((request, response, url) => {
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/usage") {
+        send(response, 200, fixtures.fixtures["eligible_trial"]?.response);
+        return true;
+      }
+      return false;
+    });
+    const result = await runSourceCli(["usage"], {
+      cwd,
+      env: usageEnv(server.baseUrl, {
+        AUGMENTWORKS_API_KEY: "",
+        AUGMENTWORKS_WORKSPACE_ID: OTHER_WORKSPACE
+      })
+    });
+    expect(result.exitCode).toBe(EXIT.AUTH);
+    expect(result.stderr).toContain("WORKSPACE_MISMATCH");
+    expect(result.stderr).toContain(OTHER_WORKSPACE);
+    expect(result.stderr).toContain(WORKSPACE);
+    expect(paths).toEqual(["GET /api/v1/cli/auth/me"]);
+  });
+
+  it("fails WORKSPACE_CONFIG_CONFLICT before /auth/me when flag and env differ", async () => {
+    const cwd = await emptyCwd();
+    const { server, paths } = await startMock(() => false);
+    const result = await runSourceCli(["usage", "--workspace", WORKSPACE], {
+      cwd,
+      env: usageEnv(server.baseUrl, {
+        AUGMENTWORKS_API_KEY: "",
+        AUGMENTWORKS_WORKSPACE_ID: OTHER_WORKSPACE
+      })
+    });
+    expect(result.exitCode).toBe(EXIT.CONFIG);
+    expect(result.stderr).toContain("WORKSPACE_CONFIG_CONFLICT");
+    expect(paths).toEqual([]);
+  });
+
+  it("succeeds when --workspace matches /auth/me and prints name plus UUID", async () => {
+    const cwd = await emptyCwd();
+    const { server, paths } = await startMock((request, response, url) => {
+      if (request.method === "GET" && url.pathname === "/api/v1/cli/auth/me") {
+        send(response, 200, identity());
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/capabilities") {
+        send(response, 200, fixtures.fixtures["absent_capability"]?.response);
+        return true;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/billing/usage") {
+        send(response, 200, fixtures.fixtures["partially_consumed_trial"]?.response);
+        return true;
+      }
+      return false;
+    });
+    const result = await runSourceCli(["usage", "--workspace", WORKSPACE], {
+      cwd,
+      env: usageEnv(server.baseUrl, { AUGMENTWORKS_API_KEY: "" })
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain(`Test Workspace (${WORKSPACE})`);
+    expect(paths).toContain("GET /api/v1/cli/auth/me");
+    expect(paths).toContain("GET /v1/billing/usage");
+  });
 });

@@ -19,6 +19,7 @@ import {
   type HostedAuthDependencies,
   type HostedAuthOptions
 } from "./hosted-auth.js";
+import { addWorkspaceOption } from "../auth/workspace-expectation.js";
 
 export interface BaselineCommandOptions extends HostedAuthOptions {
   readonly run?: string;
@@ -37,33 +38,35 @@ export function createBaselineCommand(dependencies: BaselineCommandDependencies 
   const baseline = new Command("baseline").description(
     "Inspect pinned baselines or explicitly promote a candidate run as the pin"
   );
-  baseline
-    .command("status")
-    .description("List application and baseline identities without selecting or promoting a pin")
-    .option("--json", "write one machine-readable applications object to stdout")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(async (values: BaselineCommandOptions) => {
-      await executeBaseline("status", values, dependencies);
-    });
-  baseline
-    .command("promote")
-    .description(
-      "Promote an explicit candidate run onto a baseline pin when the credential allows it. Never automatic"
-    )
-    .option("--run <run-id>", "candidate run ID")
-    .option("--baseline <baseline-id>", "baseline pin ID")
-    .option("--expected-revision <n>", "current promotion revision to refuse stale concurrent updates")
-    .option("--json", "write one machine-readable promotion object to stdout")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(async (values: BaselineCommandOptions) => {
-      await executeBaseline("promote", values, dependencies);
-    });
+  addWorkspaceOption(
+    baseline
+      .command("status")
+      .description("List application and baseline identities without selecting or promoting a pin")
+      .option("--json", "write one machine-readable applications object to stdout")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(async (values: BaselineCommandOptions) => {
+    await executeBaseline("status", values, dependencies);
+  });
+  addWorkspaceOption(
+    baseline
+      .command("promote")
+      .description(
+        "Promote an explicit candidate run onto a baseline pin when the credential allows it. Never automatic"
+      )
+      .option("--run <run-id>", "candidate run ID")
+      .option("--baseline <baseline-id>", "baseline pin ID")
+      .option("--expected-revision <n>", "current promotion revision to refuse stale concurrent updates")
+      .option("--json", "write one machine-readable promotion object to stdout")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(async (values: BaselineCommandOptions) => {
+    await executeBaseline("promote", values, dependencies);
+  });
   return baseline;
 }
 

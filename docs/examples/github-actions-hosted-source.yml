@@ -37,9 +37,14 @@ jobs:
         env:
           AUGMENTWORKS_API_URL: ${{ secrets.AUGMENTWORKS_API_URL }}
           AUGMENTWORKS_TOKEN: ${{ secrets.AUGMENTWORKS_TOKEN }}
+          AUGMENTWORKS_WORKSPACE_ID: ${{ secrets.AUGMENTWORKS_WORKSPACE_ID }}
           CHATBOT_BASE_URL: http://127.0.0.1:8000
           CHATBOT_API_KEY: ci-synthetic-placeholder
         run: |
+          if [ -z "$AUGMENTWORKS_WORKSPACE_ID" ]; then
+            echo "Set AUGMENTWORKS_WORKSPACE_ID to the expected workspace UUID." >&2
+            exit 2
+          fi
           node dist/index.js test \
             --assessment ./augmentworks.assessment.yaml \
             --estimate \

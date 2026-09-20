@@ -256,6 +256,7 @@ describe("hosted GitHub Actions recipe", () => {
     );
     expect(recipe).toContain("AUGMENTWORKS_API_KEY");
     expect(recipe).toContain("AUGMENTWORKS_BASELINE_ID");
+    expect(recipe).toContain("AUGMENTWORKS_WORKSPACE_ID");
     expect(recipe).toContain("--headless");
     expect(recipe).toContain("--max-credits");
     expect(recipe).toContain("run wait");

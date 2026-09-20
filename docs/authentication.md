@@ -32,6 +32,60 @@ The CLI displays a short user code and verification URL. Entering the code in a
 separately authenticated browser authorizes the waiting CLI. The CLI does not
 ask for a password.
 
+## Explicit workspace selection
+
+`--workspace <UUID>` and optional `AUGMENTWORKS_WORKSPACE_ID` name the company
+workspace a hosted command is allowed to use. They do not mint credits, start
+a run, or widen a credential. `--profile` remains the assessment/selection
+profile and is not a tenant selector.
+
+If both the flag and the environment variable are supplied and differ, the CLI
+exits `2` with `WORKSPACE_CONFIG_CONFLICT` before any network call. An invalid
+value is `INVALID_WORKSPACE_ID` (exit `2`) and is never ignored. After
+interactive login, the CLI calls `/auth/me` and stores the credential only when
+the actual workspace matches. A mismatch is `WORKSPACE_MISMATCH` (exit `3`);
+the previous stored origin slot is left untouched.
+
+Every hosted command (`login`, `whoami`, `usage`, `billing`, `selection compile`,
+`test`, `run status`/`wait`/`retry-evaluation`/`report`, `compare`, `gate`,
+`baseline status`/`promote`, `investigation fetch`, `recover`, and unregistered
+`connect`) resolves its credential, calls `/auth/me`, and compares the expected
+workspace before the first tenant request. A machine key issued for company B
+with expected workspace A fails closed. The CLI does not retarget the key,
+retry as a different credential, or fall back to a stored login.
+
+When no workspace expectation is configured, existing single-workspace scripts
+keep working. Human login, `whoami`, and spending context print the
+authenticated name and UUID. Headless automation should always set an expected
+workspace UUID.
+
+`--workspace` on a local-only operation is rejected (`LOCAL_WORKSPACE_UNSUPPORTED`
+on `test --local`; unknown-option on `demo`, `doctor`, `suite validate`, and
+other offline commands). `AUGMENTWORKS_WORKSPACE_ID` is ignored in local mode
+and does not turn local execution into a cloud call.
+
+Source `0.3.7` examples (this package; independently inspected npm latest
+remains `0.3.6` until the protected publish):
+
+```bash
+# Developer invited to company B
+node dist/index.js login --workspace "$AUGMENTWORKS_WORKSPACE_ID"
+
+# Switching between company A and company B (one stored origin slot)
+node dist/index.js logout
+node dist/index.js login --workspace "$AUGMENTWORKS_WORKSPACE_ID"
+node dist/index.js whoami --workspace "$AUGMENTWORKS_WORKSPACE_ID"
+
+# CI machine key pinned to one workspace
+export AUGMENTWORKS_API_KEY=aw_api_...
+export AUGMENTWORKS_WORKSPACE_ID=<workspace-uuid>
+node dist/index.js whoami --json
+node dist/index.js test --assessment ./augmentworks.assessment.yaml --estimate --json --headless
+```
+
+Do not paste real workspace IDs, API keys, or invitation tokens into examples
+or tickets.
+
 ## v0.1 endpoint contract
 
 The CLI permits the production `https://augmentworks.ai` origin or an explicit
@@ -150,7 +204,7 @@ When `AUGMENTWORKS_API_KEY` is absent, paired `AUGMENTWORKS_TOKEN` +
 `AUGMENTWORKS_REFRESH_TOKEN` behavior is unchanged.
 
 `whoami` prints safe credential metadata (principal kind, credential id,
-actions, expiry, workspace, connector) and never prints the bearer. Machine
+actions, expiry, workspace name and UUID, connector) and never prints the bearer. Machine
 principals do not require an email. Invalid, expired, or revoked keys exit `3`
 with `API_KEY_REVOKED` and point at the API-keys settings page.
 
@@ -189,8 +243,8 @@ and scope them to one workspace and the minimum required actions.
 
 Issue a workspace API key at
 [[REDACTED]/portal/settings/api-keys]([REDACTED]/portal/settings/api-keys)
-with the CI preset. Store only `AUGMENTWORKS_API_KEY` (and an explicit
-`AUGMENTWORKS_BASELINE_ID`) as repository secrets. Optional
+with the CI preset. Store only `AUGMENTWORKS_API_KEY`, an explicit `AUGMENTWORKS_BASELINE_ID`, and
+`AUGMENTWORKS_WORKSPACE_ID` as repository secrets. Optional
 `AUGMENTWORKS_API_URL` selects the production origin or a loopback development
 origin. Generate the synthetic target `CHATBOT_API_KEY` on the runner; do not
 put target secrets in GitHub.

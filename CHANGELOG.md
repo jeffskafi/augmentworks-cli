@@ -31,6 +31,18 @@ All notable changes to this project are documented here. The format follows
   current login. This is source `0.3.7` work; npm latest remains independently
   inspected `0.3.6` until the protected publish.
 
+- `--workspace <UUID>` and optional `AUGMENTWORKS_WORKSPACE_ID` on `login` and
+  every hosted command
+  ([AUG-138](https://linear.app/augmentworks/issue/AUG-138/cli-mt12-add-explicit-workspace-login-and-preflight-guards-to-every)
+  / MT12). Flag/env conflicts are `WORKSPACE_CONFIG_CONFLICT` before network.
+  Selected login sends `expected_workspace_id` and verifies `/auth/me` before
+  storing. Hosted commands compare the expected workspace after `/auth/me` and
+  fail `WORKSPACE_MISMATCH` before quote, upload, or target work. Machine keys
+  are not retargeted or replaced by a stored login. Local `--workspace` is
+  rejected; `AUGMENTWORKS_WORKSPACE_ID` is ignored in local mode. This is
+  source `0.3.7` work; do not treat independently inspected npm `0.3.6` as
+  having the new flags.
+
 ## [0.3.7] - 2026-09-17
 
 Published-line package for native customer-suite upload translation, saved-suite

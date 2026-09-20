@@ -148,6 +148,21 @@ For an SSH or otherwise headless environment, use device authorization:
 npx --yes @augmentworks/cli@0.3.7 login --device
 ```
 
+Interactive login can replace the one stored credential for this API origin
+after it displays the selected workspace name and UUID. To pin a company
+workspace (source `0.3.7`; not independently inspected npm `0.3.6`):
+
+```bash
+node dist/index.js login --workspace "$AUGMENTWORKS_WORKSPACE_ID"
+node dist/index.js whoami --workspace "$AUGMENTWORKS_WORKSPACE_ID"
+```
+
+`--workspace` and `AUGMENTWORKS_WORKSPACE_ID` must agree when both are set.
+A machine key for another company fails `WORKSPACE_MISMATCH` before quote,
+upload, or target work. `test --local --workspace` is rejected; the environment
+variable is ignored in local mode and does not open a hosted session.
+`--profile` still selects quick/full/smoke/release assessment profiles only.
+
 ## Workspace usage
 
 `usage` reads the authenticated workspace ledger. It does not need target YAML,
@@ -720,10 +735,10 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 
 | Command | Purpose | Side effects |
 | --- | --- | --- |
-| `login [--device] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential |
+| `login [--device] [--workspace uuid] [--allow-file-credentials]` | Authorize this machine | Opens a browser by default and stores a revocable credential. `--workspace` must match `/auth/me` before the origin slot is replaced |
 | `logout` | Revoke and remove the connector credential | Requests server-side revocation and deletes local credential material. Do not use as routine CI cleanup when `AUGMENTWORKS_API_KEY` is set |
-| `whoami` | Show the current workspace identity | Reads cloud identity; may refresh interactive credentials. API-key mode reports principal kind, credential id, actions, and expiry without the bearer |
-| `usage [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel |
+| `whoami [--workspace uuid]` | Show the current workspace identity | Reads cloud identity; may refresh interactive credentials. Prints name and UUID. API-key mode reports principal kind, credential id, actions, and expiry without the bearer |
+| `usage [--workspace uuid] [--json]` | Show authenticated workspace execution-credit usage | Read-only billing snapshot; no target YAML, grant, reservation, checkout, subscribe, or cancel |
 | `billing [--json] [--print] [--open]` | Open or print the first-party billing page | Read-only navigation; no Checkout, Stripe customer, refund, subscription mutation, or reservation |
 | `init [-c path] [--starter name] [--agent] [--force]` | Generate config, assessment, starter references, and setup guidance | Writes the complete starter. Does not overwrite edited files unless `--force` is explicit; never replaces `.env` |
 | `doctor [-c path] [--offline] [--json] [--assessment path] [--profile profile]` | Validate config, mappings, secrets, local prerequisites, assessment files, and wire bounds | Makes no network calls, invokes no lifecycle hook, and consumes no assessment credit |
@@ -733,7 +748,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `selection compile [--assessment path] [--profile smoke\|release] [--json] [--out path]` | Ask the server compiler for included/excluded/incompatible cases and bounded shards | Not a quote and not a billable run. Cannot be used with `--local` |
 | `suite validate <file> [--json]` / `suite preview <file> [--json]` / `suite preflight <file> [-c path] [--json]` | Validate, preview, or preflight a customer-owned `aw-suite/1` or `aw-suite/2` file | Offline; not a price; does not execute a target, buy credits, or call an LLM. Live origin matching is optional via `-c`. See `docs/customer-suites.md` |
 | `test [-c path] --packet name@version [--open]` | Run one hosted assessment | Authenticates to AugmentWorks, calls configured lifecycle endpoints, and may create synthetic state |
-| `test [-c path] --assessment path [--profile profile] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling. Optional YAML `selection` (smoke/release) is compiled by the server |
+| `test [-c path] --assessment path [--profile profile] [--workspace uuid] [--estimate] [--max-credits n] [--yes] [--open]` | Quote or run a hosted assessment from an assessment file | Uses `aw-relay/0.3` quotes. `--estimate` never reserves credits. `npx --yes` is not a spending ceiling. Optional YAML `selection` (smoke/release) is compiled by the server. `--workspace` is compared to `/auth/me` before quote |
 | `test [-c path] --manifest path [--shard id \| --all-shards] [--execution-id uuid] [--max-credits n] [--yes] [--artifact-out path]` | Quote or run one compiled shard, or a finite multi-shard driver | Prints exclusions before consent. `--all-shards` requires `--max-credits`. Resume an unfinished attempt with `--execution-id`. After it is terminal, omit `--execution-id` to start a new rerun. Cannot be used with `--local` |
 | `test [-c path] --suite path [--estimate] [--max-credits n] [--yes] [--headless] [--open]` | Quote or run a hosted customer-owned suite | Pins the server-accepted revision. Changing the file after quote does not silently alter admitted work. `--suite` cannot be used with `--local`. `--headless` requires `AUGMENTWORKS_API_KEY` or `AUGMENTWORKS_TOKEN` and never opens a browser |
 | `investigation inspect <file> [--json]` / `investigation fetch --run id --evaluation id --attempt id --criterion id [--out path] [--json]` / `investigation export-regression <file> --out path [--json]` | Inspect or download a safe failure investigation, or export a reviewed `aw-suite/1` regression draft | Observation only. Does not execute a target, shell fragment, evaluator, or quote. Copied commands are data. See `docs/investigation.md` |
@@ -745,7 +760,7 @@ See `examples/response-agent/` for a synthetic FAQ assessment file.
 | `baseline status [--json]` / `baseline promote --run <run-id> --baseline <id> --expected-revision <n> [--json]` | List pins, or explicitly promote a candidate onto a pin | Status is read-only. Promote is never automatic, requires `--expected-revision`, and stays off the machine allowlist unless the server grants `baseline:promote` |
 | `recover [-c path] [--retire \| --resume \| --cancel] [--json]` | Inspect or recover a hosted assessment | Does not create a new run. Default inspection only; `--retire`, `--resume`, and `--cancel` are mutually exclusive. Do not delete journals when admission is unknown |
 | `demo [--json] [--open] [--output-dir path] [--mode full\|faulty\|corrected]` | Packaged loopback refund demonstration | Contacts only an isolated 127.0.0.1 target owned by this command |
-| `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used |
+| `test --local [-c path] --packet reference [--output-dir path] [--open] [--json]` | Run and score a customer-executed local assessment | Contacts only the configured target and writes local artifacts; no AugmentWorks account or service is used. `--workspace` is rejected; `AUGMENTWORKS_WORKSPACE_ID` is ignored |
 | `schema [--kind config\|local-packet\|local-result\|customer-suite\|investigation-export]` | Print a bundled v1 JSON Schema | None |
 
 ### Exit codes

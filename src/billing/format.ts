@@ -1,3 +1,4 @@
+import { DEFAULT_API_ORIGIN } from "../auth/api-origin.js";
 import { sanitizeTerminal } from "../errors.js";
 import { classifyBillingRunStatus } from "./classify.js";
 import {
@@ -32,6 +33,9 @@ export function formatUsageHuman(input: {
   const workspace = sanitizeTerminal(input.workspaceLabel);
   const lines: string[] = [];
   lines.push(`Workspace: ${workspace}`);
+  if (apiOrigin.origin !== DEFAULT_API_ORIGIN) {
+    lines.push(`API origin: ${sanitizeTerminal(apiOrigin.origin)}`);
+  }
   lines.push(`Available credits: ${String(usage.availableUnits)}`);
   lines.push("");
   lines.push(`Reserved credits: ${String(usage.reservedUnits)}`);
@@ -246,9 +250,13 @@ export function formatBillingHuman(input: {
   readonly workspaceLabel: string;
   readonly billingPageUrl: URL;
   readonly openedBrowser: boolean;
+  readonly apiOrigin?: URL;
 }): string {
   const lines: string[] = [];
   lines.push(`Workspace: ${sanitizeTerminal(input.workspaceLabel)}`);
+  if (input.apiOrigin !== undefined && input.apiOrigin.origin !== DEFAULT_API_ORIGIN) {
+    lines.push(`API origin: ${sanitizeTerminal(input.apiOrigin.origin)}`);
+  }
   lines.push(`Available credits: ${String(input.usage.availableUnits)}`);
   lines.push(`Billing page: ${sanitizeTerminal(input.billingPageUrl.toString())}`);
   lines.push(
@@ -309,10 +317,14 @@ export function formatEstimateHuman(input: {
   readonly quote: BillingQuote;
   readonly workspaceLabel: string;
   readonly localPlanHash: string;
+  readonly apiOrigin?: URL;
 }): string {
   const quote = input.quote;
   const lines: string[] = [];
   lines.push(`Workspace: ${sanitizeTerminal(input.workspaceLabel)}`);
+  if (input.apiOrigin !== undefined && input.apiOrigin.origin !== DEFAULT_API_ORIGIN) {
+    lines.push(`API origin: ${sanitizeTerminal(input.apiOrigin.origin)}`);
+  }
   lines.push(`Quoted credits: ${String(quote.executionUnits)}`);
   const breakdown = formatQuoteBreakdown(quote);
   if (breakdown !== undefined) lines.push(breakdown);

@@ -7,6 +7,7 @@ import {
   type InvestigationCommandDependencies,
   type InvestigationCommandOptions
 } from "../investigation/execute.js";
+import { addWorkspaceOption } from "../auth/workspace-expectation.js";
 
 export function createInvestigationCommand(
   dependencies: InvestigationCommandDependencies = {}
@@ -27,24 +28,25 @@ export function createInvestigationCommand(
       await inspectInvestigation({ ...values, file }, dependencies);
     });
 
-  investigation
-    .command("fetch")
-    .description(
-      "Download a saved run's investigation artifact. Observation only; does not quote, admit, or execute the target"
-    )
-    .requiredOption("--run <run-id>", "original run ID")
-    .requiredOption("--evaluation <evaluation-id>", "evaluation ID")
-    .requiredOption("--attempt <attempt-id>", "attempt ID")
-    .requiredOption("--criterion <criterion-id>", "criterion ID")
-    .option("--out <path>", "optional JSON file to save the artifact")
-    .option("--json", "write one machine-readable inspection object to stdout")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(async (values: InvestigationCommandOptions) => {
-      await fetchInvestigation(values, dependencies);
-    });
+  addWorkspaceOption(
+    investigation
+      .command("fetch")
+      .description(
+        "Download a saved run's investigation artifact. Observation only; does not quote, admit, or execute the target"
+      )
+      .requiredOption("--run <run-id>", "original run ID")
+      .requiredOption("--evaluation <evaluation-id>", "evaluation ID")
+      .requiredOption("--attempt <attempt-id>", "attempt ID")
+      .requiredOption("--criterion <criterion-id>", "criterion ID")
+      .option("--out <path>", "optional JSON file to save the artifact")
+      .option("--json", "write one machine-readable inspection object to stdout")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(async (values: InvestigationCommandOptions) => {
+    await fetchInvestigation(values, dependencies);
+  });
 
   investigation
     .command("export-regression")

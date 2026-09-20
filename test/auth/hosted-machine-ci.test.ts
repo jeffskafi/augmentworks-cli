@@ -150,4 +150,25 @@ describe("test --headless command boundary", () => {
       )
     ).rejects.toMatchObject({ code: "HEADLESS_LOCAL_UNSUPPORTED" });
   });
+
+  it("rejects --workspace with --local before any hosted authentication", async () => {
+    const command = createTestCommand({
+      stdout: { write: () => true },
+      stderr: { write: () => true }
+    }).exitOverride();
+    await expect(
+      command.parseAsync(
+        [
+          "node",
+          "augmentworks",
+          "--local",
+          "--packet",
+          "support-refunds-starter@0.1.0",
+          "--workspace",
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        { from: "node" }
+      )
+    ).rejects.toMatchObject({ code: "LOCAL_WORKSPACE_UNSUPPORTED", category: "config" });
+  });
 });

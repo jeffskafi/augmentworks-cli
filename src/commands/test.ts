@@ -79,6 +79,12 @@ import {
   type HostedAuthDependencies
 } from "./hosted-auth.js";
 import {
+  addWorkspaceOption,
+  formatOverriddenApiOriginLine,
+  formatWorkspaceLabel,
+  localWorkspaceFlagUnsupportedError
+} from "../auth/workspace-expectation.js";
+import {
   formatLocalTestHuman,
   formatLocalTestJson,
   localExitCode,
@@ -159,6 +165,7 @@ export interface TestOptions {
   readonly yes?: boolean;
   readonly headless?: boolean;
   readonly allowFileCredentials?: boolean;
+  readonly workspace?: string;
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly stateDirectory?: string;
@@ -193,6 +200,7 @@ export interface EstimateResult {
   readonly localPlanHash: string;
   readonly workspaceLabel: string;
   readonly advertisedCapabilities: CreateRunRequest["target"]["capabilities"];
+  readonly apiOrigin: URL;
 }
 
 export interface SignalHost {
@@ -332,9 +340,10 @@ async function executeHostedSelection(
       yes: options.yes === true,
       session,
       stderr,
-      workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
+      workspaceLabel: formatWorkspaceLabel(session.identity),
       interactive,
       cwd,
+      env,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(dependencies.confirm === undefined ? {} : { confirm: dependencies.confirm })
     });
@@ -625,8 +634,9 @@ async function runCompiledSelectionEstimate(
   return {
     quote,
     localPlanHash: prepared.localPlanHash,
-    workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
-    advertisedCapabilities: hostedTargetBinding(context.report.resolvedConfig).capabilities
+    workspaceLabel: formatWorkspaceLabel(session.identity),
+    advertisedCapabilities: hostedTargetBinding(context.report.resolvedConfig).capabilities,
+    apiOrigin: session.apiOrigin
   };
 }
 
@@ -1193,8 +1203,9 @@ export async function runEstimate(
   return {
     quote,
     localPlanHash: prepared.localPlanHash,
-    workspaceLabel: session.identity.workspaceName ?? session.identity.workspaceId,
-    advertisedCapabilities: target.capabilities
+    workspaceLabel: formatWorkspaceLabel(session.identity),
+    advertisedCapabilities: target.capabilities,
+    apiOrigin: session.apiOrigin
   };
 }
 
@@ -1428,6 +1439,7 @@ async function resolveHostedCreateRequest(options: {
   readonly workspaceLabel: string;
   readonly interactive: boolean;
   readonly cwd: string;
+  readonly env?: NodeJS.ProcessEnv;
   readonly confirm?: (prompt: string) => Promise<boolean>;
 }): Promise<{ request: CreateRunIntentRequest; quote?: BillingQuote }> {
   if (options.selection.kind === "packet") {
@@ -1549,7 +1561,9 @@ async function resolveHostedCreateRequest(options: {
   writeConsentExplanation(options.stderr, {
     quote,
     workspaceLabel: options.workspaceLabel,
-    maxCredits: ceiling
+    maxCredits: ceiling,
+    apiOrigin: options.session.apiOrigin,
+    ...(options.env === undefined ? {} : { env: options.env })
   });
   if (!options.yes) {
     if (!options.interactive) {
@@ -1646,13 +1660,17 @@ async function assertHostedConversationAdmission(
 
 function writeConsentExplanation(
   stderr: Pick<NodeJS.WriteStream, "write">,
-  input: { quote: BillingQuote; workspaceLabel: string; maxCredits: number }
+  input: { quote: BillingQuote; workspaceLabel: string; maxCredits: number; apiOrigin?: URL; env?: NodeJS.ProcessEnv }
 ): void {
   const remaining =
     input.quote.availableUnitsAtQuote >= input.quote.executionUnits
       ? input.quote.availableUnitsAtQuote - input.quote.executionUnits
       : 0;
   writeLine(stderr, `Workspace: ${sanitizeTerminal(input.workspaceLabel)}`);
+  if (input.apiOrigin !== undefined) {
+    const originLine = formatOverriddenApiOriginLine(input.apiOrigin, input.env);
+    if (originLine !== undefined) writeLine(stderr, originLine);
+  }
   writeLine(stderr, `Quoted credits: ${String(input.quote.executionUnits)}`);
   const breakdown = formatQuoteBreakdown(input.quote);
   if (breakdown !== undefined) writeLine(stderr, breakdown);
@@ -1704,56 +1722,57 @@ function annotateHostedAdmissionError(
 }
 
 export function createTestCommand(dependencies: TestDependencies = {}): Command {
-  return new Command("test")
-    .description("Run a deterministic hosted or customer-executed local assessment")
-    .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
-    .option(
-      "--packet <reference>",
-      "hosted key@version, or a bundled/local JSON packet with --local"
-    )
-    .option("--assessment <path>", HOSTED_ASSESSMENT_OPTION_HELP)
-    .option(
-      "--suite <path>",
-      "customer-owned hosted suite file (aw-suite/1 or aw-suite/2). Admission uses the server-accepted revision, not a later file edit"
-    )
-    .option(
-      "--investigation <path>",
-      "reproduce the exact pinned case from an aw-investigation-export/1 file. Uses a new quote; never selects latest or reuses a consumed quote"
-    )
-    .option("--profile <profile>", "quick, full, combined, or custom")
-    .option(
-      "--manifest <path>",
-      "immutable server suite-selection manifest from `selection compile` (hosted only)"
-    )
-    .option("--shard <shard-id>", "execute one compiled shard from --manifest or an assessment selection")
-    .option(
-      "--all-shards",
-      "execute compiled shards in order under one finite aggregate --max-credits ceiling; stops before exceeding consent"
-    )
-    .option(
-      "--execution-id <uuid>",
-      "resume one unfinished multi-shard attempt by exact id; omit after a terminal run to start a new execution"
-    )
-    .option(
-      "--artifact-out <path>",
-      "write manifestHash and per-shard run IDs for gate --manifest-file"
-    )
-    .option("--estimate", "compile and quote the hosted assessment without creating a run")
-    .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
-    .option("--yes", "skip the interactive spending prompt; still requires --max-credits")
-    .option(
-      "--headless",
-      "explicit noninteractive hosted mode: require AUGMENTWORKS_API_KEY or AUGMENTWORKS_TOKEN, never load a keychain, and never open a browser"
-    )
-    .option("--local", "run entirely in the customer environment without AugmentWorks services")
-    .option("--output-dir <path>", "fresh exact report directory for --local")
-    .option("--open", "open the hosted dashboard or generated local HTML report")
-    .option("--json", "emit the final run status as JSON")
-    .option(
-      "--allow-file-credentials",
-      "allow a warned mode-0600 credential file when OS credential storage is unavailable"
-    )
-    .action(
+  return addWorkspaceOption(
+    new Command("test")
+      .description("Run a deterministic hosted or customer-executed local assessment")
+      .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
+      .option(
+        "--packet <reference>",
+        "hosted key@version, or a bundled/local JSON packet with --local"
+      )
+      .option("--assessment <path>", HOSTED_ASSESSMENT_OPTION_HELP)
+      .option(
+        "--suite <path>",
+        "customer-owned hosted suite file (aw-suite/1 or aw-suite/2). Admission uses the server-accepted revision, not a later file edit"
+      )
+      .option(
+        "--investigation <path>",
+        "reproduce the exact pinned case from an aw-investigation-export/1 file. Uses a new quote; never selects latest or reuses a consumed quote"
+      )
+      .option("--profile <profile>", "quick, full, combined, or custom")
+      .option(
+        "--manifest <path>",
+        "immutable server suite-selection manifest from `selection compile` (hosted only)"
+      )
+      .option("--shard <shard-id>", "execute one compiled shard from --manifest or an assessment selection")
+      .option(
+        "--all-shards",
+        "execute compiled shards in order under one finite aggregate --max-credits ceiling; stops before exceeding consent"
+      )
+      .option(
+        "--execution-id <uuid>",
+        "resume one unfinished multi-shard attempt by exact id; omit after a terminal run to start a new execution"
+      )
+      .option(
+        "--artifact-out <path>",
+        "write manifestHash and per-shard run IDs for gate --manifest-file"
+      )
+      .option("--estimate", "compile and quote the hosted assessment without creating a run")
+      .option("--max-credits <n>", "explicit maximum customer credits for this hosted run")
+      .option("--yes", "skip the interactive spending prompt; still requires --max-credits")
+      .option(
+        "--headless",
+        "explicit noninteractive hosted mode: require AUGMENTWORKS_API_KEY or AUGMENTWORKS_TOKEN, never load a keychain, and never open a browser"
+      )
+      .option("--local", "run entirely in the customer environment without AugmentWorks services")
+      .option("--output-dir <path>", "fresh exact report directory for --local")
+      .option("--open", "open the hosted dashboard or generated local HTML report")
+      .option("--json", "emit the final run status as JSON")
+      .option(
+        "--allow-file-credentials",
+        "allow a warned mode-0600 credential file when OS credential storage is unavailable"
+      )
+  ).action(
       async (values: {
         config: string;
         packet?: string;
@@ -1775,6 +1794,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
         open?: boolean;
         json?: boolean;
         allowFileCredentials?: boolean;
+        workspace?: string;
       }) => {
         const stdout = dependencies.stdout ?? process.stdout;
         const stderr = dependencies.stderr ?? process.stderr;
@@ -1835,7 +1855,8 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 ...(values.allowFileCredentials === undefined
                   ? {}
                   : { allowFileCredentials: values.allowFileCredentials }),
-                ...(values.headless === undefined ? {} : { headless: values.headless })
+                ...(values.headless === undefined ? {} : { headless: values.headless }),
+                ...(values.workspace === undefined ? {} : { workspace: values.workspace })
               },
               dependencies
             );
@@ -1853,7 +1874,8 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
                 `${formatEstimateHuman({
                   quote: estimate.quote,
                   workspaceLabel: estimate.workspaceLabel,
-                  localPlanHash: estimate.localPlanHash
+                  localPlanHash: estimate.localPlanHash,
+                  apiOrigin: estimate.apiOrigin
                 }).trimEnd()}\n${formatAdvertisedConversation(estimate.advertisedCapabilities)}\n`
               );
             }
@@ -1899,7 +1921,8 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
               ...(values.allowFileCredentials === undefined
                 ? {}
                 : { allowFileCredentials: values.allowFileCredentials }),
-              ...(values.headless === undefined ? {} : { headless: values.headless })
+              ...(values.headless === undefined ? {} : { headless: values.headless }),
+              ...(values.workspace === undefined ? {} : { workspace: values.workspace })
             },
             dependencies
           );
@@ -2009,6 +2032,7 @@ function assertTestSelection(values: {
   maxCredits?: string;
   yes?: boolean;
   headless?: boolean;
+  workspace?: string;
 }): void {
   const hostedSelection =
     values.manifest !== undefined || values.shard !== undefined || values.allShards === true;
@@ -2092,6 +2116,9 @@ function assertTestSelection(values: {
       message:
         "--headless applies only to hosted AugmentWorks authentication. Local tests do not use a workspace API key."
     });
+  }
+  if (values.workspace !== undefined && values.local === true) {
+    throw localWorkspaceFlagUnsupportedError();
   }
   if (
     values.estimate === true &&

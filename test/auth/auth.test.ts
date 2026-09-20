@@ -89,6 +89,29 @@ describe("PKCE loopback login", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it("sends expected_workspace_id on the authorize URL and maps workspace_mismatch", async () => {
+    const expectedWorkspaceId = "11111111-1111-4111-8111-111111111111";
+    const client = new CloudAuthClient({
+      apiOrigin: API_ORIGIN,
+      fetch: vi.fn() as unknown as typeof fetch
+    });
+    await expect(
+      loginWithLoopback(client, {
+        expectedWorkspaceId,
+        openBrowser: async (authorizationUrl) => {
+          expect(authorizationUrl.searchParams.get("expected_workspace_id")).toBe(expectedWorkspaceId);
+          const redirect = new URL(authorizationUrl.searchParams.get("redirect_uri")!);
+          redirect.searchParams.set("state", authorizationUrl.searchParams.get("state")!);
+          redirect.searchParams.set("error", "workspace_mismatch");
+          expect((await fetch(redirect)).status).toBe(403);
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "WORKSPACE_MISMATCH",
+      details: { expected_workspace_id: expectedWorkspaceId }
+    });
+  });
+
   it("rejects a mismatched callback state", async () => {
     const client = new CloudAuthClient({
       apiOrigin: API_ORIGIN,
@@ -141,6 +164,40 @@ describe("device authorization", () => {
     const credential = await client.pollDeviceToken(authorization);
     expect(credential.accessToken).toBe(TOKEN);
     expect(sleeps).toEqual([2_000, 2_000]);
+  });
+
+  it("sends expected_workspace_id on the device request and maps workspace_mismatch", async () => {
+    const expectedWorkspaceId = "11111111-1111-4111-8111-111111111111";
+    let now = 10_000;
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === AUTH_ENDPOINTS.device) {
+        const form = new URLSearchParams(init?.body as string);
+        expect(form.get("expected_workspace_id")).toBe(expectedWorkspaceId);
+        return jsonResponse({
+          device_code: "device-code-value",
+          user_code: "ABCD-EFGH",
+          verification_uri: `${API_ORIGIN.origin}/activate`,
+          expires_in: 600,
+          interval: 1
+        });
+      }
+      return jsonResponse({ error: "workspace_mismatch" }, 400);
+    });
+    const client = new CloudAuthClient({
+      apiOrigin: API_ORIGIN,
+      fetch: fetchMock as typeof fetch,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds;
+      }
+    });
+    const authorization = await client.startDeviceAuthorization(["connector:run"], {
+      expectedWorkspaceId
+    });
+    await expect(client.pollDeviceToken(authorization)).rejects.toMatchObject({
+      code: "WORKSPACE_MISMATCH"
+    });
   });
 
   it("refuses a verification URL on another origin", async () => {
@@ -447,6 +504,8 @@ describe("commands", () => {
     expect(result.source).toBe("environment");
     expect(store.saves).toBe(0);
     expect(outputs[0]).not.toContain(TOKEN);
+    const payload = JSON.parse(outputs[0] ?? "{}") as { identity?: { workspace_id?: string } };
+    expect(payload.identity?.workspace_id).toBe("workspace_test");
   });
 
   it("prints the next hosted-setup action after a human login", async () => {
@@ -466,10 +525,130 @@ describe("commands", () => {
         stderr: (message) => outputs.push(message)
       }
     );
-    expect(outputs.some((line) => line.includes("Connected Refunds Staging to Test Workspace."))).toBe(
-      true
-    );
+    expect(
+      outputs.some((line) =>
+        line.includes("Connected Refunds Staging to Test Workspace (workspace_test).")
+      )
+    ).toBe(true);
     expect(outputs).toContain(LOGIN_NEXT_STEPS);
+  });
+
+  it("fails WORKSPACE_MISMATCH for an environment credential in the wrong workspace", async () => {
+    const store = new MemoryStore({ accessToken: "stored_workspace_a", tokenType: "Bearer" });
+    const paths: string[] = [];
+    const client = authClient(async (url) => {
+      paths.push(url.pathname);
+      expect(url.pathname).toBe(AUTH_ENDPOINTS.me);
+      return jsonResponse(identityBody());
+    });
+    await expect(
+      runLogin(
+        { workspace: "11111111-1111-4111-8111-111111111111" },
+        {
+          env: { AUGMENTWORKS_TOKEN: TOKEN },
+          client,
+          store,
+          stdout: () => undefined,
+          stderr: () => undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "WORKSPACE_MISMATCH",
+      details: {
+        expected_workspace_id: "11111111-1111-4111-8111-111111111111",
+        actual_workspace_id: "workspace_test"
+      }
+    });
+    expect(store.saves).toBe(0);
+    expect((await store.load())?.accessToken).toBe("stored_workspace_a");
+    expect(paths).toEqual([AUTH_ENDPOINTS.me]);
+  });
+
+  it("fails WORKSPACE_CONFIG_CONFLICT before contacting the network", async () => {
+    const store = new MemoryStore();
+    const fetchHandler = vi.fn();
+    const client = authClient(async () => {
+      fetchHandler();
+      return jsonResponse(identityBody());
+    });
+    await expect(
+      runLogin(
+        { workspace: "11111111-1111-4111-8111-111111111111" },
+        {
+          env: {
+            AUGMENTWORKS_TOKEN: TOKEN,
+            AUGMENTWORKS_WORKSPACE_ID: "22222222-2222-4222-8222-222222222222"
+          },
+          client,
+          store,
+          stdout: () => undefined,
+          stderr: () => undefined
+        }
+      )
+    ).rejects.toMatchObject({ code: "WORKSPACE_CONFIG_CONFLICT", category: "config" });
+    expect(fetchHandler).not.toHaveBeenCalled();
+    expect(store.saves).toBe(0);
+  });
+
+  it("does not replace a stored credential when selected login /auth/me does not match", async () => {
+    const expectedWorkspaceId = "11111111-1111-4111-8111-111111111111";
+    const store = new MemoryStore({ accessToken: "stored_workspace_a", tokenType: "Bearer" });
+    let now = 10_000;
+    const revoked: string[] = [];
+    const client = new CloudAuthClient({
+      apiOrigin: API_ORIGIN,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        now += milliseconds;
+      },
+      fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : input.toString());
+        if (url.pathname === AUTH_ENDPOINTS.device) {
+          const form = new URLSearchParams(init?.body as string);
+          expect(form.get("expected_workspace_id")).toBe(expectedWorkspaceId);
+          return jsonResponse({
+            device_code: "device-code-value",
+            user_code: "ABCD-EFGH",
+            verification_uri: `${API_ORIGIN.origin}/activate`,
+            expires_in: 600,
+            interval: 1
+          });
+        }
+        if (url.pathname === AUTH_ENDPOINTS.token) return jsonResponse(tokenBody());
+        if (url.pathname === AUTH_ENDPOINTS.me) {
+          return jsonResponse({
+            ...identityBody(),
+            workspace_id: "22222222-2222-4222-8222-222222222222"
+          });
+        }
+        if (url.pathname === AUTH_ENDPOINTS.revoke) {
+          revoked.push("revoked");
+          return new Response(null, { status: 200 });
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }) as typeof fetch
+    });
+    await expect(
+      runLogin(
+        { device: true, open: false, workspace: expectedWorkspaceId },
+        {
+          env: {},
+          client,
+          store,
+          stdout: () => undefined,
+          stderr: () => undefined
+        }
+      )
+    ).rejects.toMatchObject({
+      code: "WORKSPACE_MISMATCH",
+      details: {
+        expected_workspace_id: expectedWorkspaceId,
+        actual_workspace_id: "22222222-2222-4222-8222-222222222222"
+      }
+    });
+    expect(store.saves).toBe(0);
+    expect((await store.load())?.accessToken).toBe("stored_workspace_a");
+    expect(revoked).toEqual(["revoked"]);
   });
 
   it("refreshes an expiring stored credential before whoami", async () => {

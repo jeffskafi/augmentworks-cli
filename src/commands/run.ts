@@ -31,6 +31,7 @@ import {
   type HostedAuthOptions,
   type HostedAuthSession
 } from "./hosted-auth.js";
+import { WORKSPACE_OPTION_FLAGS, WORKSPACE_OPTION_HELP } from "../auth/workspace-expectation.js";
 
 const RUN_ID =
   /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,299}$/;
@@ -72,6 +73,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
       "--allow-file-credentials",
       "allow a warned mode-0600 credential file when OS credential storage is unavailable"
     )
+    .option(WORKSPACE_OPTION_FLAGS, WORKSPACE_OPTION_HELP)
     .action(async (runId: string, values: RunCommandOptions) => {
       await executeRunSubcommand("status", runId, values, dependencies);
     });
@@ -85,6 +87,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
       "--allow-file-credentials",
       "allow a warned mode-0600 credential file when OS credential storage is unavailable"
     )
+    .option(WORKSPACE_OPTION_FLAGS, WORKSPACE_OPTION_HELP)
     .action(async (runId: string, values: RunCommandOptions) => {
       await executeRunSubcommand("wait", runId, values, dependencies);
     });
@@ -97,6 +100,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
       "--allow-file-credentials",
       "allow a warned mode-0600 credential file when OS credential storage is unavailable"
     )
+    .option(WORKSPACE_OPTION_FLAGS, WORKSPACE_OPTION_HELP)
     .action(async (runId: string, values: RunCommandOptions) => {
       await executeRunSubcommand("retry-evaluation", runId, values, dependencies);
     });
@@ -115,6 +119,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
       "--allow-file-credentials",
       "allow a warned mode-0600 credential file when OS credential storage is unavailable"
     )
+    .option(WORKSPACE_OPTION_FLAGS, WORKSPACE_OPTION_HELP)
     .action(async (runId: string, values: RunCommandOptions) => {
       await executeRunSubcommand("report", runId, values, dependencies);
     });
