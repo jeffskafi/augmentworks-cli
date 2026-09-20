@@ -73,6 +73,12 @@ The packed-tarball smoke test is required because source-level success does not
 prove that `npx` receives the executable, schema, notices, documentation, and
 demo assets.
 
+Independent local, packed/published, hosted, and browser QA instructions
+(including expected exits, isolation/egress checks, secret segregation, and a
+field-safe receipt template) are in [docs/qa/README.md](docs/qa/README.md).
+`node dist/index.js` after a source build is not a registry-installed pin.
+Local packet scoring is not hosted grading.
+
 ## Releases
 
 Maintainers create a protected `vX.Y.Z` GitHub release after CI passes. The
