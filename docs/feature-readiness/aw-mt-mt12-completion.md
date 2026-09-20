@@ -17,7 +17,7 @@ merge and does **not** expose the new flags.
 | CLI default main at start | `d379968632517e6351450bf77f1a5e407e2140f5` (includes merged MT11 PR #55; issue-cited audit head was `e36352fafb96e1ba4a7462bd571a4188befc962b`) |
 | Working branch | `cursor/mt12-workspace-login-preflight-5190` |
 | Pull request | https://github.com/jeffskafi/augmentworks-cli/pull/57 |
-| Source head after verification | recorded in git on this branch after the verification commit |
+| Source head after verification | `89d18fe08634d25c068880e8cc88eabae4988040` |
 | Frozen contract | [AW-MULTITENANCY-1](https://linear.app/augmentworks/document/aw-multitenancy-1-gap-analysis-contracts-and-implementation-plan-2026-09482fb6b45f) `aw-cli-workspace-selection/1` |
 | Source package | `0.3.7` (unpublished; npm latest at ticket write was `0.3.6`) |
 | Schema / artifact version | No new document kind. Hosted report pin remains `aw-run-report-export/1`; selection pin remains `aw-selection-execution/3` |
