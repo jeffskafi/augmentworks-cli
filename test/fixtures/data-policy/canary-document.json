@@ -1,0 +1,25 @@
+{
+  "protocol_version": "aw-target/0.1",
+  "turn_id": "preview_turn",
+  "message": {
+    "role": "assistant",
+    "content": "Refund café-日本語-do-not-leak for canary.user@example.test at +1-555-010-1234. Secret SYNTHETIC_CANARY_SECRET_do_not_leak."
+  },
+  "events": [
+    {
+      "type": "tool_call",
+      "event_id": "event-1",
+      "name": "lookup_order",
+      "arguments": {
+        "order_id": "order-1",
+        "password": "nested-synthetic-password-value",
+        "callback": "https://example.test/callback?token=SYNTHETIC_CANARY_TOKEN_do_not_leak&email=canary.user@example.test"
+      }
+    }
+  ],
+  "status": "passed",
+  "finished": true,
+  "metadata": {
+    "api_key": "sk-syntheticCanaryKey12"
+  }
+}

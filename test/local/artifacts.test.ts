@@ -303,6 +303,31 @@ describe("local report artifacts", () => {
       verification: "unverified"
     });
   });
+
+  it("applies a data policy to local artifacts without leaking canaries or corrupting status enums", async () => {
+    const { CANARIES, makeContext } = await import("../data-policy/helpers.js");
+    const root = await temporaryRoot();
+    const output = join(root, "reports", "privacy-run");
+    const result = localResult();
+    result.outcome = "passed";
+    result.attempts[0]!.status = "passed";
+    result.attempts[0]!.turns[0]!.assistant_content = `Hello ${CANARIES.email} ${CANARIES.secret}`;
+    const context = makeContext("public", "minimized", [
+      { id: "mask-turns", selector: "/attempts/*/turns/*/assistant_content", action: "mask", detector: "email" }
+    ]);
+    const paths = await writeLocalArtifacts({
+      result,
+      outputDirectory: output,
+      secrets: [CANARIES.secret, "secret-value"],
+      dataPolicy: context
+    });
+    const jsonSource = await readFile(paths.json, "utf8");
+    expect(jsonSource).not.toContain(CANARIES.secret);
+    expect(jsonSource).not.toContain(CANARIES.email);
+    expect(paths.safeResult.outcome).toBe("passed");
+    expect(paths.safeResult.attempts[0]!.status).toBe("passed");
+    expect(paths.safeResult.provenance.execution_mode).toBe("local");
+  });
 });
 
 async function temporaryRoot(): Promise<string> {

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "aw-real-data-r06-handoff/1",
+  "initiative": "AW-REAL-DATA-1",
+  "scope": "R06",
+  "consumer": "AUG-188",
+  "hostedRealDataRelease": "unavailable",
+  "r01SchemaSha256": "6a53d04f297eb4db275bb7074bf7705a08137d932be823a3f4087d84cfdf7121",
+  "r01FixturesSha256": "26033843d55dcb9b49ccf68fa96f7de9ec34aa6c299e8ab28b605cad37572230",
+  "hooks": {
+    "inspectOutbound": {
+      "signature": "inspectOutbound(document, policy, profile, localSecrets) => { representation, receipt, blockedPaths }",
+      "blockedPaths": "metadata-only; path, action, and ruleId. Never include raw detected values."
+    },
+    "applyRedactionProfile": {
+      "signature": "applyRedactionProfile(input, profile, policy, secrets) => { representation, counts, blockedPaths, maskedPaths, droppedPaths }"
+    },
+    "sealDataHandlingReceipt": {
+      "signature": "sealDataHandlingReceipt({ policy, profile, representation, counts, processor, processorVersion, outcome? }) => DataHandlingReceipt"
+    },
+    "evaluateRetainedEvidence": {
+      "signature": "evaluateRetainedEvidence(representation, expectedFacts) => { ok, outcome, missingFacts }",
+      "unicodeSpans": "Evidence offsets use Unicode code points via [...text]."
+    },
+    "projectRelayResult": {
+      "signature": "projectRelayResult(kind, result, context, expectedFacts?) => { disposition, result?, failure?, receipt, evidence }"
+    },
+    "projectAssessmentReferencePayload": {
+      "signature": "projectAssessmentReferencePayload(payload, context) => AssessmentReferencePayload"
+    },
+    "planLocalContentCleanup": {
+      "signature": "planLocalContentCleanup({ stateDirectory, candidates }) => LocalContentCleanupPlan",
+      "neverDeletes": [
+        "arbitrary working directories",
+        "run-intent recovery state",
+        "journal locks"
+      ]
+    }
+  }
+}

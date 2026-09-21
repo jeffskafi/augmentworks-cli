@@ -39,6 +39,9 @@ const SENSITIVE_KEY_SUFFIXES = [
   "_token"
 ] as const;
 
+// Profile-based outbound minimization (inspectOutbound / applyRedactionProfile)
+// lives in src/data-policy. This redactor remains the credential-pattern layer.
+
 function escapedPattern(value: string): RegExp {
   return new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
 }

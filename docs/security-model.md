@@ -202,6 +202,36 @@ Use only an authorized, isolated synthetic target and synthetic test data. Do
 not connect production systems or use production or regulated data. Logs and
 evidence should be treated as sensitive even after allowlisting.
 
+### Outbound data policy
+
+When a frozen `aw-data-policy/1` document and bound `aw-redaction-profile/1`
+are supplied, the CLI projects content through
+`inspectOutbound(document, policy, profile, localSecrets)` before a mapping
+preview hashes evidence, before a journal append, and before local report
+files are written. The hosted executor (AUG-188) is the remaining owner of
+command, suite, and upload wiring. Hosted real-data remains unavailable.
+
+Credentials are excluded in both `minimized` and `verbatim` content handling.
+Verbatim may retain expressly permitted personal fields; it is not a license
+to export secrets. Typed placeholders (`[REDACTED:credential]` and related
+forms) are not universal anonymization. Structural identifiers, protocol
+enums, and hashes are not rewritten just because a local secret string equals
+a status such as `passed`.
+
+Receipts record policy/profile hashes, the hash of the **retained**
+representation, counts, and outcome. They never include raw detected values,
+pseudonym reversal maps, or raw-content fingerprints. Evidence offsets use
+Unicode code points of that retained representation. If masking removes a
+decisive expected fact, the criterion is insufficient evidence rather than a
+placeholder pass.
+
+Local `report.json` / `junit.xml` / `report.html` files and relay journals are
+customer-controlled. A hosted purge cannot delete them. A safe local content
+cleanup hook, when the executor exposes it, deletes only owned content files
+under the state directory. It does not delete arbitrary working directories,
+run-intent recovery state, or journal locks. Use `recover` for execution
+recovery.
+
 ## Evidence integrity and truth
 
 The CLI uses unkeyed SHA-256 digests as replay checksums. Comparing them with an
@@ -234,7 +264,9 @@ result files.
 - `preview-mapping` applies the same production mapping and redaction pipeline
   to a caller-supplied synthetic JSON fixture. It reads only that fixture and
   the selected config, makes no network call, and consumes no credit. It is
-  not a secret-detection guarantee.
+  not a secret-detection guarantee. When a data policy is supplied to the
+  preview service, the report can include effective policy, retained-field
+  counts, and a data-handling receipt without printing original matches.
 - Hosted `test` is the explicit action that starts a hosted assessment and
   keeps the connector online for that run. The dashboard can observe or request
   cancellation, but cannot start an assessment. There is no v0.2 `connect`
@@ -279,6 +311,8 @@ result files.
 - Telemetry mapping cannot make an untrustworthy target truthful.
 - Redaction cannot reliably sanitize an arbitrary unbounded log stream, which
   is why arbitrary logs are not accepted.
+- Credential and field masking is defense in depth, not a claim that a
+  retained representation is anonymous.
 - Availability of a private target depends on the customer network and process.
 
 Report vulnerabilities using [SECURITY.md](../SECURITY.md).

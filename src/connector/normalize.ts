@@ -10,6 +10,7 @@ import {
 } from "../cloud/protocol.js";
 import { LIMITS } from "../util/limits.js";
 import { redactSecrets, selectResponse } from "./mapping.js";
+import { inspectOutbound, dataPolicyError, type DataPolicyContext } from "../data-policy/index.js";
 import type {
   CleanupConnectorResult,
   ConnectorExecutionContext,
@@ -72,6 +73,7 @@ export function normalizeConnectorResult(options: {
   allowToolEvents: boolean;
   allowedObservations: ReadonlySet<string>;
   secrets: readonly string[];
+  dataPolicy?: DataPolicyContext;
 }): ConnectorResult {
   const mapped = applyResponseMap(options.response, options.responseMap, (field) =>
     shouldOmitMappedResponseField(options.kind, field, {
@@ -101,7 +103,19 @@ export function normalizeConnectorResult(options: {
       break;
   }
   const redacted = redactSecrets(result, options.secrets);
-  return parseRelayResult(options.kind, redacted) as ConnectorResult;
+  const projected =
+    options.dataPolicy === undefined
+      ? redacted
+      : projectNormalizedResult(redacted, options.dataPolicy);
+  return parseRelayResult(options.kind, projected) as ConnectorResult;
+}
+
+function projectNormalizedResult(result: ConnectorResult, context: DataPolicyContext): ConnectorResult {
+  const inspected = inspectOutbound(result, context.policy, context.profile, context.localSecrets);
+  if (inspected.receipt.outcome === "blocked" || inspected.blockedPaths.length > 0) {
+    throw dataPolicyError("DATA_POLICY_BLOCKED", "The target response was blocked by the data policy.");
+  }
+  return inspected.representation as ConnectorResult;
 }
 
 function applyResponseMap(

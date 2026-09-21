@@ -16,6 +16,15 @@ import {
   shouldOmitMappedResponseField
 } from "./normalize.js";
 import type { ConnectorExecutionContext, ConnectorResult } from "./types.js";
+import {
+  effectivePolicySummary,
+  inspectOutbound,
+  type DataHandlingReceipt,
+  type DataPolicy,
+  type EffectivePolicySummary,
+  type RedactionProfile
+} from "../data-policy/index.js";
+import { maskJsonForDisplay } from "../data-policy/detectors.js";
 
 export const MAPPING_PREVIEW_SCHEMA_VERSION = "AW-MAPPING-PREVIEW-1" as const;
 
@@ -108,6 +117,21 @@ export interface MappingPreviewRequest {
   readonly probeKeys?: readonly string[];
   readonly configPath?: string;
   readonly fixturePath?: string;
+  readonly policy?: DataPolicy;
+  readonly profile?: RedactionProfile;
+}
+
+export interface MappingPreviewPrivacy {
+  readonly hosted_real_data_release: "unavailable";
+  readonly effective: EffectivePolicySummary;
+  readonly receipt: DataHandlingReceipt;
+  readonly retained_field_count: number;
+  readonly blocked_paths: readonly { readonly path: string; readonly action: string; readonly ruleId: string }[];
+  readonly missing_facts: readonly string[];
+  readonly limits: {
+    readonly max_document_bytes: number;
+    readonly max_text_chars: number;
+  };
 }
 
 export interface MappingPreviewReport {
@@ -125,6 +149,7 @@ export interface MappingPreviewReport {
   readonly truncation: readonly MappingPreviewTruncation[];
   readonly diagnostics: readonly Diagnostic[];
   readonly evidence: MappingPreviewEvidence | null;
+  readonly privacy?: MappingPreviewPrivacy | null;
   readonly disclaimer: typeof MAPPING_PREVIEW_DISCLAIMER;
 }
 
@@ -235,7 +260,32 @@ export function previewMapping(request: MappingPreviewRequest): MappingPreviewRe
     }
   }
 
-  return finalizeReport(request, inspection, diagnostics, evidence);
+  let privacy: MappingPreviewPrivacy | null = null;
+  if (request.policy !== undefined && request.profile !== undefined) {
+    try {
+      const privacyResult = applyPrivacyPreview(request, inspection, evidence, diagnostics);
+      privacy = privacyResult.privacy;
+      evidence = privacyResult.evidence;
+    } catch (error) {
+      if (error instanceof AwError) {
+        diagnostics.push({
+          level: "error",
+          code: error.code,
+          message: error.message
+        });
+        evidence = null;
+      } else {
+        diagnostics.push({
+          level: "error",
+          code: "DATA_POLICY_BLOCKED",
+          message: "The data policy could not be applied to this fixture."
+        });
+        evidence = null;
+      }
+    }
+  }
+
+  return finalizeReport(request, inspection, diagnostics, evidence, privacy);
 }
 
 export function isMappingPreviewOperation(value: string): value is OperationKind {
@@ -590,11 +640,88 @@ function emptyInspection(): FieldInspection {
   };
 }
 
+function applyPrivacyPreview(
+  request: MappingPreviewRequest,
+  inspection: FieldInspection,
+  evidence: MappingPreviewEvidence | null,
+  diagnostics: Diagnostic[]
+): { privacy: MappingPreviewPrivacy; evidence: MappingPreviewEvidence | null } {
+  const policy = request.policy!;
+  const profile = request.profile!;
+  const secrets = [...new Set((request.secrets ?? []).filter((secret) => secret.length > 0))];
+  const detectors = new Set<"field" | "credential" | "email" | "phone" | "exact_local_secret">([
+    "credential",
+    "exact_local_secret"
+  ]);
+  for (const rule of profile.rules) detectors.add(rule.detector);
+  for (const [index, field] of inspection.extracted.entries()) {
+    const selected = inspection.selected.get(field.field);
+    if (selected === undefined) continue;
+    const sanitized = maskJsonForDisplay(selected, secrets, detectors) as JsonValue;
+    const display = displayPreview(sanitized);
+    inspection.extracted[index] = {
+      ...field,
+      preview: display.text,
+      display_truncated: display.truncated,
+      redacted: field.redacted || canonicalize(selected) !== canonicalize(sanitized),
+      bytes: Buffer.byteLength(canonicalize(sanitized), "utf8")
+    };
+  }
+  for (const [index, field] of inspection.redacted.entries()) {
+    const extracted = inspection.extracted.find((item) => item.field === field.field);
+    if (extracted !== undefined) {
+      inspection.redacted[index] = { ...field, preview: extracted.preview };
+    }
+  }
+  const document = (evidence?.result ?? request.response ?? {}) as JsonValue;
+  const inspected = inspectOutbound(document, policy, profile, secrets);
+  const privacy: MappingPreviewPrivacy = {
+    hosted_real_data_release: "unavailable",
+    effective: effectivePolicySummary(policy, profile),
+    receipt: inspected.receipt,
+    retained_field_count:
+      document !== null && typeof document === "object" && !Array.isArray(inspected.representation)
+        ? Object.keys(inspected.representation as object).length
+        : 0,
+    blocked_paths: inspected.blockedPaths.map((item) => ({
+      path: item.path,
+      action: item.action,
+      ruleId: item.ruleId
+    })),
+    missing_facts: [],
+    limits: {
+      max_document_bytes: profile.maxDocumentBytes,
+      max_text_chars: profile.maxTextChars
+    }
+  };
+  if (inspected.receipt.outcome === "blocked" || inspected.blockedPaths.length > 0) {
+    diagnostics.push({
+      level: "error",
+      code: "DATA_POLICY_BLOCKED",
+      message: "The fixture is blocked by the data policy. No target or hosted request was made."
+    });
+    return { privacy, evidence: null };
+  }
+  if (evidence === null) return { privacy, evidence: null };
+  const canonical = canonicalize(inspected.representation);
+  return {
+    privacy,
+    evidence: {
+      protocol_version: evidence.protocol_version,
+      canonical,
+      sha256: sha256(canonical),
+      bytes: Buffer.byteLength(canonical, "utf8"),
+      result: inspected.representation as ConnectorResult
+    }
+  };
+}
+
 function finalizeReport(
   request: MappingPreviewRequest,
   inspection: FieldInspection,
   diagnostics: readonly Diagnostic[],
-  evidence: MappingPreviewEvidence | null
+  evidence: MappingPreviewEvidence | null,
+  privacy: MappingPreviewPrivacy | null = null
 ): MappingPreviewReport {
   const uniqueDiagnostics = dedupeDiagnostics(diagnostics);
   const ok = evidence !== null && !uniqueDiagnostics.some((item) => item.level === "error");
@@ -613,6 +740,7 @@ function finalizeReport(
     truncation: inspection.truncation,
     diagnostics: uniqueDiagnostics,
     evidence,
+    privacy,
     disclaimer: MAPPING_PREVIEW_DISCLAIMER
   };
 }

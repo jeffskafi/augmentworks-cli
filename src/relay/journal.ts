@@ -22,6 +22,11 @@ import {
   ensureSecureDirectory,
   type SecureLockHandle
 } from "./secure-lock.js";
+import {
+  DATA_POLICY_BLOCKED_FAILURE,
+  projectRelayResult,
+  type DataPolicyContext
+} from "../data-policy/index.js";
 
 export const JOURNAL_VERSION = "aw-relay-journal/0.1" as const;
 
@@ -127,6 +132,7 @@ export interface RelayJournalOptions {
   runId: string;
   stateDirectory?: string;
   now?: () => Date;
+  dataPolicy?: DataPolicyContext;
 }
 
 export interface RelayJournalCloseOptions {
@@ -145,6 +151,7 @@ export class RelayJournal {
   readonly #relayDirectory: string;
   readonly #lockPath: string;
   readonly #now: () => Date;
+  readonly #dataPolicy: DataPolicyContext | undefined;
   readonly #states = new Map<string, MutableCommandState>();
   readonly #sequenceOwners = new Map<number, string>();
   #handle: FileHandle | undefined;
@@ -160,6 +167,7 @@ export class RelayJournal {
   constructor(options: RelayJournalOptions) {
     this.runId = options.runId;
     this.#now = options.now ?? (() => new Date());
+    this.#dataPolicy = options.dataPolicy;
     const stateDirectory = options.stateDirectory ?? getStateDirectory();
     this.#stateDirectory = stateDirectory;
     this.#relayDirectory = join(stateDirectory, "relay");
@@ -422,6 +430,23 @@ export class RelayJournal {
     const state = this.#requireStarted(commandId);
     if (state.completion !== undefined) return state.completion;
     const detachedResult = structuredClone(parseRelayResult(state.accepted.kind, result));
+    if (this.#dataPolicy !== undefined) {
+      const projected = projectRelayResult(state.accepted.kind, detachedResult, this.#dataPolicy);
+      if (projected.disposition !== "completed" || projected.result === undefined) {
+        return this.recordFailure(
+          commandId,
+          projected.failure ?? DATA_POLICY_BLOCKED_FAILURE,
+          "outcome_indeterminate"
+        );
+      }
+      return this.#persistSuccess(commandId, projected.result);
+    }
+    return this.#persistSuccess(commandId, detachedResult);
+  }
+
+  async #persistSuccess(commandId: string, detachedResult: RelayResult): Promise<JournalCompletion> {
+    const state = this.#requireStarted(commandId);
+    if (state.completion !== undefined) return state.completion;
     const resultSha256 = sha256(canonicalize(detachedResult));
     await this.#append({
       journal_version: JOURNAL_VERSION,
