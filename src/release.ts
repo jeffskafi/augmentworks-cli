@@ -105,8 +105,32 @@ export function formatWrappedCommand(prefix: string, command: string, lines: rea
   ].join("\n");
 }
 
+/**
+ * Source-checkout invocation after `npm ci && npm run build`.
+ * Do not use this for npm-installed customer copy; that must go through
+ * `formatCustomerCli` so `LOCAL_DISTRIBUTION === "npm"` prints the published pin.
+ */
 export function formatSourceCli(argv: readonly string[]): string {
   return argv.length === 0 ? "node dist/index.js" : `node dist/index.js ${argv.join(" ")}`;
+}
+
+/** Placeholder in packaged `OWN-TARGET.md` starters, replaced at init. */
+export const CUSTOMER_CLI_PLACEHOLDER = "{{AW_CLI}}";
+
+/**
+ * Customer-facing CLI invocation for this artifact's distribution.
+ * npm tarballs and npx installs use the published pin; git checkouts keep
+ * `node dist/index.js` after an explicit build.
+ */
+export function formatCustomerCli(argv: readonly string[] = []): string {
+  if (LOCAL_DISTRIBUTION === "npm") {
+    return formatNpx(PUBLISHED_PACKAGE_VERSION, argv);
+  }
+  return formatSourceCli(argv);
+}
+
+export function renderStarterOwnTarget(content: string): string {
+  return content.replaceAll(CUSTOMER_CLI_PLACEHOLDER, formatCustomerCli());
 }
 
 function formatDocumentedCli(command: string, lines: readonly string[]): string {
@@ -381,7 +405,7 @@ export function initNextSteps(
   assessmentDisplay = "augmentworks.assessment.yaml"
 ): string {
   const created = `${configDisplay}, ${assessmentDisplay}, starter references, and the packaged fixture server`;
-  const preview = formatSourceCli([
+  const preview = formatCustomerCli([
     "preview-mapping",
     "-c",
     configDisplay,
@@ -390,8 +414,8 @@ export function initNextSteps(
     "--fixture",
     "./fixtures/send-response.json"
   ]);
-  const probePlan = formatSourceCli(["probe", "-c", configDisplay]);
-  const probeYes = formatSourceCli(["probe", "-c", configDisplay, "--yes"]);
+  const probePlan = formatCustomerCli(["probe", "-c", configDisplay]);
+  const probeYes = formatCustomerCli(["probe", "-c", configDisplay, "--yes"]);
   const prefix =
     LOCAL_DISTRIBUTION === "npm"
       ? `Next: edit .env with isolated synthetic target values, then run doctor. This build created ${created}.`

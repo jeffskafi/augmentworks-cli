@@ -8,8 +8,7 @@ response-quality`). Streaming, WebSocket, history-array multi-turn, and
 connector marketplaces are not supported.
 
 This 0.3.7 package generates these files and includes `probe`. Do not pin
-immutable npm `0.3.3`. If you built this repository, substitute
-`node dist/index.js` for `augmentworks` below.
+immutable npm `0.3.3`. Invoke the CLI as `{{AW_CLI}}` below.
 
 ## Files
 
@@ -43,13 +42,13 @@ The fixture server:
 
 node --env-file=.env server.mjs
 
-augmentworks doctor -c augmentworks.yaml
-augmentworks preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
-augmentworks preview-mapping -c augmentworks.yaml --operation observe --fixture ./fixtures/observe-response.json
-augmentworks probe -c augmentworks.yaml
-augmentworks probe -c augmentworks.yaml --yes
-augmentworks test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0
-augmentworks test --assessment ./augmentworks.assessment.yaml --estimate
+{{AW_CLI}} doctor -c augmentworks.yaml
+{{AW_CLI}} preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
+{{AW_CLI}} preview-mapping -c augmentworks.yaml --operation observe --fixture ./fixtures/observe-response.json
+{{AW_CLI}} probe -c augmentworks.yaml
+{{AW_CLI}} probe -c augmentworks.yaml --yes
+{{AW_CLI}} test --local -c augmentworks.yaml --packet support-refunds-starter@0.1.0
+{{AW_CLI}} test --assessment ./augmentworks.assessment.yaml --estimate
 ```
 
 `doctor` and `init` never probe. `probe --yes` always attempts cleanup after
