@@ -5,10 +5,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import { EXIT } from "../../src/errors.js";
 import {
   classifyRunReportExport,
+  exportHostedAuthorizedReport,
   exportHostedLiveInformationalReport,
   exportHostedRunReport
 } from "../../src/report/client.js";
-import { RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION } from "../../src/report/schema.js";
+import {
+  RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+  RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION
+} from "../../src/report/schema.js";
 import { listenLoopback, type ListeningServer } from "../util/http-server.js";
 import { FIXTURE_WORKSPACE_ID, REPORT_RUN_ID, fixtureResponse } from "./fixtures.js";
 
@@ -153,5 +157,89 @@ describe("live-informational report scope", () => {
       retrieved: false,
       error: { code: "REPORT_SCOPE_SCHEMA_INVALID" }
     });
+  });
+});
+
+describe("authorized-1 report scope", () => {
+  it("requests ?scope=authorized-1 and strictly parses the overlay without mutating v1", async () => {
+    const overlay = {
+      schemaVersion: RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+      workspaceId: FIXTURE_WORKSPACE_ID,
+      runId: REPORT_RUN_ID,
+      scopeHash: HASH,
+      environment: "staging",
+      dataOrigin: "customer_records",
+      dataClass: "public",
+      effects: "informational",
+      targetId: "11111111-1111-4111-8111-111111111111",
+      targetBoundaryHash: HASH,
+      policyHash: HASH,
+      profileHash: HASH,
+      actualCounts: { messages: 1, commands: 1, actions: 0 },
+      evidenceStatus: "available",
+      actionEvidenceStatus: "not_applicable",
+      representationHashes: [HASH],
+      limitations: ["Remote revocation is not proven by this overlay."]
+    };
+    const { server, hrefs } = await startMock((_request, response, url) => {
+      if (url.pathname !== `/v1/relay/runs/${REPORT_RUN_ID}/report`) return false;
+      if (url.searchParams.get("scope") !== "authorized-1") {
+        send(response, 400, { error: { code: "SCOPE_REQUIRED", message: "missing authorized scope" } });
+        return true;
+      }
+      send(response, 200, overlay);
+      return true;
+    });
+    const document = await exportHostedAuthorizedReport(REPORT_RUN_ID, {
+      apiOrigin: new URL(server.baseUrl),
+      credentialSource: "api_key",
+      accessTokenProvider: async () => TOKEN,
+      expectedWorkspaceId: FIXTURE_WORKSPACE_ID,
+      sleep: async () => undefined
+    });
+    expect(document).toMatchObject({
+      schemaVersion: RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+      dataOrigin: "customer_records",
+      evidenceStatus: "available"
+    });
+    expect(hrefs).toEqual([`GET /v1/relay/runs/${REPORT_RUN_ID}/report?scope=authorized-1`]);
+  });
+
+  it("fails closed when authorized evidence is missing", async () => {
+    const { server } = await startMock((_request, response, url) => {
+      if (url.pathname !== `/v1/relay/runs/${REPORT_RUN_ID}/report`) return false;
+      send(response, 200, {
+        schemaVersion: RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+        workspaceId: FIXTURE_WORKSPACE_ID,
+        runId: REPORT_RUN_ID,
+        scopeHash: HASH,
+        environment: "staging",
+        dataOrigin: "customer_records",
+        dataClass: "public",
+        effects: "informational",
+        targetId: "11111111-1111-4111-8111-111111111111",
+        targetBoundaryHash: HASH,
+        policyHash: HASH,
+        profileHash: HASH,
+        actualCounts: { messages: 0, commands: 0, actions: 0 },
+        evidenceStatus: "unavailable",
+        actionEvidenceStatus: "not_applicable",
+        representationHashes: [],
+        limitations: []
+      });
+      return true;
+    });
+    const document = await exportHostedAuthorizedReport(REPORT_RUN_ID, {
+      apiOrigin: new URL(server.baseUrl),
+      credentialSource: "api_key",
+      accessTokenProvider: async () => TOKEN,
+      expectedWorkspaceId: FIXTURE_WORKSPACE_ID,
+      sleep: async () => undefined
+    });
+    expect(document).toMatchObject({
+      schemaVersion: RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+      retrieved: false
+    });
+    expect(JSON.stringify(document)).not.toMatch(/syntheticOnly/);
   });
 });

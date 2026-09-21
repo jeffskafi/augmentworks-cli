@@ -4,6 +4,8 @@ export const RUN_REPORT_SCHEMA_VERSION = "aw-run-report/1" as const;
 export const RUN_REPORT_EXPORT_SCHEMA_VERSION = "aw-run-report-export/1" as const;
 export const RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION = "aw-run-report-live-scope/1" as const;
 export const LIVE_INFORMATIONAL_REPORT_SCOPE = "live-informational" as const;
+export const AUTHORIZED_REPORT_SCOPE = "authorized-1" as const;
+export const RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION = "aw-run-report-authorized-scope/1" as const;
 export const CRITERION_DETAIL_SCHEMA_VERSION = "aw-criterion-detail-read/1" as const;
 
 export const REPORT_PATH_TEMPLATE = "/v1/relay/runs/{runId}/report";
@@ -320,10 +322,65 @@ export const LiveInformationalReportErrorSchema = z
 export type LiveInformationalReport = z.infer<typeof LiveInformationalReportSchema>;
 export type LiveInformationalReportError = z.infer<typeof LiveInformationalReportErrorSchema>;
 
+export const AuthorizedReportOverlaySchema = z
+  .object({
+    schemaVersion: z.literal(RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION),
+    workspaceId: identifier,
+    runId: identifier,
+    scopeHash: sha256,
+    environment: z.enum(["development", "staging", "production"]),
+    dataOrigin: z.enum(["constructed", "customer_records", "mixed"]),
+    dataClass: z.enum(["public", "business", "personal"]),
+    effects: z.enum(["informational", "sandbox_actions", "controlled_actions"]),
+    targetId: identifier,
+    targetBoundaryHash: sha256,
+    policyHash: sha256,
+    profileHash: sha256,
+    expectedCoverage: z
+      .object({
+        messages: z.number().int().min(0),
+        commands: z.number().int().min(0),
+        actions: z.number().int().min(0)
+      })
+      .strict()
+      .optional(),
+    actualCounts: z
+      .object({
+        messages: z.number().int().min(0),
+        commands: z.number().int().min(0),
+        actions: z.number().int().min(0)
+      })
+      .strict(),
+    evidenceStatus: z.enum(["available", "partially_redacted", "unavailable", "expired", "purged"]),
+    actionEvidenceStatus: z.enum(["not_applicable", "reported", "verified_receipts", "indeterminate"]),
+    representationHashes: z.array(sha256).max(32),
+    limitations: z.array(z.string().min(1).max(500)).max(32)
+  })
+  .strict();
+
+export const AuthorizedReportOverlayErrorSchema = z
+  .object({
+    schemaVersion: z.literal(RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION),
+    error: z
+      .object({
+        code: z.string().min(1).max(80),
+        message: z.string().min(1).max(500),
+        retryable: z.boolean()
+      })
+      .strict()
+  })
+  .strict();
+
+export type AuthorizedReportOverlay = z.infer<typeof AuthorizedReportOverlaySchema>;
+
 export function reportPath(runId: string): string {
   return `/v1/relay/runs/${encodeURIComponent(runId)}/report`;
 }
 
 export function liveInformationalReportPath(runId: string): string {
   return `${reportPath(runId)}?scope=${LIVE_INFORMATIONAL_REPORT_SCOPE}`;
+}
+
+export function authorizedReportPath(runId: string): string {
+  return `${reportPath(runId)}?scope=${AUTHORIZED_REPORT_SCOPE}`;
 }

@@ -129,7 +129,7 @@ describe("suite CLI", () => {
     expect(SOURCE_SUITE_VALIDATE_COMMAND).not.toContain("@0.3.3");
   });
 
-  it("validates the live-informational fixture and still rejects aw-suite/3", async () => {
+  it("validates the live-informational fixture offline", async () => {
     const live = await runSourceCli(
       ["suite", "validate", "test/fixtures/customer-suites/live-informational.yaml", "--json"],
       {

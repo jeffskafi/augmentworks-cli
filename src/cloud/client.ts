@@ -85,6 +85,21 @@ import {
 } from "../selection/schema.js";
 import { mapSavedSuiteCompileError, parseCompiledSuiteSelectionManifest } from "../selection/parse.js";
 import { selectionError } from "../selection/errors.js";
+import {
+  CAPABILITIES_PATH,
+  EXECUTION_SCOPE_PATH_TEMPLATE
+} from "../real-data/constants.js";
+import {
+  DISABLED_REAL_DATA_CAPABILITIES,
+  parseOrDisabledCapabilities
+} from "../real-data/capabilities.js";
+import {
+  looksLikeExecutionScopeResponse,
+  parseExecutionScopeResponse,
+  type ExecutionScopeResponse,
+  type RealDataCapabilities
+} from "../real-data/documents.js";
+import { isRealDataErrorCode, realDataHttpRetryable, realDataRecoveryCopy } from "../real-data/errors.js";
 
 export interface CloudClientOptions {
   apiUrl: string | URL;
@@ -665,6 +680,55 @@ export class CloudClient {
     return parseBillingCapabilitiesResponse(value);
   }
 
+  async getRealDataCapabilities(signal?: AbortSignal): Promise<RealDataCapabilities> {
+    try {
+      const value = await this.#request("GET", CAPABILITIES_PATH, undefined, signal);
+      return parseOrDisabledCapabilities(value);
+    } catch (error) {
+      if (
+        error instanceof AwError &&
+        (error.details?.["http_status"] === 404 || error.code === "CLOUD_REQUEST_FAILED")
+      ) {
+        return DISABLED_REAL_DATA_CAPABILITIES;
+      }
+      throw error;
+    }
+  }
+
+  async getExecutionScope(scopeId: string, signal?: AbortSignal): Promise<ExecutionScopeResponse> {
+    const value = await this.#request(
+      "GET",
+      EXECUTION_SCOPE_PATH_TEMPLATE.replace("{scopeId}", segment(scopeId)),
+      undefined,
+      signal
+    );
+    return parseExecutionScopeResponse(value);
+  }
+
+  async getRunExecutionScope(
+    runId: string,
+    signal?: AbortSignal
+  ): Promise<ExecutionScopeResponse | undefined> {
+    try {
+      const value = await this.#request(
+        "GET",
+        `/v1/relay/runs/${segment(runId)}/execution-scope`,
+        undefined,
+        signal
+      );
+      if (!looksLikeExecutionScopeResponse(value)) return undefined;
+      return parseExecutionScopeResponse(value);
+    } catch (error) {
+      if (
+        error instanceof AwError &&
+        (error.details?.["http_status"] === 404 || error.code === "CLOUD_REQUEST_FAILED")
+      ) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
   async #requestBilling(
     method: "GET" | "POST",
     path: string,
@@ -1069,8 +1133,11 @@ function cloudHttpError(
           ? "COMMAND_EXPIRED"
           : "CLOUD_REQUEST_FAILED");
   const liveCode = isLiveErrorCode(code);
-  const category = liveCode
-    ? "config"
+  const realDataCode = isRealDataErrorCode(code);
+  const category = liveCode || realDataCode
+    ? realDataCode
+      ? realDataErrorCategorySafe(code)
+      : "config"
     : status === 401 || status === 403
       ? "auth"
       : status === 409 || status === 410
@@ -1083,7 +1150,11 @@ function cloudHttpError(
     (category === "auth"
       ? "AugmentWorks rejected the connector credential."
       : "The AugmentWorks relay rejected the request.");
-  const message = liveCode ? liveRecoveryCopy(code, rawMessage) : rawMessage;
+  const message = liveCode
+    ? liveRecoveryCopy(code, rawMessage)
+    : realDataCode
+      ? realDataRecoveryCopy(code, rawMessage)
+      : rawMessage;
   const disclosureSuffix = disclosureMissing
     ? setupUrl === undefined
       ? " Complete the authenticated judging disclosure, then re-run the same test command. Target work was not started."
@@ -1107,13 +1178,35 @@ function cloudHttpError(
     code,
     category: disclosureMissing ? "relay" : category,
     message: `${message}${disclosureSuffix}`,
-    retryable: status === 408 || status === 429 || status >= 500,
+    retryable: realDataCode
+      ? realDataHttpRetryable(code, status, method)
+      : status === 408 || status === 429 || status >= 500,
     details
   });
 }
 
 function isLiveErrorCode(code: string): code is LiveErrorCode {
   return (LIVE_ERROR_CODES as readonly string[]).includes(code);
+}
+
+function realDataErrorCategorySafe(code: string): "config" | "auth" | "relay" | "evidence" {
+  if (
+    code === "TARGET_AUTHORITY_REQUIRED" ||
+    code === "TARGET_AUTHORITY_REVOKED"
+  ) {
+    return "auth";
+  }
+  if (code === "INSUFFICIENT_EVIDENCE" || code === "EVIDENCE_REPRESENTATION_MISMATCH") {
+    return "evidence";
+  }
+  if (
+    code === "EXECUTION_BUDGET_EXHAUSTED" ||
+    code === "EXECUTION_RELEASE_UNAVAILABLE" ||
+    code === "ACTION_OUTCOME_INDETERMINATE"
+  ) {
+    return "relay";
+  }
+  return "config";
 }
 
 function isDisclosureError(code: string): boolean {

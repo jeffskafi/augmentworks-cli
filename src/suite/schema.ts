@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import { SuiteExecutionScopeRefSchema } from "../real-data/documents.js";
 import { LiveTargetContractSchema, LIVE_MAX_CASES } from "./live-target.js";
 
 export const SUITE_SCHEMA_VERSION = "aw-suite/1" as const;
 export const SUITE_SCHEMA_VERSION_V2 = "aw-suite/2" as const;
+export const SUITE_SCHEMA_VERSION_V3 = "aw-suite/3" as const;
 export const FEATURE_PACKAGE_VERSION = "aw-feature/1" as const;
 export const FEATURE_ERROR_SCHEMA_VERSION = "aw-feature-error/1" as const;
 export const CUSTOMER_OWNED_SUITE_PACKET = {
@@ -14,10 +16,16 @@ export const CUSTOMER_OWNED_SUITE_PACKET_V2 = {
   key: "aw-customer-suite",
   version: "2.0.0"
 } as const;
+export const CUSTOMER_OWNED_SUITE_PACKET_V3 = {
+  key: "aw-customer-suite",
+  version: "3.0.0"
+} as const;
 export const SUPPORTED_SUITE_SCHEMA_VERSIONS = [
   SUITE_SCHEMA_VERSION,
-  SUITE_SCHEMA_VERSION_V2
+  SUITE_SCHEMA_VERSION_V2,
+  SUITE_SCHEMA_VERSION_V3
 ] as const;
+export const AUTHORIZED_MAX_TURNS = 3;
 export const LIVE_SUITE_REFERENCE_KINDS = [
   "approved_policy",
   "reference_answer",
@@ -336,13 +344,40 @@ export const CustomerSuiteV2Schema = z
     }
   });
 
+export const CustomerSuiteV3Schema = z
+  .object({
+    schemaVersion: z.literal(SUITE_SCHEMA_VERSION_V3),
+    suiteId: identifier,
+    title: z.string().min(1).max(200),
+    description: z.string().min(1).max(4_000).optional(),
+    tags: tagsSchema.optional(),
+    executionScope: SuiteExecutionScopeRefSchema,
+    references: z.array(SuiteReferenceSchema).max(MAX_SUITE_REFERENCE_ENTRIES).optional(),
+    cases: z.array(SuiteCaseSchema).min(1).max(MAX_SUITE_CASES)
+  })
+  .strict()
+  .superRefine((suite, context) => {
+    refineCustomerSuiteDocument(suite, context, { live: false });
+    for (const [caseIndex, suiteCase] of suite.cases.entries()) {
+      if (suiteCase.turns.length > AUTHORIZED_MAX_TURNS) {
+        context.addIssue({
+          code: "custom",
+          message: `authorized suites admit at most ${String(AUTHORIZED_MAX_TURNS)} turns per case`,
+          path: ["cases", caseIndex, "turns"]
+        });
+      }
+    }
+  });
+
 export const CustomerSuiteSchema = z.discriminatedUnion("schemaVersion", [
   CustomerSuiteV1Schema,
-  CustomerSuiteV2Schema
+  CustomerSuiteV2Schema,
+  CustomerSuiteV3Schema
 ]);
 
 export type CustomerSuiteV1 = z.infer<typeof CustomerSuiteV1Schema>;
 export type CustomerSuiteV2 = z.infer<typeof CustomerSuiteV2Schema>;
+export type CustomerSuiteV3 = z.infer<typeof CustomerSuiteV3Schema>;
 export type CustomerSuite = z.infer<typeof CustomerSuiteSchema>;
 export type SuiteCase = z.infer<typeof SuiteCaseSchema>;
 export type SuiteCriterion = z.infer<typeof SuiteCriterionSchema>;
@@ -351,6 +386,10 @@ export type SuiteObservation = z.infer<typeof SuiteObservationSchema>;
 
 export function isLiveCustomerSuite(suite: CustomerSuite): suite is CustomerSuiteV2 {
   return suite.schemaVersion === SUITE_SCHEMA_VERSION_V2;
+}
+
+export function isAuthorizedCustomerSuite(suite: CustomerSuite): suite is CustomerSuiteV3 {
+  return suite.schemaVersion === SUITE_SCHEMA_VERSION_V3;
 }
 
 export function isSupportedSuiteSchemaVersion(version: string): boolean {
@@ -371,7 +410,21 @@ const AUTHORING_KEY_MAP: Readonly<Record<string, string>> = {
   authorization_kind: "authorizationKind",
   authorization_ref: "authorizationRef",
   expires_at: "expiresAt",
-  max_messages: "maxMessages"
+  max_messages: "maxMessages",
+  execution_scope: "executionScope",
+  scope_id: "scopeId",
+  scope_hash: "scopeHash",
+  data_origin: "dataOrigin",
+  data_class: "dataClass",
+  data_policy: "dataPolicy",
+  action_policy: "actionPolicy",
+  max_actions: "maxActions",
+  max_commands: "maxCommands",
+  max_runtime_seconds: "maxRuntimeSeconds",
+  max_credits: "maxCredits",
+  target_boundary: "targetBoundary",
+  assessed_origin: "assessedOrigin",
+  allowed_operations: "allowedOperations"
 };
 
 export function rewriteAuthoringKeys(value: unknown): unknown {

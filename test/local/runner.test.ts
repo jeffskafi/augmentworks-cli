@@ -4,6 +4,7 @@ import type { ConnectorExecutionContext, ConnectorResult } from "../../src/conne
 import { AwError, type OperationKind } from "../../src/errors.js";
 import { LocalRunner, type LocalConnector } from "../../src/local/runner.js";
 import type { PacketManifest } from "../../src/local/types.js";
+import { localAuthorizedPacketManifest } from "../real-data/helpers.js";
 
 function packet(repetitions = 1): PacketManifest {
   return {
@@ -271,6 +272,38 @@ describe("LocalRunner", () => {
     await expect(runner.run()).rejects.toMatchObject({ code: "LOCAL_RUN_ALREADY_ACTIVE" });
     release();
     await first;
+  });
+
+  it("enforces the local authorized budget across repetitions, including after a completed send", async () => {
+    const manifest = localAuthorizedPacketManifest({ maxMessages: 1 });
+    manifest.scenarios[0]!.repetitions = 2;
+    const calls: OperationKind[] = [];
+    const localConnector = connector(async (kind, _input, context) => {
+      calls.push(kind);
+      if (kind === "send") {
+        return {
+          protocol_version: "aw-target/0.1",
+          turn_id: context.turnId!,
+          message: { role: "assistant", content: "Weekday hours are 9:00-17:00 UTC." },
+          events: [],
+          finished: true,
+          metadata: {}
+        };
+      }
+      return resultFor(kind, context);
+    });
+    await expect(
+      new LocalRunner({
+        connector: localConnector,
+        packet: manifest,
+        packetSha256: "a".repeat(64),
+        targetName: "synthetic-target",
+        configSha256: "b".repeat(64),
+        cliVersion: "0.2.0",
+        runId: "local_run_authorized_budget"
+      }).run()
+    ).rejects.toMatchObject({ code: "EXECUTION_BUDGET_EXHAUSTED" });
+    expect(calls).toEqual(["send"]);
   });
 });
 

@@ -1,5 +1,6 @@
 import {
   SUPPORTED_DETERMINISTIC_OBSERVATIONS,
+  isAuthorizedCustomerSuite,
   isLiveCustomerSuite,
   projectedAttemptCount,
   projectedTurnCount,
@@ -51,6 +52,12 @@ export type SuitePreview = {
     readonly maxMessages: number;
   } | null;
   readonly packet: { readonly key: string; readonly version: string };
+  readonly executionScope: {
+    readonly schemaVersion: string;
+    readonly scopeId: string;
+    readonly revision: number | null;
+    readonly scopeHash: string | null;
+  } | null;
   readonly references: ReadonlyArray<{
     readonly id: string;
     readonly kind: string;
@@ -91,6 +98,7 @@ function previewCase(suiteCase: SuiteCase): SuiteCasePreview {
 export function previewCustomerSuite(loaded: LoadedCustomerSuite): SuitePreview {
   const document: CustomerSuite = loaded.document;
   const live = isLiveCustomerSuite(document);
+  const authorized = isAuthorizedCustomerSuite(document);
   return {
     schemaVersion: document.schemaVersion,
     suiteId: document.suiteId,
@@ -103,7 +111,7 @@ export function previewCustomerSuite(loaded: LoadedCustomerSuite): SuitePreview 
     requiresMultiTurn: suiteRequiresMultiTurn(document),
     evaluationMode: suiteEvaluationMode(document),
     tags: document.tags ?? [],
-    syntheticOnly: !live,
+    syntheticOnly: !live && !authorized,
     liveTarget: live
       ? {
           schemaVersion: document.liveTarget.schemaVersion,
@@ -116,6 +124,14 @@ export function previewCustomerSuite(loaded: LoadedCustomerSuite): SuitePreview 
         }
       : null,
     packet: suitePacketBinding(loaded),
+    executionScope: authorized
+      ? {
+          schemaVersion: document.executionScope.schemaVersion,
+          scopeId: document.executionScope.scopeId,
+          revision: document.executionScope.revision ?? null,
+          scopeHash: document.executionScope.scopeHash ?? null
+        }
+      : null,
     references: loaded.references.map((reference) => ({
       id: reference.id,
       kind: reference.kind,

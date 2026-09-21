@@ -1,6 +1,9 @@
 import type { ResolvedConfig } from "../config/types.js";
 import { AwError } from "../errors.js";
-import type { PacketAssertion, PacketManifest } from "./types.js";
+import type { AnyLocalPacketManifest, PacketAssertion, PacketManifest } from "./types.js";
+import { isLocalAuthorizedPacket } from "./types.js";
+import { assertBoundaryMatchesConfig } from "../real-data/boundary.js";
+import { realDataError } from "../real-data/errors.js";
 
 export interface LocalPacketCompatibilityIssue {
   readonly code:
@@ -21,7 +24,7 @@ export interface LocalPacketCompatibilityReport {
 }
 
 export function inspectLocalPacketCompatibility(
-  packet: PacketManifest,
+  packet: AnyLocalPacketManifest,
   resolved: ResolvedConfig
 ): LocalPacketCompatibilityReport {
   const issues: LocalPacketCompatibilityIssue[] = [];
@@ -94,9 +97,18 @@ export function inspectLocalPacketCompatibility(
 }
 
 export function assertLocalPacketCompatible(
-  packet: PacketManifest,
+  packet: AnyLocalPacketManifest,
   resolved: ResolvedConfig
 ): void {
+  if (isLocalAuthorizedPacket(packet)) {
+    assertBoundaryMatchesConfig(packet.execution_scope.targetBoundary, resolved);
+    if (packet.required_capabilities.cleanup && !packet.execution_scope.targetBoundary.allowedOperations.includes("cleanup")) {
+      throw realDataError(
+        "ACTION_NOT_ALLOWED",
+        "Local authorized packets cannot enable cleanup unless the local scope allows that operation."
+      );
+    }
+  }
   const report = inspectLocalPacketCompatibility(packet, resolved);
   if (report.ok) return;
   const first = report.issues[0];

@@ -196,6 +196,88 @@ describe("investigation load and inspect", () => {
     expect(yaml).toContain("not a local deterministic packet");
   });
 
+  it("refuses to fabricate a synthetic fixture from real-data provenance without an explicit flag", () => {
+    const document = parseInvestigationValue(
+      JSON.parse(
+        `{
+          "schemaVersion": "aw-investigation-export/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "run_real_records",
+          "evaluationId": "eval_real_records",
+          "evaluationRevision": 1,
+          "attemptId": "attempt_real_records",
+          "criterionId": "records.hours.required",
+          "verdict": "fail",
+          "reproductionKind": "response_only",
+          "fullyReproducible": true,
+          "createsBillableRun": false,
+          "identities": {
+            "suiteId": "authorized.records.fixture",
+            "suiteRevisionId": "rev_real_1",
+            "suiteContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "caseId": "authorized.hours",
+            "dataOrigin": "customer_records",
+            "packetOverlay": "aw-packet/authorized-1"
+          },
+          "evidence": {
+            "expected": { "facts": ["Weekday support hours are 9:00-17:00 UTC."] },
+            "actual": { "text": "We are closed." }
+          },
+          "prerequisites": {}
+        }`
+      )
+    );
+    expect(() => regressionDraftYaml(document)).toThrowError(/fabricate-synthetic-fixture/);
+    const fabricated = regressionDraftYaml(document, { fabricateSyntheticFixture: true });
+    expect(fabricated).toContain("schema_version: aw-suite/1");
+    expect(fabricated).toContain("synthetic_only: true");
+    expect(fabricated).toContain("Approved transformation to a fabricated synthetic fixture");
+    expect(fabricated).toContain("Weekday support hours are 9:00-17:00 UTC.");
+    expect(fabricated).not.toContain("We are closed.");
+  });
+
+  it("exports aw-suite/3 when the investigation carries an admitted execution_scope", () => {
+    const document = parseInvestigationValue(
+      JSON.parse(
+        `{
+          "schemaVersion": "aw-investigation-export/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "runId": "run_real_scoped",
+          "evaluationId": "eval_real_scoped",
+          "evaluationRevision": 1,
+          "attemptId": "attempt_real_scoped",
+          "criterionId": "records.hours.required",
+          "verdict": "fail",
+          "reproductionKind": "response_only",
+          "fullyReproducible": true,
+          "createsBillableRun": false,
+          "identities": {
+            "suiteId": "authorized.records.fixture",
+            "suiteRevisionId": "rev_real_1",
+            "suiteContentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "caseId": "authorized.hours",
+            "dataOrigin": "customer_records",
+            "packetOverlay": "aw-packet/authorized-1",
+            "executionScope": {
+              "schemaVersion": "aw-execution-scope/1",
+              "scopeId": "66666666-6666-4666-8666-666666666666"
+            }
+          },
+          "evidence": {
+            "expected": { "facts": ["Weekday support hours are 9:00-17:00 UTC."] },
+            "actual": { "text": "We are closed." }
+          },
+          "prerequisites": {}
+        }`
+      )
+    );
+    const yaml = regressionDraftYaml(document);
+    expect(yaml).toContain("schema_version: aw-suite/3");
+    expect(yaml).toContain("scope_id: 66666666-6666-4666-8666-666666666666");
+    expect(yaml).not.toContain("synthetic_only: true");
+    expect(yaml).not.toContain("We are closed.");
+  });
+
   it("refuses a regression draft without a reviewed expected condition", async () => {
     await expect(
       async () =>

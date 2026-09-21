@@ -34,6 +34,7 @@ export interface InvestigationCommandOptions {
   readonly allowFileCredentials?: boolean;
   readonly workspace?: string;
   readonly signal?: AbortSignal;
+  readonly fabricateSyntheticFixture?: boolean;
 }
 
 export interface InvestigationCommandDependencies extends HostedAuthDependencies {
@@ -243,7 +244,10 @@ export async function exportInvestigationRegression(
     const written = await writeRegressionDraftFile(
       loaded.document,
       options.out ?? "",
-      options.cwd ?? process.cwd()
+      options.cwd ?? process.cwd(),
+      {
+        ...(options.fabricateSyntheticFixture === true ? { fabricateSyntheticFixture: true } : {})
+      }
     );
     const payload = {
       ok: true,

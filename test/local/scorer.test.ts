@@ -10,6 +10,7 @@ import type {
   PacketManifest,
   PacketScenario,
 } from "../../src/local/types.js";
+import { localAuthorizedPacketManifest } from "../real-data/helpers.js";
 import {
   MAX_LOCAL_JSON_SUBSET_COMPARISONS,
   LOCAL_RESULT_TRUST_LABEL,
@@ -663,6 +664,33 @@ describe("local result aggregation", () => {
     expect(result.results[0]?.evaluator).toBe(
       "Local deterministic packet assertions",
     );
+  });
+
+  it("records customer_declared_local provenance for authorized local packets", () => {
+    const authorized = localAuthorizedPacketManifest();
+    const selected = authorized.scenarios[0]!;
+    const result = buildLocalRunResult({
+      runId: RUN_ID,
+      cliVersion: "0.2.0",
+      packet: authorized,
+      packetSha256: "a".repeat(64),
+      targetName: "local-target",
+      configSha256: "b".repeat(64),
+      attempts: [
+        attempt(selected, {
+          cleanup_status: "not_required",
+        }),
+      ],
+    });
+    expect(result.provenance).toMatchObject({
+      verification: "customer_declared_local",
+      data_origin: "customer_records",
+      cloud_contacted: false,
+      signed: false,
+      offline_revocation: "not_observed",
+    });
+    expect(result.provenance.trust_label).toMatch(/remote revocation is not observed/i);
+    expect(JSON.stringify(result)).not.toMatch(/reversal/i);
   });
 
   it("fills cancellation placeholders without claiming cleanup ran", () => {

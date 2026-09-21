@@ -12,6 +12,14 @@ offline validate/preview/preflight and hosted quote checks. Submitting an
 fail-closed behind `AUGMENTWORKS_LIVE_TARGET_PILOT_ALLOWLIST`. Do not relabel a
 live target as synthetic.
 
+`aw-suite/3` / `aw-customer-suite/3` bind a server-admitted
+`execution_scope` instead of `synthetic_only` / `live_target`. Offline
+validate, preview, and preflight accept that format. Hosted quote and create
+stay fail-closed with `EXECUTION_RELEASE_UNAVAILABLE` until the advertised
+server capability and release gate are verified. Unknown schema versions fail
+closed and are never downgraded to synthetic. Local authorized packets use
+`aw-packet/local-authorized-1` and cannot be presented as hosted authority.
+
 The command exists in this `0.3.7` package. Native hosted
 `aw-customer-suite/1` upload translation is source on this revision and is
 not in immutable registry `0.3.6`. From this clone after `npm ci` and
@@ -64,9 +72,10 @@ rewritten to the camelCase canonical document (`schemaVersion: aw-suite/1`).
 `aw-suite/2` additionally requires `synthetic_only: false` and a complete
 `aw-live-target/1` contract (exact canonical HTTPS origin, authorization
 reference, expiry, and `max_messages` 1–3). Live cases are single-turn only.
-Unsupported schema versions, duplicate case IDs, missing references,
-credential-like keys, executable scripts, and `history_array_v1` fail
-**before** any network call.
+`aw-suite/3` requires `execution_scope` (`aw-execution-scope/1`) and rejects
+`synthetic_only` / `live_target`. Unsupported schema versions, duplicate case
+IDs, missing references, credential-like keys, executable scripts, and
+`history_array_v1` fail **before** any network call.
 
 Local authoring limits: 64 KiB suite file, 64 KiB / 16 references,
 20 cases, 20 turns, 3 repetitions, 16 criteria/tags/facts/observations.

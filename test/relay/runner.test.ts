@@ -18,6 +18,8 @@ import { RelayRunner } from "../../src/relay/runner.js";
 import type { LiveExecutionPolicy } from "../../src/suite/live-policy.js";
 import { LIMITS } from "../../src/util/limits.js";
 import { packet, relayCommand, resultFor } from "./helpers.js";
+import { authorizedDispatchPolicy } from "../../src/real-data/policy.js";
+import { hostedScopeResponse } from "../real-data/helpers.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -692,6 +694,102 @@ describe("RelayRunner", () => {
         pollWaitMs: 0
       }).run()
     ).rejects.toMatchObject({ code: "LIVE_TARGET_MESSAGE_LIMIT" });
+    expect(connector.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("authorized dispatch policy", () => {
+  it("does not replay a timed-out authorized send even when the connector claims send is idempotent", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const command = relayCommand("send");
+    const journal = await new RelayJournal({ runId: command.run_id, stateDirectory }).open();
+    await journal.accept(command);
+    await journal.markStarted(command.command_id);
+    await journal.close();
+    const cloud = new MockCloud([command]);
+    const connector = {
+      isIdempotent: () => true,
+      execute: vi.fn(async () => resultFor(command))
+    };
+    const response = hostedScopeResponse();
+    await new RelayRunner({
+      cloud: asCloud(cloud),
+      connector,
+      binding: binding(),
+      stateDirectory,
+      dispatchPolicy: authorizedDispatchPolicy({
+        scope: response.scope,
+        boundary: response.targetBoundary,
+        dataPolicy: response.dataPolicy,
+        redactionProfile: response.redactionProfile
+      }),
+      pollWaitMs: 0
+    }).run();
+    expect(connector.execute).not.toHaveBeenCalled();
+    expect(cloud.failures).toMatchObject([
+      { disposition: "outcome_indeterminate", error: { code: "OUTCOME_INDETERMINATE" } }
+    ]);
+  });
+
+  it("rejects cleanup unless the admitted boundary allows it", async () => {
+    const cleanup = relayCommand("cleanup");
+    const cloud = new MockCloud([cleanup]);
+    const connector = { execute: vi.fn(async () => resultFor(cleanup)), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    await expect(
+      new RelayRunner({
+        cloud: asCloud(cloud),
+        connector,
+        binding: binding(),
+        stateDirectory: await temporaryDirectory(),
+        dispatchPolicy: authorizedDispatchPolicy({
+          scope: response.scope,
+          boundary: response.targetBoundary
+        }),
+        pollWaitMs: 0
+      }).run()
+    ).rejects.toMatchObject({ code: "ACTION_NOT_ALLOWED" });
+    expect(connector.execute).not.toHaveBeenCalled();
+  });
+
+  it("counts an indeterminate send against the finite authorized budget", async () => {
+    const stateDirectory = await temporaryDirectory();
+    const first = relayCommand("send");
+    const second = relayCommand("send", {
+      command_id: "command-send-2",
+      sequence: 2,
+      idempotency_key: "idempotency-send-2"
+    });
+    const journal = await new RelayJournal({ runId: first.run_id, stateDirectory }).open();
+    await journal.accept(first);
+    await journal.markStarted(first.command_id);
+    await journal.recordFailure(
+      first.command_id,
+      { code: "OUTCOME_INDETERMINATE", safe_message: "timeout after dispatch", retryable: false },
+      "outcome_indeterminate"
+    );
+    await journal.acknowledge(first.command_id);
+    await journal.close();
+    const cloud = new MockCloud([second]);
+    const connector = { execute: vi.fn(async () => resultFor(second)), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    const tight = {
+      ...response.scope,
+      budget: { ...response.scope.budget, maxMessages: 1, maxCommands: 1 }
+    };
+    await expect(
+      new RelayRunner({
+        cloud: asCloud(cloud),
+        connector,
+        binding: binding(),
+        stateDirectory,
+        dispatchPolicy: authorizedDispatchPolicy({
+          scope: tight,
+          boundary: response.targetBoundary
+        }),
+        pollWaitMs: 0
+      }).run()
+    ).rejects.toMatchObject({ code: "EXECUTION_BUDGET_EXHAUSTED" });
     expect(connector.execute).not.toHaveBeenCalled();
   });
 });

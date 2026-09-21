@@ -70,7 +70,7 @@ export function createSuiteCommand(dependencies: SuiteCommandDependencies = {}):
 
   suite
     .command("validate")
-    .description("Parse and validate an aw-suite/1 or aw-suite/2 file offline")
+    .description("Parse and validate an aw-suite/1, aw-suite/2, or aw-suite/3 file offline")
     .argument("<file>", "YAML or JSON suite path")
     .option("--json", "write machine-readable validation output")
     .action(async (file: string, values: { json?: boolean }) => {

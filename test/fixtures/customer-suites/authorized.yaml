@@ -1,0 +1,31 @@
+schema_version: aw-suite/3
+suite_id: authorized.records.fixture
+title: Authorized real-data fixture
+description: Offline fixture for aw-suite/3 CLI handoff. Release remains disabled until backend and privacy integration are verified.
+execution_scope:
+  schema_version: aw-execution-scope/1
+  scope_id: 66666666-6666-4666-8666-666666666666
+  revision: 1
+tags:
+  - authorized
+references:
+  - id: records.kb
+    kind: reference_facts
+    content: |
+      Support hours are 9:00-17:00 UTC on weekdays.
+      The starter plan is listed as $99 per month.
+cases:
+  - case_id: authorized.hours
+    name: Support hours
+    turns:
+      - content: What are your weekday support hours?
+    expected:
+      facts:
+        - Weekday support hours are 9:00-17:00 UTC.
+    criteria:
+      - criterion_id: authorized.hours.required
+        requirement: required
+        kind: llm_rubric
+        statement: The answer must state weekday support hours of 9:00-17:00 UTC.
+        reference_ids:
+          - records.kb

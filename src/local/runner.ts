@@ -17,9 +17,12 @@ import type {
   LocalOperationError,
   LocalOperationRecord,
   LocalRunResult,
-  PacketManifest,
+  AnyLocalPacketManifest,
   PacketScenario
 } from "./types.js";
+import { isLocalAuthorizedPacket } from "./types.js";
+import { assertScopeNotExpired } from "../real-data/boundary.js";
+import { realDataError } from "../real-data/errors.js";
 
 const CLEANUP_RETRY_DELAYS_MS = [100, 250] as const;
 const DEFAULT_LOCAL_RUN_DEADLINE_MS = 30 * 60_000;
@@ -64,7 +67,7 @@ export type LocalProgressEvent =
 
 export interface LocalRunnerOptions {
   readonly connector: LocalConnector;
-  readonly packet: PacketManifest;
+  readonly packet: AnyLocalPacketManifest;
   readonly packetSha256: string;
   readonly targetName: string;
   readonly configSha256: string;
@@ -79,7 +82,7 @@ export interface LocalRunnerOptions {
 
 export class LocalRunner {
   readonly #connector: LocalConnector;
-  readonly #packet: PacketManifest;
+  readonly #packet: AnyLocalPacketManifest;
   readonly #packetSha256: string;
   readonly #targetName: string;
   readonly #configSha256: string;
@@ -90,6 +93,10 @@ export class LocalRunner {
   readonly #signal: AbortSignal | undefined;
   readonly #onProgress: ((event: LocalProgressEvent) => void) | undefined;
   readonly #runDeadlineMs: number;
+  #messagesDispatched = 0;
+  #commandsDispatched = 0;
+  #actionsDispatched = 0;
+  readonly #startedMs: number;
   #activeOperation: { kind: OperationKind; controller: AbortController } | undefined;
   #cancelRequested = false;
   #stopKind: "user" | "deadline" | undefined;
@@ -108,6 +115,10 @@ export class LocalRunner {
     this.#signal = options.signal;
     this.#onProgress = options.onProgress;
     this.#runDeadlineMs = options.runDeadlineMs ?? DEFAULT_LOCAL_RUN_DEADLINE_MS;
+    this.#startedMs = Date.now();
+    if (isLocalAuthorizedPacket(this.#packet)) {
+      assertScopeNotExpired(this.#packet.execution_scope.expiresAt);
+    }
     if (
       !Number.isSafeInteger(this.#runDeadlineMs) ||
       this.#runDeadlineMs < 1 ||
@@ -338,6 +349,7 @@ export class LocalRunner {
     requestId?: string,
     ignoreCancellation = false
   ): Promise<LocalOperationRecord> {
+    this.#assertAuthorizedOperation(kind);
     const startedAt = this.#timestamp();
     const commandId = stableId(
       "local_command",
@@ -439,6 +451,40 @@ export class LocalRunner {
         ? "The 30-minute local assessment deadline was reached."
         : "The local assessment was cancelled."
     );
+  }
+
+  #assertAuthorizedOperation(kind: OperationKind): void {
+    if (!isLocalAuthorizedPacket(this.#packet)) return;
+    const scope = this.#packet.execution_scope;
+    assertScopeNotExpired(scope.expiresAt, this.#now().getTime());
+    const elapsedSeconds = (this.#now().getTime() - this.#startedMs) / 1000;
+    if (elapsedSeconds > scope.budget.maxRuntimeSeconds) {
+      throw realDataError(
+        "EXECUTION_BUDGET_EXHAUSTED",
+        `Local target runtime exceeded maxRuntimeSeconds (${String(scope.budget.maxRuntimeSeconds)}). Grading of already-recorded attempts can continue; do not replay the send.`
+      );
+    }
+    if (!scope.targetBoundary.allowedOperations.includes(kind)) {
+      throw realDataError("ACTION_NOT_ALLOWED", `Local authorized scope does not permit ${kind} operations.`);
+    }
+    const next = {
+      messages: this.#messagesDispatched + (kind === "send" ? 1 : 0),
+      commands: this.#commandsDispatched + 1,
+      actions: this.#actionsDispatched + (kind === "send" ? 0 : 1)
+    };
+    if (
+      next.messages > scope.budget.maxMessages ||
+      next.commands > scope.budget.maxCommands ||
+      next.actions > scope.budget.maxActions
+    ) {
+      throw realDataError(
+        "EXECUTION_BUDGET_EXHAUSTED",
+        "Local authorized execution budget exhausted, including indeterminate sends."
+      );
+    }
+    this.#messagesDispatched = next.messages;
+    this.#commandsDispatched = next.commands;
+    this.#actionsDispatched = next.actions;
   }
 }
 

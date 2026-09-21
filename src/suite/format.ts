@@ -18,6 +18,12 @@ export function formatSuitePreview(preview: SuitePreview): string {
     `  requires_multi_turn: ${yn(preview.requiresMultiTurn)} (target conversation.strategy must be explicit_session_v1 at run time; this preview does not advertise multi_turn)`,
     `  evaluation_mode: ${preview.evaluationMode}`,
     `  synthetic_only: ${yn(preview.syntheticOnly)}`,
+    ...(preview.executionScope === null
+      ? []
+      : [
+          `  execution_scope: ${preview.executionScope.scopeId}`,
+          `  scope_schema: ${preview.executionScope.schemaVersion}`
+        ]),
     ...(preview.liveTarget === null
       ? []
       : [
@@ -104,6 +110,14 @@ export function formatSuiteValidate(preview: SuitePreview): string {
           `  approved_origin: ${preview.liveTarget.origin}`,
           `  expires_at: ${preview.liveTarget.expiresAt}`,
           `  permitted_messages: ${String(preview.liveTarget.maxMessages)}`
+        ]),
+    ...(preview.executionScope === null
+      ? []
+      : [
+          `  execution_scope: ${preview.executionScope.scopeId}`,
+          ...(preview.executionScope.scopeHash === null
+            ? []
+            : [`  scope_hash: ${preview.executionScope.scopeHash}`])
         ]),
     "  Local preview is not an authoritative price and does not execute a target or an LLM."
   ].join("\n");

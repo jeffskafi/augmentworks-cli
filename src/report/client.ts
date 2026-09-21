@@ -32,14 +32,20 @@ import {
   RunReportSchema,
   reportPath,
   liveInformationalReportPath,
+  authorizedReportPath,
   LIVE_INFORMATIONAL_REPORT_SCOPE,
+  AUTHORIZED_REPORT_SCOPE,
   RUN_REPORT_LIVE_SCOPE_SCHEMA_VERSION,
+  RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
   LiveInformationalReportSchema,
   LiveInformationalReportErrorSchema,
+  AuthorizedReportOverlaySchema,
+  AuthorizedReportOverlayErrorSchema,
   type CriterionDetail,
   type EvaluationBinding,
   type ExportDiagnostic,
   type LiveInformationalReport,
+  type AuthorizedReportOverlay,
   type RunReport,
   type RunReportAttempt,
   type RunReportExport
@@ -112,6 +118,22 @@ export async function exportHostedLiveInformationalReport(
     const remapped = remapAuthError(error, options.credentialSource ?? "environment");
     if (remapped instanceof AwError) {
       return liveFailureExport(remapped);
+    }
+    throw remapped;
+  }
+}
+
+export async function exportHostedAuthorizedReport(
+  runId: string,
+  options: RunReportClientOptions
+): Promise<AuthorizedReportOverlay | Record<string, unknown>> {
+  const client = new RunReportClient(options);
+  try {
+    return await client.exportAuthorized(runId);
+  } catch (error) {
+    const remapped = remapAuthError(error, options.credentialSource ?? "environment");
+    if (remapped instanceof AwError) {
+      return authorizedFailureExport(remapped);
     }
     throw remapped;
   }
@@ -233,6 +255,22 @@ export function liveFailureExport(error: AwError): Record<string, unknown> {
   };
 }
 
+export function authorizedFailureExport(error: AwError): Record<string, unknown> {
+  return {
+    schemaVersion: RUN_REPORT_AUTHORIZED_SCOPE_SCHEMA_VERSION,
+    retrieved: false,
+    complete: false,
+    error: {
+      code: error.code,
+      message: error.message,
+      retryable: error.retryable,
+      ...(typeof error.details?.["http_status"] === "number"
+        ? { httpStatus: error.details["http_status"] }
+        : {})
+    }
+  };
+}
+
 class RunReportClient {
   readonly apiOrigin: URL;
   readonly #accessTokenProvider: AccessTokenProvider;
@@ -290,6 +328,70 @@ class RunReportClient {
         code: "REPORT_WORKSPACE_MISMATCH",
         message: `A live informational report workspaceId did not match the authenticated workspace. Retry: augmentworks run report ${runId} --scope ${LIVE_INFORMATIONAL_REPORT_SCOPE} --json. Do not start another billed assessment.`
       });
+    }
+    return parsed.data;
+  }
+
+  async exportAuthorized(runId: string): Promise<AuthorizedReportOverlay> {
+    const url = this.#sameOriginUrl(authorizedReportPath(runId));
+    const payload = await this.#getJson(url);
+    const parsed = AuthorizedReportOverlaySchema.safeParse(payload);
+    if (!parsed.success) {
+      const errorEnvelope = AuthorizedReportOverlayErrorSchema.safeParse(payload);
+      if (errorEnvelope.success) {
+        throw new ReportProtocolError({
+          code: errorEnvelope.data.error.code,
+          message: errorEnvelope.data.error.message,
+          retryable: errorEnvelope.data.error.retryable,
+          category: "relay"
+        });
+      }
+      const v1 = RunReportSchema.safeParse(payload);
+      throw new ReportProtocolError({
+        code: "REPORT_SCOPE_SCHEMA_INVALID",
+        message: v1.success
+          ? "AugmentWorks returned aw-run-report/1 for --scope authorized-1. The authorized overlay must be requested and parsed separately."
+          : "AugmentWorks returned a report that does not match aw-run-report-authorized-scope/1."
+      });
+    }
+    if (parsed.data.runId !== runId) {
+      throw new ReportProtocolError({
+        code: "REPORT_ID_MISMATCH",
+        message: "The authorized report runId does not match the requested run."
+      });
+    }
+    if (this.#expectedWorkspaceId !== undefined && parsed.data.workspaceId !== this.#expectedWorkspaceId) {
+      throw new ReportProtocolError({
+        code: "REPORT_WORKSPACE_MISMATCH",
+        message: `An authorized report workspaceId did not match the authenticated workspace. Retry: augmentworks run report ${runId} --scope ${AUTHORIZED_REPORT_SCOPE} --json. Do not start another billed assessment.`
+      });
+    }
+    if (
+      parsed.data.evidenceStatus === "unavailable" ||
+      parsed.data.evidenceStatus === "expired" ||
+      parsed.data.evidenceStatus === "purged" ||
+      parsed.data.representationHashes.length === 0
+    ) {
+      throw new ReportProtocolError({
+        code: "INSUFFICIENT_EVIDENCE",
+        message: `Missing or mismatched authorized evidence is incomplete. Retry: augmentworks run report ${runId} --scope ${AUTHORIZED_REPORT_SCOPE} --json. Inspect this original run; do not start another billed assessment.`,
+        category: "relay"
+      });
+    }
+    if (parsed.data.expectedCoverage !== undefined) {
+      const expected = parsed.data.expectedCoverage;
+      const actual = parsed.data.actualCounts;
+      if (
+        actual.messages !== expected.messages ||
+        actual.commands !== expected.commands ||
+        actual.actions !== expected.actions
+      ) {
+        throw new ReportProtocolError({
+          code: "EVIDENCE_REPRESENTATION_MISMATCH",
+          message: `Authorized report coverage does not match the admitted scope. Retry: augmentworks run report ${runId} --scope ${AUTHORIZED_REPORT_SCOPE} --json. Do not start another billed assessment.`,
+          category: "relay"
+        });
+      }
     }
     return parsed.data;
   }

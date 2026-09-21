@@ -54,10 +54,21 @@ export function createInvestigationCommand(
       "Write a reviewed aw-suite/1 regression draft from the original expected condition, not the failing chatbot output"
     )
     .argument("<file>", "investigation JSON path")
-    .requiredOption("--out <path>", "aw-suite/1 YAML path")
+    .requiredOption("--out <path>", "aw-suite YAML path")
     .option("--json", "write one machine-readable export object to stdout")
+    .option(
+      "--fabricate-synthetic-fixture",
+      "explicit approved transformation of real-data provenance into a synthetic aw-suite/1 fixture"
+    )
     .action(async (file: string, values: InvestigationCommandOptions) => {
-      await exportInvestigationRegression({ ...values, file }, dependencies);
+      await exportInvestigationRegression(
+        {
+          ...values,
+          file,
+          ...(values.fabricateSyntheticFixture === true ? { fabricateSyntheticFixture: true } : {})
+        },
+        dependencies
+      );
     });
 
   return investigation;

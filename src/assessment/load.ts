@@ -93,7 +93,7 @@ export async function loadAssessmentFile(
   if (looksLikeCustomerSuiteDocument(parsedYaml)) {
     throw assessmentError(
       "ASSESSMENT_SUITE_FILE",
-      "This file is an aw-suite/1 or aw-suite/2 customer suite, not an assessment file. Validate with `augmentworks suite validate` or run hosted with `augmentworks test --suite`."
+      "This file is an aw-suite/1, aw-suite/2, or aw-suite/3 customer suite, not an assessment file. Validate with `augmentworks suite validate` or run hosted with `augmentworks test --suite`."
     );
   }
   const parsed = AssessmentFileSchema.safeParse(parsedYaml);

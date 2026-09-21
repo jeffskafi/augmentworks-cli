@@ -136,7 +136,8 @@ describe("CLI entrypoint", () => {
     const result = await runSourceCli(["probe", "--help"], { cwd: projectRoot });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("bounded synthetic connection probe");
+    expect(result.stdout).toContain("bounded connection probe");
+    expect(result.stdout).toContain("consumes real target allowance");
     expect(result.stdout).toContain("--yes");
     expect(result.stdout).toContain("--json");
     expect(result.stdout).toContain("Never runs during doctor or init");

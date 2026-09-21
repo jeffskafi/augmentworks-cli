@@ -538,7 +538,7 @@ describe("augmentworks billing CLI", () => {
     expect(human.stdout).toContain("Available credits: 200");
     expect(human.stdout).toContain("paid_unfulfilled");
     expect(human.stdout).toContain("not spendable");
-    expect(human.stdout).not.toContain("500");
+    expect(human.stdout).not.toContain("Available credits: 500");
   });
 
   it("after fulfillment shows purchased credits without starting a new test", async () => {

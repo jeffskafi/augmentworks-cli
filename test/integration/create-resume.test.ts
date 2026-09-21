@@ -162,6 +162,7 @@ target:
     const environment = {
       AUGMENTWORKS_API_URL: server.baseUrl,
       AUGMENTWORKS_TOKEN: "integration-access-token",
+      AUGMENTWORKS_API_KEY: "",
       AUGMENTWORKS_STATE_DIR: stateDirectory,
       CHATBOT_BASE_URL: "http://127.0.0.1:65535",
       CHATBOT_API_KEY: "must-never-leave"

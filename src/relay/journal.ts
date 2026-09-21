@@ -337,6 +337,26 @@ export class RelayJournal {
     return count;
   }
 
+  dispatchedCommandCount(): number {
+    let count = 0;
+    for (const state of this.#states.values()) {
+      if (state.started) count += 1;
+    }
+    return count;
+  }
+
+  dispatchedActionCount(): number {
+    let count = 0;
+    for (const state of this.#states.values()) {
+      if (state.started && state.accepted.kind !== "send") count += 1;
+    }
+    return count;
+  }
+
+  commandIds(): string[] {
+    return [...this.#states.keys()];
+  }
+
   async accept(command: RelayCommand): Promise<JournalCommandState> {
     this.#assertOpen();
     const requestSha256 = sha256(canonicalize(command));

@@ -94,6 +94,17 @@ import {
 import { compileHostedSelection } from "./selection.js";
 import { nativeSuiteContentHash, nativeSuiteSource } from "../suite/native.js";
 import { assertLiveSuiteReadyForQuote, liveExecutionPolicyFromSuite } from "../suite/live-policy.js";
+import { isAuthorizedCustomerSuite } from "../suite/schema.js";
+import {
+  dispatchPolicyFromHostedScope,
+  persistHostedScopeForRun,
+  requireHostedAuthorizedScope,
+  resolveDispatchPolicyForBinding,
+  executionScopeRefFromNativeDocument
+} from "../real-data/hosted.js";
+import type { DispatchPolicy } from "../real-data/policy.js";
+import { liveDispatchPolicyFromSuite } from "../real-data/policy.js";
+import { classifyRealDataFailure, hostedOutcomeFailureClass } from "../real-data/classify.js";
 import { formatSelectionHuman } from "../selection/format.js";
 import { compileRequestFromAssessment, isSavedSuiteSelection, selectionAdvertisementFromResolved } from "../selection/request.js";
 import { loadSuiteSelectionManifest } from "../selection/load.js";
@@ -438,6 +449,17 @@ async function executeHostedSelection(
         : (event: RelayProgressEvent) => writeProgress(stderr, event));
     const livePolicy =
       selection.kind === "suite" ? liveExecutionPolicyFromSuite(selection.suite.document) : undefined;
+    const dispatchPolicy = await resolveHostedDispatchPolicy({
+      selection,
+      cloud: session.cloud,
+      workspaceId: session.identity.workspaceId,
+      resolved: report.resolvedConfig,
+      binding,
+      stateDirectory,
+      env,
+      ...(resolved.quote?.quoteId === undefined ? {} : { quoteId: resolved.quote.quoteId }),
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
     const runnerOptions: ConstructorParameters<typeof RelayRunner>[0] = {
       cloud: session.cloud,
       connector,
@@ -445,7 +467,8 @@ async function executeHostedSelection(
       stateDirectory,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(progress === undefined ? {} : { onProgress: progress }),
-      ...(livePolicy === undefined ? {} : { livePolicy })
+      ...(livePolicy === undefined ? {} : { livePolicy }),
+      ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
     };
     const runner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
     await emitSelectionCheckpoint(options, { phase: "observing", runId: binding.run_id });
@@ -1324,6 +1347,12 @@ async function pinCustomerSuite(options: {
   if (options.session.identity.principalKind === "machine") {
     throw suiteError("SUITE_WRITE_REQUIRES_USER", "Uploading --suite requires a user connector grant. Machine keys may execute an existing immutable revision using --assessment with selection.suite_revision_id, or --manifest. No suite, quote, or run was created.");
   }
+  if (isAuthorizedCustomerSuite(options.suite.document)) {
+    await requireHostedAuthorizedScope(options.session.cloud, options.suite.document.executionScope, {
+      workspaceId: options.session.identity.workspaceId,
+      ...(options.signal === undefined ? {} : { signal: options.signal })
+    });
+  }
   const nativeDocument = nativeSuiteSource(options.suite);
   const nativeHash = nativeSuiteContentHash(nativeDocument);
   const created = await options.session.cloud.createSuiteRevision(
@@ -1355,6 +1384,104 @@ async function pinCustomerSuite(options: {
     localPlanHash: options.suite.contentHash,
     pin
   };
+}
+
+async function resolveHostedDispatchPolicy(options: {
+  readonly selection: HostedSelection;
+  readonly cloud: import("../cloud/client.js").CloudClient;
+  readonly workspaceId: string;
+  readonly resolved: ResolvedConfig;
+  readonly binding: CreateRunResponse;
+  readonly quoteId?: string;
+  readonly stateDirectory: string;
+  readonly env: NodeJS.ProcessEnv;
+  readonly signal?: AbortSignal;
+}): Promise<DispatchPolicy | undefined> {
+  const persistBase = {
+    runId: options.binding.run_id,
+    configSha256: options.binding.config_sha256,
+    workspaceId: options.workspaceId,
+    stateDirectory: options.stateDirectory,
+    env: options.env,
+    ...(options.quoteId === undefined ? {} : { quoteId: options.quoteId })
+  };
+  if (options.selection.kind === "suite") {
+    if (isAuthorizedCustomerSuite(options.selection.suite.document)) {
+      const response = await requireHostedAuthorizedScope(
+        options.cloud,
+        options.selection.suite.document.executionScope,
+        {
+          workspaceId: options.workspaceId,
+          resolved: options.resolved,
+          ...(options.signal === undefined ? {} : { signal: options.signal })
+        }
+      );
+      await persistHostedScopeForRun({
+        ...persistBase,
+        response,
+        suiteId: options.selection.suite.document.suiteId,
+        contentHash: options.selection.suite.contentHash
+      });
+      return dispatchPolicyFromHostedScope(response);
+    }
+    return liveDispatchPolicyFromSuite(options.selection.suite.document);
+  }
+
+  const pin = suitePinFromHostedSelection(options.selection);
+  if (pin !== undefined) {
+    const revision = await options.cloud.getSuiteRevision(pin.suiteId, pin.revisionId, options.signal);
+    const ref = executionScopeRefFromNativeDocument(revision.canonicalDocument);
+    if (ref !== undefined) {
+      const response = await requireHostedAuthorizedScope(options.cloud, ref, {
+        workspaceId: options.workspaceId,
+        resolved: options.resolved,
+        ...(options.signal === undefined ? {} : { signal: options.signal })
+      });
+      await persistHostedScopeForRun({
+        ...persistBase,
+        response,
+        suiteId: pin.suiteId,
+        suiteRevisionId: pin.revisionId,
+        ...(pin.contentHash === undefined ? {} : { contentHash: pin.contentHash })
+      });
+      return dispatchPolicyFromHostedScope(response);
+    }
+  }
+
+  return resolveDispatchPolicyForBinding({
+    cloud: options.cloud,
+    binding: options.binding,
+    workspaceId: options.workspaceId,
+    resolved: options.resolved,
+    stateDirectory: options.stateDirectory,
+    env: options.env,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
+  });
+}
+
+function suitePinFromHostedSelection(
+  selection: HostedSelection
+): { suiteId: string; revisionId: string; contentHash?: string } | undefined {
+  if (selection.kind === "investigation") {
+    const identities = selection.investigation.document.identities;
+    return {
+      suiteId: identities.suiteId,
+      revisionId: identities.suiteRevisionId,
+      contentHash: identities.suiteContentHash
+    };
+  }
+  if (selection.kind === "shard") {
+    const suiteId = selection.shardAssessment.suite_id;
+    const revisionId = selection.shardAssessment.suite_revision_id;
+    const contentHash = selection.shardAssessment.suite_content_hash;
+    if (suiteId === undefined || revisionId === undefined) return undefined;
+    return {
+      suiteId,
+      revisionId,
+      ...(contentHash === undefined ? {} : { contentHash })
+    };
+  }
+  return undefined;
 }
 
 async function pinInvestigationCase(options: {
@@ -1733,7 +1860,7 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
       .option("--assessment <path>", HOSTED_ASSESSMENT_OPTION_HELP)
       .option(
         "--suite <path>",
-        "customer-owned hosted suite file (aw-suite/1 or aw-suite/2). Admission uses the server-accepted revision, not a later file edit"
+        "customer-owned hosted suite file (aw-suite/1, aw-suite/2, or aw-suite/3). Admission uses the server-accepted revision, not a later file edit"
       )
       .option(
         "--investigation <path>",
@@ -1817,6 +1944,9 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
             {
               config: values.config,
               packet: requirePacket(values.packet),
+              cwd: process.cwd(),
+              env: process.env,
+              stateDirectory: getStateDirectory(process.env),
               ...(values.outputDir === undefined ? {} : { outputDirectory: values.outputDir }),
               ...(values.open === undefined ? {} : { open: values.open }),
               ...(values.json === undefined ? {} : { json: values.json })
@@ -1953,14 +2083,18 @@ export function createTestCommand(dependencies: TestDependencies = {}): Command 
           ) {
             writeLine(stderr, awError.message);
           }
+          const classified = classifyRealDataFailure(awError);
           stdout.write(
             `${JSON.stringify({
               ok: false,
               ...awError.toSafeJSON(),
-              exit_code: exitCodeFor(awError)
+              exit_code: classified?.exitCode ?? exitCodeFor(awError),
+              ...(classified === undefined
+                ? {}
+                : { class: classified.class, fix: classified.fix })
             })}\n`
           );
-          setExitCode(exitCodeFor(awError));
+          setExitCode(classified?.exitCode ?? exitCodeFor(awError));
         }
       }
     );
@@ -2224,6 +2358,13 @@ function requirePacket(value: string | undefined): string {
 }
 
 function hostedJsonResult(result: TestResult): Record<string, unknown> {
+  const failureClass = hostedOutcomeFailureClass({
+    executionStatus: result.run.status,
+    ...(result.run.evaluation_status === undefined
+      ? {}
+      : { evaluationStatus: result.run.evaluation_status }),
+    outcome: result.run.outcome ?? null
+  });
   return {
     run_id: result.run.run_id,
     status: result.run.status,
@@ -2233,6 +2374,7 @@ function hostedJsonResult(result: TestResult): Record<string, unknown> {
     ...(result.run.evaluation_status === undefined
       ? {}
       : { evaluation_status: result.run.evaluation_status }),
+    ...(failureClass === undefined ? {} : { class: failureClass }),
     ...(result.execution === undefined ? {} : executionJsonFields(result.execution)),
     ...(result.coverage === undefined ? {} : { coverage: result.coverage })
   };

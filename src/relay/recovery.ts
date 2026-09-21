@@ -19,6 +19,7 @@ import {
   type RunIntentTenantBinding
 } from "./run-intent.js";
 import { RelayRunner, type RelayProgressEvent } from "./runner.js";
+import { packetRequiresHostedScope, resolveDispatchPolicyForBinding } from "../real-data/hosted.js";
 
 export type RecoveryAction = "inspect" | "retire" | "resume" | "cancel";
 
@@ -188,7 +189,7 @@ export async function cancelRecovery(
     assertLocalConfigBinding(intent, context.resolvedConfig, "cancel");
   }
   if (context.connector !== undefined && context.resolvedConfig !== undefined) {
-    const runner = createRunner(context, binding, context.connector);
+    const runner = await createRunner(context, binding, context.connector);
     const cancelStatus = await runner.requestCancellation("user_requested");
     const run = isTargetExecutionTerminal(cancelStatus.status)
       ? cancelStatus
@@ -809,18 +810,30 @@ function requireConnector(
   return context.connector;
 }
 
-function createRunner(
+async function createRunner(
   context: ExecutionRecoveryContext,
   binding: CreateRunResponse,
   connector: HttpConnector
-): RelayRunner {
+): Promise<RelayRunner> {
+  const dispatchPolicy =
+    context.resolvedConfig === undefined && !packetRequiresHostedScope(binding.packet)
+      ? undefined
+      : await resolveDispatchPolicyForBinding({
+          cloud: context.cloud,
+          binding,
+          workspaceId: context.tenant.workspace_id,
+          ...(context.resolvedConfig === undefined ? {} : { resolved: context.resolvedConfig }),
+          stateDirectory: context.stateDirectory,
+          ...(context.signal === undefined ? {} : { signal: context.signal })
+        });
   const options: ConstructorParameters<typeof RelayRunner>[0] = {
     cloud: context.cloud,
     connector,
     binding,
     stateDirectory: context.stateDirectory,
     ...(context.signal === undefined ? {} : { signal: context.signal }),
-    ...(context.onProgress === undefined ? {} : { onProgress: context.onProgress })
+    ...(context.onProgress === undefined ? {} : { onProgress: context.onProgress }),
+    ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
   };
   return context.runner?.(options) ?? new RelayRunner(options);
 }
@@ -830,7 +843,7 @@ async function runBoundRelay(
   binding: CreateRunResponse,
   connector: HttpConnector
 ): Promise<RunStatusResponse> {
-  return await createRunner(context, binding, connector).run();
+  return await (await createRunner(context, binding, connector)).run();
 }
 
 function nextActionForTerminal(run: RunStatusResponse): string {
