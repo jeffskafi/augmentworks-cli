@@ -1,4 +1,4 @@
-schema_version: aw-suite/3
+schema_version: aw-suite/9
 suite_id: customer.unsupported.schema
 title: Unsupported schema
 synthetic_only: true

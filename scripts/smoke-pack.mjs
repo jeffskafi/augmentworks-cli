@@ -716,7 +716,8 @@ async function main() {
       );
     }
     const probeHelp = execCli(["probe", "--help"]);
-    assert(probeHelp.stdout.includes("bounded synthetic connection probe"), "packed CLI is missing probe description");
+    assert(probeHelp.stdout.includes("bounded connection probe"), "packed CLI is missing probe description");
+    assert(probeHelp.stdout.includes("consumes real target allowance"), "packed CLI is missing probe allowance copy");
     assert(probeHelp.stdout.includes("--yes"), "packed CLI is missing probe --yes");
     assert(probeHelp.stdout.includes("Never runs during doctor or init"), "packed probe help omitted doctor/init boundary");
 

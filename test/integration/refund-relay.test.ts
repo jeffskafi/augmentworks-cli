@@ -437,6 +437,7 @@ telemetry:
         env: {
           AUGMENTWORKS_API_URL: relay.baseUrl,
           AUGMENTWORKS_TOKEN: "integration-access-token",
+          AUGMENTWORKS_API_KEY: "",
           AUGMENTWORKS_STATE_DIR: join(temporaryDirectory, "state"),
           CHATBOT_BASE_URL: target.baseUrl,
           CHATBOT_API_KEY: "target-integration-secret"
