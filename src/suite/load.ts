@@ -22,6 +22,7 @@ import {
   rewriteAuthoringKeys,
   SUITE_SCHEMA_VERSION,
   SUITE_SCHEMA_VERSION_V2,
+  SUITE_SCHEMA_VERSION_V3,
   type CustomerSuite,
   type SuiteReference
 } from "./schema.js";
@@ -302,8 +303,11 @@ function canonicalSuiteDocument(
     title: document.title,
     ...(document.description === undefined ? {} : { description: document.description }),
     ...(document.tags === undefined ? {} : { tags: document.tags }),
-    ...(document.syntheticOnly === undefined ? {} : { syntheticOnly: document.syntheticOnly }),
+    ...("syntheticOnly" in document && document.syntheticOnly !== undefined
+      ? { syntheticOnly: document.syntheticOnly }
+      : {}),
     ...("liveTarget" in document ? { liveTarget: canonicalLiveTarget(document.liveTarget) } : {}),
+    ...("executionScope" in document ? { executionScope: document.executionScope } : {}),
     cases: document.cases,
     references: references.map((reference) => ({
       id: reference.id,
@@ -346,21 +350,21 @@ export async function loadCustomerSuiteFile(filePath: string, cwd = process.cwd(
   if (version === "aw-assessment-file/1") {
     throw suiteError(
       "SUITE_ASSESSMENT_FILE",
-      "This file is an aw-assessment-file/1 assessment, not a customer suite. Use --assessment, or author an aw-suite/1 or aw-suite/2 file.",
+      "This file is an aw-assessment-file/1 assessment, not a customer suite. Use --assessment, or author an aw-suite/1, aw-suite/2, or aw-suite/3 file.",
       { path: absolute }
     );
   }
   if (typeof version === "string" && version.startsWith("aw-packet/")) {
     throw suiteError(
       "SUITE_PACKET_FILE",
-      "This file is a local packet, not a customer suite. Use test --local --packet, or author an aw-suite/1 or aw-suite/2 file.",
+      "This file is a local packet, not a customer suite. Use test --local --packet, or author an aw-suite/1, aw-suite/2, or aw-suite/3 file.",
       { path: absolute }
     );
   }
   if (typeof version === "string" && !isSupportedSuiteSchemaVersion(version)) {
     throw suiteError(
       "SUITE_UNSUPPORTED_SCHEMA",
-      `Unsupported schema version "${version}". This CLI admits ${SUITE_SCHEMA_VERSION} and ${SUITE_SCHEMA_VERSION_V2} only.`,
+      `Unsupported schema version "${version}". This CLI admits ${SUITE_SCHEMA_VERSION}, ${SUITE_SCHEMA_VERSION_V2}, and ${SUITE_SCHEMA_VERSION_V3}. Unknown versions fail closed and are never downgraded to synthetic.`,
       {
         path: absolute,
         ...(firstLineOf(text, "schema_version") === undefined && firstLineOf(text, "schemaVersion") === undefined

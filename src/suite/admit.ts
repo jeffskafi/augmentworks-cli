@@ -5,6 +5,8 @@ import type { LoadedCustomerSuite } from "./load.js";
 import {
   CUSTOMER_OWNED_SUITE_PACKET,
   CUSTOMER_OWNED_SUITE_PACKET_V2,
+  CUSTOMER_OWNED_SUITE_PACKET_V3,
+  isAuthorizedCustomerSuite,
   isLiveCustomerSuite,
   suiteEvaluationMode
 } from "./schema.js";
@@ -35,6 +37,12 @@ export function buildSuiteReferencePayload(loaded: LoadedCustomerSuite): Assessm
 }
 
 export function suitePacketBinding(loaded?: LoadedCustomerSuite): { key: string; version: string } {
+  if (loaded !== undefined && isAuthorizedCustomerSuite(loaded.document)) {
+    return {
+      key: CUSTOMER_OWNED_SUITE_PACKET_V3.key,
+      version: CUSTOMER_OWNED_SUITE_PACKET_V3.version
+    };
+  }
   if (loaded !== undefined && isLiveCustomerSuite(loaded.document)) {
     return {
       key: CUSTOMER_OWNED_SUITE_PACKET_V2.key,

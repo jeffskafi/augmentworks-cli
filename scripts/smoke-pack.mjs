@@ -229,6 +229,7 @@ function assertInventory(report) {
     "contracts/aw-run-report-v1.schema.json",
     "contracts/aw-run-report-v1.fixtures.json",
     "contracts/aw-run-report-v1.lock.json",
+    "contracts/aw-real-data-1.lock.json",
     "contracts/aw-suite-v1.lock.json",
     "contracts/aw-release-policy-v1.lock.json",
     "contracts/aw-release-policy-v1.fixtures.json",
@@ -774,13 +775,24 @@ async function main() {
       assert(localSchema.type === "object", `${kind} schema command returned an unexpected root`);
       if (kind === "customer-suite") {
         assert(
-          Array.isArray(localSchema.oneOf) && localSchema.oneOf.length === 2,
-          "customer-suite schema is missing the v1/v2 oneOf"
+          Array.isArray(localSchema.oneOf) && localSchema.oneOf.length === 3,
+          "customer-suite schema is missing the v1/v2/v3 oneOf"
         );
         const versions = localSchema.oneOf.map((choice) => choice?.properties?.schema_version?.const);
         assert(
-          versions.includes("aw-suite/1") && versions.includes("aw-suite/2"),
-          "customer-suite schema does not advertise aw-suite/1 and aw-suite/2"
+          versions.includes("aw-suite/1") && versions.includes("aw-suite/2") && versions.includes("aw-suite/3"),
+          "customer-suite schema does not advertise aw-suite/1, aw-suite/2, and aw-suite/3"
+        );
+      }
+      if (kind === "local-packet") {
+        assert(
+          Array.isArray(localSchema.oneOf) && localSchema.oneOf.length === 2,
+          "local-packet schema is missing the synthetic/local-authorized oneOf"
+        );
+        const versions = localSchema.oneOf.map((choice) => choice?.properties?.schema_version?.const);
+        assert(
+          versions.includes("aw-packet/0.1") && versions.includes("aw-packet/local-authorized-1"),
+          "local-packet schema does not advertise aw-packet/0.1 and aw-packet/local-authorized-1"
         );
       }
     }

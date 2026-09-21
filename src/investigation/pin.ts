@@ -145,7 +145,9 @@ export async function resolvePinnedInvestigationSelection(options: {
     title: suite.title,
     ...(suite.description === undefined ? {} : { description: suite.description }),
     ...(suite.tags === undefined ? {} : { tags: suite.tags }),
-    ...(suite.syntheticOnly === undefined ? {} : { syntheticOnly: suite.syntheticOnly }),
+    ...("syntheticOnly" in suite && suite.syntheticOnly !== undefined
+      ? { syntheticOnly: suite.syntheticOnly }
+      : {}),
     cases: suite.cases,
     references: references.map((reference) => ({
       id: reference.id,

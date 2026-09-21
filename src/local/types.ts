@@ -99,6 +99,29 @@ export interface PacketManifest {
   scenarios: PacketScenario[];
 }
 
+export interface LocalAuthorizedPacketManifest {
+  schema_version: "aw-packet/local-authorized-1";
+  packet_id: string;
+  version: string;
+  name: string;
+  description: string;
+  domain: string;
+  synthetic_only: false;
+  execution_scope: import("../real-data/documents.js").LocalExecutionScope;
+  data_policy: import("../real-data/documents.js").DataPolicy;
+  redaction_profile: import("../real-data/documents.js").RedactionProfile;
+  required_capabilities: PacketManifest["required_capabilities"];
+  scenarios: PacketScenario[];
+}
+
+export type AnyLocalPacketManifest = PacketManifest | LocalAuthorizedPacketManifest;
+
+export function isLocalAuthorizedPacket(
+  packet: AnyLocalPacketManifest
+): packet is LocalAuthorizedPacketManifest {
+  return packet.schema_version === "aw-packet/local-authorized-1";
+}
+
 export interface LocalPacketBinding {
   id: string;
   version: string;
@@ -198,13 +221,18 @@ export interface LocalRunProvenance {
   customer_executed: true;
   platform_received: false;
   augmentworks_verified: false;
-  verification: "unverified";
+  verification: "unverified" | "customer_declared_local";
   signed: false;
   signature: null;
   managed_review: false;
   uploaded: false;
   cloud_contacted: false;
   trust_label: string;
+  environment?: string;
+  data_origin?: string;
+  effects?: string;
+  scope_hash?: string;
+  offline_revocation?: "not_observed";
 }
 
 export interface LocalRunResult {

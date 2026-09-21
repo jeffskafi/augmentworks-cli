@@ -66,7 +66,7 @@ export async function runProbeCommand(options: ProbeOptions = {}): Promise<Probe
 export function createProbeCommand(dependencies: ProbeCommandDependencies = {}): Command {
   return new Command("probe")
     .description(
-      "Explicit bounded synthetic connection probe. Prints the planned calls first; pass --yes to execute. Never runs during doctor or init. Does not contact AugmentWorks or consume credits."
+      "Explicit bounded connection probe. Prints the planned calls first; pass --yes to execute. Contacts the configured target and consumes real target allowance. Never runs during doctor or init. Does not contact AugmentWorks or consume credits."
     )
     .option("-c, --config <path>", "configuration path", "augmentworks.yaml")
     .option("--yes", "execute the printed plan against the configured target")

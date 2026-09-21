@@ -20,8 +20,11 @@ import {
   type LocalProgressEvent,
   type LocalRunnerOptions
 } from "../local/runner.js";
-import { LOCAL_TRUST_LABEL, type LocalRunResult } from "../local/types.js";
+import { LOCAL_TRUST_LABEL, isLocalAuthorizedPacket, type LocalRunResult } from "../local/types.js";
 import { runDoctor, type DoctorReport } from "./doctor.js";
+import { persistExecutionScopeBinding, localBinding } from "../real-data/scope-store.js";
+import { loadRevokedLocalScopeIds } from "../real-data/local-revoke.js";
+import { assertLocalScopeNotRevoked } from "../real-data/boundary.js";
 
 export interface LocalTestOptions {
   readonly config?: string;
@@ -34,6 +37,7 @@ export interface LocalTestOptions {
   readonly signal?: AbortSignal;
   readonly handleSignals?: boolean;
   readonly runDeadlineMs?: number;
+  readonly stateDirectory?: string;
 }
 
 export interface LocalTestResult {
@@ -88,6 +92,13 @@ export async function runLocalTest(
     cwd
   });
   assertLocalPacketCompatible(loaded.manifest, report.resolvedConfig);
+  if (isLocalAuthorizedPacket(loaded.manifest)) {
+    const revoked = await loadRevokedLocalScopeIds({
+      ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
+      env
+    });
+    assertLocalScopeNotRevoked(loaded.manifest.execution_scope, revoked);
+  }
   const connector =
     dependencies.connector?.(report.resolvedConfig) ?? new HttpConnector(report.resolvedConfig);
   const stderr = dependencies.stderr ?? process.stderr;
@@ -108,6 +119,25 @@ export async function runLocalTest(
     ...(progress === undefined ? {} : { onProgress: progress })
   };
   const runner = dependencies.runner?.(runnerOptions) ?? new LocalRunner(runnerOptions);
+  if (isLocalAuthorizedPacket(loaded.manifest)) {
+    await persistExecutionScopeBinding(
+      localBinding({
+        runId: runner.runId,
+        configSha256: report.resolvedConfig.configDigest,
+        scope: loaded.manifest.execution_scope,
+        dataPolicy: loaded.manifest.data_policy,
+        redactionProfile: loaded.manifest.redaction_profile
+      }),
+      {
+        ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
+        env
+      }
+    );
+    writeLine(
+      stderr,
+      "Local authorized scope is customer-declared. Remote revocation is not observed while offline."
+    );
+  }
   const outputDirectory = resolve(
     cwd,
     ...(options.outputDirectory === undefined

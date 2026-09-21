@@ -22,6 +22,7 @@ import {
   type HostedAuthDependencies,
   type HostedAuthOptions
 } from "./hosted-auth.js";
+import { resolveDispatchPolicyForBinding } from "../real-data/hosted.js";
 import type { SignalHost } from "./test.js";
 
 export interface ConnectOptions extends HostedAuthOptions {
@@ -168,13 +169,23 @@ export async function runConnect(
       const runnerProgress =
         dependencies.onProgress ??
         (options.json === true ? undefined : (event: RelayProgressEvent) => writeProgress(stderr, event));
+      const dispatchPolicy = await resolveDispatchPolicyForBinding({
+        cloud,
+        binding: poll.run,
+        workspaceId: hosted.identity.workspaceId,
+        resolved: report.resolvedConfig,
+        ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
+        env,
+        ...(options.signal === undefined ? {} : { signal: options.signal })
+      });
       const runnerOptions: ConstructorParameters<typeof RelayRunner>[0] = {
         cloud,
         connector,
         binding: poll.run,
         ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
         ...(options.signal === undefined ? {} : { signal: options.signal }),
-        ...(runnerProgress === undefined ? {} : { onProgress: runnerProgress })
+        ...(runnerProgress === undefined ? {} : { onProgress: runnerProgress }),
+        ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
       };
       activeRunner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
       const run = await activeRunner.run();

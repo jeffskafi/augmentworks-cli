@@ -15,13 +15,17 @@ import { capabilityIsAvailable } from "../billing/protocol.js";
 import {
   classifyRunReportExport,
   exportHostedLiveInformationalReport,
+  exportHostedAuthorizedReport,
   exportHostedRunReport,
   failureExport,
   liveFailureExport,
+  authorizedFailureExport,
   type RunReportClientOptions
 } from "../report/client.js";
 import {
+  AUTHORIZED_REPORT_SCOPE,
   LIVE_INFORMATIONAL_REPORT_SCOPE,
+  type AuthorizedReportOverlay,
   type LiveInformationalReport,
   type RunReportExport
 } from "../report/schema.js";
@@ -58,6 +62,10 @@ export interface RunCommandDependencies extends HostedAuthDependencies {
     runId: string,
     options: RunReportClientOptions
   ) => Promise<LiveInformationalReport | Record<string, unknown>>;
+  readonly exportAuthorizedReport?: (
+    runId: string,
+    options: RunReportClientOptions
+  ) => Promise<AuthorizedReportOverlay | Record<string, unknown>>;
 }
 
 export function createRunCommand(dependencies: RunCommandDependencies = {}): Command {
@@ -113,7 +121,7 @@ export function createRunCommand(dependencies: RunCommandDependencies = {}): Com
     .option("--json", "write one aw-run-report-export/1 document to stdout (required machine output)")
     .option(
       "--scope <scope>",
-      "optional report overlay; live-informational requests and strictly parses aw-run-report-live-scope/1 without mutating v1"
+      "optional report overlay; live-informational or authorized-1. Each overlay is requested and parsed separately without mutating v1"
     )
     .option(
       "--allow-file-credentials",
@@ -194,11 +202,15 @@ async function executeRunSubcommand(
           });
     if (action === "report") {
       const live = values.scope === LIVE_INFORMATIONAL_REPORT_SCOPE;
-      if (live) {
-        stdout.write(`${JSON.stringify(liveFailureExport(awError))}\n`);
+      const authorized = values.scope === AUTHORIZED_REPORT_SCOPE;
+      if (live || authorized) {
+        const scope = live ? LIVE_INFORMATIONAL_REPORT_SCOPE : AUTHORIZED_REPORT_SCOPE;
+        stdout.write(
+          `${JSON.stringify(live ? liveFailureExport(awError) : authorizedFailureExport(awError))}\n`
+        );
         stderr.write(
           `${sanitizeTerminal(
-            `Hosted live-informational report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --scope ${LIVE_INFORMATIONAL_REPORT_SCOPE} --json. Inspect this original run; do not start another billed assessment.`
+            `Hosted ${scope} report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --scope ${scope} --json. Inspect this original run; do not start another billed assessment.`
           )}\n`
         );
         setExitCode(exitCodeFor(awError));
@@ -252,6 +264,11 @@ async function executeRunReport(
       "error" in document &&
       (document as { retrieved?: boolean }).retrieved === false
     ) {
+      stderr.write(
+        `${sanitizeTerminal(
+          `Hosted live-informational report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --scope ${LIVE_INFORMATIONAL_REPORT_SCOPE} --json. Inspect this original run; do not start another billed assessment.`
+        )}\n`
+      );
       const error = (document as { error?: { code?: string } }).error;
       const code = error?.code;
       const auth =
@@ -261,11 +278,34 @@ async function executeRunReport(
         code === "SCOPE_DENIED" ||
         code === "HTTP_401" ||
         code === "HTTP_403";
+      setExitCode(auth ? EXIT.AUTH : EXIT.RELAY);
+    }
+    return;
+  }
+  if (scope === AUTHORIZED_REPORT_SCOPE) {
+    const exporter = dependencies.exportAuthorizedReport ?? exportHostedAuthorizedReport;
+    const document = await exporter(runId, shared);
+    stdout.write(`${JSON.stringify(document)}\n`);
+    if (
+      typeof document === "object" &&
+      document !== null &&
+      "error" in document &&
+      (document as { retrieved?: boolean }).retrieved === false
+    ) {
       stderr.write(
         `${sanitizeTerminal(
-          `Hosted live-informational report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --scope ${LIVE_INFORMATIONAL_REPORT_SCOPE} --json. Inspect this original run; do not start another billed assessment.`
+          `Hosted authorized-1 report export did not prove complete evidence for ${runId}. Retry: augmentworks run report ${runId} --scope ${AUTHORIZED_REPORT_SCOPE} --json. Inspect this original run; do not start another billed assessment.`
         )}\n`
       );
+      const error = (document as { error?: { code?: string } }).error;
+      const code = error?.code;
+      const auth =
+        code === "AUTH_REQUIRED" ||
+        code === "TOKEN_REVOKED" ||
+        code === "CLOUD_AUTH_REJECTED" ||
+        code === "SCOPE_DENIED" ||
+        code === "HTTP_401" ||
+        code === "HTTP_403";
       setExitCode(auth ? EXIT.AUTH : EXIT.RELAY);
     }
     return;
@@ -384,13 +424,16 @@ function parseRunId(value: string): string {
   return value;
 }
 
-function parseReportScope(value: string | undefined): typeof LIVE_INFORMATIONAL_REPORT_SCOPE | undefined {
+function parseReportScope(
+  value: string | undefined
+): typeof LIVE_INFORMATIONAL_REPORT_SCOPE | typeof AUTHORIZED_REPORT_SCOPE | undefined {
   if (value === undefined || value.trim() === "") return undefined;
   if (value === LIVE_INFORMATIONAL_REPORT_SCOPE) return LIVE_INFORMATIONAL_REPORT_SCOPE;
+  if (value === AUTHORIZED_REPORT_SCOPE) return AUTHORIZED_REPORT_SCOPE;
   throw new AwError({
     code: "REPORT_SCOPE_UNSUPPORTED",
     category: "config",
-    message: `Unsupported report scope "${value}". This CLI admits ${LIVE_INFORMATIONAL_REPORT_SCOPE} only as an explicit overlay; omit --scope for ${"aw-run-report/1"}.`
+    message: `Unsupported report scope "${value}". This CLI admits ${LIVE_INFORMATIONAL_REPORT_SCOPE} and ${AUTHORIZED_REPORT_SCOPE} as explicit overlays; omit --scope for ${"aw-run-report/1"}.`
   });
 }
 

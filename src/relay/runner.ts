@@ -14,7 +14,13 @@ import { canonicalize } from "../util/canonical.js";
 import { LIMITS } from "../util/limits.js";
 import { RelayJournal, type JournalCompletion } from "./journal.js";
 import type { JournalRunDeadline } from "./journal.js";
-import { assertLiveCommandAllowed, type LiveExecutionPolicy } from "../suite/live-policy.js";
+import { type LiveExecutionPolicy } from "../suite/live-policy.js";
+import {
+  assertCommandAllowed,
+  sendIsReplayable,
+  type DispatchPolicy
+} from "../real-data/policy.js";
+import { minimizeForUpload } from "../real-data/privacy.js";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 const CLEANUP_RETRY_DELAYS_MS = [100, 250] as const;
@@ -36,6 +42,7 @@ export interface RelayRunnerOptions {
   signal?: AbortSignal;
   onProgress?: (event: RelayProgressEvent) => void;
   livePolicy?: LiveExecutionPolicy;
+  dispatchPolicy?: DispatchPolicy;
 }
 
 export type RelayProgressEvent =
@@ -72,7 +79,7 @@ export class RelayRunner {
   #deadline: JournalRunDeadline | undefined;
   #purgeJournalOnClose = false;
   #running = false;
-  readonly #livePolicy: LiveExecutionPolicy | undefined;
+  readonly #dispatchPolicy: DispatchPolicy | undefined;
 
   constructor(options: RelayRunnerOptions) {
     this.#cloud = options.cloud;
@@ -91,7 +98,11 @@ export class RelayRunner {
     this.#cancellationDrainMs = options.cancellationDrainMs ?? 60_000;
     this.#signal = options.signal;
     this.#onProgress = options.onProgress;
-    this.#livePolicy = options.livePolicy;
+    this.#dispatchPolicy =
+      options.dispatchPolicy ??
+      (options.livePolicy === undefined
+        ? undefined
+        : { kind: "live_informational", live: options.livePolicy });
   }
 
   get cancelRequested(): boolean {
@@ -198,14 +209,16 @@ export class RelayRunner {
   async #processCommand(command: RelayCommand): Promise<void> {
     const durable = this.#journal.state(command.command_id);
     this.#validateCommand(command, durable !== undefined);
-    if (this.#livePolicy !== undefined && durable?.started !== true) {
-      assertLiveCommandAllowed(command, this.#livePolicy, this.#journal);
+    if (this.#dispatchPolicy !== undefined && durable?.started !== true) {
+      assertCommandAllowed(command, this.#dispatchPolicy, this.#journal);
     }
     let state = await this.#journal.accept(command);
     let replayed = durable !== undefined;
     const wasStarted = state.started;
     const idempotent =
-      this.#livePolicy !== undefined && command.kind === "send" ? false : this.#isIdempotent(command.kind);
+      sendIsReplayable(this.#dispatchPolicy) === false && command.kind === "send"
+        ? false
+        : this.#isIdempotent(command.kind);
     const expired = Date.parse(command.expires_at) <= this.#now().getTime();
 
     if (state.completion === undefined && expired) {
@@ -278,7 +291,7 @@ export class RelayRunner {
         try {
           const raw = await this.#executeConnectorCommand(command, idempotent);
           connectorReturned = true;
-          const result = parseRelayResult(command.kind, raw);
+          const result = parseRelayResult(command.kind, await this.#minimizeUploadedResult(raw));
           validateResultCorrelation(command, result);
           state = {
             ...state,
@@ -362,6 +375,18 @@ export class RelayRunner {
 
   #isIdempotent(kind: RelayCommand["kind"]): boolean {
     return this.#connector.isIdempotent?.(kind) ?? false;
+  }
+
+  async #minimizeUploadedResult(raw: unknown): Promise<unknown> {
+    const policy = this.#dispatchPolicy;
+    if (policy === undefined || policy.kind !== "authorized") return raw;
+    if (policy.dataPolicy === undefined || policy.redactionProfile === undefined) return raw;
+    const minimized = await minimizeForUpload(
+      { document: raw },
+      policy.redactionProfile,
+      policy.dataPolicy
+    );
+    return minimized.representation;
   }
 
   async #acknowledge(command: RelayCommand, completion: JournalCompletion): Promise<void> {

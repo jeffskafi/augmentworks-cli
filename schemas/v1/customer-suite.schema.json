@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "schemas/v1/customer-suite.schema.json",
   "title": "AugmentWorks customer-owned hosted suite",
-  "description": "Authoring schema for aw-suite/1 and aw-suite/2 YAML or JSON files. Snake_case keys are rewritten to the camelCase canonical document before validation. Local preview and preflight are not a price and do not execute a target or an LLM. aw-suite/2 does not authorize a live origin by itself.",
+  "description": "Authoring schema for aw-suite/1, aw-suite/2, and aw-suite/3 YAML or JSON files. Snake_case keys are rewritten to the camelCase canonical document before validation. Local preview and preflight are not a price and do not execute a target or an LLM. aw-suite/2 does not authorize a live origin by itself. aw-suite/3 binds a server-admitted aw-execution-scope/1 and cannot run locally.",
   "type": "object",
   "oneOf": [
     {
@@ -63,6 +63,35 @@
           "items": { "$ref": "#/$defs/live_case" }
         }
       }
+    },
+    {
+      "title": "aw-suite/3 authorized",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "suite_id", "title", "execution_scope", "cases"],
+      "properties": {
+        "schema_version": { "const": "aw-suite/3" },
+        "suite_id": { "$ref": "#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "execution_scope": { "$ref": "#/$defs/execution_scope" },
+        "references": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/authorized_case" }
+        }
+      }
     }
   ],
   "$defs": {
@@ -71,6 +100,23 @@
       "minLength": 1,
       "maxLength": 300,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "execution_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "scope_id"],
+      "properties": {
+        "schema_version": { "const": "aw-execution-scope/1" },
+        "scope_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "revision": { "type": "integer", "minimum": 1 },
+        "scope_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
     },
     "live_target": {
       "type": "object",
@@ -167,6 +213,76 @@
           "type": "array",
           "minItems": 1,
           "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["content"],
+            "properties": {
+              "content": { "type": "string", "minLength": 1, "maxLength": 8000 }
+            }
+          }
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["facts"],
+          "properties": {
+            "facts": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+            },
+            "permitted_refusal": { "type": "boolean" }
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/criterion" }
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key"],
+            "properties": {
+              "key": {
+                "type": "string",
+                "enum": ["policy.window_days", "policy.permitted_refusal"]
+              },
+              "expected": {
+                "type": ["string", "number", "boolean", "null"]
+              }
+            }
+          }
+        },
+        "repetitions": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "reference_ids": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        }
+      }
+    },
+    "authorized_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "turns", "expected", "criteria"],
+      "properties": {
+        "case_id": { "$ref": "#/$defs/identifier" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "turns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
           "items": {
             "type": "object",
             "additionalProperties": false,

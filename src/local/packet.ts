@@ -12,11 +12,21 @@ import starterPacketJson from "../../packets/support-refunds-starter/0.1.0/packe
 import { AwError } from "../errors.js";
 import { findUnsafeSymbolicLinkComponent } from "../system/path-safety.js";
 import { LIMITS } from "../util/limits.js";
-import { hostedSuiteUnsupportedLocalError, livePacketUnsupportedLocalError } from "../suite/errors.js";
+import { hostedSuiteUnsupportedLocalError, livePacketUnsupportedLocalError, authorizedPacketUnsupportedLocalError } from "../suite/errors.js";
 import { looksLikeCustomerSuiteDocument, sourceLooksLikeCustomerSuite } from "../suite/schema.js";
 import { looksLikeLivePacketDocument } from "../suite/live-target.js";
+import {
+  looksLikeHostedAuthorizedPacket,
+  looksLikeLocalAuthorizedPacket,
+  parseDataPolicy,
+  parseLocalExecutionScope,
+  parseRedactionProfile
+} from "../real-data/documents.js";
+import { LOCAL_AUTHORIZED_PACKET_SCHEMA_VERSION } from "../real-data/constants.js";
 import { sha256Json } from "./canonical.js";
 import type {
+  AnyLocalPacketManifest,
+  LocalAuthorizedPacketManifest,
   LocalJson,
   LocalJsonObject,
   LocalPacketBinding,
@@ -234,8 +244,35 @@ export const PacketManifestSchema = z
     validateManifest(manifest as unknown as PacketManifest, context)
   );
 
+export const LocalAuthorizedPacketManifestSchema = z
+  .object({
+    schema_version: z.literal(LOCAL_AUTHORIZED_PACKET_SCHEMA_VERSION),
+    packet_id: z.string().min(1).max(80).regex(PACKET_ID),
+    version: z.string().min(1).max(80).regex(VERSION),
+    name: boundedText(200),
+    description: boundedText(4_000),
+    domain: boundedIdentifier(160),
+    synthetic_only: z.literal(false),
+    execution_scope: z.unknown(),
+    data_policy: z.unknown(),
+    redaction_profile: z.unknown(),
+    required_capabilities: z
+      .object({
+        multi_turn: z.boolean(),
+        observation: z.boolean(),
+        tool_events: z.boolean(),
+        cleanup: z.boolean()
+      })
+      .strict(),
+    scenarios: z.array(packetScenarioSchema).min(1).max(100)
+  })
+  .strict()
+  .superRefine((manifest, context) =>
+    validateManifest(manifest as unknown as PacketManifest, context)
+  );
+
 export interface LoadedLocalPacket {
-  readonly manifest: PacketManifest;
+  readonly manifest: AnyLocalPacketManifest;
   readonly binding: LocalPacketBinding;
   readonly source:
     | { readonly kind: "bundled"; readonly reference: string }
@@ -248,9 +285,15 @@ export interface LoadLocalPacketOptions {
   readonly cwd?: string;
 }
 
-export function parseLocalPacket(value: unknown): PacketManifest {
+export function parseLocalPacket(value: unknown): AnyLocalPacketManifest {
   if (looksLikeCustomerSuiteDocument(value)) {
     throw hostedSuiteUnsupportedLocalError("this file");
+  }
+  if (looksLikeHostedAuthorizedPacket(value)) {
+    throw authorizedPacketUnsupportedLocalError("this file");
+  }
+  if (looksLikeLocalAuthorizedPacket(value) || isSnakeLocalAuthorized(value)) {
+    return parseLocalAuthorizedPacket(value);
   }
   if (looksLikeLivePacketDocument(value)) {
     throw livePacketUnsupportedLocalError("this file");
@@ -280,7 +323,62 @@ export function parseLocalPacket(value: unknown): PacketManifest {
   return parsed.data as PacketManifest;
 }
 
-export function derivedPacketCommandCount(packet: PacketManifest): number {
+function isSnakeLocalAuthorized(value: unknown): boolean {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return record["schema_version"] === LOCAL_AUTHORIZED_PACKET_SCHEMA_VERSION;
+}
+
+function parseLocalAuthorizedPacket(value: unknown): LocalAuthorizedPacketManifest {
+  if (!isLocalJson(value)) {
+    throw packetError(
+      "LOCAL_PACKET_INVALID",
+      "The local authorized packet must contain only bounded, finite JSON values."
+    );
+  }
+  rejectUnsupportedLocalGrader(value);
+  if (Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_LOCAL_PACKET_BYTES) {
+    throw packetError(
+      "LOCAL_PACKET_TOO_LARGE",
+      `Local packets cannot exceed ${MAX_LOCAL_PACKET_BYTES} bytes.`
+    );
+  }
+  const parsed = LocalAuthorizedPacketManifestSchema.safeParse(value);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = issue?.path.length ? issue.path.join(".") : "root";
+    throw packetError(
+      "LOCAL_PACKET_INVALID",
+      `The local authorized packet is invalid at ${path}: ${issue?.message ?? "schema validation failed"}.`
+    );
+  }
+  const executionScope = parseLocalExecutionScope(parsed.data.execution_scope);
+  const dataPolicy = parseDataPolicy(parsed.data.data_policy);
+  const redactionProfile = parseRedactionProfile(parsed.data.redaction_profile);
+  if (dataPolicy.policyId !== executionScope.dataPolicy.id || dataPolicy.policyHash !== executionScope.dataPolicy.hash) {
+    throw packetError(
+      "LOCAL_PACKET_INVALID",
+      "Local packet data_policy identity does not match execution_scope.dataPolicy."
+    );
+  }
+  if (redactionProfile.profileHash !== dataPolicy.redactionProfileHash) {
+    throw packetError(
+      "LOCAL_PACKET_INVALID",
+      "Local packet redaction_profile hash does not match the data policy."
+    );
+  }
+  return {
+    ...(parsed.data as Omit<
+      LocalAuthorizedPacketManifest,
+      "execution_scope" | "data_policy" | "redaction_profile"
+    >),
+    execution_scope: executionScope,
+    data_policy: dataPolicy,
+    redaction_profile: redactionProfile
+  };
+}
+
+export function derivedPacketCommandCount(packet: AnyLocalPacketManifest): number {
   return packet.scenarios.reduce((total, scenario) => {
     const prepare = Object.keys(scenario.fixture).length > 0 ? 1 : 0;
     const observe = scenario.observation_keys.length > 0 ? 1 : 0;
@@ -331,7 +429,7 @@ export async function loadLocalPacket(
 }
 
 function loadedPacket(
-  manifest: PacketManifest,
+  manifest: AnyLocalPacketManifest,
   source: LoadedLocalPacket["source"]
 ): LoadedLocalPacket {
   const derivedCommandCount = derivedPacketCommandCount(manifest);

@@ -21,6 +21,7 @@ import { preflightCustomerSuite } from "../../src/suite/preflight.js";
 import { previewCustomerSuite } from "../../src/suite/preview.js";
 import { suitePacketBinding } from "../../src/suite/admit.js";
 import { canonicalHttpsOrigin } from "../../src/suite/live-target.js";
+import { isLiveCustomerSuite } from "../../src/suite/schema.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const liveFixture = resolve(projectRoot, "test/fixtures/customer-suites/live-informational.yaml");
@@ -68,6 +69,10 @@ describe("live informational customer suites", () => {
   it("validates and previews the offline aw-suite/2 fixture", async () => {
     const loaded = await loadCustomerSuiteFile(liveFixture);
     expect(loaded.document.schemaVersion).toBe("aw-suite/2");
+    expect(isLiveCustomerSuite(loaded.document)).toBe(true);
+    if (!isLiveCustomerSuite(loaded.document)) {
+      throw new Error("expected aw-suite/2 live fixture");
+    }
     expect(loaded.document.syntheticOnly).toBe(false);
     const preview = previewCustomerSuite(loaded);
     expect(preview.syntheticOnly).toBe(false);

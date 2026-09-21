@@ -4,8 +4,9 @@ import { liveExecutionPolicyFromSuite } from "./live-policy.js";
 import { assertExactApprovedOrigin, assertSendOnlyOperations } from "./live-policy.js";
 import type { LoadedCustomerSuite } from "./load.js";
 import { previewCustomerSuite, type SuitePreview } from "./preview.js";
-import { isLiveCustomerSuite, projectedAttemptCount } from "./schema.js";
+import { isAuthorizedCustomerSuite, isLiveCustomerSuite, projectedAttemptCount } from "./schema.js";
 import { LIVE_PACKET_SCHEMA_VERSION, liveError } from "./live-target.js";
+import { AUTHORIZED_PACKET_SCHEMA_VERSION } from "../real-data/constants.js";
 
 export type SuitePreflight = SuitePreview & {
   readonly action: "preflight";
@@ -57,16 +58,21 @@ export async function preflightCustomerSuite(
     }
   }
   const live = isLiveCustomerSuite(loaded.document);
+  const authorized = isAuthorizedCustomerSuite(loaded.document);
   return {
     ...preview,
     action: "preflight",
     ok: true,
     workspaceId,
-    permittedOperations: live ? (["send"] as const) : [],
-    permittedMessages: live ? loaded.document.liveTarget.maxMessages : null,
+    permittedOperations: live || authorized ? (["send"] as const) : [],
+    permittedMessages: live
+      ? loaded.document.liveTarget.maxMessages
+      : authorized
+        ? null
+        : null,
     finiteCreditCeiling: projectedAttemptCount(loaded.document),
     buysCredits: false,
-    overlay: live ? LIVE_PACKET_SCHEMA_VERSION : null
+    overlay: live ? LIVE_PACKET_SCHEMA_VERSION : authorized ? AUTHORIZED_PACKET_SCHEMA_VERSION : null
   };
 }
 
@@ -87,6 +93,13 @@ export function formatSuitePreflight(preflight: SuitePreflight): string {
       `  expires_at: ${preflight.liveTarget.expiresAt}`,
       `  permitted_operations: ${preflight.permittedOperations.join(", ") || "(none)"}`,
       `  permitted_messages: ${String(preflight.permittedMessages ?? 0)}`
+    );
+  }
+  if (preflight.executionScope !== null) {
+    lines.push(
+      `  execution_scope: ${preflight.executionScope.scopeId}`,
+      `  scope_schema: ${preflight.executionScope.schemaVersion}`,
+      "  hosted_release: disabled until backend and privacy integration are verified"
     );
   }
   lines.push(

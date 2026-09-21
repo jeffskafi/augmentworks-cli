@@ -5,7 +5,17 @@ import { canonicalize, sha256 } from "../util/canonical.js";
 import type { LoadedCustomerSuite } from "./load.js";
 import { suiteError } from "./errors.js";
 import { canonicalLiveTarget, LIVE_PACKET_SCHEMA_VERSION, LIVE_TARGET_SCHEMA_VERSION } from "./live-target.js";
-import { isLiveCustomerSuite, type CustomerSuite, type SuiteCase } from "./schema.js";
+import {
+  isAuthorizedCustomerSuite,
+  isLiveCustomerSuite,
+  type CustomerSuite,
+  type SuiteCase
+} from "./schema.js";
+import {
+  AUTHORIZED_PACKET_SCHEMA_VERSION,
+  SUITE_SCHEMA_VERSION_V3
+} from "../real-data/constants.js";
+import { SuiteExecutionScopeRefSchema } from "../real-data/documents.js";
 
 /** Exact producer schema from augmentworks@7ee82d2f; authoring aw-suite/1 stays separate. */
 const { oneOf: _documentChoices, ...producerDefinitions } = producerSchema;
@@ -47,6 +57,22 @@ export const LiveNativeSuiteSourceSchema = z
   })
   .strict();
 
+export const AuthorizedNativeSuiteSourceSchema = z
+  .object({
+    schemaVersion: z.literal("aw-customer-suite/3"),
+    documentKind: z.literal("customer_suite_source"),
+    suiteId: identifier,
+    displayName: z.string().min(1).max(200),
+    description: z.string().min(1).max(2000),
+    conversationMode: z.enum(["single_turn", "explicit_session_v1"]),
+    packetOverlay: z.literal(AUTHORIZED_PACKET_SCHEMA_VERSION),
+    executionScope: SuiteExecutionScopeRefSchema,
+    tags: z.array(z.string().min(1).max(80)).max(16),
+    references: z.array(z.unknown()).max(16),
+    cases: z.array(z.unknown()).min(1).max(20)
+  })
+  .strict();
+
 export function nativeSuiteSource(loaded: LoadedCustomerSuite): Record<string, unknown> {
   const suite = loaded.document;
   if (suite.suiteId.includes("/") || suite.cases.some((item) => item.caseId.length > 160)) {
@@ -64,6 +90,9 @@ export function nativeSuiteSource(loaded: LoadedCustomerSuite): Record<string, u
       "SUITE_HOSTED_OBSERVATION_UNSUPPORTED",
       "The hosted customer-suite producer does not execute deterministic observations. Use supported response-only criteria; no suite, quote, or run was created."
     );
+  }
+  if (isAuthorizedCustomerSuite(suite)) {
+    return authorizedNativeSuiteSource(loaded, suite);
   }
   if (isLiveCustomerSuite(suite)) {
     return liveNativeSuiteSource(loaded, suite);
@@ -109,6 +138,31 @@ function liveNativeSuiteSource(
     cases: nativeCases(loaded, suite.cases)
   };
   return parseNativeDocument(document, LiveNativeSuiteSourceSchema);
+}
+
+function authorizedNativeSuiteSource(
+  loaded: LoadedCustomerSuite,
+  suite: Extract<CustomerSuite, { schemaVersion: typeof SUITE_SCHEMA_VERSION_V3 }>
+): Record<string, unknown> {
+  const document = {
+    schemaVersion: "aw-customer-suite/3",
+    documentKind: "customer_suite_source",
+    suiteId: suite.suiteId,
+    displayName: suite.title,
+    description: suite.description?.trim() ? suite.description : suite.title.trim() || suite.suiteId,
+    conversationMode: suite.cases.some((item) => item.turns.length > 1) ? "explicit_session_v1" : "single_turn",
+    packetOverlay: AUTHORIZED_PACKET_SCHEMA_VERSION,
+    executionScope: {
+      schemaVersion: suite.executionScope.schemaVersion,
+      scopeId: suite.executionScope.scopeId,
+      ...(suite.executionScope.revision === undefined ? {} : { revision: suite.executionScope.revision }),
+      ...(suite.executionScope.scopeHash === undefined ? {} : { scopeHash: suite.executionScope.scopeHash })
+    },
+    tags: suite.tags ?? [],
+    references: nativeReferences(loaded),
+    cases: nativeCases(loaded, suite.cases)
+  };
+  return parseNativeDocument(document, AuthorizedNativeSuiteSourceSchema);
 }
 
 function nativeReferences(loaded: LoadedCustomerSuite): Array<Record<string, unknown>> {
@@ -197,15 +251,17 @@ export function parseNativeSuiteCreateDocument(document: unknown): Record<string
   if (document === null || typeof document !== "object" || Array.isArray(document)) {
     throw suiteError(
       "INVALID_SUITE_REQUEST",
-      "The customer suite create request does not match the hosted aw-customer-suite/1 or aw-customer-suite/2 source contract."
+      "The customer suite create request does not match the hosted aw-customer-suite/1, aw-customer-suite/2, or aw-customer-suite/3 source contract."
     );
   }
+  const authorized = AuthorizedNativeSuiteSourceSchema.safeParse(document);
+  if (authorized.success) return document as Record<string, unknown>;
   const live = LiveNativeSuiteSourceSchema.safeParse(document);
   if (live.success) return document as Record<string, unknown>;
   const synthetic = NativeSuiteSourceSchema.safeParse(document);
   if (synthetic.success) return document as Record<string, unknown>;
   throw suiteError(
     "INVALID_SUITE_REQUEST",
-    "The customer suite create request does not match the hosted aw-customer-suite/1 or aw-customer-suite/2 source contract."
+    "The customer suite create request does not match the hosted aw-customer-suite/1, aw-customer-suite/2, or aw-customer-suite/3 source contract."
   );
 }

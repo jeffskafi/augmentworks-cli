@@ -38,3 +38,10 @@ export function livePacketUnsupportedLocalError(path: string): AwError {
     `Local mode cannot execute a live informational packet (${path}). Validate and preflight offline with \`augmentworks suite validate\` / \`suite preflight\`, then run hosted with \`augmentworks test --suite\`. Do not relabel the target as synthetic.`
   );
 }
+
+export function authorizedPacketUnsupportedLocalError(path: string): AwError {
+  return suiteError(
+    "HOSTED_SUITE_UNSUPPORTED_LOCAL",
+    `Local mode cannot execute a hosted aw-packet/authorized-1 document (${path}). Use an aw-packet/local-authorized-1 packet with \`augmentworks test --local --packet\`, or run hosted with \`augmentworks test --suite\` after the real-data release is enabled.`
+  );
+}

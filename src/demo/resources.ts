@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { AwError } from "../errors.js";
 import { loadLocalPacket, parseLocalPacket } from "../local/packet.js";
 import { sha256Json } from "../local/canonical.js";
-import type { LocalJson, PacketManifest } from "../local/types.js";
+import { isLocalAuthorizedPacket, type LocalJson, type PacketManifest } from "../local/types.js";
 import { resolveInstalledPackageRoot } from "../system/package-root.js";
 
 export const DEMO_PACKET_RELATIVE_PATH = "assets/demo/packet.json";
@@ -34,6 +34,13 @@ export async function loadDemoAssets(packageRoot?: string): Promise<DemoAssets> 
     });
   }
   const loaded = await loadLocalPacket({ reference: packetPath, cwd: root });
+  if (isLocalAuthorizedPacket(loaded.manifest)) {
+    throw new AwError({
+      code: "DEMO_PACKET_INTEGRITY_FAILED",
+      category: "config",
+      message: "The packaged demo packet is not the synthetic aw-packet/0.1 asset."
+    });
+  }
   if (loaded.binding.sha256 !== DEMO_PACKET_SHA256) {
     throw new AwError({
       code: "DEMO_PACKET_INTEGRITY_FAILED",

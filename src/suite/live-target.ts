@@ -198,6 +198,7 @@ export function looksLikeLivePacketDocument(value: unknown): boolean {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   const version = record["schemaVersion"] ?? record["schema_version"];
+  if (version === "aw-packet/local-authorized-1" || version === "aw-packet/authorized-1") return false;
   if (version === LIVE_PACKET_SCHEMA_VERSION) return true;
   if (record["liveTarget"] !== undefined || record["live_target"] !== undefined) return true;
   if (record["syntheticOnly"] === false || record["synthetic_only"] === false) {

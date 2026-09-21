@@ -20,7 +20,8 @@ import {
   loadLocalPacket,
   parseLocalPacket
 } from "../../src/local/packet.js";
-import type { PacketManifest } from "../../src/local/types.js";
+import { isLocalAuthorizedPacket, type PacketManifest } from "../../src/local/types.js";
+import { localAuthorizedPacketManifest } from "../real-data/helpers.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -39,7 +40,11 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 async function starterManifest(): Promise<PacketManifest> {
-  return (await loadLocalPacket({ reference: SUPPORT_REFUNDS_STARTER_REFERENCE })).manifest;
+  const manifest = (await loadLocalPacket({ reference: SUPPORT_REFUNDS_STARTER_REFERENCE })).manifest;
+  if (isLocalAuthorizedPacket(manifest)) {
+    throw new Error("bundled starter packet must remain aw-packet/0.1");
+  }
+  return manifest;
 }
 
 function compatibleConfig(packet: PacketManifest): ResolvedConfig {
@@ -431,5 +436,31 @@ describe("hosted suite files in local mode", () => {
         )
       })
     ).rejects.toMatchObject({ code: "LIVE_PACKET_UNSUPPORTED_LOCAL" });
+  });
+});
+
+describe("aw-packet/local-authorized-1", () => {
+  it("loads a customer-declared local authorized packet from disk", async () => {
+    const directory = await temporaryDirectory();
+    const path = join(directory, "packet.json");
+    const manifest = localAuthorizedPacketManifest();
+    await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
+    const loaded = await loadLocalPacket({ reference: path });
+    expect(isLocalAuthorizedPacket(loaded.manifest)).toBe(true);
+    if (!isLocalAuthorizedPacket(loaded.manifest)) {
+      throw new Error("expected local-authorized packet");
+    }
+    expect(loaded.manifest.execution_scope.verification).toBe("customer_declared_local");
+    expect(loaded.manifest.synthetic_only).toBe(false);
+    expect(parseLocalPacket(manifest).schema_version).toBe("aw-packet/local-authorized-1");
+  });
+
+  it("rejects a hosted aw-packet/authorized-1 document", () => {
+    expect(() =>
+      parseLocalPacket({
+        schema_version: "aw-packet/authorized-1",
+        packet_id: "hosted"
+      })
+    ).toThrowError(/aw-packet\/authorized-1/);
   });
 });

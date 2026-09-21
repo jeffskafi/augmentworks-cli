@@ -19,9 +19,10 @@ import type {
   LocalScenarioSummary,
   LocalTargetEvent,
   PacketAssertion,
-  PacketManifest,
+  AnyLocalPacketManifest,
   PacketScenario,
 } from "./types.js";
+import { isLocalAuthorizedPacket } from "./types.js";
 
 export const LOCAL_RESULT_SCHEMA_VERSION = "AW-LOCAL-RESULT-1" as const;
 export const LOCAL_SCORER_VERSION = "augmentworks-local-scorer/0.1.0" as const;
@@ -76,7 +77,7 @@ export interface MissingAttemptReason {
 export interface BuildLocalRunResultOptions {
   readonly runId: string;
   readonly cliVersion: string;
-  readonly packet: PacketManifest;
+  readonly packet: AnyLocalPacketManifest;
   readonly packetSha256: string;
   readonly targetName: string;
   readonly configSha256: string;
@@ -449,19 +450,31 @@ export function buildLocalRunResult(
   const testedAt = earliestTimestamp(
     normalizedAttempts.map(({ started_at }) => started_at),
   );
+  const authorized = isLocalAuthorizedPacket(packet);
   const provenance: LocalRunProvenance = {
     execution_mode: "local",
     executor: "customer_environment",
     customer_executed: true,
     platform_received: false,
     augmentworks_verified: false,
-    verification: "unverified",
+    verification: authorized ? "customer_declared_local" : "unverified",
     signed: false,
     signature: null,
     managed_review: false,
     uploaded: false,
     cloud_contacted: false,
-    trust_label: LOCAL_RESULT_TRUST_LABEL,
+    trust_label: authorized
+      ? "Local, customer-executed authorized result. AugmentWorks did not receive this run. Local scope is customer-declared; remote revocation is not observed while offline. This artifact is unsigned and is not hosted evidence."
+      : LOCAL_RESULT_TRUST_LABEL,
+    ...(authorized
+      ? {
+          environment: packet.execution_scope.environment,
+          data_origin: packet.execution_scope.dataOrigin,
+          effects: packet.execution_scope.effects,
+          scope_hash: packet.execution_scope.scopeHash,
+          offline_revocation: "not_observed" as const
+        }
+      : {})
   };
 
   const withoutHash = {
