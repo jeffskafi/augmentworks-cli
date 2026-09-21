@@ -18,10 +18,11 @@ export const CANARIES = {
   password: "nested-synthetic-password-value",
   apiKey: "sk-syntheticCanaryKey12",
   email: "canary.user@example.test",
-  phone: "+1-555-0100",
-  unicode: "café-日本語-do-not-leak",
+  phone: "+1-555-010-1234",
   query: "https://example.test/callback?token=SYNTHETIC_CANARY_TOKEN_do_not_leak&email=canary.user@example.test"
 } as const;
+
+export const CANARY_UNICODE = "café-日本語-do-not-leak";
 
 export function makeProfile(
   overrides: Partial<Omit<RedactionProfile, "profileHash" | "schemaVersion" | "profileId">> & {

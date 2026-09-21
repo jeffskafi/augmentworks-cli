@@ -3,7 +3,7 @@
   "turn_id": "preview_turn",
   "message": {
     "role": "assistant",
-    "content": "Refund café-日本語-do-not-leak for canary.user@example.test at +1-555-0100. Secret SYNTHETIC_CANARY_SECRET_do_not_leak."
+    "content": "Refund café-日本語-do-not-leak for canary.user@example.test at +1-555-010-1234. Secret SYNTHETIC_CANARY_SECRET_do_not_leak."
   },
   "events": [
     {

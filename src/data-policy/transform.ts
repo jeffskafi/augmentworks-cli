@@ -54,6 +54,7 @@ interface PlannedAction {
   action: RedactionAction;
   ruleId: string;
   detector: RedactionDetector;
+  detectors: Set<RedactionDetector>;
 }
 
 export function applyRedactionProfile(
@@ -295,16 +296,19 @@ function maskValue(
   secrets: readonly string[]
 ): JsonValue {
   if (typeof value === "string") {
-    if (action.detector === "field") return PLACEHOLDERS.field;
-    const detectors = new Set<RedactionDetector>(
-      action.detector === "credential"
-        ? ["credential", "exact_local_secret"]
-        : action.detector === "exact_local_secret"
-          ? ["exact_local_secret", "credential"]
-          : [action.detector, "credential", "exact_local_secret"]
-    );
+    if (action.detectors.has("field") && action.detectors.size === 1) return PLACEHOLDERS.field;
+    const detectors = new Set<RedactionDetector>(action.detectors);
+    if (detectors.has("credential") || detectors.has("exact_local_secret")) {
+      detectors.add("credential");
+      detectors.add("exact_local_secret");
+    }
+    if (action.detectors.has("field") && detectors.size === 1) {
+      return PLACEHOLDERS.field;
+    }
     const masked = maskString(value, key, secrets, detectors);
-    return masked.changed ? masked.text : placeholderFor(action.detector);
+    if (masked.changed) return masked.text;
+    if (action.detectors.has("field")) return PLACEHOLDERS.field;
+    return placeholderFor(action.detector);
   }
   return placeholderFor(action.detector);
 }
@@ -324,10 +328,33 @@ function placeholderFor(detector: RedactionDetector): string {
   }
 }
 
-function mergeAction(planned: Map<string, PlannedAction>, next: PlannedAction): void {
+function mergeAction(
+  planned: Map<string, PlannedAction>,
+  next: {
+    readonly path: string;
+    readonly action: RedactionAction;
+    readonly ruleId: string;
+    readonly detector: RedactionDetector;
+  }
+): void {
+  const incoming: PlannedAction = {
+    ...next,
+    detectors: new Set([next.detector])
+  };
   const existing = planned.get(next.path);
-  if (existing === undefined || ACTION_RANK[next.action] > ACTION_RANK[existing.action]) {
-    planned.set(next.path, next);
+  if (existing === undefined) {
+    planned.set(next.path, incoming);
+    return;
+  }
+  if (ACTION_RANK[incoming.action] > ACTION_RANK[existing.action]) {
+    planned.set(next.path, {
+      ...incoming,
+      detectors: new Set([...existing.detectors, ...incoming.detectors])
+    });
+    return;
+  }
+  if (incoming.action === existing.action) {
+    for (const detector of incoming.detectors) existing.detectors.add(detector);
   }
 }
 

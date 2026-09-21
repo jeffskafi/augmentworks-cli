@@ -24,6 +24,7 @@ import {
   type EffectivePolicySummary,
   type RedactionProfile
 } from "../data-policy/index.js";
+import { maskJsonForDisplay } from "../data-policy/detectors.js";
 
 export const MAPPING_PREVIEW_SCHEMA_VERSION = "AW-MAPPING-PREVIEW-1" as const;
 
@@ -262,7 +263,7 @@ export function previewMapping(request: MappingPreviewRequest): MappingPreviewRe
   let privacy: MappingPreviewPrivacy | null = null;
   if (request.policy !== undefined && request.profile !== undefined) {
     try {
-      const privacyResult = applyPrivacyPreview(request, evidence, diagnostics);
+      const privacyResult = applyPrivacyPreview(request, inspection, evidence, diagnostics);
       privacy = privacyResult.privacy;
       evidence = privacyResult.evidence;
     } catch (error) {
@@ -641,12 +642,37 @@ function emptyInspection(): FieldInspection {
 
 function applyPrivacyPreview(
   request: MappingPreviewRequest,
+  inspection: FieldInspection,
   evidence: MappingPreviewEvidence | null,
   diagnostics: Diagnostic[]
 ): { privacy: MappingPreviewPrivacy; evidence: MappingPreviewEvidence | null } {
   const policy = request.policy!;
   const profile = request.profile!;
   const secrets = [...new Set((request.secrets ?? []).filter((secret) => secret.length > 0))];
+  const detectors = new Set<"field" | "credential" | "email" | "phone" | "exact_local_secret">([
+    "credential",
+    "exact_local_secret"
+  ]);
+  for (const rule of profile.rules) detectors.add(rule.detector);
+  for (const [index, field] of inspection.extracted.entries()) {
+    const selected = inspection.selected.get(field.field);
+    if (selected === undefined) continue;
+    const sanitized = maskJsonForDisplay(selected, secrets, detectors) as JsonValue;
+    const display = displayPreview(sanitized);
+    inspection.extracted[index] = {
+      ...field,
+      preview: display.text,
+      display_truncated: display.truncated,
+      redacted: field.redacted || canonicalize(selected) !== canonicalize(sanitized),
+      bytes: Buffer.byteLength(canonicalize(sanitized), "utf8")
+    };
+  }
+  for (const [index, field] of inspection.redacted.entries()) {
+    const extracted = inspection.extracted.find((item) => item.field === field.field);
+    if (extracted !== undefined) {
+      inspection.redacted[index] = { ...field, preview: extracted.preview };
+    }
+  }
   const document = (evidence?.result ?? request.response ?? {}) as JsonValue;
   const inspected = inspectOutbound(document, policy, profile, secrets);
   const privacy: MappingPreviewPrivacy = {

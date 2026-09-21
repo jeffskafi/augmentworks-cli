@@ -106,6 +106,32 @@ export function detectorMatches(
   }
 }
 
+export function maskJsonForDisplay(
+  value: unknown,
+  secrets: readonly string[],
+  detectors: ReadonlySet<RedactionDetector>
+): unknown {
+  if (typeof value === "string") {
+    return maskString(value, "", secrets, detectors).text;
+  }
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((child) => maskJsonForDisplay(child, secrets, detectors));
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    Object.defineProperty(result, key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: isSensitiveKey(key)
+        ? PLACEHOLDERS.credential
+        : maskJsonForDisplay(child, secrets, detectors)
+    });
+  }
+  return result;
+}
+
 export function maskString(
   value: string,
   key: string,
@@ -116,7 +142,7 @@ export function maskString(
     return { text: value, changed: false };
   }
   let text = value;
-  if (detectors.has("credential") || detectors.has("exact_local_secret")) {
+  if (detectors.has("credential") || detectors.has("exact_local_secret") || detectors.has("email") || detectors.has("phone")) {
     text = maskUrlSecrets(text, secrets, detectors);
   }
   if (detectors.has("exact_local_secret")) {
@@ -174,13 +200,11 @@ function maskUrlSecrets(
     params.delete(queryKey);
     for (const item of current) {
       let next = item;
-      if (QUERY_SECRET_KEYS.test(queryKey) || isSensitiveKey(queryKey) || detectors.has("credential")) {
-        if (isSensitiveKey(queryKey) || QUERY_SECRET_KEYS.test(queryKey)) {
-          next = PLACEHOLDERS.credential;
-        }
+      if (QUERY_SECRET_KEYS.test(queryKey) || isSensitiveKey(queryKey)) {
+        next = PLACEHOLDERS.credential;
       }
-      if (detectors.has("email")) next = next.replace(EMAIL_PATTERN, PLACEHOLDERS.email);
-      if (detectors.has("phone")) next = next.replace(PHONE_PATTERN, PLACEHOLDERS.phone);
+      next = next.replace(EMAIL_PATTERN, PLACEHOLDERS.email);
+      next = next.replace(PHONE_PATTERN, PLACEHOLDERS.phone);
       for (const secret of secrets) {
         if (secret.length > 0 && next.includes(secret)) {
           next = next.split(secret).join(PLACEHOLDERS.exact_local_secret);
