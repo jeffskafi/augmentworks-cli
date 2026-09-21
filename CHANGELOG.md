@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- npm/npx `init` next steps and generated `OWN-TARGET.md` now invoke the
+  published pin (`npx --yes @augmentworks/cli@0.3.7 …`) instead of
+  `node dist/index.js` from the customer project directory
+  ([AUG-160](https://linear.app/augmentworks/issue/AUG-160/qa-bugcli-init-next-steps-tell-npm-installed-customers-to-run-node)).
+  Source checkouts (`LOCAL_DISTRIBUTION === "git"`) may still document
+  `node dist/index.js` after an explicit build. Independently inspected npm
+  `0.3.6` remains an immutable historical tarball until the protected
+  `v0.3.7` publish.
+
 ### Added
 
 - Coordinated live-informational CLI contract for [AUG-112](https://linear.app/augmentworks/issue/AUG-112/maincli-add-authorized-live-informational-assessments-with-truthful)

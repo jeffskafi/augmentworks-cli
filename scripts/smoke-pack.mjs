@@ -24,6 +24,18 @@ function assert(condition, message) {
   if (!condition) throw new SmokeFailure(message);
 }
 
+function assertNpmCustomerCliCopy(text, pin, label) {
+  assert(
+    !text.includes("node dist/index.js"),
+    `${label} must not tell npm-installed customers to run node dist/index.js`
+  );
+  assert(!text.includes("{{AW_CLI}}"), `${label} must replace the customer CLI placeholder`);
+  assert(
+    text.includes(`npx --yes @augmentworks/cli@${pin}`),
+    `${label} must invoke the published pin`
+  );
+}
+
 function resolveNpmJsCli(binName) {
   const fileName = `${binName}-cli.js`;
   const fromLifecycle =
@@ -773,7 +785,8 @@ async function main() {
       }
     }
 
-    execCli(["init", "--starter", "workflow"], { cwd: assessmentDirectory });
+    const workflowInit = execCli(["init", "--starter", "workflow"], { cwd: assessmentDirectory });
+    assertNpmCustomerCliCopy(workflowInit.stdout, rootManifest.version, "packed workflow init stdout");
     await Promise.all([
       access(join(assessmentDirectory, "augmentworks.yaml"), fsConstants.R_OK),
       access(join(assessmentDirectory, "augmentworks.assessment.yaml"), fsConstants.R_OK),
@@ -789,6 +802,11 @@ async function main() {
         "support-refunds"
       ),
       "workflow starter must generate the support-refunds assessment"
+    );
+    assertNpmCustomerCliCopy(
+      await readFile(join(assessmentDirectory, "OWN-TARGET.md"), "utf8"),
+      rootManifest.version,
+      "generated workflow OWN-TARGET.md"
     );
     const generatedEnvironment = await readFile(join(assessmentDirectory, ".env"), "utf8");
     assert(
@@ -860,6 +878,7 @@ async function main() {
     await mkdir(customDirectory, { recursive: true });
     await writeFile(join(customDirectory, "augmentworks.yaml"), "# sibling-default-must-remain\n", "utf8");
     const customInit = execCli(["init", "-c", "custom.yaml", "--no-env"], { cwd: customDirectory });
+    assertNpmCustomerCliCopy(customInit.stdout, rootManifest.version, "packed custom-config init stdout");
     assert(
       customInit.stdout.includes("custom.yaml"),
       "init --config must mention the requested filename"
@@ -1129,7 +1148,8 @@ async function main() {
     process.stdout.write("[pack smoke] checking packed response-only starter, suite, and probe\n");
     const responseDirectory = join(consumerDirectory, "response-only");
     await mkdir(responseDirectory, { recursive: true });
-    execCli(["init", "--starter", "response-only"], { cwd: responseDirectory });
+    const responseInit = execCli(["init", "--starter", "response-only"], { cwd: responseDirectory });
+    assertNpmCustomerCliCopy(responseInit.stdout, rootManifest.version, "packed response-only init stdout");
     const responseYaml = await readFile(join(responseDirectory, "augmentworks.yaml"), "utf8");
     assert(!/^ {4}prepare:/m.test(responseYaml), "response-only starter must not generate unused prepare hooks");
     assert(!/^ {4}observe:/m.test(responseYaml), "response-only starter must not generate unused observe hooks");
@@ -1142,6 +1162,7 @@ async function main() {
       access(join(responseDirectory, "fixtures", "send-response.json"), fsConstants.R_OK)
     ]);
     const generatedOwnTarget = await readFile(join(responseDirectory, "OWN-TARGET.md"), "utf8");
+    assertNpmCustomerCliCopy(generatedOwnTarget, rootManifest.version, "generated response-only OWN-TARGET.md");
     assert(
       !/^(?:cp(?:\s+-f)?\s+\.env\.example\s+\.env|copy(?:\s+\/Y)?\s+\.env\.example\s+\.env)\s*$/m.test(
         generatedOwnTarget
@@ -1153,7 +1174,8 @@ async function main() {
     const sentinelPath = join(sentinelDirectory, ".env");
     await writeFile(sentinelPath, "CHATBOT_API_KEY=sentinel-existing-value\n", { mode: 0o600 });
     const sentinelBefore = createHash("sha256").update(await readFile(sentinelPath)).digest("hex");
-    execCli(["init", "--agent"], { cwd: sentinelDirectory });
+    const sentinelInit = execCli(["init", "--agent"], { cwd: sentinelDirectory });
+    assertNpmCustomerCliCopy(sentinelInit.stdout, rootManifest.version, "packed init --agent stdout");
     const sentinelAfterInit = createHash("sha256").update(await readFile(sentinelPath)).digest("hex");
     assert(sentinelAfterInit === sentinelBefore, "init --agent must preserve an existing .env");
     const sentinelGuide = await readFile(join(sentinelDirectory, "OWN-TARGET.md"), "utf8");
