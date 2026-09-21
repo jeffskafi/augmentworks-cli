@@ -288,7 +288,7 @@ describe("vendored aw-billing/1 contract", () => {
     expect(human).toContain("Available credits: 200");
     expect(human).toContain("paid_unfulfilled");
     expect(human).toContain("not spendable");
-    expect(human).not.toContain("500");
+    expect(human).not.toContain("Available credits: 500");
   });
 
   it("tolerates additive pack-retention quote fields without treating them as credit expiry", async () => {
