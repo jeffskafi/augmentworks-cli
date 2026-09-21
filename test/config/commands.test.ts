@@ -12,6 +12,7 @@ import {
   HOSTED_COMMAND_PIN,
   initNextSteps,
   LOCAL_DISTRIBUTION,
+  PUBLISHED_PACKAGE_VERSION,
   SOURCE_PACKAGE_VERSION
 } from "../../src/release.js";
 
@@ -294,6 +295,50 @@ target:
     expect(output).toContain(resolve(directory, "other.yaml"));
     expect(output).toContain(initNextSteps("other.yaml"));
     expect(output).not.toContain("created augmentworks.yaml, augmentworks.assessment.yaml");
+    if (LOCAL_DISTRIBUTION === "npm") {
+      expect(output).not.toContain("node dist/index.js");
+      expect(output).toContain(
+        `npx --yes @augmentworks/cli@${PUBLISHED_PACKAGE_VERSION} probe -c other.yaml`
+      );
+    }
+  });
+
+  it("prints npm-distribution init next steps without node dist/index.js", async () => {
+    const directory = await temporaryDirectory();
+    const chunks: string[] = [];
+    const command = createInitCommand({
+      cwd: () => directory,
+      stdout: {
+        write: (chunk) => {
+          chunks.push(String(chunk));
+          return true;
+        }
+      }
+    });
+    await command.parseAsync(["--agent"], { from: "user" });
+    const output = chunks.join("");
+    const ownTarget = await readFile(resolve(directory, "OWN-TARGET.md"), "utf8");
+    const agent = await readFile(resolve(directory, "augmentworks.agent.md"), "utf8");
+    const pin = `npx --yes @augmentworks/cli@${PUBLISHED_PACKAGE_VERSION}`;
+
+    expect(output).toContain(initNextSteps());
+    expect(ownTarget).not.toContain("{{AW_CLI}}");
+    expect(agent).toContain(`${pin} doctor -c augmentworks.yaml`);
+
+    if (LOCAL_DISTRIBUTION === "npm") {
+      expect(output).not.toContain("node dist/index.js");
+      expect(output).toContain(
+        `${pin} preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json`
+      );
+      expect(output).toContain(`${pin} probe -c augmentworks.yaml`);
+      expect(output).toContain(`${pin} probe -c augmentworks.yaml --yes`);
+      expect(ownTarget).not.toContain("node dist/index.js");
+      expect(ownTarget).toContain(`${pin} preview-mapping`);
+      expect(ownTarget).toContain(`${pin} probe -c augmentworks.yaml --yes`);
+    } else {
+      expect(output).toContain("node dist/index.js preview-mapping");
+      expect(ownTarget).toContain("node dist/index.js preview-mapping");
+    }
   });
 
   it("refuses a requested config path that collides with another generated starter file", async () => {

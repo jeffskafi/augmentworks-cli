@@ -8,8 +8,7 @@ not supported. The only JSON HTTP patterns in this CLI are response-only chat
 and the stateful `workflow` starter.
 
 This 0.3.7 package generates these files and includes `probe`. Do not pin
-immutable npm `0.3.3`. If you built this repository, substitute
-`node dist/index.js` for `augmentworks` below.
+immutable npm `0.3.3`. Invoke the CLI as `{{AW_CLI}}` below.
 
 ## Files
 
@@ -36,14 +35,14 @@ immutable npm `0.3.3`. If you built this repository, substitute
 
 node --env-file=.env server.mjs
 
-augmentworks doctor -c augmentworks.yaml
-augmentworks preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
-augmentworks probe -c augmentworks.yaml
-augmentworks probe -c augmentworks.yaml --yes
-augmentworks suite validate own-chatbot.suite.yaml
-augmentworks suite preview own-chatbot.suite.yaml
-augmentworks test --assessment ./augmentworks.assessment.yaml --estimate
-augmentworks test --suite own-chatbot.suite.yaml --estimate
+{{AW_CLI}} doctor -c augmentworks.yaml
+{{AW_CLI}} preview-mapping -c augmentworks.yaml --operation send --fixture ./fixtures/send-response.json
+{{AW_CLI}} probe -c augmentworks.yaml
+{{AW_CLI}} probe -c augmentworks.yaml --yes
+{{AW_CLI}} suite validate own-chatbot.suite.yaml
+{{AW_CLI}} suite preview own-chatbot.suite.yaml
+{{AW_CLI}} test --assessment ./augmentworks.assessment.yaml --estimate
+{{AW_CLI}} test --suite own-chatbot.suite.yaml --estimate
 ```
 
 `doctor` and `init` never probe. `probe` without `--yes` only prints the plan.
@@ -55,8 +54,8 @@ Session mapping:
 
 ```bash
 node --env-file=.env session-server.mjs
-augmentworks doctor -c augmentworks.session.yaml
-augmentworks probe -c augmentworks.session.yaml --yes
+{{AW_CLI}} doctor -c augmentworks.session.yaml
+{{AW_CLI}} probe -c augmentworks.session.yaml --yes
 ```
 
 After a hosted run, inspect with `run status` / `run wait` / `run report` on

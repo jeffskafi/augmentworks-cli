@@ -18,8 +18,12 @@ import {
   REGISTRY_0_3_3_GIT_HEAD,
   SOURCE_PACKAGE_VERSION,
   allowedDocumentedNpxPins,
+  CUSTOMER_CLI_PLACEHOLDER,
+  formatCustomerCli,
   formatNpx,
-  initNextSteps
+  formatSourceCli,
+  initNextSteps,
+  renderStarterOwnTarget
 } from "../src/release.js";
 import { CLI_VERSION, CONFIG_VERSION, RELAY_PROTOCOL_VERSION } from "../src/version.js";
 
@@ -104,5 +108,57 @@ describe("CLI release metadata", () => {
     expect(initNextSteps("nested/custom.yaml", "nested/augmentworks.assessment.yaml")).toContain(
       "created nested/custom.yaml, nested/augmentworks.assessment.yaml, starter references, and the packaged fixture server"
     );
+  });
+
+  it("does not tell npm-installed customers to run node dist/index.js after init", async () => {
+    expect(formatSourceCli(["probe", "-c", "augmentworks.yaml"])).toBe(
+      "node dist/index.js probe -c augmentworks.yaml"
+    );
+
+    const preview = [
+      "preview-mapping",
+      "-c",
+      "augmentworks.yaml",
+      "--operation",
+      "send",
+      "--fixture",
+      "./fixtures/send-response.json"
+    ] as const;
+
+    if (LOCAL_DISTRIBUTION === "npm") {
+      expect(INIT_NEXT_STEPS).not.toContain("node dist/index.js");
+      expect(initNextSteps()).not.toContain("node dist/index.js");
+      expect(initNextSteps("custom.yaml")).not.toContain("node dist/index.js");
+      expect(formatCustomerCli([...preview])).toBe(formatNpx(PUBLISHED_PACKAGE_VERSION, preview));
+      expect(initNextSteps()).toContain(formatNpx(PUBLISHED_PACKAGE_VERSION, preview));
+      expect(initNextSteps()).toContain(
+        formatNpx(PUBLISHED_PACKAGE_VERSION, ["probe", "-c", "augmentworks.yaml"])
+      );
+      expect(initNextSteps()).toContain(
+        formatNpx(PUBLISHED_PACKAGE_VERSION, ["probe", "-c", "augmentworks.yaml", "--yes"])
+      );
+      expect(initNextSteps("custom.yaml")).toContain(
+        formatNpx(PUBLISHED_PACKAGE_VERSION, ["probe", "-c", "custom.yaml"])
+      );
+    } else {
+      expect(formatCustomerCli([...preview])).toBe(formatSourceCli(preview));
+      expect(initNextSteps()).toContain("node dist/index.js preview-mapping");
+    }
+
+    const guides = await Promise.all([
+      readFile(new URL("../assets/starters/response-quality/OWN-TARGET.md", import.meta.url), "utf8"),
+      readFile(new URL("../assets/starters/workflow/OWN-TARGET.md", import.meta.url), "utf8")
+    ]);
+    for (const guide of guides) {
+      expect(guide).toContain(CUSTOMER_CLI_PLACEHOLDER);
+      const rendered = renderStarterOwnTarget(guide);
+      expect(rendered).not.toContain(CUSTOMER_CLI_PLACEHOLDER);
+      if (LOCAL_DISTRIBUTION === "npm") {
+        expect(rendered).not.toContain("node dist/index.js");
+        expect(rendered).toContain(`npx --yes @augmentworks/cli@${PUBLISHED_PACKAGE_VERSION}`);
+      } else {
+        expect(rendered).toContain("node dist/index.js");
+      }
+    }
   });
 });

@@ -6,7 +6,13 @@ import { randomBytes } from "node:crypto";
 import { Command } from "commander";
 
 import { AwError } from "../errors.js";
-import { HOSTED_COMMAND_PIN, initNextSteps, NPM_PACKAGE } from "../release.js";
+import {
+  CUSTOMER_CLI_PLACEHOLDER,
+  HOSTED_COMMAND_PIN,
+  initNextSteps,
+  NPM_PACKAGE,
+  renderStarterOwnTarget
+} from "../release.js";
 import {
   DEFAULT_STARTER,
   loadStarterFiles,
@@ -90,6 +96,18 @@ function destinationForStarterFile(file: StarterFile, configDirectory: string, c
   return resolve(configDirectory, file.relativePath);
 }
 
+function starterFileContent(file: StarterFile): string {
+  if (file.relativePath !== "OWN-TARGET.md") return file.content;
+  if (!file.content.includes(CUSTOMER_CLI_PLACEHOLDER)) {
+    throw new AwError({
+      code: "INIT_STARTER_MISSING",
+      category: "config",
+      message: "The packaged OWN-TARGET.md starter is missing the {{AW_CLI}} invocation placeholder."
+    });
+  }
+  return renderStarterOwnTarget(file.content);
+}
+
 function planGeneratedWrites(
   starterFiles: readonly StarterFile[],
   configDirectory: string,
@@ -98,7 +116,7 @@ function planGeneratedWrites(
 ): PlannedWrite[] {
   const writes: PlannedWrite[] = starterFiles.map((file) => ({
     path: destinationForStarterFile(file, configDirectory, configPath),
-    content: file.content
+    content: starterFileContent(file)
   }));
   if (agent) {
     writes.push({
