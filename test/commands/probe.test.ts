@@ -169,6 +169,69 @@ describe("probe command", () => {
     expect(fixtures.size).toBe(0);
   });
 
+  it("classifies a hanging non-idempotent send as timeout, not generic target", async () => {
+    const directory = await temporaryDirectory();
+    await runInit({ cwd: directory, starter: "workflow", env: false });
+    const yamlPath = resolve(directory, "augmentworks.yaml");
+    const yaml = await readFile(yamlPath, "utf8");
+    const tightened = yaml.replace("operation_timeout_ms: 10000", "operation_timeout_ms: 100");
+    expect(tightened).not.toBe(yaml);
+    await writeFile(yamlPath, tightened, "utf8");
+    const events: string[] = [];
+    const http = createServer((request, response) => {
+      if (request.headers.authorization !== "Bearer command-probe-secret") {
+        sendJson(response, 401, { error: "unauthorized" });
+        return;
+      }
+      const url = request.url ?? "";
+      if (url === "/__augmentworks/prepare") {
+        events.push("prepare");
+        void readJsonBody(request).then(() => sendJson(response, 200, { status: "ready" }));
+        return;
+      }
+      if (url === "/chat") {
+        events.push("send");
+        request.resume();
+        return;
+      }
+      if (url === "/__augmentworks/cleanup") {
+        events.push("cleanup");
+        void readJsonBody(request).then(() => {
+          response.writeHead(204);
+          response.end();
+        });
+        return;
+      }
+      sendJson(response, 404, { error: "not_found" });
+    });
+    const server = await listenLoopback(http);
+    servers.push(server);
+    try {
+      const { report } = await runProbeCommand({
+        cwd: directory,
+        yes: true,
+        processEnv: {
+          CHATBOT_BASE_URL: server.baseUrl,
+          CHATBOT_API_KEY: "command-probe-secret"
+        }
+      });
+      expect(report.ok).toBe(false);
+      expect(report.executed).toBe(true);
+      expect(report.failure_class).toBe("timeout");
+      expect(report.failure_class).not.toBe("target");
+      expect(report.failed_phase).toBe("send");
+      expect(report.hosted_contacted).toBe(false);
+      expect(report.credits_consumed).toBe(0);
+      expect(report.diagnostics.some((item) => item.code === "PROBE_TIMEOUT")).toBe(true);
+      expect(report.diagnostics.some((item) => item.code === "PROBE_TARGET")).toBe(false);
+      expect(report.calls.some((call) => call.phase === "cleanup" && call.ok)).toBe(true);
+      expect(events).toEqual(["prepare", "send", "cleanup"]);
+      expect(probeExitCode(report)).toBe(EXIT.TARGET);
+    } finally {
+      http.closeAllConnections();
+    }
+  });
+
   it("accepts starter aliases without a second initializer", async () => {
     const directory = await temporaryDirectory();
     const result = await runInit({ cwd: directory, starter: "response-only", env: false });

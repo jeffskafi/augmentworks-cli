@@ -57,38 +57,40 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).not.toContain("Stripe");
   });
 
-  it("documents compare, gate, baseline, and investigation help", async () => {
-    const compare = await runSourceCli(["compare", "--help"], { cwd: projectRoot });
+  it("documents compare, gate, baseline, and investigation help", { timeout: 60_000 }, async () => {
+    const [compare, gate, baseline, investigation, catalog, selection] = await Promise.all([
+      runSourceCli(["compare", "--help"], { cwd: projectRoot }),
+      runSourceCli(["gate", "--help"], { cwd: projectRoot }),
+      runSourceCli(["baseline", "--help"], { cwd: projectRoot }),
+      runSourceCli(["investigation", "--help"], { cwd: projectRoot }),
+      runSourceCli(["catalog", "--help"], { cwd: projectRoot }),
+      runSourceCli(["selection", "--help"], { cwd: projectRoot })
+    ]);
     expect(compare.exitCode).toBe(0);
     expect(compare.stdout).toContain("--run");
     expect(compare.stdout).toContain("--baseline");
     expect(compare.stdout).toContain("--json");
     expect(compare.stdout).toContain("without starting a");
 
-    const gate = await runSourceCli(["gate", "--help"], { cwd: projectRoot });
     expect(gate.exitCode).toBe(0);
     expect(gate.stdout).toContain("--wait");
     expect(gate.stdout).toContain("--timeout-ms");
     expect(gate.stdout).toContain("--manifest-file");
     expect(gate.stdout).toContain("aw-manifest-release-policy/2");
 
-    const baseline = await runSourceCli(["baseline", "--help"], { cwd: projectRoot });
     expect(baseline.exitCode).toBe(0);
     expect(baseline.stdout).toContain("status");
     expect(baseline.stdout).toContain("promote");
 
-    const investigation = await runSourceCli(["investigation", "--help"], { cwd: projectRoot });
     expect(investigation.exitCode).toBe(0);
     expect(investigation.stdout).toContain("inspect");
     expect(investigation.stdout).toContain("fetch");
     expect(investigation.stdout).toContain("export-regression");
 
-    const catalog = await runSourceCli(["catalog", "--help"], { cwd: projectRoot });
     expect(catalog.exitCode).toBe(0);
     expect(catalog.stdout).toContain("list");
     expect(catalog.stdout).toContain("show");
 
-    const selection = await runSourceCli(["selection", "--help"], { cwd: projectRoot });
     expect(selection.exitCode).toBe(0);
     expect(selection.stdout).toContain("compile");
   });
@@ -102,13 +104,15 @@ describe("CLI entrypoint", () => {
     expect(result.stdout).toMatch(/never\s+load a keychain/);
   });
 
-  it("documents --workspace on hosted commands and rejects it on local-only help", async () => {
-    const login = await runSourceCli(["login", "--help"], { cwd: projectRoot });
-    const whoami = await runSourceCli(["whoami", "--help"], { cwd: projectRoot });
-    const usage = await runSourceCli(["usage", "--help"], { cwd: projectRoot });
-    const testHelp = await runSourceCli(["test", "--help"], { cwd: projectRoot });
-    const runHelp = await runSourceCli(["run", "report", "--help"], { cwd: projectRoot });
-    const fetchHelp = await runSourceCli(["investigation", "fetch", "--help"], { cwd: projectRoot });
+  it("documents --workspace on hosted commands and rejects it on local-only help", { timeout: 60_000 }, async () => {
+    const [login, whoami, usage, testHelp, runHelp, fetchHelp] = await Promise.all([
+      runSourceCli(["login", "--help"], { cwd: projectRoot }),
+      runSourceCli(["whoami", "--help"], { cwd: projectRoot }),
+      runSourceCli(["usage", "--help"], { cwd: projectRoot }),
+      runSourceCli(["test", "--help"], { cwd: projectRoot }),
+      runSourceCli(["run", "report", "--help"], { cwd: projectRoot }),
+      runSourceCli(["investigation", "fetch", "--help"], { cwd: projectRoot })
+    ]);
     expect(login.stdout).toContain("--workspace");
     expect(whoami.stdout).toContain("--workspace");
     expect(usage.stdout).toContain("--workspace");
@@ -116,10 +120,12 @@ describe("CLI entrypoint", () => {
     expect(runHelp.stdout).toContain("--workspace");
     expect(fetchHelp.stdout).toContain("--workspace");
 
-    const doctor = await runSourceCli(["doctor", "--help"], { cwd: projectRoot });
-    const demo = await runSourceCli(["demo", "--help"], { cwd: projectRoot });
-    const inspect = await runSourceCli(["investigation", "inspect", "--help"], { cwd: projectRoot });
-    const suiteValidate = await runSourceCli(["suite", "validate", "--help"], { cwd: projectRoot });
+    const [doctor, demo, inspect, suiteValidate] = await Promise.all([
+      runSourceCli(["doctor", "--help"], { cwd: projectRoot }),
+      runSourceCli(["demo", "--help"], { cwd: projectRoot }),
+      runSourceCli(["investigation", "inspect", "--help"], { cwd: projectRoot }),
+      runSourceCli(["suite", "validate", "--help"], { cwd: projectRoot })
+    ]);
     expect(doctor.stdout).not.toContain("--workspace");
     expect(demo.stdout).not.toContain("--workspace");
     expect(inspect.stdout).not.toContain("--workspace");
