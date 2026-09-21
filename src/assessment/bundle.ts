@@ -1,4 +1,6 @@
 import type { LoadedAssessment } from "./load.js";
+import { projectAssessmentReferencePayload } from "../data-policy/project.js";
+import type { DataPolicyContext } from "../data-policy/types.js";
 
 export type AssessmentReferenceEntry = {
   id: string;
@@ -32,10 +34,11 @@ export type AssessmentReferencePayload = {
 };
 
 export function buildAssessmentReferencePayload(
-  assessment: LoadedAssessment
+  assessment: LoadedAssessment,
+  dataPolicy?: DataPolicyContext
 ): AssessmentReferencePayload {
   const policy = assessment.document.refund_policy;
-  return {
+  const payload: AssessmentReferencePayload = {
     bundleId: `bundle_${assessment.freezeSha256.slice(0, 12)}`,
     entries: assessment.localReferences.map((entry) => ({
       id: entry.id,
@@ -61,4 +64,5 @@ export function buildAssessmentReferencePayload(
     knowledgeBoundary: assessment.document.knowledge_boundary ?? null,
     targetAlreadyConfigured: assessment.document.target_already_configured === true
   };
+  return dataPolicy === undefined ? payload : projectAssessmentReferencePayload(payload, dataPolicy);
 }

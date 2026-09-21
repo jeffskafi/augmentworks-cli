@@ -6,6 +6,7 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
 import { redactSecrets } from "../connector/mapping.js";
+import { inspectOutbound, type DataPolicyContext } from "../data-policy/index.js";
 import { AwError } from "../errors.js";
 import { assertJsonLimits } from "../util/limits.js";
 import { sha256Json } from "./canonical.js";
@@ -39,6 +40,7 @@ export interface WriteLocalArtifactsOptions {
   readonly result: LocalRunResult;
   readonly outputDirectory: string;
   readonly secrets?: readonly string[];
+  readonly dataPolicy?: DataPolicyContext;
 }
 
 export interface LocalArtifactPaths {
@@ -85,7 +87,10 @@ export async function writeLocalArtifacts(
   options: WriteLocalArtifactsOptions
 ): Promise<LocalArtifactPaths> {
   const directory = resolve(options.outputDirectory);
-  const withoutHash = prepareLocalResult(options.result, options.secrets ?? []);
+  const withoutHash = projectLocalResult(
+    prepareLocalResult(options.result, options.secrets ?? []),
+    options.dataPolicy
+  );
   assertJsonLimits(withoutHash, "local assessment result");
   const resultSha256 = sha256Json(withoutHash as LocalJson);
   const safeResult = { ...withoutHash, result_sha256: resultSha256 } as unknown as LocalRunResult;
@@ -176,6 +181,31 @@ function prepareLocalResult(result: LocalRunResult, secrets: readonly string[]):
       cloud_contacted: false
     }
   };
+}
+
+function projectLocalResult(
+  result: Record<string, unknown>,
+  context: DataPolicyContext | undefined
+): Record<string, unknown> {
+  if (context === undefined) return result;
+  const inspected = inspectOutbound(result, context.policy, context.profile, context.localSecrets);
+  if (inspected.receipt.outcome === "blocked" || inspected.blockedPaths.length > 0) {
+    throw new AwError({
+      code: "DATA_POLICY_BLOCKED",
+      category: "evidence",
+      message: "The local report was blocked by the data policy. Evidence is unavailable.",
+      retryable: false
+    });
+  }
+  if (inspected.representation === null || typeof inspected.representation !== "object" || Array.isArray(inspected.representation)) {
+    throw new AwError({
+      code: "DATA_POLICY_BLOCKED",
+      category: "evidence",
+      message: "The local report could not be projected into a retained representation.",
+      retryable: false
+    });
+  }
+  return inspected.representation as Record<string, unknown>;
 }
 
 function redactLocalEvidence(result: LocalRunResult, secrets: readonly string[]): LocalRunResult {

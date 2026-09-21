@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { SINGLE_TURN_CONVERSATION } from "../../src/config/conversation.js";
 import type { AugmentWorksConfig } from "../../src/config/types.js";
@@ -353,6 +353,38 @@ describe("mapping preview service", () => {
         })
       ])
     );
+  });
+
+  it("applies inspectOutbound when a frozen policy is supplied without calling the network", async () => {
+    const { CANARIES, makePolicy, makeProfile } = await import("../data-policy/helpers.js");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const profile = makeProfile({
+      rules: [{ id: "mask-email", selector: "/message/content", action: "mask", detector: "email" }]
+    });
+    const policy = makePolicy(profile, { dataClass: "public" });
+    const report = previewMapping({
+      config: chatConfig(),
+      operation: "send",
+      response: {
+        answer: `Hello ${CANARIES.email} token ${CANARIES.secret}`,
+        finished: true,
+        finish_reason: "stop"
+      },
+      secrets: [CANARIES.secret],
+      policy,
+      profile
+    });
+    expect(report.offline).toBe(true);
+    expect(report.credits_consumed).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(report.privacy?.effective.dataClass).toBe("public");
+    expect(report.privacy?.hosted_real_data_release).toBe("unavailable");
+    expect(report.privacy?.receipt.representationHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(leakText(report)).not.toContain(CANARIES.secret);
+    expect(leakText(report)).not.toContain(CANARIES.email);
+    expect(report.ok).toBe(true);
+    vi.unstubAllGlobals();
   });
 });
 

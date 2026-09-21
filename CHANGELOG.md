@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- CLI privacy transforms for [AUG-189](https://linear.app/augmentworks/issue/AUG-189/cli-minimize-real-customer-content-before-upload-journals-and-exports)
+  (`AW-REAL-DATA-1` R06). Frozen `aw-data-policy/1` /
+  `aw-redaction-profile/1` documents drive `inspectOutbound`,
+  `applyRedactionProfile`, and `sealDataHandlingReceipt`. Mapping preview,
+  relay journals, local HTML/JSON/JUnit artifacts, and assessment reference
+  bundles can project a retained representation before hashing. Credentials
+  stay excluded in both minimized and verbatim modes; receipts never echo raw
+  matches. Hosted real-data remains unavailable; AUG-188 owns contract vending
+  and command/executor wiring. Local artifacts are customer-controlled and are
+  not deleted by a hosted purge.
+
 ### Fixed
 
 - `probe --yes` now classifies a non-idempotent send that exceeds

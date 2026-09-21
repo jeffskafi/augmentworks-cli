@@ -218,4 +218,74 @@ describe("RelayJournal", () => {
     expect(journal.dispatchedSendCount()).toBe(1);
     await journal.close();
   });
+
+  it("writes transformed send content and never journals a blocked secret", async () => {
+    const { makeContext, CANARIES } = await import("../data-policy/helpers.js");
+    const stateDirectory = await temporaryDirectory();
+    const command = relayCommand("send");
+    const turnId = command.kind === "send" ? command.input.turn_id : "turn-1";
+    const context = makeContext("public", "minimized", [
+      { id: "mask-content", selector: "/message/content", action: "mask", detector: "email" }
+    ]);
+    const journal = await new RelayJournal({
+      runId: command.run_id,
+      stateDirectory,
+      dataPolicy: context
+    }).open();
+    await journal.accept(command);
+    await journal.markStarted(command.command_id);
+    const completion = await journal.recordSuccess(command.command_id, {
+      protocol_version: "aw-target/0.1",
+      turn_id: turnId,
+      message: {
+        role: "assistant",
+        content: `Done for ${CANARIES.email} ${CANARIES.secret}`
+      },
+      events: [],
+      finished: true,
+      metadata: {}
+    });
+    expect(completion.disposition).toBe("completed");
+    if (completion.disposition === "completed") {
+      expect(JSON.stringify(completion.result)).not.toContain(CANARIES.secret);
+      expect(JSON.stringify(completion.result)).not.toContain(CANARIES.email);
+    }
+    const onDisk = await readFile(journal.path, "utf8");
+    expect(onDisk).not.toContain(CANARIES.secret);
+    expect(onDisk).not.toContain(CANARIES.email);
+    await journal.close();
+  });
+
+  it("records an indeterminate sanitized failure when policy blocks after send", async () => {
+    const { makeContext, CANARIES } = await import("../data-policy/helpers.js");
+    const stateDirectory = await temporaryDirectory();
+    const command = relayCommand("send");
+    const turnId = command.kind === "send" ? command.input.turn_id : "turn-1";
+    const context = makeContext("business", "minimized", [
+      { id: "block-content", selector: "/message/content", action: "block", detector: "field" }
+    ]);
+    const journal = await new RelayJournal({
+      runId: command.run_id,
+      stateDirectory,
+      dataPolicy: context
+    }).open();
+    await journal.accept(command);
+    await journal.markStarted(command.command_id);
+    const completion = await journal.recordSuccess(command.command_id, {
+      protocol_version: "aw-target/0.1",
+      turn_id: turnId,
+      message: { role: "assistant", content: CANARIES.secret },
+      events: [],
+      finished: true,
+      metadata: {}
+    });
+    expect(completion).toMatchObject({
+      disposition: "outcome_indeterminate",
+      error: { code: "DATA_POLICY_BLOCKED", retryable: false }
+    });
+    const onDisk = await readFile(journal.path, "utf8");
+    expect(onDisk).not.toContain(CANARIES.secret);
+    expect(onDisk).not.toContain('"disposition":"completed"');
+    await journal.close();
+  });
 });

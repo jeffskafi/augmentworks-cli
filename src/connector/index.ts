@@ -25,6 +25,7 @@ export type {
   MappingPreviewExtractedField,
   MappingPreviewMissingField,
   MappingPreviewOmittedField,
+  MappingPreviewPrivacy,
   MappingPreviewRedaction,
   MappingPreviewReport,
   MappingPreviewRequest,

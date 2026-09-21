@@ -419,3 +419,23 @@ prepare, observation, tool-event, cleanup, and conversation capabilities from
 capability-free single-turn advertisement. An explicit `--config` path that
 is missing, malformed, or unresolved fails with the existing config
 diagnostic before authentication.
+
+## Outbound data policy
+
+Connector YAML does not yet author a data policy. Frozen `aw-data-policy/1`
+and `aw-redaction-profile/1` documents are supplied by the hosted contract
+(AUG-188) when real-data execution is wired. This CLI package implements the
+pure transforms:
+
+- `inspectOutbound(document, policy, profile, localSecrets)`
+- `applyRedactionProfile(input, profile, policy, secrets)`
+- `sealDataHandlingReceipt(...)`
+
+`preview-mapping` remains fixture-only: no login, target call, suite upload,
+or credit use. Passing a policy into the mapping-preview service shows
+retained fields, counts, effective policy, and limits. Ordinary terminal
+output must not print original secret or personal matches.
+
+A stale policy or profile hash fails closed before egress. A blocked target
+response is recorded as sanitized, non-retryable evidence-unavailable status.
+Local reports stay on the customer machine; hosted purge does not remove them.
