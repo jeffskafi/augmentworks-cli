@@ -57,7 +57,7 @@ function chatConfig(baseUrl: string, session = false): ResolvedConfig {
   };
 }
 
-function statefulConfig(baseUrl: string): ResolvedConfig {
+function statefulConfig(baseUrl: string, sendTimeoutMs?: number): ResolvedConfig {
   const config: AugmentWorksConfig = {
     version: 1,
     target: {
@@ -70,6 +70,7 @@ function statefulConfig(baseUrl: string): ResolvedConfig {
           method: "POST",
           path: "/chat",
           idempotent: false,
+          ...(sendTimeoutMs === undefined ? {} : { timeout_ms: sendTimeoutMs }),
           request: {
             message: "$input.message.content",
             attempt_id: "$input.attempt_id",
@@ -195,6 +196,59 @@ describe("connection probe", () => {
     expect(report.corrective_action).toMatch(/CHATBOT_BASE_URL/u);
     expect(report.diagnostics.map((item) => item.message).join(" ")).not.toMatch(/failed a (?:test|case|rubric)/iu);
     expect(probeExitCode(report)).toBe(EXIT.TARGET);
+  });
+
+  it("classifies a non-idempotent send timeout as timeout, not generic target", async () => {
+    const events: string[] = [];
+    const http = createServer((request, response) => {
+      const url = request.url ?? "";
+      if (url === "/__augmentworks/prepare") {
+        events.push("prepare");
+        void readJsonBody(request).then(() => sendJson(response, 200, { status: "ready" }));
+        return;
+      }
+      if (url === "/chat") {
+        events.push("send");
+        request.resume();
+        return;
+      }
+      if (url === "/__augmentworks/cleanup") {
+        events.push("cleanup");
+        void readJsonBody(request).then(() => {
+          response.writeHead(204);
+          response.end();
+        });
+        return;
+      }
+      sendJson(response, 404, { error: "not_found" });
+    });
+    const server = await listenLoopback(http);
+    servers.push(server);
+    try {
+      const report = await runConnectionProbe({
+        resolved: statefulConfig(server.baseUrl, 100),
+        execute: true
+      });
+      expect(report.ok).toBe(false);
+      expect(report.executed).toBe(true);
+      expect(report.failure_class).toBe("timeout");
+      expect(report.failure_class).not.toBe("target");
+      expect(report.failed_phase).toBe("send");
+      expect(report.hosted_contacted).toBe(false);
+      expect(report.credits_consumed).toBe(0);
+      expect(report.diagnostics.some((item) => item.code === "PROBE_TIMEOUT")).toBe(true);
+      expect(report.diagnostics.some((item) => item.code === "PROBE_TARGET")).toBe(false);
+      expect(report.diagnostics.map((item) => item.message).join(" ")).toMatch(/integration timeout/iu);
+      expect(report.diagnostics.map((item) => item.message).join(" ")).not.toMatch(/failed a (?:test|case|rubric)/iu);
+      expect(report.calls.some((call) => call.phase === "send" && call.ok === false && call.http_status === null)).toBe(
+        true
+      );
+      expect(report.calls.some((call) => call.phase === "cleanup" && call.ok)).toBe(true);
+      expect(events).toEqual(["prepare", "send", "cleanup"]);
+      expect(probeExitCode(report)).toBe(EXIT.TARGET);
+    } finally {
+      http.closeAllConnections();
+    }
   });
 
   it("classifies 401 as authentication", async () => {

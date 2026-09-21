@@ -117,6 +117,11 @@ const SESSION_CODES = new Set([
   "SESSION_CONVERSATION_ID_UNMAPPED"
 ]);
 
+// HTTP keeps TARGET_OUTCOME_INDETERMINATE for a timed-out non-idempotent send
+// (delivery may have completed; local runners must not blindly retry). Probe
+// classification still labels that abort as timeout. Do not put
+// TARGET_OUTCOME_INDETERMINATE in this set: connection-failed-after-dispatch
+// and wrapped HTTP errors reuse the same code with a different reason or errno.
 const TIMEOUT_CODES = new Set(["TARGET_TIMEOUT", "OPERATION_CANCELLED"]);
 const UNREACHABLE_CODES = new Set(["TARGET_UNREACHABLE"]);
 const CONNECTION_ERRNO = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ECONNRESET", "EHOSTUNREACH", "ENETUNREACH"]);
@@ -640,12 +645,27 @@ function errnoOf(error: unknown): string | undefined {
     const nested = (cause as { code?: unknown }).code;
     if (typeof nested === "string" && CONNECTION_ERRNO.has(nested)) return nested;
   }
-  const name = (error as { name?: unknown }).name;
-  if (name === "TimeoutError" || name === "AbortError") return "ABORT_TIMEOUT";
+  if (isAbortTimeoutError(error)) return "ABORT_TIMEOUT";
   const text = errorText(error);
   if (/\bbad port\b/iu.test(text)) return "ECONNREFUSED";
   const fromMessage = /\b(ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|EHOSTUNREACH|ENETUNREACH)\b/u.exec(text);
   return fromMessage?.[1];
+}
+
+function isAbortTimeoutError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current !== undefined && current !== null; depth += 1) {
+    if (typeof current === "string") {
+      return /\boperation timeout\b/iu.test(current);
+    }
+    if (typeof current !== "object") break;
+    const name = (current as { name?: unknown }).name;
+    if (name === "TimeoutError" || name === "AbortError") return true;
+    const message = (current as { message?: unknown }).message;
+    if (typeof message === "string" && /\boperation timeout\b/iu.test(message)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 function errorText(error: unknown): string {
@@ -707,7 +727,7 @@ function classifyProbeFailure(
   let failureClass: ProbeFailureClass = "target";
   if (phase === "cleanup") failureClass = "cleanup";
   else if (capture.errno !== undefined && CONNECTION_ERRNO.has(capture.errno)) failureClass = "connection_refusal";
-  else if (capture.errno === "ABORT_TIMEOUT" || (code !== undefined && TIMEOUT_CODES.has(code))) failureClass = "timeout";
+  else if (isTimeoutClassification(code, capture, aw ?? error)) failureClass = "timeout";
   else if (code !== undefined && UNREACHABLE_CODES.has(code)) failureClass = "connection_refusal";
   else if (status === 401 || status === 403) failureClass = "authentication";
   else if (
@@ -748,6 +768,18 @@ function classifyProbeFailure(
     correctiveAction: correctiveAction(failureClass),
     diagnostics
   };
+}
+
+function isTimeoutClassification(
+  code: string | undefined,
+  capture: HttpCapture,
+  error: unknown
+): boolean {
+  if (capture.errno === "ABORT_TIMEOUT") return true;
+  if (code !== undefined && TIMEOUT_CODES.has(code)) return true;
+  if (code !== "TARGET_OUTCOME_INDETERMINATE") return false;
+  const message = error instanceof Error ? error.message : errorText(error);
+  return /timed out/iu.test(message);
 }
 
 function jsonErrorName(value: JsonValue | undefined): string | undefined {

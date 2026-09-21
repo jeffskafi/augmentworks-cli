@@ -92,7 +92,8 @@ export class HttpConnector {
               ? "The target timed out; the operation may have completed. Observe state before retrying."
               : "The target operation timed out.",
             idempotent,
-            cause
+            cause,
+            !idempotent ? { reason_code: "TARGET_TIMEOUT" } : undefined
           );
         }
         if (signalIsAborted(context.signal)) {

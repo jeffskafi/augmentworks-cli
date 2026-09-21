@@ -321,7 +321,11 @@ describe("HttpConnector", () => {
         { message: { role: "user", content: "Hi" } },
         context({ turnId: "turn_1" })
       )
-    ).rejects.toMatchObject({ code: "TARGET_OUTCOME_INDETERMINATE", retryable: false });
+    ).rejects.toMatchObject({
+      code: "TARGET_OUTCOME_INDETERMINATE",
+      retryable: false,
+      details: { reason_code: "TARGET_TIMEOUT" }
+    });
   });
 
   it("marks an implicitly non-idempotent lifecycle timeout as indeterminate", async () => {
@@ -338,7 +342,8 @@ describe("HttpConnector", () => {
     );
     await expect(connector.execute("prepare", {}, context())).rejects.toMatchObject({
       code: "TARGET_OUTCOME_INDETERMINATE",
-      retryable: false
+      retryable: false,
+      details: { reason_code: "TARGET_TIMEOUT" }
     });
   });
 

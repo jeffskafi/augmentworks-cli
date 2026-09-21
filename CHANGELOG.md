@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `probe --yes` now classifies a non-idempotent send that exceeds
+  `operation_timeout_ms` as `failure_class=timeout` (`PROBE_TIMEOUT`) instead of
+  generic `target` (`PROBE_TARGET`)
+  ([AUG-168](https://linear.app/augmentworks/issue/AUG-168/qa-bugcli-probe-yes-classifies-a-send-operation-timeout-as-generic)).
+  HTTP still reports `TARGET_OUTCOME_INDETERMINATE` so local runners do not
+  blindly retry an ambiguous delivery. Connection refusal, hosted isolation, and
+  credit accounting are unchanged. Source `0.3.7` work; npm latest remains an
+  independently inspected published pin until the protected publish.
+
 ### Added
 
 - Coordinated live-informational CLI contract for [AUG-112](https://linear.app/augmentworks/issue/AUG-112/maincli-add-authorized-live-informational-assessments-with-truthful)
