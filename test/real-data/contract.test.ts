@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -13,15 +13,16 @@ import {
   looksLikeHostedExecutionScope
 } from "../../src/real-data/documents.js";
 import { assertHostedRealDataRelease, DISABLED_REAL_DATA_CAPABILITIES } from "../../src/real-data/capabilities.js";
-import { applyRedactionProfile, minimizeForUpload } from "../../src/real-data/privacy.js";
+import { applyRedactionProfile, failClosedPrivacyService, minimizeForUpload, registerPrivacyService } from "../../src/real-data/privacy.js";
 import { persistExecutionScopeBinding, loadExecutionScopeBinding, hostedBinding, assertBindingMatches } from "../../src/real-data/scope-store.js";
 import { requireHostedAuthorizedScope, resolveDispatchPolicyForBinding } from "../../src/real-data/hosted.js";
+import { consumeProbeAllowance } from "../../src/real-data/budget.js";
 import { assertCommandAllowed, authorizedDispatchPolicy } from "../../src/real-data/policy.js";
 import { classifyRealDataFailure } from "../../src/real-data/classify.js";
 import { realDataError } from "../../src/real-data/errors.js";
 import { revokeLocalScope, loadRevokedLocalScopeIds } from "../../src/real-data/local-revoke.js";
 import { assertLocalScopeNotRevoked, canonicalAssessedOrigin } from "../../src/real-data/boundary.js";
-import { consumeProbeAllowance } from "../../src/real-data/budget.js";
+import { privacyContextFromDocuments } from "../../src/real-data/r06-service.js";
 import { parseLocalPacket } from "../../src/local/packet.js";
 import type { RelayCommand } from "../../src/cloud/protocol.js";
 import { AwError } from "../../src/errors.js";
@@ -31,6 +32,7 @@ import {
   hostedScopeResponse,
   localAuthorizedPacketManifest,
   publicCredentialOnlyPolicy,
+  canaryRedactionPolicy,
   sealedBoundary,
   sealedLocalScope,
   UUID_C
@@ -54,6 +56,24 @@ describe("aw-real-data-1 contract lock", () => {
     expect(AW_REAL_DATA_CONTRACT.releaseEnabled).toBe(false);
     expect(AW_REAL_DATA_CONTRACT.runtimeEnforced).toBe(false);
     expect(AW_REAL_DATA_CONTRACT.imported).toBe(false);
+  });
+
+  it("records the exact R01 retrieval failure instead of fabricating files", async () => {
+    const retrieval = JSON.parse(
+      await readFile(resolve("contracts/aw-real-data-1.retrieval.json"), "utf8")
+    ) as {
+      imported: boolean;
+      verified: boolean;
+      expected: { schema: string; fixtures: string };
+      attempts: Array<{ command: string; status: number | null }>;
+    };
+    expect(retrieval.imported).toBe(false);
+    expect(retrieval.verified).toBe(false);
+    expect(retrieval.expected.schema).toBe(AW_REAL_DATA_CONTRACT.expected.schema);
+    expect(retrieval.expected.fixtures).toBe(AW_REAL_DATA_CONTRACT.expected.fixtures);
+    expect(retrieval.attempts.some((attempt) => /gh api repos\/jeffskafi\/augmentworks/.test(attempt.command))).toBe(
+      true
+    );
   });
 });
 
@@ -107,16 +127,50 @@ describe("hosted capabilities and release gate", () => {
 });
 
 describe("privacy fail-closed default", () => {
-  it("blocks personal content without an R06 privacy service", async () => {
-    const { policy, profile } = publicCredentialOnlyPolicy();
-    const personal = { ...policy, dataClass: "personal" as const };
+  it("blocks personal content when the fail-closed service is registered", async () => {
+    registerPrivacyService(failClosedPrivacyService);
+    try {
+      const { policy, profile } = publicCredentialOnlyPolicy();
+      const personal = { ...policy, dataClass: "personal" as const };
+      const result = await Promise.resolve(
+        applyRedactionProfile({ document: { email: "a@example.com" } }, profile, personal, [])
+      );
+      expect(result.blocked).toBe(true);
+      await expect(
+        minimizeForUpload({ document: { email: "a@example.com" } }, profile, personal, [])
+      ).rejects.toMatchObject({
+        code: "DATA_POLICY_BLOCKED"
+      });
+    } finally {
+      registerPrivacyService(undefined);
+    }
+  });
+
+  it("uses landed R06 for minimized personal and business content", async () => {
+    const { policy, profile } = canaryRedactionPolicy({ dataClass: "personal", contentHandling: "minimized" });
+    expect(() => privacyContextFromDocuments(policy, profile, [])).not.toThrow();
     const result = await Promise.resolve(
-      applyRedactionProfile({ document: { email: "a@example.com" } }, profile, personal, [])
+      applyRedactionProfile(
+        {
+          document: {
+            protocol_version: "aw-target/0.1",
+            turn_id: "turn-1",
+            message: { role: "assistant", content: "Hours 9. Contact canary.user@example.test" },
+            events: [],
+            finished: true,
+            metadata: { api_key: "sk-syntheticCanaryKey12" }
+          }
+        },
+        profile,
+        policy,
+        []
+      )
     );
-    expect(result.blocked).toBe(true);
-    await expect(minimizeForUpload({ document: { email: "a@example.com" } }, profile, personal, [])).rejects.toMatchObject({
-      code: "DATA_POLICY_BLOCKED"
-    });
+    expect(result.blocked).toBe(false);
+    const text = JSON.stringify(result.representation);
+    expect(text).not.toContain("canary.user@example.test");
+    expect(text).not.toContain("sk-syntheticCanaryKey12");
+    expect(text).toContain("Hours 9");
   });
 
   it("redacts credentials for public verbatim content", async () => {

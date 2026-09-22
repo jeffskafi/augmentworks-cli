@@ -6,6 +6,8 @@ import type {
   SendResult
 } from "../cloud/protocol.js";
 
+import type { DataPolicyContext } from "../data-policy/index.js";
+
 export type {
   AssistantMessage,
   ErrorEvent,
@@ -25,10 +27,12 @@ export interface ConnectorExecutionContext {
   readonly requestId?: string;
   readonly conversationId?: string;
   readonly signal?: AbortSignal;
+  readonly dataPolicy?: DataPolicyContext;
 }
 
 export interface HttpConnectorOptions {
   readonly fetch?: typeof globalThis.fetch;
+  readonly dataPolicy?: DataPolicyContext;
 }
 
 export type PrepareConnectorResult = PrepareResult;

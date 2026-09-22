@@ -21,40 +21,79 @@ function argValue(flag) {
   return process.argv[index + 1];
 }
 
+function fetchGithubFile(repo, path, ref) {
+  const result = spawnSync(
+    "gh",
+    ["api", `repos/${repo}/contents/${path}?ref=${ref}`],
+    { encoding: "utf8" }
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      `GitHub retrieval of ${path}@${ref} from ${repo} failed (${String(result.status)}): ${
+        (result.stderr || result.stdout || result.error?.message || "unknown error").trim()
+      }`
+    );
+  }
+  const payload = JSON.parse(result.stdout);
+  if (payload.type !== "file" || payload.encoding !== "base64" || typeof payload.content !== "string") {
+    throw new Error(`GitHub content for ${path} was not a base64 file.`);
+  }
+  return Buffer.from(payload.content.replace(/\n/g, ""), "base64").toString("utf8");
+}
+
 const from = argValue("--from") ?? process.env.AUGMENTWORKS_MAIN_REPO;
-if (from === undefined || from === "") {
-  throw new Error(
-    "Usage: node scripts/import-aw-real-data-contract.mjs --from <path-to-jeffskafi/augmentworks>\n" +
-      "Or set AUGMENTWORKS_MAIN_REPO. Main owns aw-real-data-1 schema and fixtures at " +
-      SOURCE_COMMIT +
-      "."
-  );
-}
-
-const mainRoot = resolve(from);
-const schemaSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.schema.json");
-const fixturesSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.fixtures.json");
-const checksumsSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.checksums.json");
-
-const git = spawnSync("git", ["-C", mainRoot, "rev-parse", "HEAD"], { encoding: "utf8" });
-if (git.status !== 0) {
-  throw new Error(`Could not read main repository HEAD at ${mainRoot}: ${git.stderr}`);
-}
-const commit = git.stdout.trim();
-if (commit !== SOURCE_COMMIT) {
-  process.stderr.write(
-    `Warning: main HEAD ${commit} is not the frozen R01 commit ${SOURCE_COMMIT}. Import still verifies checksums.json.\n`
-  );
-}
+const githubRepo =
+  argValue("--github") ?? process.env.AUGMENTWORKS_MAIN_GITHUB_REPO ?? "jeffskafi/augmentworks";
 
 await mkdir(resolve(root, "contracts"), { recursive: true });
 await mkdir(resolve(root, "src/real-data/generated"), { recursive: true });
-await copyFile(schemaSource, SCHEMA_PATH);
-await copyFile(fixturesSource, FIXTURES_PATH);
+
+let commit = SOURCE_COMMIT;
+let checksums;
+if (from !== undefined && from !== "") {
+  const mainRoot = resolve(from);
+  const schemaSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.schema.json");
+  const fixturesSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.fixtures.json");
+  const checksumsSource = resolve(mainRoot, "docs/contracts/aw-real-data-1.checksums.json");
+  const git = spawnSync("git", ["-C", mainRoot, "rev-parse", "HEAD"], { encoding: "utf8" });
+  if (git.status !== 0) {
+    throw new Error(`Could not read main repository HEAD at ${mainRoot}: ${git.stderr}`);
+  }
+  commit = git.stdout.trim();
+  if (commit !== SOURCE_COMMIT) {
+    process.stderr.write(
+      `Warning: main HEAD ${commit} is not the frozen R01 commit ${SOURCE_COMMIT}. Import still verifies checksums.json.\n`
+    );
+  }
+  await copyFile(schemaSource, SCHEMA_PATH);
+  await copyFile(fixturesSource, FIXTURES_PATH);
+  checksums = JSON.parse(await readFile(checksumsSource, "utf8"));
+} else {
+  process.stdout.write(
+    `No local main checkout; retrieving R01 from GitHub ${githubRepo}@${SOURCE_COMMIT}\n`
+  );
+  const schemaText = fetchGithubFile(githubRepo, "docs/contracts/aw-real-data-1.schema.json", SOURCE_COMMIT);
+  const fixturesText = fetchGithubFile(
+    githubRepo,
+    "docs/contracts/aw-real-data-1.fixtures.json",
+    SOURCE_COMMIT
+  );
+  const checksumsText = fetchGithubFile(
+    githubRepo,
+    "docs/contracts/aw-real-data-1.checksums.json",
+    SOURCE_COMMIT
+  );
+  await writeFile(SCHEMA_PATH, schemaText.endsWith("\n") ? schemaText : `${schemaText}\n`, "utf8");
+  await writeFile(
+    FIXTURES_PATH,
+    fixturesText.endsWith("\n") ? fixturesText : `${fixturesText}\n`,
+    "utf8"
+  );
+  checksums = JSON.parse(checksumsText);
+}
 
 const schemaHash = await hashFile(SCHEMA_PATH);
 const fixturesHash = await hashFile(FIXTURES_PATH);
-const checksums = JSON.parse(await readFile(checksumsSource, "utf8"));
 const expectedSchema =
   checksums.files?.["docs/contracts/aw-real-data-1.schema.json"] ?? checksums.schema ?? EXPECTED_SCHEMA_SHA256;
 const expectedFixtures =

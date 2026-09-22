@@ -62,10 +62,18 @@ export {
   applyRedactionProfile,
   sealDataHandlingReceipt,
   registerPrivacyService,
+  installLandedPrivacyService,
   getPrivacyService,
   minimizeForUpload,
+  assertAuthorizedPrivacyDocuments,
+  requireAuthorizedPrivacyDocuments,
   type PrivacyService
 } from "./privacy.js";
+export {
+  r06PrivacyService,
+  privacyContextFromDocuments,
+  dispatchPolicyPrivacyContext
+} from "./r06-service.js";
 export {
   assertHostedRealDataRelease,
   assertAuthorizedCapabilities,

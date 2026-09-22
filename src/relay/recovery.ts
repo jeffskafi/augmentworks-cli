@@ -833,7 +833,8 @@ async function createRunner(
     stateDirectory: context.stateDirectory,
     ...(context.signal === undefined ? {} : { signal: context.signal }),
     ...(context.onProgress === undefined ? {} : { onProgress: context.onProgress }),
-    ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
+    ...(dispatchPolicy === undefined ? {} : { dispatchPolicy }),
+    ...(context.resolvedConfig === undefined ? {} : { secrets: context.resolvedConfig.secrets })
   };
   return context.runner?.(options) ?? new RelayRunner(options);
 }

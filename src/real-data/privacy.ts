@@ -10,6 +10,8 @@ import {
   representationHash
 } from "./documents.js";
 import { realDataError } from "./errors.js";
+import type { DispatchPolicy } from "./policy.js";
+import { r06PrivacyService } from "./r06-service.js";
 
 export type JsonValue =
   | null
@@ -52,8 +54,35 @@ export function registerPrivacyService(service: PrivacyService | undefined): voi
   registered = service;
 }
 
+export function installLandedPrivacyService(): void {
+  registerPrivacyService(r06PrivacyService);
+}
+
 export function getPrivacyService(): PrivacyService {
-  return registered ?? failClosedPrivacyService;
+  return registered ?? r06PrivacyService;
+}
+
+export function assertAuthorizedPrivacyDocuments(policy: DispatchPolicy | undefined): void {
+  requireAuthorizedPrivacyDocuments(policy);
+}
+
+export function requireAuthorizedPrivacyDocuments(
+  policy: DispatchPolicy | undefined
+): { readonly dataPolicy: DataPolicy; readonly redactionProfile: RedactionProfile } | undefined {
+  if (policy === undefined || policy.kind !== "authorized") return undefined;
+  if (policy.dataPolicy === undefined) {
+    throw realDataError(
+      "UNSUPPORTED_DATA_POLICY",
+      "Authorized execution requires an admitted data policy. Raw content is not uploaded or written to artifacts."
+    );
+  }
+  if (policy.redactionProfile === undefined) {
+    throw realDataError(
+      "REDACTION_PROFILE_MISMATCH",
+      "Authorized execution requires the bound redaction profile. Raw content is not uploaded or written to artifacts."
+    );
+  }
+  return { dataPolicy: policy.dataPolicy, redactionProfile: policy.redactionProfile };
 }
 
 export function applyRedactionProfile(
@@ -113,6 +142,8 @@ const failClosedPrivacyService: PrivacyService = {
     return defaultSealDataHandlingReceipt(result, policy, profile, processor);
   }
 };
+
+export { failClosedPrivacyService };
 
 export function defaultApplyRedactionProfile(
   input: ApplyRedactionProfileInput,

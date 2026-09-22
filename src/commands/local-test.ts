@@ -25,6 +25,7 @@ import { runDoctor, type DoctorReport } from "./doctor.js";
 import { persistExecutionScopeBinding, localBinding } from "../real-data/scope-store.js";
 import { loadRevokedLocalScopeIds } from "../real-data/local-revoke.js";
 import { assertLocalScopeNotRevoked } from "../real-data/boundary.js";
+import { privacyContextFromDocuments } from "../real-data/r06-service.js";
 
 export interface LocalTestOptions {
   readonly config?: string;
@@ -99,8 +100,19 @@ export async function runLocalTest(
     });
     assertLocalScopeNotRevoked(loaded.manifest.execution_scope, revoked);
   }
+  const dataPolicy =
+    isLocalAuthorizedPacket(loaded.manifest)
+      ? privacyContextFromDocuments(
+          loaded.manifest.data_policy,
+          loaded.manifest.redaction_profile,
+          report.resolvedConfig.secrets
+        )
+      : undefined;
   const connector =
-    dependencies.connector?.(report.resolvedConfig) ?? new HttpConnector(report.resolvedConfig);
+    dependencies.connector?.(report.resolvedConfig) ??
+    new HttpConnector(report.resolvedConfig, {
+      ...(dataPolicy === undefined ? {} : { dataPolicy })
+    });
   const stderr = dependencies.stderr ?? process.stderr;
   const progress =
     dependencies.onProgress ??
@@ -116,7 +128,8 @@ export async function runLocalTest(
     secrets: report.resolvedConfig.secrets,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.runDeadlineMs === undefined ? {} : { runDeadlineMs: options.runDeadlineMs }),
-    ...(progress === undefined ? {} : { onProgress: progress })
+    ...(progress === undefined ? {} : { onProgress: progress }),
+    ...(dataPolicy === undefined ? {} : { dataPolicy })
   };
   const runner = dependencies.runner?.(runnerOptions) ?? new LocalRunner(runnerOptions);
   if (isLocalAuthorizedPacket(loaded.manifest)) {
@@ -164,7 +177,8 @@ export async function runLocalTest(
   const artifacts = await (dependencies.writeArtifacts ?? writeLocalArtifacts)({
     result,
     outputDirectory,
-    secrets: report.resolvedConfig.secrets
+    secrets: report.resolvedConfig.secrets,
+    ...(dataPolicy === undefined ? {} : { dataPolicy })
   });
   writeLine(stderr, `Local reports: ${sanitizeLocalLine(artifacts.directory)}`);
   if (options.open === true) {

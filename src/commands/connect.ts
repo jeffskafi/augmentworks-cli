@@ -185,7 +185,8 @@ export async function runConnect(
         ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         ...(runnerProgress === undefined ? {} : { onProgress: runnerProgress }),
-        ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
+        ...(dispatchPolicy === undefined ? {} : { dispatchPolicy }),
+        secrets: report.resolvedConfig.secrets
       };
       activeRunner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
       const run = await activeRunner.run();
