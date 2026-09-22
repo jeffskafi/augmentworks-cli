@@ -8,11 +8,14 @@ export const LOCK_PATH = resolve(root, "contracts/aw-real-data-1.lock.json");
 export const GENERATED_PATH = resolve(root, "src/real-data/generated/contract.ts");
 export const SCHEMA_PATH = resolve(root, "contracts/aw-real-data-1.schema.json");
 export const FIXTURES_PATH = resolve(root, "contracts/aw-real-data-1.fixtures.json");
+export const CHECKSUMS_PATH = resolve(root, "contracts/aw-real-data-1.checksums.json");
 
 export const EXPECTED_SCHEMA_SHA256 =
   "6a53d04f297eb4db275bb7074bf7705a08137d932be823a3f4087d84cfdf7121";
 export const EXPECTED_FIXTURES_SHA256 =
   "26033843d55dcb9b49ccf68fa96f7de9ec34aa6c299e8ab28b605cad37572230";
+export const EXPECTED_CHECKSUMS_SHA256 =
+  "df6c3be22fcf22efd5ac540dee83ac63a3a1e72e335d0f728dd55fcddd9fb20d";
 export const SOURCE_COMMIT = "b198906188bab2dac9ae2a1ad539405807e46e1e";
 
 export function canonicalLfText(value) {
@@ -80,6 +83,7 @@ export async function assertVendoredContract() {
 
   const schemaPresent = await fileExists(SCHEMA_PATH);
   const fixturesPresent = await fileExists(FIXTURES_PATH);
+  const checksumsPresent = await fileExists(CHECKSUMS_PATH);
   if (lock.imported === true) {
     if (!schemaPresent || !fixturesPresent) {
       errors.push("lock.imported is true but contracts/aw-real-data-1.schema.json or fixtures are missing");
@@ -99,7 +103,15 @@ export async function assertVendoredContract() {
         errors.push("lock files fixtures hash diverges from the imported file");
       }
     }
-  } else if (schemaPresent || fixturesPresent) {
+    if (!checksumsPresent) {
+      errors.push("lock.imported is true but contracts/aw-real-data-1.checksums.json is missing");
+    } else {
+      const checksumsHash = await hashFile(CHECKSUMS_PATH);
+      if (checksumsHash !== EXPECTED_CHECKSUMS_SHA256) {
+        errors.push(`imported checksums hash ${checksumsHash} expected ${EXPECTED_CHECKSUMS_SHA256}`);
+      }
+    }
+  } else if (schemaPresent || fixturesPresent || checksumsPresent) {
     errors.push(
       "R01 schema/fixture bytes are present but lock.imported is false. Re-run node scripts/import-aw-real-data-contract.mjs --from <main-repo>"
     );

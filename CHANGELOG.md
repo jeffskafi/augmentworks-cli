@@ -16,7 +16,22 @@ All notable changes to this project are documented here. The format follows
   is not hosted authority. This text is not legal approval and does not publish
   a new npm pin.
 
+- `init --agent` and `test --local` progress copy now match that gated claim
+  ([AUG-188](https://linear.app/augmentworks/issue/AUG-188/cli-support-real-data-execution-in-hosted-and-fully-offline-workflows)
+  handoff from AUG-196). Generated agent setup no longer tells operators to add
+  only synthetic hooks. Local cancellation/progress lines no longer label
+  `aw-packet/local-authorized-1` runs synthetic. Hosted quote and admission
+  stay release-disabled.
+
 ### Added
+
+- Frozen AW-REAL-DATA-1 revision 1 schema, fixtures, and checksums are vendored
+  from the verified Linear attachment on
+  [AUG-188](https://linear.app/augmentworks/issue/AUG-188/cli-support-real-data-execution-in-hosted-and-fully-offline-workflows)
+  (`jeffskafi/augmentworks@b198906188bab2dac9ae2a1ad539405807e46e1e`).
+  `contracts/aw-real-data-1.lock.json` records `imported: true` with
+  `releaseEnabled` and `runtimeEnforced` still false. Generic fabricated
+  contract bytes only; no customer records.
 
 - CLI privacy transforms for [AUG-189](https://linear.app/augmentworks/issue/AUG-189/cli-minimize-real-customer-content-before-upload-journals-and-exports)
   (`AW-REAL-DATA-1` R06). Frozen `aw-data-policy/1` /

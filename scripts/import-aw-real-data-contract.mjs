@@ -3,6 +3,8 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
+  CHECKSUMS_PATH,
+  EXPECTED_CHECKSUMS_SHA256,
   EXPECTED_FIXTURES_SHA256,
   EXPECTED_SCHEMA_SHA256,
   FIXTURES_PATH,
@@ -67,6 +69,7 @@ if (from !== undefined && from !== "") {
   }
   await copyFile(schemaSource, SCHEMA_PATH);
   await copyFile(fixturesSource, FIXTURES_PATH);
+  await copyFile(checksumsSource, CHECKSUMS_PATH);
   checksums = JSON.parse(await readFile(checksumsSource, "utf8"));
 } else {
   process.stdout.write(
@@ -89,6 +92,7 @@ if (from !== undefined && from !== "") {
     fixturesText.endsWith("\n") ? fixturesText : `${fixturesText}\n`,
     "utf8"
   );
+  await writeFile(CHECKSUMS_PATH, checksumsText, "utf8");
   checksums = JSON.parse(checksumsText);
 }
 
@@ -112,6 +116,13 @@ if (schemaHash !== EXPECTED_SCHEMA_SHA256 || fixturesHash !== EXPECTED_FIXTURES_
     `Imported files do not match the frozen R01 hashes recorded in AUG-188.\n` +
       `schema ${schemaHash} expected ${EXPECTED_SCHEMA_SHA256}\n` +
       `fixtures ${fixturesHash} expected ${EXPECTED_FIXTURES_SHA256}`
+  );
+}
+const checksumsHash = await hashFile(CHECKSUMS_PATH);
+if (checksumsHash !== EXPECTED_CHECKSUMS_SHA256) {
+  throw new Error(
+    `Imported checksums.json does not match the frozen R01 hash recorded in AUG-188.\n` +
+      `checksums ${checksumsHash} expected ${EXPECTED_CHECKSUMS_SHA256}`
   );
 }
 
