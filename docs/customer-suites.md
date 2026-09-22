@@ -16,9 +16,19 @@ live target as synthetic.
 `execution_scope` instead of `synthetic_only` / `live_target`. Offline
 validate, preview, and preflight accept that format. Hosted quote and create
 stay fail-closed with `EXECUTION_RELEASE_UNAVAILABLE` until the advertised
-server capability and release gate are verified. Unknown schema versions fail
-closed and are never downgraded to synthetic. Local authorized packets use
-`aw-packet/local-authorized-1` and cannot be presented as hosted authority.
+server capability and release gate are verified. Hosted real-data quote and
+admission stay release-disabled; this document does not claim that release is
+enabled. Unknown schema versions fail closed and are never downgraded to
+synthetic. Local authorized packets use `aw-packet/local-authorized-1`, stay
+account-free, and cannot be presented as hosted authority.
+
+Older `aw-suite/1` / `aw-packet/0.1` files still work and remain synthetic.
+`aw-suite/2` live-informational files still require `synthetic_only: false`.
+The minimum published npm artifact for a later real-data release is decided by
+the publication gate; do not guess a version. Packaged examples in this
+document are fictional. This text is not legal approval. Do not set
+`synthetic_only: true` on a live or authorized document, grant `suite:write`
+to a machine key, or test a third party without authority.
 
 The command exists in this `0.3.7` package. Native hosted
 `aw-customer-suite/1` upload translation is source on this revision and is

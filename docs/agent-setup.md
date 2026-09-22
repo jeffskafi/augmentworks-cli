@@ -24,9 +24,13 @@ Do not run `@latest`. Do not pin immutable npm `0.3.5` / `0.3.4` / `0.3.3` or ov
 Independent inspection of 0.3.5 is recorded in
 `docs/feature-readiness/published-registry-evidence.json`.
 
-Prerequisites: Node.js 20+, an authorized isolated synthetic target (or the
-packaged source demo), and synthetic test data only. Do not connect production
-systems or use production or regulated data.
+Prerequisites: Node.js 20+ and either the packaged fictional demo or a target
+you are authorized to call. Test your chatbot with your questions and business
+rules. That hosted scope stays off until a compatible published release is
+enabled. Until then, hosted runs
+use an authorized, isolated synthetic or staging target and constructed test
+data. Hosted real-data quote and admission stay release-disabled. This text is
+not legal approval.
 
 ## Canonical setup prompt
 
@@ -60,13 +64,17 @@ Then configure the generic YAML HTTP connector. Do not require a Python adapter
 or AugmentWorks target SDK; implement only missing synthetic hooks in this
 application's existing framework.
 
-Generate augmentworks.yaml and .env.example, and add only the minimum synthetic
-prepare/send/observe/cleanup hooks needed for the selected packet. Use only an
-authorized, isolated synthetic target in a test or staging environment and
-synthetic test data. Do not connect production systems or use production or
-regulated data. Never put a secret value in YAML, source code, a command
-argument, chat, or a diff. Use environment-variable names and .env.example
-placeholders.
+Generate augmentworks.yaml and .env.example, and add only the minimum
+prepare/send/observe/cleanup hooks needed for the selected packet. Prefer the
+packaged fictional starter. While hosted real-data is release-disabled, use an
+authorized, isolated synthetic or staging target and constructed test data. Do
+not point a hosted run at a production system, and do not upload production,
+customer, or regulated records, until a compatible published release is
+enabled. Do not set synthetic_only: true on a live or authorized document,
+grant suite:write to a machine key, strip --max-credits, test a third party
+without authority, or send outreach. Never commit customer or private fixtures.
+Never put a secret value in YAML, source code, a command argument, chat, or a
+diff. Use environment-variable names and .env.example placeholders.
 
 Run:
 
@@ -86,8 +94,9 @@ insert credentials.
 
 ## Expected assistant workflow
 
-1. Confirm the approved repository root, existing tests, and an authorized,
-   isolated synthetic target in a test or staging environment.
+1. Confirm the approved repository root, existing tests, and a target the
+   customer is authorized to call. While hosted real-data is release-disabled,
+   that target is an isolated synthetic or staging environment.
 2. If the user wants a first assessment without an application target, and this
    is a clone of this repository with a build, run `node dist/index.js demo`.
    Otherwise start with `doctor --offline`.
@@ -98,9 +107,9 @@ insert credentials.
    without `--force`. `--agent` is an explicit opt-in that writes
    `augmentworks.agent.md` only.
 6. Use the generic YAML HTTP connector. Add narrowly scoped, authenticated
-   synthetic lifecycle hooks in the application's native framework only if
-   needed. Do not fabricate an OpenAI, LangServe, MCP, or framework-specific
-   adapter the CLI does not provide.
+   lifecycle hooks in the application's native framework only if needed. The
+   packaged starter remains a fictional fixture. Do not fabricate an OpenAI,
+   LangServe, MCP, or framework-specific adapter the CLI does not provide.
 7. Make cleanup idempotent, give fixtures a server-side TTL, and account for the
    fact that a hard process or machine failure cannot guarantee cleanup.
 8. Configure the smallest useful telemetry allowlist.

@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Customer-facing CLI copy no longer states a blanket synthetic-only product
+  ban ([AUG-196](https://linear.app/augmentworks/issue/AUG-196/main-cli-replace-blanket-synthetic-only-copy-contracts-and-setup)).
+  Hosted real-data quote and admission stay release-disabled until a compatible
+  published release is enabled. `aw-packet/0.1` and fictional starters stay
+  synthetic. `aw-packet/local-authorized-1` remains local and account-free and
+  is not hosted authority. This text is not legal approval and does not publish
+  a new npm pin.
+
 ### Added
 
 - CLI privacy transforms for [AUG-189](https://linear.app/augmentworks/issue/AUG-189/cli-minimize-real-customer-content-before-upload-journals-and-exports)

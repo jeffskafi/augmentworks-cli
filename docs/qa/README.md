@@ -69,9 +69,11 @@ Rules:
 2. Use an isolated checkout, `HOME`, task directory, output leaf, and
    loopback fixture. Do not reuse another worker's journals, keys, or
    `--output-dir`.
-3. Point `CHATBOT_BASE_URL` at a **task-owned** loopback or authorized
-   isolated synthetic target. Do not connect production systems or use
-   production/regulated data. Do not copy third-party website selectors.
+3. Point `CHATBOT_BASE_URL` at a **task-owned** loopback or fictional fixture.
+   CI examples stay fabricated. A real assessment of customer records requires
+   target-owner authority and a compatible published release; hosted real-data
+   quote and admission stay release-disabled here. Do not copy third-party
+   website selectors or commit customer production data.
 4. Observe outbound calls (process wrapper, HTTP log, or `unshare --net` when
    the kernel allows it). If namespace isolation is denied, record
    **blocked** with the kernel error; do not treat that as a silent pass.

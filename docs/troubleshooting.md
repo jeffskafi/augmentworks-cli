@@ -19,6 +19,22 @@ OK OFFLINE_CHECK_COMPLETE: No target hooks or cloud operations were invoked.
 Doctor passed.
 ```
 
+## Data scope and release gate
+
+Hosted real-data quote and admission stay release-disabled
+(`EXECUTION_RELEASE_UNAVAILABLE`) until a compatible published release is
+enabled and an operator verifies it. While that gate is closed, use an
+authorized, isolated synthetic or staging target and constructed test data. Do
+not point a hosted run at a production system, and do not upload production,
+customer, or regulated records.
+
+`aw-packet/0.1` and `aw-suite/1` files still work. `aw-suite/2` still requires
+`synthetic_only: false` and is not relabeled as synthetic. `aw-suite/3` and
+`aw-packet/local-authorized-1` are explicit. Offline local execution stays
+account-free and never contacts AugmentWorks. This package does not guess the
+minimum published npm version for a later real-data release, and this text is
+not legal approval. Packaged starters remain fictional.
+
 ## Common failures
 
 ### Config or `.env` is not found
