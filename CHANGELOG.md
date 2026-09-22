@@ -31,6 +31,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The hosted GitHub Actions recipes continue to `gate` when `run wait` exits 11
+  because billing status is `completed` / `complete` / `outcome` null
+  ([AUG-201](https://linear.app/augmentworks/issue/AUG-201/qa-bugcli-hosted-github-actions-recipe-treats-wait-exit-11-as)).
+  That document is a terminal status query, not unfinished grading. Pending and
+  partial evaluation still skip the gate. `run wait` and `run status` still
+  exit 11 when billing `outcome` is null. Source `0.3.7` recipe; this does not
+  publish the package.
+
 - `probe --yes` now classifies a non-idempotent send that exceeds
   `operation_timeout_ms` as `failure_class=timeout` (`PROBE_TIMEOUT`) instead of
   generic `target` (`PROBE_TARGET`)
