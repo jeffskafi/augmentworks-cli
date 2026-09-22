@@ -7,6 +7,20 @@ application's existing framework. In hosted mode the relay cannot change the
 configured host, path, method, headers, environment-variable names, or mappings
 during a run. In local mode no relay or AugmentWorks service is contacted.
 
+## Data scope
+
+Test your chatbot with your questions and business rules. That hosted scope
+stays off until a compatible published release is enabled. Until then, hosted
+runs use an authorized,
+isolated synthetic or staging target and constructed test data. Hosted
+real-data quote and admission stay release-disabled. The lifecycle table below
+describes the fictional starter and that current hosted path. Offline
+`aw-packet/0.1` stays synthetic-only and account-free.
+`aw-packet/local-authorized-1` is a customer-declared local scope and is not
+hosted authority. Packaged examples remain fictional. This text is not legal
+approval. Do not commit customer or private fixtures, and do not pass
+production transcripts to `preview-mapping`.
+
 ## File and environment resolution
 
 The default filename is `augmentworks.yaml`. Select another file with `-c` or

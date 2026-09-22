@@ -81,9 +81,10 @@ Attempts execute serially. Cleanup runs in a `finally` path whenever a fixture
 may exist, and a cleanup failure stops subsequent attempts. The first Ctrl+C
 requests cancellation, aborts non-cleanup work, and drains cleanup; a second
 interrupt exits immediately. A process crash, machine failure, `SIGKILL`, or
-second interrupt can prevent cleanup. Lifecycle hooks must therefore be scoped
-to isolated synthetic data, cleanup must be idempotent, and fixtures need a
-server-side TTL independent of the CLI. The CLI stops new target work at a
+second interrupt can prevent cleanup. Lifecycle hooks that create or mutate fixtures must therefore be scoped to
+data the customer is authorized to change, cleanup must be idempotent, and
+fixtures need a server-side TTL independent of the CLI. The packaged starter
+uses isolated synthetic data. The CLI stops new target work at a
 30-minute local run deadline while still allowing bounded cleanup to drain.
 
 Local mode writes `report.json`, `junit.xml`, and a script-free static
@@ -198,9 +199,17 @@ secret from a connector that executes it. The hosted service can retain
 undispatched branches, assertions, scorer logic, and comparative data; a local
 packet and all of its assertions are necessarily visible to the customer.
 
-Use only an authorized, isolated synthetic target and synthetic test data. Do
-not connect production systems or use production or regulated data. Logs and
-evidence should be treated as sensitive even after allowlisting.
+Test your chatbot with your questions and business rules. That hosted scope
+stays off until a compatible published release is enabled. Until then, hosted
+runs use an authorized,
+isolated synthetic or staging target and constructed test data. Hosted
+real-data quote and admission stay release-disabled. Do not point a hosted run
+at a production system, and do not upload production, customer, or regulated
+records, while that release is disabled. Secrets, PHI, payment-card
+credentials, and other separately restricted data stay out of evaluation
+content. This text is not legal approval and does not claim SOC 2, HIPAA, or
+Zero Data Retention. Logs and evidence should be treated as sensitive even
+after allowlisting.
 
 ### Outbound data policy
 
@@ -208,8 +217,10 @@ When a frozen `aw-data-policy/1` document and bound `aw-redaction-profile/1`
 are supplied, the CLI projects content through
 `inspectOutbound(document, policy, profile, localSecrets)` before a mapping
 preview hashes evidence, before a journal append, and before local report
-files are written. The hosted executor (AUG-188) is the remaining owner of
-command, suite, and upload wiring. Hosted real-data remains unavailable.
+files are written. Hosted real-data quote and admission remain release-disabled
+until a compatible published release is enabled and an operator verifies it.
+Contract vending for that release stays with the runtime owner; this document
+does not enable it.
 
 Credentials are excluded in both `minimized` and `verbatim` content handling.
 Verbatim may retain expressly permitted personal fields; it is not a license
@@ -258,8 +269,11 @@ result files.
 
 ## Operational safeguards
 
-- v0.2 supports authorized, isolated synthetic targets in test or staging
-  environments and synthetic test data only.
+- v0.2 hosted runs in this package use an authorized, isolated synthetic or
+  staging target and constructed test data while hosted real-data is
+  release-disabled. Offline `aw-packet/0.1` stays synthetic-only and
+  account-free. `aw-packet/local-authorized-1` never contacts AugmentWorks and
+  is not hosted authority.
 - `doctor` performs no lifecycle operation and consumes no assessment credit.
 - `preview-mapping` applies the same production mapping and redaction pipeline
   to a caller-supplied synthetic JSON fixture. It reads only that fixture and

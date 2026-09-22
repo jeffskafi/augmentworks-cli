@@ -3,7 +3,7 @@
 [![CI](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffskafi/augmentworks-cli/actions/workflows/ci.yml)
 
 AugmentWorks is regression testing for AI agents: it checks conversational
-responses, reported tool calls, and configured synthetic application state.
+responses, reported tool calls, and configured application state.
 It is for engineers and coding assistants who need a deterministic first
 assessment without treating a chatbot saying “done” as proof that state
 changed.
@@ -16,8 +16,8 @@ target SDK, and no coding assistant is used in either runtime path.
 | Path | What it is | Needs | Status |
 | --- | --- | --- | --- |
 | Packaged `demo` | Loopback-only synthetic refund target, isolated fixtures, and the real local runner/scorer. Shows a policy bug, then the same packet passing after the policy is enforced. | Node.js 20+ | In this `@augmentworks/cli@0.3.7` package |
-| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and an authorized isolated synthetic target | In this `@augmentworks/cli@0.3.7` package |
-| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, isolated synthetic target | In this `@augmentworks/cli@0.3.7` package, including quoted `--estimate` / `--max-credits` |
+| Local `test --local` | Customer-executed scoring of a data-only packet against *your* configured target. Requires no AugmentWorks account and contacts no AugmentWorks service. | Node.js 20+, a connector YAML, and a target you are authorized to call. The bundled starter is an isolated synthetic fixture. | In this `@augmentworks/cli@0.3.7` package |
+| Hosted `test` | Outbound HTTPS relay assessment with a live dashboard. Browser approval does not start a run. Pending hosted judging is never a pass. | Invited workspace, login, and an authorized isolated synthetic or staging target while hosted real-data is release-disabled | In this `@augmentworks/cli@0.3.7` package, including quoted `--estimate` / `--max-credits` |
 
 Product site: [https://augmentworks.ai](https://augmentworks.ai).
 Report schemas: `schema --kind local-packet` and `schema --kind local-result`.
@@ -92,8 +92,9 @@ this pin as a live registry probe of 0.3.7, and do not use `@latest` or
 ## Hosted quickstart
 
 Prerequisites: Node.js 20 or newer, an invited AugmentWorks workspace, and an
-authorized, isolated synthetic test target. Hosted access is not a public
-self-serve signup; do not assume a trial entitlement.
+authorized, isolated synthetic or staging target while hosted real-data is
+release-disabled. Hosted access is not a public self-serve signup; do not
+assume a trial entitlement.
 
 This `@augmentworks/cli@0.3.7` package can log in, run `--assessment`, and
 `init` writes `augmentworks.assessment.yaml`. From a clone after
@@ -118,7 +119,7 @@ npx --yes @augmentworks/cli@0.3.7 login
 
 npx --yes @augmentworks/cli@0.3.7 init --agent
 # This 0.3.7 package writes augmentworks.assessment.yaml and starter files.
-# Edit .env with isolated synthetic target values.
+# Edit .env for the authorized target. The packaged starter is an isolated synthetic fixture.
 
 npx --yes @augmentworks/cli@0.3.7 doctor \
   -c augmentworks.yaml
@@ -456,10 +457,10 @@ in `docs/feature-readiness/published-registry-evidence.json`.
 ## Local assessment
 
 No AugmentWorks account, login, credit, relay, or dashboard is required. Point
-the published CLI at **your** authorized isolated synthetic target, or clone
-this repository for the refund-agent example server. `examples/` is not in the
-npm tarball. The local CLI itself is this `0.3.7` package. This path
-is not the packaged `demo` command.
+the published CLI at a target you are authorized to call, or clone this
+repository for the fictional refund-agent example server. The bundled starter
+packet is synthetic. `examples/` is not in the npm tarball. The local CLI
+itself is this `0.3.7` package. This path is not the packaged `demo` command.
 
 ```bash
 git clone https://github.com/jeffskafi/augmentworks-cli.git
@@ -511,7 +512,7 @@ That mode never loads a keychain, refreshes, or persists credentials. Differing
 nonempty `AUGMENTWORKS_API_KEY` and `AUGMENTWORKS_TOKEN` values fail closed
 before any network call. `AUGMENTWORKS_TOKEN` remains available for paired
 token/refresh injection when the API key is unset. `CHATBOT_API_KEY` is only
-the synthetic target secret named by YAML `bearer_env`; it is not a platform
+the target secret named by YAML `bearer_env`; it is not a platform
 key. Do not run `logout` from routine CI cleanup.
 
 ## Configuration
@@ -818,19 +819,43 @@ that the observer is truthful or that staging matches production.
   connector, session, run, packet, configuration, and sequence bindings.
 - A customer-operated observation hook can be incorrect or dishonest, and a
   staging result is not proof of production equivalence.
-- v0.2 is for authorized, isolated synthetic targets in test or staging
-  environments and synthetic test data only. Do not connect production systems
-  or use production or regulated data. This package keeps that same target
-  boundary.
+- v0.2 hosted runs in this package use an authorized, isolated synthetic or
+  staging target and constructed test data while hosted real-data is
+  release-disabled. See [Data scope](#data-scope).
 
 Read the complete [security model](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/security-model.md),
 [relay protocol](https://github.com/jeffskafi/augmentworks-cli/blob/main/docs/protocol.md), and
 [security policy](SECURITY.md).
 
-## Next step: your own synthetic target
+## Data scope
 
-After the packaged demo, configure the generic HTTP connector against an
-authorized, isolated synthetic target in a test or staging environment:
+Test your chatbot with your questions and business rules. That hosted scope
+stays off until a compatible published release is enabled. Until then, hosted
+assessments use an authorized,
+isolated synthetic or staging target and constructed test data. Hosted
+real-data quote and admission stay release-disabled (`EXECUTION_RELEASE_UNAVAILABLE`).
+Do not point a hosted run at a production system, and do not upload production,
+customer, or regulated records, while that release is disabled.
+
+When the release is enabled, a customer administrator authorizes an exact owned
+target (`owned_target` or `written_permission`) and a data policy for public,
+business, or ordinary personal content. Hostname control is not ownership.
+Secrets, PHI, payment-card credentials, and other separately restricted data
+stay out of evaluation content. This text is not legal approval and does not
+claim SOC 2, HIPAA, Zero Data Retention, or guaranteed reversal of actions.
+
+Offline `aw-packet/0.1` stays synthetic-only and account-free.
+`aw-packet/local-authorized-1` is a customer-declared local scope that never
+contacts AugmentWorks and is not hosted authority. Older synthetic and
+live-informational files still load. Packaged examples and starters remain
+fictional. The minimum published npm artifact for a later real-data release is
+owned by the publication gate; this package does not guess that version.
+
+## Next step: your own target
+
+After the packaged demo, configure the generic HTTP connector. While hosted
+real-data is release-disabled, use an authorized, isolated synthetic or staging
+target:
 
 1. `npx --yes @augmentworks/cli@0.3.7 init --agent`
 2. `node dist/index.js init` or `node dist/index.js init --starter workflow` from a clone after `npm ci && npm run build`. Map only the hooks required by that pattern.

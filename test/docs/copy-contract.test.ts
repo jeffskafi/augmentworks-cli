@@ -45,7 +45,8 @@ import {
   SOURCE_SELECTION_COMPILE_COMMAND,
   SOURCE_TEST_SHARD_COMMAND,
   SOURCE_GATE_MANIFEST_COMMAND,
-  allowedDocumentedNpxPins
+  allowedDocumentedNpxPins,
+  initNextSteps
 } from "../../src/release.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -190,22 +191,58 @@ describe("customer-facing CLI copy", () => {
     expect(readme).toContain("Target authentication is separate");
   });
 
-  it("requires an isolated synthetic target and synthetic-only data", async () => {
+  it.each([
+    "README.md",
+    "docs/agent-setup.md",
+    "docs/security-model.md",
+    "docs/configuration.md",
+    "docs/troubleshooting.md",
+    "docs/customer-suites.md",
+    "docs/qa/README.md",
+    "agent-resources/guidance.md",
+    "assets/starters/response-quality/OWN-TARGET.md",
+    "assets/starters/workflow/OWN-TARGET.md"
+  ] as const)("%s does not keep a blanket synthetic-only product ban", async (path) => {
+    const content = (await readSurface(path)).replace(/\s+/gu, " ");
+    const obsolete = [
+      /Do not connect production systems or use production or regulated data\./u,
+      /synthetic test data only\./u,
+      /Use only an authorized, isolated synthetic target and synthetic test data\./u,
+      /v0\.2 is for authorized, isolated synthetic targets/u,
+      /v0\.2 supports authorized, isolated synthetic targets in test or staging environments and synthetic test data only\./u,
+      /This package keeps that same target boundary\./u
+    ];
+    for (const pattern of obsolete) {
+      expect(content, pattern.source).not.toMatch(pattern);
+    }
+    expect(content).toMatch(/release-disabled/u);
+    expect(content.toLowerCase()).toContain("synthetic");
+  });
+
+  it("states gated real-data availability without claiming the release is on", async () => {
     const readme = (await readSurface("README.md")).replace(/\s+/gu, " ");
     const agentSetup = (await readSurface("docs/agent-setup.md")).replace(/\s+/gu, " ");
     const securityModel = (await readSurface("docs/security-model.md")).replace(/\s+/gu, " ");
+    const troubleshooting = (await readSurface("docs/troubleshooting.md")).replace(/\s+/gu, " ");
 
-    expect(readme).toContain("authorized, isolated synthetic targets");
-    expect(readme).toContain(
-      "Do not connect production systems or use production or regulated data."
-    );
-    expect(agentSetup).toContain(
-      "Use only an authorized, isolated synthetic target in a test or staging environment and synthetic test data."
-    );
+    for (const content of [readme, agentSetup, securityModel]) {
+      expect(content).toContain("Test your chatbot with your questions and business rules.");
+      expect(content).toContain("hosted real-data");
+      expect(content).toContain("release-disabled");
+      expect(content).toContain("This text is not legal approval");
+      expect(content).not.toMatch(/real-data is (already )?enabled/iu);
+      expect(content).not.toMatch(/\b(SOC\s*2|HIPAA)\b[^\n.]{0,80}\b(certified|compliant)\b/iu);
+    }
+    expect(readme).toContain("aw-packet/local-authorized-1");
+    expect(readme).toContain("account-free");
+    expect(readme).toContain("fictional");
+    expect(agentSetup).toContain("suite:write");
     expect(agentSetup).not.toContain("Use test or staging data only.");
-    expect(securityModel).toContain(
-      "Use only an authorized, isolated synthetic target and synthetic test data."
-    );
+    expect(securityModel).toContain("Zero Data Retention");
+    expect(troubleshooting).toContain("synthetic_only: false");
+    expect(troubleshooting).toContain("aw-packet/0.1");
+    expect(initNextSteps()).toContain("hosted real-data stays release-disabled");
+    expect(initNextSteps()).not.toContain("isolated synthetic target values");
   });
 
   it("documents the local no-control-plane boundary without promising an air gap", async () => {
