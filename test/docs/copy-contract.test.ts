@@ -250,7 +250,7 @@ describe("customer-facing CLI copy", () => {
     const localTest = await readSurface("src/commands/local-test.ts");
     expect(init).toContain("Add only the prepare, send, observe, and cleanup hooks required by the selected pattern.");
     expect(init).toContain("The packaged starter is fictional.");
-    expect(init).toContain("hosted real-data quote and admission stay release-disabled");
+    expect(init).toContain("Hosted real-data quote and admission stay release-disabled");
     expect(init).toContain("Do not set \\`synthetic_only: true\\` on a live or authorized document");
     expect(init).not.toContain("Add only synthetic prepare, send, observe, and cleanup hooks");
     expect(init).not.toContain("Preview mappings with a synthetic JSON fixture");

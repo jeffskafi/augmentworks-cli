@@ -60,7 +60,7 @@ describe("configuration commands", () => {
     expect(agent).toContain(`npx --yes @augmentworks/cli@${HOSTED_COMMAND_PIN} doctor -c augmentworks.yaml`);
     expect(agent).toContain("Add only the prepare, send, observe, and cleanup hooks required by the selected pattern.");
     expect(agent).toContain("The packaged starter is fictional.");
-    expect(agent).toContain("hosted real-data quote and admission stay release-disabled");
+    expect(agent).toContain("Hosted real-data quote and admission stay release-disabled");
     expect(agent).not.toContain("Add only synthetic prepare, send, observe, and cleanup hooks");
     expect(agent).not.toContain("Preview mappings with a synthetic JSON fixture");
     if (LOCAL_DISTRIBUTION === "git") {
