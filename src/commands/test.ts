@@ -468,7 +468,8 @@ async function executeHostedSelection(
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(progress === undefined ? {} : { onProgress: progress }),
       ...(livePolicy === undefined ? {} : { livePolicy }),
-      ...(dispatchPolicy === undefined ? {} : { dispatchPolicy })
+      ...(dispatchPolicy === undefined ? {} : { dispatchPolicy }),
+      secrets: report.resolvedConfig.secrets
     };
     const runner = dependencies.runner?.(runnerOptions) ?? new RelayRunner(runnerOptions);
     await emitSelectionCheckpoint(options, { phase: "observing", runId: binding.run_id });

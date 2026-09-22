@@ -218,6 +218,59 @@ export function publicCredentialOnlyPolicy(): { policy: DataPolicy; profile: Red
   return { policy, profile };
 }
 
+export function canaryRedactionPolicy(
+  options: {
+    readonly dataClass?: DataPolicy["dataClass"];
+    readonly contentHandling?: DataPolicy["contentHandling"];
+  } = {}
+): { policy: DataPolicy; profile: RedactionProfile } {
+  const profile = sealDocumentHash(
+    {
+      schemaVersion: "aw-redaction-profile/1" as const,
+      profileId: UUID_E,
+      revision: 1,
+      profileHash: "0".repeat(64),
+      allowedContentFields: [],
+      rules: [
+        { id: "mask-email-message", selector: "/message/content", action: "mask" as const, detector: "email" as const },
+        { id: "mask-phone-message", selector: "/message/content", action: "mask" as const, detector: "phone" as const },
+        {
+          id: "mask-email-assistant",
+          selector: "/attempts/*/turns/*/assistant_content",
+          action: "mask" as const,
+          detector: "email" as const
+        },
+        {
+          id: "mask-phone-assistant",
+          selector: "/attempts/*/turns/*/assistant_content",
+          action: "mask" as const,
+          detector: "phone" as const
+        }
+      ],
+      maxDocumentBytes: 65_536,
+      maxTextChars: 8_000
+    },
+    "profileHash"
+  );
+  const policy = sealDocumentHash(
+    {
+      schemaVersion: "aw-data-policy/1" as const,
+      policyId: UUID_D,
+      revision: 1,
+      policyHash: "0".repeat(64),
+      dataClass: options.dataClass ?? "business",
+      contentHandling: options.contentHandling ?? "minimized",
+      redactionProfileId: profile.profileId,
+      redactionProfileHash: profile.profileHash,
+      retentionDays: 30,
+      externalSharing: "disabled" as const,
+      providerProcessing: "openai_standard" as const
+    },
+    "policyHash"
+  );
+  return { policy, profile };
+}
+
 export function sealedLocalScope(boundary: TargetBoundary, policy: DataPolicy): LocalExecutionScope {
   return sealDocumentHash(
     {
@@ -278,9 +331,13 @@ export function localAuthorizedPacketManifest(
     readonly boundary?: TargetBoundary;
     readonly cleanup?: boolean;
     readonly maxMessages?: number;
+    readonly policy?: DataPolicy;
+    readonly profile?: RedactionProfile;
   } = {}
 ) {
-  const { policy, profile } = publicCredentialOnlyPolicy();
+  const { policy, profile } = overrides.policy && overrides.profile
+    ? { policy: overrides.policy, profile: overrides.profile }
+    : publicCredentialOnlyPolicy();
   const boundary =
     overrides.boundary ??
     sealedBoundary({

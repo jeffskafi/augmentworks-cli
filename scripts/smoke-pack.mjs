@@ -1373,6 +1373,34 @@ async function main() {
     }
     process.stdout.write(reportFixture.stdout);
 
+    process.stdout.write("[pack smoke] packed real-data privacy canaries through installed binary\n");
+    const privacyFixture = spawnSync(process.execPath, [join(projectRoot, "scripts", "packed-real-data-privacy.mjs")], {
+      cwd: projectRoot,
+      env: {
+        ...process.env,
+        AUGMENTWORKS_PACKED_BIN: packedCli,
+        NO_COLOR: "1"
+      },
+      encoding: "utf8",
+      timeout: 180_000,
+      windowsHide: true
+    });
+    if (privacyFixture.error !== undefined) {
+      throw new SmokeFailure(`packed real-data privacy fixture failed to start: ${privacyFixture.error.message}`);
+    }
+    if (privacyFixture.status !== 0) {
+      throw new SmokeFailure(
+        [
+          "packed real-data privacy fixture failed",
+          privacyFixture.stdout.trim(),
+          privacyFixture.stderr.trim()
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(privacyFixture.stdout);
+
     process.stdout.write("[pack smoke] core customer release-acceptance (local packed binary, not registry)\n");
     const coreAcceptance = spawnSync(
       process.execPath,

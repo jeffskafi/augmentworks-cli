@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { TARGET_PROTOCOL_VERSION } from "../cloud/protocol.js";
 import type { HttpConnector } from "../connector/http.js";
 import type { ConnectorExecutionContext, ConnectorResult } from "../connector/types.js";
+import type { DataPolicyContext } from "../data-policy/index.js";
 import { AwError, type OperationKind } from "../errors.js";
 import { CLI_VERSION } from "../version.js";
 import { stableId, stableKey } from "./canonical.js";
@@ -78,6 +79,7 @@ export interface LocalRunnerOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (event: LocalProgressEvent) => void;
   readonly runDeadlineMs?: number;
+  readonly dataPolicy?: DataPolicyContext;
 }
 
 export class LocalRunner {
@@ -93,6 +95,7 @@ export class LocalRunner {
   readonly #signal: AbortSignal | undefined;
   readonly #onProgress: ((event: LocalProgressEvent) => void) | undefined;
   readonly #runDeadlineMs: number;
+  readonly #dataPolicy: DataPolicyContext | undefined;
   #messagesDispatched = 0;
   #commandsDispatched = 0;
   #actionsDispatched = 0;
@@ -115,6 +118,7 @@ export class LocalRunner {
     this.#signal = options.signal;
     this.#onProgress = options.onProgress;
     this.#runDeadlineMs = options.runDeadlineMs ?? DEFAULT_LOCAL_RUN_DEADLINE_MS;
+    this.#dataPolicy = options.dataPolicy;
     this.#startedMs = Date.now();
     if (isLocalAuthorizedPacket(this.#packet)) {
       assertScopeNotExpired(this.#packet.execution_scope.expiresAt);
@@ -382,7 +386,8 @@ export class LocalRunner {
       attemptId,
       ...(turnId === undefined ? {} : { turnId }),
       ...(requestId === undefined ? {} : { requestId }),
-      signal: controller.signal
+      signal: controller.signal,
+      ...(this.#dataPolicy === undefined ? {} : { dataPolicy: this.#dataPolicy })
     };
     try {
       const result = (await this.#connector.execute(kind, input, context)) as ConnectorResult;

@@ -23,6 +23,7 @@ import { createBillingCommand } from "./commands/billing.js";
 import { createWhoamiCommand } from "./commands/whoami.js";
 import { AwError, exitCodeFor, sanitizeTerminal } from "./errors.js";
 import { CLI_VERSION } from "./version.js";
+import { installLandedPrivacyService } from "./real-data/privacy.js";
 
 export interface CliIo {
   readonly stdout?: Pick<NodeJS.WriteStream, "write">;
@@ -37,6 +38,7 @@ interface CliState {
 const states = new WeakMap<Command, CliState>();
 
 export function createCli(io: CliIo = {}): Command {
+  installLandedPrivacyService();
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;
   const state: CliState = { requestedExitCode: 0, stderr };

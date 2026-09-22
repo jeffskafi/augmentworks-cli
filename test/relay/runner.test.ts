@@ -19,7 +19,8 @@ import type { LiveExecutionPolicy } from "../../src/suite/live-policy.js";
 import { LIMITS } from "../../src/util/limits.js";
 import { packet, relayCommand, resultFor } from "./helpers.js";
 import { authorizedDispatchPolicy } from "../../src/real-data/policy.js";
-import { hostedScopeResponse } from "../real-data/helpers.js";
+import { canaryRedactionPolicy, hostedScopeResponse } from "../real-data/helpers.js";
+import { CANARIES } from "../data-policy/helpers.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -33,6 +34,12 @@ async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "aw-relay-runner-"));
   temporaryDirectories.push(directory);
   return directory;
+}
+
+function sendRelayCommand(): Extract<RelayCommand, { kind: "send" }> {
+  const command = relayCommand("send");
+  if (command.kind !== "send") throw new Error("expected a send command");
+  return command;
 }
 
 function binding(overrides: Partial<CreateRunResponse> = {}): CreateRunResponse {
@@ -791,5 +798,163 @@ describe("authorized dispatch policy", () => {
       }).run()
     ).rejects.toMatchObject({ code: "EXECUTION_BUDGET_EXHAUSTED" });
     expect(connector.execute).not.toHaveBeenCalled();
+  });
+
+  it("minimizes invented canaries with landed R06 before completeOperation", async () => {
+    const command = sendRelayCommand();
+    const cloud = new MockCloud([command]);
+    const raw = {
+      protocol_version: "aw-target/0.1" as const,
+      turn_id: command.input.turn_id,
+      message: {
+        role: "assistant" as const,
+        content: `Weekday hours are 9. Contact ${CANARIES.email} token=${CANARIES.token} api_key=${CANARIES.apiKey}`
+      },
+      events: [],
+      finished: true,
+      metadata: {}
+    };
+    const connector = { execute: vi.fn(async () => raw), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    const { policy, profile } = canaryRedactionPolicy({ dataClass: "business", contentHandling: "minimized" });
+    await new RelayRunner({
+      cloud: asCloud(cloud),
+      connector,
+      binding: binding(),
+      stateDirectory: await temporaryDirectory(),
+      dispatchPolicy: authorizedDispatchPolicy({
+        scope: response.scope,
+        boundary: response.targetBoundary,
+        dataPolicy: policy,
+        redactionProfile: profile
+      }),
+      pollWaitMs: 0
+    }).run();
+    expect(cloud.completions).toHaveLength(1);
+    const uploaded = JSON.stringify(cloud.completions[0]?.result);
+    expect(uploaded).not.toContain(CANARIES.email);
+    expect(uploaded).not.toContain(CANARIES.token);
+    expect(uploaded).not.toContain(CANARIES.apiKey);
+    expect(uploaded).toContain("Weekday hours are 9");
+    expect(cloud.failures).toHaveLength(0);
+  });
+
+  it("excludes credentials in verbatim mode without dropping declared business text", async () => {
+    const command = sendRelayCommand();
+    const cloud = new MockCloud([command]);
+    const raw = {
+      protocol_version: "aw-target/0.1" as const,
+      turn_id: command.input.turn_id,
+      message: {
+        role: "assistant" as const,
+        content: `Hours remain weekday. Reach ${CANARIES.email} api_key=${CANARIES.apiKey}`
+      },
+      events: [],
+      finished: true,
+      metadata: {}
+    };
+    const connector = { execute: vi.fn(async () => raw), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    const { policy, profile } = canaryRedactionPolicy({ dataClass: "public", contentHandling: "verbatim" });
+    await new RelayRunner({
+      cloud: asCloud(cloud),
+      connector,
+      binding: binding(),
+      stateDirectory: await temporaryDirectory(),
+      dispatchPolicy: authorizedDispatchPolicy({
+        scope: response.scope,
+        boundary: response.targetBoundary,
+        dataPolicy: policy,
+        redactionProfile: profile
+      }),
+      pollWaitMs: 0
+    }).run();
+    const uploaded = JSON.stringify(cloud.completions[0]?.result);
+    expect(uploaded).not.toContain(CANARIES.apiKey);
+    expect(uploaded).toContain("Hours remain weekday");
+  });
+
+  it("rejects missing authorized-policy metadata instead of uploading raw content", async () => {
+    const command = sendRelayCommand();
+    const cloud = new MockCloud([command]);
+    const raw = {
+      protocol_version: "aw-target/0.1" as const,
+      turn_id: command.input.turn_id,
+      message: { role: "assistant" as const, content: `leak ${CANARIES.email}` },
+      events: [],
+      finished: true,
+      metadata: {}
+    };
+    const connector = { execute: vi.fn(async () => raw), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    await expect(
+      new RelayRunner({
+        cloud: asCloud(cloud),
+        connector,
+        binding: binding(),
+        stateDirectory: await temporaryDirectory(),
+        dispatchPolicy: authorizedDispatchPolicy({
+          scope: response.scope,
+          boundary: response.targetBoundary
+        }),
+        pollWaitMs: 0
+      }).run()
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_DATA_POLICY" });
+    expect(connector.execute).not.toHaveBeenCalled();
+    expect(cloud.completions).toHaveLength(0);
+    expect(JSON.stringify(cloud.failures)).not.toContain(CANARIES.email);
+  });
+
+  it("rejects a missing redaction profile instead of uploading raw content", async () => {
+    const command = sendRelayCommand();
+    const cloud = new MockCloud([command]);
+    const raw = {
+      protocol_version: "aw-target/0.1" as const,
+      turn_id: command.input.turn_id,
+      message: { role: "assistant" as const, content: `leak ${CANARIES.email}` },
+      events: [],
+      finished: true,
+      metadata: {}
+    };
+    const connector = { execute: vi.fn(async () => raw), isIdempotent: () => true };
+    const response = hostedScopeResponse();
+    await expect(
+      new RelayRunner({
+        cloud: asCloud(cloud),
+        connector,
+        binding: binding(),
+        stateDirectory: await temporaryDirectory(),
+        dispatchPolicy: authorizedDispatchPolicy({
+          scope: response.scope,
+          boundary: response.targetBoundary,
+          dataPolicy: response.dataPolicy
+        }),
+        pollWaitMs: 0
+      }).run()
+    ).rejects.toMatchObject({ code: "REDACTION_PROFILE_MISMATCH" });
+    expect(connector.execute).not.toHaveBeenCalled();
+    expect(cloud.completions).toHaveLength(0);
+    expect(JSON.stringify(cloud.failures)).not.toContain(CANARIES.email);
+  });
+
+  it("rejects a stale data-policy hash instead of returning raw content", () => {
+    const response = hostedScopeResponse();
+    const { policy, profile } = canaryRedactionPolicy();
+    const stale = { ...policy, policyHash: "f".repeat(64) };
+    expect(() =>
+      new RelayRunner({
+        cloud: asCloud(new MockCloud([])),
+        connector: { execute: vi.fn() },
+        binding: binding(),
+        dispatchPolicy: authorizedDispatchPolicy({
+          scope: response.scope,
+          boundary: response.targetBoundary,
+          dataPolicy: stale,
+          redactionProfile: profile
+        })
+      })
+    ).toThrow(
+      expect.objectContaining({ code: "DATA_POLICY_STALE" })
+    );
   });
 });

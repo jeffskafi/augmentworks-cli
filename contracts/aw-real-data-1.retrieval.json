@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "aw-real-data-1-retrieval/1",
+  "attemptedAt": "2026-09-22T14:37:48.481Z",
+  "source": {
+    "repository": "https://github.com/jeffskafi/augmentworks.git",
+    "commit": "b198906188bab2dac9ae2a1ad539405807e46e1e",
+    "files": [
+      "docs/contracts/aw-real-data-1.schema.json",
+      "docs/contracts/aw-real-data-1.fixtures.json",
+      "docs/contracts/aw-real-data-1.checksums.json"
+    ]
+  },
+  "expected": {
+    "schema": "6a53d04f297eb4db275bb7074bf7705a08137d932be823a3f4087d84cfdf7121",
+    "fixtures": "26033843d55dcb9b49ccf68fa96f7de9ec34aa6c299e8ab28b605cad37572230"
+  },
+  "imported": false,
+  "verified": false,
+  "files": {},
+  "attempts": [
+    {
+      "command": "gh api user",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "403",
+      "message": "Resource not accessible by integration"
+    },
+    {
+      "command": "gh api repos/jeffskafi/augmentworks",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "gh api repos/jeffskafi/augmentworks/contents/docs/contracts/aw-real-data-1.schema.json?ref=b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "gh api repos/jeffskafi/augmentworks/contents/docs/contracts/aw-real-data-1.fixtures.json?ref=b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "gh api repos/jeffskafi/augmentworks/contents/docs/contracts/aw-real-data-1.checksums.json?ref=b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "gh api -H Accept: application/vnd.github.raw repos/jeffskafi/augmentworks/contents/docs/contracts/aw-real-data-1.schema.json?ref=b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "gh api repos/jeffskafi/augmentworks/git/trees/b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 1,
+      "signal": null,
+      "error": null,
+      "httpStatus": "404",
+      "message": "Not Found"
+    },
+    {
+      "command": "git ls-remote https://github.com/jeffskafi/augmentworks.git b198906188bab2dac9ae2a1ad539405807e46e1e",
+      "status": 128,
+      "signal": null,
+      "error": null,
+      "httpStatus": null,
+      "message": "fatal: repository 'https://github.com/jeffskafi/augmentworks.git/' not found"
+    },
+    {
+      "command": "AUGMENTWORKS_MAIN_REPO",
+      "status": 2,
+      "signal": null,
+      "error": null,
+      "httpStatus": null,
+      "message": "unset; no local main checkout provided"
+    }
+  ],
+  "conclusion": "Exact R01 schema/fixture JSON were not vendored. The CLI GitHub token cannot read private jeffskafi/augmentworks (gh api 404 Not Found / user 403 Resource not accessible by integration; git ls-remote: Repository not found). Files were not fabricated. lock.imported remains false."
+}

@@ -30,10 +30,12 @@ const FORBIDDEN_HEADERS = new Set([
 export class HttpConnector {
   readonly #resolved: ResolvedConfig;
   readonly #fetch: typeof globalThis.fetch;
+  readonly #dataPolicy: ConnectorExecutionContext["dataPolicy"];
 
   constructor(resolved: ResolvedConfig, options: HttpConnectorOptions = {}) {
     this.#resolved = resolved;
     this.#fetch = options.fetch ?? globalThis.fetch;
+    this.#dataPolicy = options.dataPolicy;
     if (typeof this.#fetch !== "function") {
       throw configError("FETCH_UNAVAILABLE", "This Node.js runtime does not provide fetch.");
     }
@@ -170,6 +172,7 @@ export class HttpConnector {
         );
       }
 
+      const dataPolicy = context.dataPolicy ?? this.#dataPolicy;
       return normalizeConnectorResult({
         kind,
         input: effectiveInput,
@@ -178,7 +181,8 @@ export class HttpConnector {
         responseMap: operation.response,
         allowToolEvents: this.#resolved.config.telemetry?.allow_tool_events === true,
         allowedObservations: this.#permittedOutputObservations(kind, effectiveInput),
-        secrets: this.#resolved.secrets
+        secrets: this.#resolved.secrets,
+        ...(dataPolicy === undefined ? {} : { dataPolicy })
       });
     } catch (cause) {
       if (!idempotent && dispatched) {

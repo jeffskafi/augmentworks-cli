@@ -20,7 +20,12 @@ import {
   sendIsReplayable,
   type DispatchPolicy
 } from "../real-data/policy.js";
-import { minimizeForUpload } from "../real-data/privacy.js";
+import {
+  assertAuthorizedPrivacyDocuments,
+  minimizeForUpload,
+  requireAuthorizedPrivacyDocuments
+} from "../real-data/privacy.js";
+import { dispatchPolicyPrivacyContext } from "../real-data/r06-service.js";
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"]);
 const CLEANUP_RETRY_DELAYS_MS = [100, 250] as const;
@@ -43,6 +48,7 @@ export interface RelayRunnerOptions {
   onProgress?: (event: RelayProgressEvent) => void;
   livePolicy?: LiveExecutionPolicy;
   dispatchPolicy?: DispatchPolicy;
+  secrets?: readonly string[];
 }
 
 export type RelayProgressEvent =
@@ -80,17 +86,26 @@ export class RelayRunner {
   #purgeJournalOnClose = false;
   #running = false;
   readonly #dispatchPolicy: DispatchPolicy | undefined;
+  readonly #secrets: readonly string[];
 
   constructor(options: RelayRunnerOptions) {
     this.#cloud = options.cloud;
     this.#connector = options.connector;
     this.#binding = options.binding;
+    this.#dispatchPolicy =
+      options.dispatchPolicy ??
+      (options.livePolicy === undefined
+        ? undefined
+        : { kind: "live_informational", live: options.livePolicy });
+    this.#secrets = options.secrets ?? [];
+    const privacyContext = dispatchPolicyPrivacyContext(this.#dispatchPolicy, this.#secrets);
     this.#journal =
       options.journal ??
       new RelayJournal({
         runId: options.binding.run_id,
         ...(options.stateDirectory === undefined ? {} : { stateDirectory: options.stateDirectory }),
-        ...(options.now === undefined ? {} : { now: options.now })
+        ...(options.now === undefined ? {} : { now: options.now }),
+        ...(privacyContext === undefined ? {} : { dataPolicy: privacyContext })
       });
     this.#now = options.now ?? (() => new Date());
     this.#pollWaitMs = options.pollWaitMs ?? 25_000;
@@ -98,11 +113,6 @@ export class RelayRunner {
     this.#cancellationDrainMs = options.cancellationDrainMs ?? 60_000;
     this.#signal = options.signal;
     this.#onProgress = options.onProgress;
-    this.#dispatchPolicy =
-      options.dispatchPolicy ??
-      (options.livePolicy === undefined
-        ? undefined
-        : { kind: "live_informational", live: options.livePolicy });
   }
 
   get cancelRequested(): boolean {
@@ -287,6 +297,7 @@ export class RelayRunner {
           completion: await this.#journal.recordFailure(command.command_id, error, "failed")
         };
       } else {
+        assertAuthorizedPrivacyDocuments(this.#dispatchPolicy);
         let connectorReturned = false;
         try {
           const raw = await this.#executeConnectorCommand(command, idempotent);
@@ -344,7 +355,7 @@ export class RelayRunner {
     this.#operationAbort = controller;
     this.#activeKind = command.kind;
     const signal = combineOptionalSignals(this.#signal, controller.signal);
-    const context = connectorContext(command, signal);
+    const context = connectorContext(command, signal, dispatchPolicyPrivacyContext(this.#dispatchPolicy, this.#secrets));
     let attempt = 0;
     try {
       while (true) {
@@ -378,13 +389,13 @@ export class RelayRunner {
   }
 
   async #minimizeUploadedResult(raw: unknown): Promise<unknown> {
-    const policy = this.#dispatchPolicy;
-    if (policy === undefined || policy.kind !== "authorized") return raw;
-    if (policy.dataPolicy === undefined || policy.redactionProfile === undefined) return raw;
+    const documents = requireAuthorizedPrivacyDocuments(this.#dispatchPolicy);
+    if (documents === undefined) return raw;
     const minimized = await minimizeForUpload(
-      { document: raw },
-      policy.redactionProfile,
-      policy.dataPolicy
+      { document: raw, secrets: this.#secrets },
+      documents.redactionProfile,
+      documents.dataPolicy,
+      this.#secrets
     );
     return minimized.representation;
   }
@@ -546,7 +557,11 @@ export class RelayRunner {
   }
 }
 
-function connectorContext(command: RelayCommand, signal?: AbortSignal): ConnectorExecutionContext {
+function connectorContext(
+  command: RelayCommand,
+  signal?: AbortSignal,
+  dataPolicy?: ReturnType<typeof dispatchPolicyPrivacyContext>
+): ConnectorExecutionContext {
   const sendConversationId =
     command.kind === "send" && command.input.conversation_id !== undefined
       ? command.input.conversation_id
@@ -559,7 +574,8 @@ function connectorContext(command: RelayCommand, signal?: AbortSignal): Connecto
     conversationId: sendConversationId,
     ...(command.kind === "send" ? { turnId: command.input.turn_id } : {}),
     ...(command.kind === "observe" ? { requestId: command.input.request_id } : {}),
-    ...(signal === undefined ? {} : { signal })
+    ...(signal === undefined ? {} : { signal }),
+    ...(dataPolicy === undefined ? {} : { dataPolicy })
   };
 }
 
