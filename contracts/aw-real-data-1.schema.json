@@ -1,0 +1,715 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "[REDACTED]/contracts/aw-real-data-1.schema.json",
+  "title": "AugmentWorks real-data contract package",
+  "description": "Additive aw-real-data/1 schemas for execution scopes, data policy, redaction, authorized packets, quote binding, report sidecar, and action permits. Structural validation only. This package does not enable runtime modes, rewrite aw-customer-suite/1-2 or aw-packet/0.1-0.2/live-informational-1, or grant target authority. Fixture content is fabricated.",
+  "oneOf": [
+    { "$ref": "#/$defs/dataPolicy" },
+    { "$ref": "#/$defs/redactionProfile" },
+    { "$ref": "#/$defs/dataHandlingReceipt" },
+    { "$ref": "#/$defs/targetBoundary" },
+    { "$ref": "#/$defs/targetAuthority" },
+    { "$ref": "#/$defs/executionScope" },
+    { "$ref": "#/$defs/localExecutionScope" },
+    { "$ref": "#/$defs/actionPolicy" },
+    { "$ref": "#/$defs/actionPermit" },
+    { "$ref": "#/$defs/actionReceipt" },
+    { "$ref": "#/$defs/capabilities" },
+    { "$ref": "#/$defs/authorizedReportScope" },
+    { "$ref": "#/$defs/quoteAdmissionBinding" },
+    { "$ref": "#/$defs/authorizedPacket" },
+    { "$ref": "#/$defs/localAuthorizedPacket" },
+    { "$ref": "#/$defs/targetRegistration" },
+    { "$ref": "#/$defs/realDataError" }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "utcZ": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+    },
+    "positiveInt": { "type": "integer", "minimum": 1 },
+    "nonnegativeInt": { "type": "integer", "minimum": 0 },
+    "environment": { "type": "string", "enum": ["development", "staging", "production"] },
+    "dataOrigin": { "type": "string", "enum": ["constructed", "customer_records", "mixed"] },
+    "dataClass": { "type": "string", "enum": ["public", "business", "personal"] },
+    "effects": { "type": "string", "enum": ["informational", "sandbox_actions", "controlled_actions"] },
+    "boundRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision", "hash"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxMessages", "maxActions", "maxCommands", "maxRuntimeSeconds", "maxCredits"],
+      "properties": {
+        "maxMessages": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "maxActions": { "type": "integer", "minimum": 0, "maximum": 512 },
+        "maxCommands": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "maxRuntimeSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+        "maxCredits": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    },
+    "dataPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "policyId",
+        "revision",
+        "policyHash",
+        "dataClass",
+        "contentHandling",
+        "redactionProfileId",
+        "redactionProfileHash",
+        "retentionDays",
+        "externalSharing",
+        "providerProcessing"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-data-policy/1" },
+        "policyId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "dataClass": { "$ref": "#/$defs/dataClass" },
+        "contentHandling": { "type": "string", "enum": ["minimized", "verbatim"] },
+        "redactionProfileId": { "$ref": "#/$defs/uuid" },
+        "redactionProfileHash": { "$ref": "#/$defs/sha256" },
+        "retentionDays": { "type": "integer", "minimum": 1, "maximum": 365 },
+        "externalSharing": { "type": "string", "enum": ["disabled", "reviewed"] },
+        "providerProcessing": { "const": "openai_standard" }
+      }
+    },
+    "redactionProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "profileId",
+        "revision",
+        "profileHash",
+        "allowedContentFields",
+        "rules",
+        "maxDocumentBytes",
+        "maxTextChars"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-redaction-profile/1" },
+        "profileId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "profileHash": { "$ref": "#/$defs/sha256" },
+        "allowedContentFields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "selector", "action", "detector"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "selector": { "type": "string", "minLength": 1, "maxLength": 300 },
+              "action": { "type": "string", "enum": ["drop", "mask", "block"] },
+              "detector": {
+                "type": "string",
+                "enum": ["field", "credential", "email", "phone", "exact_local_secret"]
+              }
+            }
+          }
+        },
+        "maxDocumentBytes": { "type": "integer", "minimum": 1, "maximum": 256000 },
+        "maxTextChars": { "type": "integer", "minimum": 1, "maximum": 32000 }
+      }
+    },
+    "dataHandlingReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "policyId",
+        "policyHash",
+        "profileHash",
+        "representationHash",
+        "outcome",
+        "counts",
+        "processor",
+        "processorVersion"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-data-handling-receipt/1" },
+        "policyId": { "$ref": "#/$defs/uuid" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "profileHash": { "$ref": "#/$defs/sha256" },
+        "representationHash": { "$ref": "#/$defs/sha256" },
+        "outcome": {
+          "type": "string",
+          "enum": ["accepted", "transformed", "blocked", "insufficient_evidence"]
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dropped", "masked", "blocked"],
+          "properties": {
+            "dropped": { "$ref": "#/$defs/nonnegativeInt" },
+            "masked": { "$ref": "#/$defs/nonnegativeInt" },
+            "blocked": { "$ref": "#/$defs/nonnegativeInt" }
+          }
+        },
+        "processor": { "type": "string", "enum": ["cli", "server"] },
+        "processorVersion": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "targetBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "targetId",
+        "revision",
+        "boundaryHash",
+        "transport",
+        "effectBoundary",
+        "assessedIdentity",
+        "endpoints"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-target-boundary/1" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "boundaryHash": { "$ref": "#/$defs/sha256" },
+        "transport": { "type": "string", "enum": ["direct_http", "browser_bridge"] },
+        "effectBoundary": {
+          "type": "string",
+          "enum": ["no_tools", "read_only_enforced", "action_gateway"]
+        },
+        "assessedIdentity": { "type": "string", "minLength": 1, "maxLength": 253 },
+        "endpoints": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "path"],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]
+              },
+              "path": { "type": "string", "minLength": 1, "maxLength": 300 }
+            }
+          }
+        }
+      }
+    },
+    "targetAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "authorityId",
+        "revision",
+        "authorityHash",
+        "workspaceId",
+        "targetId",
+        "targetRevision",
+        "targetBoundaryHash",
+        "authorizationKind",
+        "permissionRef",
+        "effectsAllowed",
+        "verificationMethod",
+        "verificationStatus",
+        "expiresAt"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-target-authority/1" },
+        "authorityId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "authorityHash": { "$ref": "#/$defs/sha256" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "targetRevision": { "$ref": "#/$defs/positiveInt" },
+        "targetBoundaryHash": { "$ref": "#/$defs/sha256" },
+        "authorizationKind": { "type": "string", "enum": ["owned_target", "written_permission"] },
+        "permissionRef": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "effectsAllowed": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/effects" }
+        },
+        "verificationMethod": {
+          "type": "string",
+          "enum": ["dns_txt", "https_challenge", "connector_challenge", "reviewed_permission"]
+        },
+        "verificationStatus": { "type": "string", "enum": ["pending", "verified", "revoked"] },
+        "expiresAt": { "$ref": "#/$defs/utcZ" }
+      }
+    },
+    "executionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "scopeId",
+        "revision",
+        "scopeHash",
+        "workspaceId",
+        "targetId",
+        "targetRevision",
+        "targetBoundaryHash",
+        "environment",
+        "dataOrigin",
+        "effects",
+        "authority",
+        "dataPolicy",
+        "actionPolicy",
+        "budget",
+        "expiresAt"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-execution-scope/1" },
+        "scopeId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "targetRevision": { "$ref": "#/$defs/positiveInt" },
+        "targetBoundaryHash": { "$ref": "#/$defs/sha256" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "dataOrigin": { "$ref": "#/$defs/dataOrigin" },
+        "effects": { "$ref": "#/$defs/effects" },
+        "authority": { "$ref": "#/$defs/boundRef" },
+        "dataPolicy": { "$ref": "#/$defs/boundRef" },
+        "actionPolicy": {
+          "anyOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "revision", "hash", "receiverId"],
+              "properties": {
+                "id": { "$ref": "#/$defs/uuid" },
+                "revision": { "$ref": "#/$defs/positiveInt" },
+                "hash": { "$ref": "#/$defs/sha256" },
+                "receiverId": { "$ref": "#/$defs/uuid" }
+              }
+            }
+          ]
+        },
+        "budget": { "$ref": "#/$defs/budget" },
+        "expiresAt": { "$ref": "#/$defs/utcZ" }
+      }
+    },
+    "localExecutionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "scopeId",
+        "revision",
+        "scopeHash",
+        "targetId",
+        "targetRevision",
+        "targetBoundaryHash",
+        "environment",
+        "dataOrigin",
+        "effects",
+        "authority",
+        "dataPolicy",
+        "actionPolicy",
+        "budget",
+        "expiresAt"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-local-execution-scope/1" },
+        "scopeId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "targetRevision": { "$ref": "#/$defs/positiveInt" },
+        "targetBoundaryHash": { "$ref": "#/$defs/sha256" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "dataOrigin": { "$ref": "#/$defs/dataOrigin" },
+        "effects": { "$ref": "#/$defs/effects" },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "revision", "hash", "verification"],
+          "properties": {
+            "id": { "$ref": "#/$defs/uuid" },
+            "revision": { "$ref": "#/$defs/positiveInt" },
+            "hash": { "$ref": "#/$defs/sha256" },
+            "verification": { "const": "customer_declared_local" }
+          }
+        },
+        "dataPolicy": { "$ref": "#/$defs/boundRef" },
+        "actionPolicy": { "type": ["object", "null"] },
+        "budget": { "$ref": "#/$defs/budget" },
+        "expiresAt": { "$ref": "#/$defs/utcZ" }
+      }
+    },
+    "actionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "policyId",
+        "revision",
+        "policyHash",
+        "receiverId",
+        "allowedActions",
+        "maxTotalActions",
+        "expiresAt"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-action-policy/1" },
+        "policyId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInt" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "receiverId": { "$ref": "#/$defs/uuid" },
+        "allowedActions": { "type": "array", "minItems": 1, "maxItems": 16 },
+        "maxTotalActions": { "type": "integer", "minimum": 1, "maximum": 512 },
+        "expiresAt": { "$ref": "#/$defs/utcZ" }
+      }
+    },
+    "actionPermit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "permitId",
+        "runId",
+        "attemptId",
+        "commandId",
+        "scopeHash",
+        "policyHash",
+        "actionName",
+        "resourceId",
+        "argumentRepresentationHash",
+        "argumentCommitment",
+        "amount",
+        "expiresAt",
+        "nonce",
+        "keyId",
+        "residualWindowSeconds",
+        "signature"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-action-permit/1" },
+        "permitId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "commandId": { "type": "string" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "actionName": { "type": "string" },
+        "resourceId": { "type": "string" },
+        "argumentRepresentationHash": { "$ref": "#/$defs/sha256" },
+        "argumentCommitment": { "type": "object" },
+        "amount": { "type": ["object", "null"] },
+        "expiresAt": { "$ref": "#/$defs/utcZ" },
+        "nonce": { "type": "string" },
+        "keyId": { "type": "string" },
+        "residualWindowSeconds": { "type": "integer", "minimum": 1, "maximum": 15 },
+        "signature": { "type": "string" }
+      }
+    },
+    "actionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "permitId",
+        "runId",
+        "attemptId",
+        "commandId",
+        "scopeHash",
+        "policyHash",
+        "receiverId",
+        "actionName",
+        "argumentRepresentationHash",
+        "argumentCommitment",
+        "amount",
+        "outcome",
+        "startedAt",
+        "finishedAt",
+        "providerOperationRef",
+        "observedStateRepresentationHash",
+        "issuerKeyId",
+        "signature"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-action-receipt/1" },
+        "permitId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "commandId": { "type": "string" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "receiverId": { "$ref": "#/$defs/uuid" },
+        "actionName": { "type": "string" },
+        "argumentRepresentationHash": { "$ref": "#/$defs/sha256" },
+        "argumentCommitment": { "type": "object" },
+        "amount": { "type": ["object", "null"] },
+        "outcome": {
+          "type": "string",
+          "enum": ["denied", "succeeded", "failed", "indeterminate"]
+        },
+        "startedAt": { "$ref": "#/$defs/utcZ" },
+        "finishedAt": { "anyOf": [{ "$ref": "#/$defs/utcZ" }, { "type": "null" }] },
+        "providerOperationRef": { "type": ["string", "null"] },
+        "observedStateRepresentationHash": {
+          "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "issuerKeyId": { "type": "string" },
+        "signature": { "type": "string" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "contractRevision",
+        "runtimeEnforced",
+        "releaseEnabled",
+        "executionScopes",
+        "suiteSchemas",
+        "packetSchemas",
+        "reportScopes",
+        "dataPolicies",
+        "supportedEffects",
+        "enabledEffects",
+        "controlledActions"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-capabilities/1" },
+        "contractRevision": { "const": 1 },
+        "runtimeEnforced": { "const": false },
+        "releaseEnabled": { "const": false },
+        "executionScopes": { "type": "array", "items": { "type": "string" } },
+        "suiteSchemas": { "type": "array", "items": { "type": "string" } },
+        "packetSchemas": { "type": "array", "items": { "type": "string" } },
+        "reportScopes": { "type": "array", "items": { "type": "string" } },
+        "dataPolicies": { "type": "array", "items": { "type": "string" } },
+        "supportedEffects": { "type": "array", "items": { "$ref": "#/$defs/effects" } },
+        "enabledEffects": { "type": "array", "items": { "$ref": "#/$defs/effects" } },
+        "controlledActions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "const": false },
+            "reason": { "const": "unavailable_until_r10" }
+          }
+        }
+      }
+    },
+    "authorizedReportScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "workspaceId",
+        "runId",
+        "scopeHash",
+        "environment",
+        "dataOrigin",
+        "dataClass",
+        "effects",
+        "targetId",
+        "targetBoundaryHash",
+        "policyHash",
+        "profileHash",
+        "actualCounts",
+        "evidenceStatus",
+        "actionEvidenceStatus",
+        "representationHashes",
+        "limitations",
+        "v1ReportUnchanged",
+        "independentlyVerifiedBusinessState"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-run-report-authorized-scope/1" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "environment": { "$ref": "#/$defs/environment" },
+        "dataOrigin": { "$ref": "#/$defs/dataOrigin" },
+        "dataClass": { "$ref": "#/$defs/dataClass" },
+        "effects": { "$ref": "#/$defs/effects" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "targetBoundaryHash": { "$ref": "#/$defs/sha256" },
+        "policyHash": { "$ref": "#/$defs/sha256" },
+        "profileHash": { "$ref": "#/$defs/sha256" },
+        "actualCounts": { "type": "object" },
+        "evidenceStatus": {
+          "type": "string",
+          "enum": ["available", "partially_redacted", "unavailable", "expired", "purged"]
+        },
+        "actionEvidenceStatus": {
+          "type": "string",
+          "enum": ["not_applicable", "reported", "verified_receipts", "indeterminate"]
+        },
+        "representationHashes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "v1ReportUnchanged": { "const": true },
+        "independentlyVerifiedBusinessState": { "const": false }
+      }
+    },
+    "quoteAdmissionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "suiteRevisionId",
+        "suiteSemanticRevisionHash",
+        "suiteCanonicalHash",
+        "referenceBundleHash",
+        "packetHash",
+        "planHash",
+        "targetBoundaryHash",
+        "scopeHash",
+        "dataPolicyHash",
+        "redactionProfileHash",
+        "graderId",
+        "graderVersion",
+        "budget",
+        "bindingHash"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "aw-quote-admission-binding/1" },
+        "suiteRevisionId": { "$ref": "#/$defs/uuid" },
+        "suiteSemanticRevisionHash": { "$ref": "#/$defs/sha256" },
+        "suiteCanonicalHash": { "$ref": "#/$defs/sha256" },
+        "referenceBundleHash": { "$ref": "#/$defs/sha256" },
+        "packetHash": { "$ref": "#/$defs/sha256" },
+        "planHash": { "$ref": "#/$defs/sha256" },
+        "targetBoundaryHash": { "$ref": "#/$defs/sha256" },
+        "scopeHash": { "$ref": "#/$defs/sha256" },
+        "dataPolicyHash": { "$ref": "#/$defs/sha256" },
+        "redactionProfileHash": { "$ref": "#/$defs/sha256" },
+        "graderId": { "type": "string" },
+        "graderVersion": { "type": "string" },
+        "budget": { "$ref": "#/$defs/budget" },
+        "bindingHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "authorizedPacket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "packet_id",
+        "version",
+        "name",
+        "description",
+        "domain",
+        "evaluation_mode",
+        "execution_scope",
+        "required_capabilities",
+        "scenarios"
+      ],
+      "properties": {
+        "schema_version": { "const": "aw-packet/authorized-1" },
+        "packet_id": { "type": "string" },
+        "version": { "const": "3.0.0" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "domain": { "type": "string" },
+        "evaluation_mode": { "type": "string", "enum": ["deterministic", "hybrid"] },
+        "execution_scope": { "$ref": "#/$defs/executionScope" },
+        "required_capabilities": { "type": "object" },
+        "scenarios": { "type": "array", "minItems": 1, "maxItems": 20 }
+      }
+    },
+    "localAuthorizedPacket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "packet_id",
+        "version",
+        "name",
+        "description",
+        "domain",
+        "evaluation_mode",
+        "execution_scope",
+        "required_capabilities",
+        "scenarios"
+      ],
+      "properties": {
+        "schema_version": { "const": "aw-packet/local-authorized-1" },
+        "packet_id": { "type": "string" },
+        "version": { "const": "3.0.0" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "domain": { "type": "string" },
+        "evaluation_mode": { "type": "string", "enum": ["deterministic", "hybrid"] },
+        "execution_scope": { "$ref": "#/$defs/localExecutionScope" },
+        "required_capabilities": { "type": "object" },
+        "scenarios": { "type": "array", "minItems": 1, "maxItems": 20 }
+      }
+    },
+    "targetRegistration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "targetId", "targetRevision", "status", "challenge"],
+      "properties": {
+        "schemaVersion": { "const": "aw-target-registration/1" },
+        "targetId": { "$ref": "#/$defs/uuid" },
+        "targetRevision": { "$ref": "#/$defs/positiveInt" },
+        "status": { "const": "pending" },
+        "challenge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "nonce", "expiresAt"],
+          "properties": {
+            "method": {
+              "type": "string",
+              "enum": ["dns_txt", "https_challenge", "connector_challenge", "reviewed_permission"]
+            },
+            "nonce": { "type": "string" },
+            "expiresAt": { "$ref": "#/$defs/utcZ" }
+          }
+        }
+      }
+    },
+    "realDataError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "error"],
+      "properties": {
+        "schemaVersion": { "const": "aw-real-data-error/1" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "status", "retryable", "message", "correlationId", "details"],
+          "properties": {
+            "code": { "type": "string" },
+            "status": { "type": "integer" },
+            "retryable": { "type": "boolean" },
+            "message": { "type": "string", "maxLength": 300 },
+            "correlationId": { "$ref": "#/$defs/uuid" },
+            "details": { "type": "array" }
+          }
+        }
+      }
+    }
+  }
+}

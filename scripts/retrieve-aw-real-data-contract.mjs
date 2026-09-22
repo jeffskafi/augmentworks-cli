@@ -3,13 +3,17 @@
 /**
  * Attempt to vendor frozen R01 schema/fixture bytes from jeffskafi/augmentworks
  * at the pinned commit. Never fabricates files or sets imported:true on failure.
+ * When exact bytes are already imported from the verified Linear attachment,
+ * preserve that provenance instead of overwriting it with a GitHub 404.
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
+  CHECKSUMS_PATH,
+  EXPECTED_CHECKSUMS_SHA256,
   EXPECTED_FIXTURES_SHA256,
   EXPECTED_SCHEMA_SHA256,
   SOURCE_COMMIT,
@@ -59,8 +63,38 @@ function summarize(attempt) {
   };
 }
 
+async function hashesIfPresent() {
+  const schemaPresent = await fileExists(SCHEMA_PATH);
+  const fixturesPresent = await fileExists(FIXTURES_PATH);
+  const checksumsPresent = await fileExists(CHECKSUMS_PATH);
+  if (!schemaPresent || !fixturesPresent) {
+    return { imported: false, verified: false, schemaHash: null, fixturesHash: null, checksumsHash: null };
+  }
+  const schemaHash = await hashFile(SCHEMA_PATH);
+  const fixturesHash = await hashFile(FIXTURES_PATH);
+  const checksumsHash = checksumsPresent ? await hashFile(CHECKSUMS_PATH) : null;
+  const verified =
+    schemaHash === EXPECTED_SCHEMA_SHA256 &&
+    fixturesHash === EXPECTED_FIXTURES_SHA256 &&
+    (checksumsHash === null || checksumsHash === EXPECTED_CHECKSUMS_SHA256);
+  return { imported: true, verified, schemaHash, fixturesHash, checksumsHash };
+}
+
 async function main() {
   await mkdir(resolve(root, "contracts"), { recursive: true });
+  const present = await hashesIfPresent();
+  if (present.imported && present.verified && (await fileExists(RETRIEVAL_PATH))) {
+    const existing = JSON.parse(await readFile(RETRIEVAL_PATH, "utf8"));
+    if (
+      existing.imported === true &&
+      existing.verified === true &&
+      existing.source?.access?.kind === "linear_attachment"
+    ) {
+      process.stdout.write(`${existing.conclusion}\npreserved ${RETRIEVAL_PATH}\n`);
+      return;
+    }
+  }
+
   const attempts = [];
 
   attempts.push(
@@ -108,19 +142,7 @@ async function main() {
     });
   }
 
-  const schemaPresent = await fileExists(SCHEMA_PATH);
-  const fixturesPresent = await fileExists(FIXTURES_PATH);
-  const imported = schemaPresent && fixturesPresent;
-  let schemaHash = null;
-  let fixturesHash = null;
-  let verified = false;
-  if (imported) {
-    schemaHash = await hashFile(SCHEMA_PATH);
-    fixturesHash = await hashFile(FIXTURES_PATH);
-    verified =
-      schemaHash === EXPECTED_SCHEMA_SHA256 && fixturesHash === EXPECTED_FIXTURES_SHA256;
-  }
-
+  const latest = await hashesIfPresent();
   const retrieval = {
     schemaVersion: "aw-real-data-1-retrieval/1",
     attemptedAt: new Date().toISOString(),
@@ -131,26 +153,30 @@ async function main() {
     },
     expected: {
       schema: EXPECTED_SCHEMA_SHA256,
-      fixtures: EXPECTED_FIXTURES_SHA256
+      fixtures: EXPECTED_FIXTURES_SHA256,
+      checksums: EXPECTED_CHECKSUMS_SHA256
     },
-    imported,
-    verified,
-    files: imported
+    imported: latest.imported,
+    verified: latest.verified,
+    files: latest.imported
       ? {
-          "contracts/aw-real-data-1.schema.json": schemaHash,
-          "contracts/aw-real-data-1.fixtures.json": fixturesHash
+          "contracts/aw-real-data-1.schema.json": latest.schemaHash,
+          "contracts/aw-real-data-1.fixtures.json": latest.fixturesHash,
+          ...(latest.checksumsHash
+            ? { "contracts/aw-real-data-1.checksums.json": latest.checksumsHash }
+            : {})
         }
       : {},
     attempts,
-    conclusion: imported
-      ? verified
+    conclusion: latest.imported
+      ? latest.verified
         ? "Exact frozen R01 schema/fixture bytes were retrieved and checksum-verified."
         : "Files were present but did not match the frozen R01 SHA-256 values; imported remains false."
       : "Exact R01 schema/fixture JSON were not vendored. The CLI GitHub token cannot read private jeffskafi/augmentworks (gh api 404 Not Found / user 403 Resource not accessible by integration; git ls-remote: Repository not found). Files were not fabricated. lock.imported remains false."
   };
 
   await writeFile(RETRIEVAL_PATH, `${JSON.stringify(retrieval, null, 2)}\n`, "utf8");
-  if (imported && !verified) {
+  if (latest.imported && !latest.verified) {
     throw new Error(retrieval.conclusion);
   }
   process.stdout.write(`${retrieval.conclusion}\nrecorded ${RETRIEVAL_PATH}\n`);

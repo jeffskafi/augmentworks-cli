@@ -1,0 +1,2559 @@
+{
+  "schemaVersion": "aw-real-data/1",
+  "contractRevision": 1,
+  "fabricated": true,
+  "label": "FABRICATED — not a customer record",
+  "runtimeEnforced": false,
+  "releaseEnabled": false,
+  "citationConvention": "unicode_code_point",
+  "maskPlaceholderExample": "«redacted:email»",
+  "fixtures": {
+    "redaction_profile": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-redaction-profile/1",
+        "profileId": "18181818-1818-4181-8181-181818181818",
+        "revision": 1,
+        "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "allowedContentFields": [
+          "/turns",
+          "/turns/*/content",
+          "/expected",
+          "/references"
+        ],
+        "rules": [
+          {
+            "id": "drop-notes",
+            "selector": "/internalNotes",
+            "action": "drop",
+            "detector": "field"
+          },
+          {
+            "id": "mask-email",
+            "selector": "/turns/*/content",
+            "action": "mask",
+            "detector": "email"
+          },
+          {
+            "id": "block-ssn",
+            "selector": "/restricted",
+            "action": "block",
+            "detector": "field"
+          },
+          {
+            "id": "mask-local-secret",
+            "selector": "/turns/*/content",
+            "action": "mask",
+            "detector": "exact_local_secret"
+          }
+        ],
+        "maxDocumentBytes": 16384,
+        "maxTextChars": 8000
+      }
+    },
+    "data_policy_production_public": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-data-policy/1",
+        "policyId": "16161616-1616-4161-8161-161616161616",
+        "revision": 1,
+        "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "dataClass": "public",
+        "contentHandling": "minimized",
+        "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "retentionDays": 30,
+        "externalSharing": "disabled",
+        "providerProcessing": "openai_standard"
+      }
+    },
+    "data_policy_staging_personal": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-data-policy/1",
+        "policyId": "17171717-1717-4171-8171-171717171717",
+        "revision": 1,
+        "policyHash": "8ff5dc25481141b0b3e1e3a56c2e5878aa477ca2f81a81111f8acdc4603a2b32",
+        "dataClass": "personal",
+        "contentHandling": "verbatim",
+        "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "retentionDays": 14,
+        "externalSharing": "disabled",
+        "providerProcessing": "openai_standard"
+      }
+    },
+    "data_policy_business": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-data-policy/1",
+        "policyId": "18181818-1818-4181-8161-181818181861",
+        "revision": 1,
+        "policyHash": "718745c44c387594fb1c8c9879da5d35f5dc723354bac265f0a9cd61469ee593",
+        "dataClass": "business",
+        "contentHandling": "minimized",
+        "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "retentionDays": 30,
+        "externalSharing": "reviewed",
+        "providerProcessing": "openai_standard"
+      }
+    },
+    "data_handling_receipt": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-data-handling-receipt/1",
+        "policyId": "16161616-1616-4161-8161-161616161616",
+        "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "representationHash": "352c6366efeed603507342fc0ec11f0b8a3b3aa1bd34d9d82f75b693fc34afc5",
+        "outcome": "transformed",
+        "counts": {
+          "dropped": 2,
+          "masked": 3,
+          "blocked": 0
+        },
+        "processor": "cli",
+        "processorVersion": "fabricated-cli/0.0.0"
+      }
+    },
+    "target_boundary": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-target-boundary/1",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "revision": 1,
+        "boundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "transport": "direct_http",
+        "effectBoundary": "no_tools",
+        "assessedIdentity": "https://support.example.com",
+        "endpoints": [
+          {
+            "method": "POST",
+            "path": "/chat"
+          }
+        ]
+      }
+    },
+    "target_authority_verified": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-target-authority/1",
+        "authorityId": "13131313-1313-4131-8131-131313131313",
+        "revision": 1,
+        "authorityHash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "authorizationKind": "owned_target",
+        "permissionRef": "fabricated-permission-ref",
+        "effectsAllowed": [
+          "informational"
+        ],
+        "verificationMethod": "https_challenge",
+        "verificationStatus": "verified",
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "target_authority_pending": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-target-authority/1",
+        "authorityId": "13131313-1313-4131-8131-131313131313",
+        "revision": 1,
+        "authorityHash": "e3b81e021dea399eb7e5baf69eedb3accceeb8296aa0e88e01bf585d336cbd62",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "authorizationKind": "owned_target",
+        "permissionRef": "fabricated-permission-ref",
+        "effectsAllowed": [
+          "informational"
+        ],
+        "verificationMethod": "https_challenge",
+        "verificationStatus": "pending",
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "execution_scope_production_public": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "execution_scope_staging_personal": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "22222222-2222-4222-8222-222222222221",
+        "revision": 1,
+        "scopeHash": "753401537c1c9ea83fd761ea7b9a1825b9807d40e543e867faaaedc5e2233d74",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "staging",
+        "dataOrigin": "customer_records",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "17171717-1717-4171-8171-171717171717",
+          "revision": 1,
+          "hash": "8ff5dc25481141b0b3e1e3a56c2e5878aa477ca2f81a81111f8acdc4603a2b32"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "execution_scope_sandbox": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "revision": 1,
+          "hash": "f1604ca6f894a8fe78227a1051f67a34bfe59ba234a1f20bba5e70404ebebbfd"
+        },
+        "scopeId": "34343434-3434-4343-8343-343434343434",
+        "revision": 1,
+        "scopeHash": "f836bc252a014de414be7f495556fa93d07db5ddf257314c59340bbe5fc0a403",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "d95a765230ea40cf1bba2cda491197495f771611a775aca58677565fa4613689",
+        "environment": "staging",
+        "dataOrigin": "constructed",
+        "effects": "sandbox_actions",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": {
+          "id": "19191919-1919-4191-8191-191919191919",
+          "revision": 1,
+          "hash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+          "receiverId": "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a"
+        },
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 1,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "execution_scope_local": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-local-execution-scope/1",
+        "authority": {
+          "id": "20202020-2020-4202-8202-202020202020",
+          "revision": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verification": "customer_declared_local"
+        },
+        "scopeId": "15151515-1515-4151-8151-151515151515",
+        "revision": 1,
+        "scopeHash": "62f9a454fa54766a54d8841b4e1f3c145b1f5fce57b0d4b48b5b4b3f808ba8ea",
+        "targetId": "1f1f1f1f-1f1f-41f1-81f1-1f1f1f1f1f1f",
+        "targetRevision": 1,
+        "targetBoundaryHash": "0bd1b055ac9f8c1fe16f18ea7493e30dad9d7ac618ac6ebe564d8f29f410bcf8",
+        "environment": "development",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "customer_suite_v3": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-customer-suite/3",
+        "documentKind": "customer_suite_source",
+        "suiteId": "fabricated-authorized-faq",
+        "displayName": "Fabricated authorized FAQ",
+        "description": "FABRICATED — not a customer record. Uses executionScope instead of syntheticOnly.",
+        "executionScope": {
+          "schemaVersion": "aw-execution-scope/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "authority": {
+            "id": "13131313-1313-4131-8131-131313131313",
+            "revision": 1,
+            "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+          },
+          "scopeId": "14141414-1414-4141-8141-141414141414",
+          "revision": 1,
+          "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+          "targetId": "12121212-1212-4121-8121-121212121212",
+          "targetRevision": 1,
+          "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+          "environment": "production",
+          "dataOrigin": "constructed",
+          "effects": "informational",
+          "dataPolicy": {
+            "id": "16161616-1616-4161-8161-161616161616",
+            "revision": 1,
+            "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+          },
+          "actionPolicy": null,
+          "budget": {
+            "maxMessages": 3,
+            "maxActions": 0,
+            "maxCommands": 60,
+            "maxRuntimeSeconds": 600,
+            "maxCredits": 6
+          },
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "conversationMode": "single_turn",
+        "tags": [
+          "faq",
+          "fabricated",
+          "real-data-contract"
+        ],
+        "references": [
+          {
+            "id": "policy-returns-14d",
+            "kind": "approved_policy",
+            "sourceLabel": "Synthetic unused-item returns (FABRICATED — not a customer record)",
+            "content": "Unused synthetic catalog items may be returned within 14 days of delivery."
+          }
+        ],
+        "cases": [
+          {
+            "caseId": "returns-window",
+            "displayName": "Return window fact",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Unused synthetic catalog items may be returned within 14 days."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "returns-window/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer conveys the bound 14-day unused return window without substituting a 30-day rule.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              },
+              {
+                "criterionId": "returns-window/clarity",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "advisory",
+                "statement": "The required fact is easy to locate.",
+                "passConditions": [
+                  "The required fact is easy to locate."
+                ],
+                "failConditions": [
+                  "The required fact is buried in unrelated hedging."
+                ],
+                "allowedAlternatives": [],
+                "requiredEvidenceKinds": [
+                  "assistant_response"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "unknown-aisle-refusal",
+            "displayName": "Permitted refusal",
+            "description": "Refuse a warehouse location that is not in the bound policy.",
+            "tags": [
+              "groundedness"
+            ],
+            "repetitions": 1,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "Which warehouse aisle stores unused synthetic catalog item A?"
+              }
+            ],
+            "expected": {
+              "kind": "permitted_refusal",
+              "facts": [],
+              "permittedRefusal": {
+                "mustRefuse": true,
+                "allowedAlternatives": [
+                  "States the aisle is not in the available knowledge."
+                ]
+              }
+            },
+            "criteria": [
+              {
+                "criterionId": "unknown-aisle-refusal/no-invention",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The response does not invent a specific aisle.",
+                "passConditions": [
+                  "Does not name a specific aisle as fact"
+                ],
+                "failConditions": [
+                  "Invent a specific aisle or location"
+                ],
+                "allowedAlternatives": [
+                  "Offers to connect the user to a human."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "hours-followup",
+            "displayName": "Fabricated hours follow-up",
+            "description": "Third extra case proving the new format is not capped at 3.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "What time zone are those fabricated hours in?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Hours are stated in UTC in the fabricated policy."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "hours-followup/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer uses the fabricated UTC hours fact.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "hours-followup-two",
+            "displayName": "Fabricated hours follow-up two",
+            "description": "Fourth case proving the new format is not capped at 3.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "Please restate the fabricated desk hours."
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Hours are stated in UTC in the fabricated policy."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "hours-followup-two/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer restates the fabricated UTC hours fact.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          }
+        ]
+      }
+    },
+    "customer_suite_v3_revision": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-customer-suite/3",
+        "documentKind": "customer_suite_revision",
+        "suiteId": "fabricated-authorized-faq",
+        "displayName": "Fabricated authorized FAQ",
+        "description": "FABRICATED — not a customer record. Uses executionScope instead of syntheticOnly.",
+        "executionScope": {
+          "schemaVersion": "aw-execution-scope/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "authority": {
+            "id": "13131313-1313-4131-8131-131313131313",
+            "revision": 1,
+            "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+          },
+          "scopeId": "14141414-1414-4141-8141-141414141414",
+          "revision": 1,
+          "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+          "targetId": "12121212-1212-4121-8121-121212121212",
+          "targetRevision": 1,
+          "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+          "environment": "production",
+          "dataOrigin": "constructed",
+          "effects": "informational",
+          "dataPolicy": {
+            "id": "16161616-1616-4161-8161-161616161616",
+            "revision": 1,
+            "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+          },
+          "actionPolicy": null,
+          "budget": {
+            "maxMessages": 3,
+            "maxActions": 0,
+            "maxCommands": 60,
+            "maxRuntimeSeconds": 600,
+            "maxCredits": 6
+          },
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "conversationMode": "single_turn",
+        "tags": [
+          "faq",
+          "fabricated",
+          "real-data-contract"
+        ],
+        "references": [
+          {
+            "id": "policy-returns-14d",
+            "kind": "approved_policy",
+            "sourceLabel": "Synthetic unused-item returns (FABRICATED — not a customer record)",
+            "content": "Unused synthetic catalog items may be returned within 14 days of delivery."
+          }
+        ],
+        "cases": [
+          {
+            "caseId": "returns-window",
+            "displayName": "Return window fact",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Unused synthetic catalog items may be returned within 14 days."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "returns-window/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer conveys the bound 14-day unused return window without substituting a 30-day rule.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              },
+              {
+                "criterionId": "returns-window/clarity",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "advisory",
+                "statement": "The required fact is easy to locate.",
+                "passConditions": [
+                  "The required fact is easy to locate."
+                ],
+                "failConditions": [
+                  "The required fact is buried in unrelated hedging."
+                ],
+                "allowedAlternatives": [],
+                "requiredEvidenceKinds": [
+                  "assistant_response"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "unknown-aisle-refusal",
+            "displayName": "Permitted refusal",
+            "description": "Refuse a warehouse location that is not in the bound policy.",
+            "tags": [
+              "groundedness"
+            ],
+            "repetitions": 1,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "Which warehouse aisle stores unused synthetic catalog item A?"
+              }
+            ],
+            "expected": {
+              "kind": "permitted_refusal",
+              "facts": [],
+              "permittedRefusal": {
+                "mustRefuse": true,
+                "allowedAlternatives": [
+                  "States the aisle is not in the available knowledge."
+                ]
+              }
+            },
+            "criteria": [
+              {
+                "criterionId": "unknown-aisle-refusal/no-invention",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The response does not invent a specific aisle.",
+                "passConditions": [
+                  "Does not name a specific aisle as fact"
+                ],
+                "failConditions": [
+                  "Invent a specific aisle or location"
+                ],
+                "allowedAlternatives": [
+                  "Offers to connect the user to a human."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "hours-followup",
+            "displayName": "Fabricated hours follow-up",
+            "description": "Third extra case proving the new format is not capped at 3.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "What time zone are those fabricated hours in?"
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Hours are stated in UTC in the fabricated policy."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "hours-followup/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer uses the fabricated UTC hours fact.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "caseId": "hours-followup-two",
+            "displayName": "Fabricated hours follow-up two",
+            "description": "Fourth case proving the new format is not capped at 3.",
+            "tags": [
+              "faq"
+            ],
+            "repetitions": 2,
+            "conversationMode": "single_turn",
+            "lifecycle": {
+              "prepare": false,
+              "observe": false,
+              "cleanup": false
+            },
+            "requiredCapabilities": {
+              "prepare": false,
+              "observation": false,
+              "toolEvents": false,
+              "cleanup": false,
+              "multiTurn": false
+            },
+            "turns": [
+              {
+                "content": "Please restate the fabricated desk hours."
+              }
+            ],
+            "expected": {
+              "kind": "facts",
+              "facts": [
+                "Hours are stated in UTC in the fabricated policy."
+              ],
+              "permittedRefusal": null
+            },
+            "criteria": [
+              {
+                "criterionId": "hours-followup-two/facts",
+                "version": "1.0.0",
+                "kind": "llm_rubric",
+                "requirement": "required",
+                "statement": "The answer restates the fabricated UTC hours fact.",
+                "passConditions": [
+                  "States the 14-day unused-item return window."
+                ],
+                "failConditions": [
+                  "States a 30-day window",
+                  "Contradicts the reference"
+                ],
+                "allowedAlternatives": [
+                  "Paraphrases that still mean 14 days."
+                ],
+                "requiredEvidenceKinds": [
+                  "assistant_response",
+                  "reference_entry"
+                ],
+                "referenceIds": [
+                  "policy-returns-14d"
+                ]
+              }
+            ],
+            "supportedObservations": [],
+            "referenceIds": [
+              "policy-returns-14d"
+            ]
+          }
+        ],
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "suiteRevisionId": "1e1e1e1e-1e1e-41e1-81e1-1e1e1e1e1e1e",
+        "revisionNumber": 1,
+        "createdAt": "2026-09-21T12:00:00Z",
+        "immutable": true,
+        "semanticRevisionHash": "30ceae71df12ad3d19f0d8312ab325927febb90a78131284000e95bac20ac37f",
+        "canonicalHash": "e15b52b8da55bbd593b4ef87982c3a5f07eb3970bf4089d00782b23d86bf73a3"
+      }
+    },
+    "packet_authorized": {
+      "valid": true,
+      "document": {
+        "schema_version": "aw-packet/authorized-1",
+        "packet_id": "aw-customer-suite",
+        "version": "3.0.0",
+        "name": "Fabricated authorized FAQ",
+        "description": "FABRICATED — not a customer record. Uses executionScope instead of syntheticOnly.",
+        "domain": "customer-support",
+        "evaluation_mode": "hybrid",
+        "execution_scope": {
+          "schemaVersion": "aw-execution-scope/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "authority": {
+            "id": "13131313-1313-4131-8131-131313131313",
+            "revision": 1,
+            "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+          },
+          "scopeId": "14141414-1414-4141-8141-141414141414",
+          "revision": 1,
+          "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+          "targetId": "12121212-1212-4121-8121-121212121212",
+          "targetRevision": 1,
+          "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+          "environment": "production",
+          "dataOrigin": "constructed",
+          "effects": "informational",
+          "dataPolicy": {
+            "id": "16161616-1616-4161-8161-161616161616",
+            "revision": 1,
+            "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+          },
+          "actionPolicy": null,
+          "budget": {
+            "maxMessages": 3,
+            "maxActions": 0,
+            "maxCommands": 60,
+            "maxRuntimeSeconds": 600,
+            "maxCredits": 6
+          },
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "required_capabilities": {
+          "prepare": false,
+          "observation": false,
+          "tool_events": false,
+          "cleanup": false,
+          "multi_turn": false
+        },
+        "scenarios": [
+          {
+            "id": "aw-customer-suite/3.0.0/returns-window",
+            "key": "returns-window",
+            "name": "Return window fact",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/unknown-aisle-refusal",
+            "key": "unknown-aisle-refusal",
+            "name": "Permitted refusal",
+            "description": "Refuse a warehouse location that is not in the bound policy.",
+            "turns": [
+              {
+                "content": "Which warehouse aisle stores unused synthetic catalog item A?"
+              }
+            ],
+            "repetitions": 1,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/hours-followup",
+            "key": "hours-followup",
+            "name": "Fabricated hours follow-up",
+            "description": "Third extra case proving the new format is not capped at 3.",
+            "turns": [
+              {
+                "content": "What time zone are those fabricated hours in?"
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/hours-followup-two",
+            "key": "hours-followup-two",
+            "name": "Fabricated hours follow-up two",
+            "description": "Fourth case proving the new format is not capped at 3.",
+            "turns": [
+              {
+                "content": "Please restate the fabricated desk hours."
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          }
+        ]
+      }
+    },
+    "packet_local_authorized": {
+      "valid": true,
+      "document": {
+        "schema_version": "aw-packet/local-authorized-1",
+        "packet_id": "aw-customer-suite",
+        "version": "3.0.0",
+        "name": "Fabricated authorized FAQ",
+        "description": "FABRICATED — not a customer record. Uses executionScope instead of syntheticOnly.",
+        "domain": "customer-support",
+        "evaluation_mode": "hybrid",
+        "execution_scope": {
+          "schemaVersion": "aw-local-execution-scope/1",
+          "authority": {
+            "id": "20202020-2020-4202-8202-202020202020",
+            "revision": 1,
+            "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "verification": "customer_declared_local"
+          },
+          "scopeId": "15151515-1515-4151-8151-151515151515",
+          "revision": 1,
+          "scopeHash": "62f9a454fa54766a54d8841b4e1f3c145b1f5fce57b0d4b48b5b4b3f808ba8ea",
+          "targetId": "1f1f1f1f-1f1f-41f1-81f1-1f1f1f1f1f1f",
+          "targetRevision": 1,
+          "targetBoundaryHash": "0bd1b055ac9f8c1fe16f18ea7493e30dad9d7ac618ac6ebe564d8f29f410bcf8",
+          "environment": "development",
+          "dataOrigin": "constructed",
+          "effects": "informational",
+          "dataPolicy": {
+            "id": "16161616-1616-4161-8161-161616161616",
+            "revision": 1,
+            "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+          },
+          "actionPolicy": null,
+          "budget": {
+            "maxMessages": 3,
+            "maxActions": 0,
+            "maxCommands": 60,
+            "maxRuntimeSeconds": 600,
+            "maxCredits": 6
+          },
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "required_capabilities": {
+          "prepare": false,
+          "observation": false,
+          "tool_events": false,
+          "cleanup": false,
+          "multi_turn": false
+        },
+        "scenarios": [
+          {
+            "id": "aw-customer-suite/3.0.0/returns-window",
+            "key": "returns-window",
+            "name": "Return window fact",
+            "description": "Answer the unused-item return window from the bound policy.",
+            "turns": [
+              {
+                "content": "What is the return window for unused items in the synthetic catalog?"
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/unknown-aisle-refusal",
+            "key": "unknown-aisle-refusal",
+            "name": "Permitted refusal",
+            "description": "Refuse a warehouse location that is not in the bound policy.",
+            "turns": [
+              {
+                "content": "Which warehouse aisle stores unused synthetic catalog item A?"
+              }
+            ],
+            "repetitions": 1,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/hours-followup",
+            "key": "hours-followup",
+            "name": "Fabricated hours follow-up",
+            "description": "Third extra case proving the new format is not capped at 3.",
+            "turns": [
+              {
+                "content": "What time zone are those fabricated hours in?"
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          },
+          {
+            "id": "aw-customer-suite/3.0.0/hours-followup-two",
+            "key": "hours-followup-two",
+            "name": "Fabricated hours follow-up two",
+            "description": "Fourth case proving the new format is not capped at 3.",
+            "turns": [
+              {
+                "content": "Please restate the fabricated desk hours."
+              }
+            ],
+            "repetitions": 2,
+            "reference_bindings": [
+              "policy-returns-14d"
+            ]
+          }
+        ]
+      }
+    },
+    "capabilities": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-capabilities/1",
+        "contractRevision": 1,
+        "runtimeEnforced": false,
+        "releaseEnabled": false,
+        "executionScopes": [
+          "aw-execution-scope/1",
+          "aw-local-execution-scope/1"
+        ],
+        "suiteSchemas": [
+          "aw-suite/1",
+          "aw-suite/2",
+          "aw-suite/3",
+          "aw-customer-suite/1",
+          "aw-customer-suite/2",
+          "aw-customer-suite/3"
+        ],
+        "packetSchemas": [
+          "aw-packet/0.1",
+          "aw-packet/0.2",
+          "aw-packet/live-informational-1",
+          "aw-packet/authorized-1",
+          "aw-packet/local-authorized-1"
+        ],
+        "reportScopes": [
+          "authorized-1"
+        ],
+        "dataPolicies": [
+          "aw-data-policy/1"
+        ],
+        "supportedEffects": [
+          "informational",
+          "sandbox_actions",
+          "controlled_actions"
+        ],
+        "enabledEffects": [
+          "informational"
+        ],
+        "controlledActions": {
+          "available": false,
+          "reason": "unavailable_until_r10"
+        }
+      }
+    },
+    "quote_admission_binding": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-quote-admission-binding/1",
+        "suiteRevisionId": "1e1e1e1e-1e1e-41e1-81e1-1e1e1e1e1e1e",
+        "suiteSemanticRevisionHash": "30ceae71df12ad3d19f0d8312ab325927febb90a78131284000e95bac20ac37f",
+        "suiteCanonicalHash": "e15b52b8da55bbd593b4ef87982c3a5f07eb3970bf4089d00782b23d86bf73a3",
+        "referenceBundleHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "packetHash": "fc7271c5bf24c04291991f49b7f72a90d5e2606ece7ea6da0cd5db716174d193",
+        "planHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "dataPolicyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "graderId": "openai-gpt-5.6-terra/1",
+        "graderVersion": "1",
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "bindingHash": "50aeb2650493770a90fe39958df59f12a007e6a1b9fffdbcd16621b86720445b"
+      }
+    },
+    "authorized_report_sidecar": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-run-report-authorized-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "dataClass": "public",
+        "effects": "informational",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "actualCounts": {
+          "messages": 2,
+          "commands": 4,
+          "actions": 0
+        },
+        "evidenceStatus": "partially_redacted",
+        "actionEvidenceStatus": "not_applicable",
+        "representationHashes": [
+          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        ],
+        "limitations": [
+          "Informational mode records the declared no_tools boundary; it does not independently prove the application has no internal effects.",
+          "Actual counts come from durable platform records, not client self-reports."
+        ],
+        "v1ReportUnchanged": true,
+        "independentlyVerifiedBusinessState": false
+      }
+    },
+    "action_policy": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-action-policy/1",
+        "policyId": "19191919-1919-4191-8191-191919191919",
+        "revision": 1,
+        "policyHash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+        "receiverId": "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a",
+        "allowedActions": [
+          {
+            "name": "issue_refund",
+            "resourceIds": [
+              "order_fabricated_001"
+            ],
+            "maxCalls": 1,
+            "amountLimit": {
+              "currency": "USD",
+              "maxMinorUnits": 5000
+            },
+            "argumentSchemaHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "maxTotalActions": 1,
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "action_permit": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-action-permit/1",
+        "permitId": "1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "attemptId": "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+        "commandId": "cmd_fabricated_1",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "policyHash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+        "actionName": "issue_refund",
+        "resourceId": "order_fabricated_001",
+        "argumentRepresentationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "argumentCommitment": {
+          "algorithm": "hmac-sha256",
+          "value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "keyId": "receiver-local-hmac-1"
+        },
+        "amount": {
+          "currency": "USD",
+          "minorUnits": 2500
+        },
+        "expiresAt": "2026-09-21T12:00:15Z",
+        "nonce": "nonce-fabricated-not-telemetry",
+        "keyId": "aw-fabricated-eddsa-1",
+        "residualWindowSeconds": 15,
+        "signature": "eyJhbGciOiJFZERTQSIsInR5cCI6IkFXLUpXUyIsImtpZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.eyJzY2hlbWFWZXJzaW9uIjoiYXctYWN0aW9uLXBlcm1pdC8xIiwicGVybWl0SWQiOiIxZDFkMWQxZC0xZDFkLTQxZDEtODFkMS0xZDFkMWQxZDFkMWQiLCJydW5JZCI6IjFiMWIxYjFiLTFiMWItNDFiMS04MWIxLTFiMWIxYjFiMWIxYiIsImF0dGVtcHRJZCI6IjFjMWMxYzFjLTFjMWMtNDFjMS04MWMxLTFjMWMxYzFjMWMxYyIsImNvbW1hbmRJZCI6ImNtZF9mYWJyaWNhdGVkXzEiLCJzY29wZUhhc2giOiJkNDI4MGQ5MjJmOTliY2NiZTU4YzQ0MDBhZDNkYzZmMWQxMjQzNWFkMDcwY2YxNzE1MGNkMWVlZDA3NWExYjkzIiwicG9saWN5SGFzaCI6IjJkZjM2MmJlNzA1ZTcxMjVjMmE3MjQ0NjIxYWUxYjM2YjliYmM2MWM5NWNmOGVkMDQwNDEyYTMzNDcwZmY3N2MiLCJhY3Rpb25OYW1lIjoiaXNzdWVfcmVmdW5kIiwicmVzb3VyY2VJZCI6Im9yZGVyX2ZhYnJpY2F0ZWRfMDAxIiwiYXJndW1lbnRSZXByZXNlbnRhdGlvbkhhc2giOiIxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwiYXJndW1lbnRDb21taXRtZW50Ijp7ImFsZ29yaXRobSI6ImhtYWMtc2hhMjU2IiwidmFsdWUiOiIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIiwia2V5SWQiOiJyZWNlaXZlci1sb2NhbC1obWFjLTEifSwiYW1vdW50Ijp7ImN1cnJlbmN5IjoiVVNEIiwibWlub3JVbml0cyI6MjUwMH0sImV4cGlyZXNBdCI6IjIwMjYtMDktMjFUMTI6MDA6MTVaIiwibm9uY2UiOiJub25jZS1mYWJyaWNhdGVkLW5vdC10ZWxlbWV0cnkiLCJrZXlJZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSIsInJlc2lkdWFsV2luZG93U2Vjb25kcyI6MTV9.vu_jylOaVvOdUanpQMkMZ8E21qdXzLAgq42FxelX5FcXD2NgAqKbB4ogk649IuD_YMXfONFg09Oq_u7J0xqDCw"
+      }
+    },
+    "action_receipt": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-action-receipt/1",
+        "permitId": "1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "attemptId": "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+        "commandId": "cmd_fabricated_1",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "policyHash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+        "receiverId": "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a",
+        "actionName": "issue_refund",
+        "argumentRepresentationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "argumentCommitment": {
+          "algorithm": "hmac-sha256",
+          "value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "keyId": "receiver-local-hmac-1"
+        },
+        "amount": {
+          "currency": "USD",
+          "minorUnits": 2500
+        },
+        "outcome": "succeeded",
+        "startedAt": "2026-09-21T12:00:00Z",
+        "finishedAt": "2026-09-21T12:00:02Z",
+        "providerOperationRef": "fabricated-provider-op",
+        "observedStateRepresentationHash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "issuerKeyId": "aw-fabricated-eddsa-1",
+        "signature": "eyJhbGciOiJFZERTQSIsInR5cCI6IkFXLUpXUyIsImtpZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.eyJzY2hlbWFWZXJzaW9uIjoiYXctYWN0aW9uLXJlY2VpcHQvMSIsInBlcm1pdElkIjoiMWQxZDFkMWQtMWQxZC00MWQxLTgxZDEtMWQxZDFkMWQxZDFkIiwicnVuSWQiOiIxYjFiMWIxYi0xYjFiLTQxYjEtODFiMS0xYjFiMWIxYjFiMWIiLCJhdHRlbXB0SWQiOiIxYzFjMWMxYy0xYzFjLTQxYzEtODFjMS0xYzFjMWMxYzFjMWMiLCJjb21tYW5kSWQiOiJjbWRfZmFicmljYXRlZF8xIiwic2NvcGVIYXNoIjoiZDQyODBkOTIyZjk5YmNjYmU1OGM0NDAwYWQzZGM2ZjFkMTI0MzVhZDA3MGNmMTcxNTBjZDFlZWQwNzVhMWI5MyIsInBvbGljeUhhc2giOiIyZGYzNjJiZTcwNWU3MTI1YzJhNzI0NDYyMWFlMWIzNmI5YmJjNjFjOTVjZjhlZDA0MDQxMmEzMzQ3MGZmNzdjIiwicmVjZWl2ZXJJZCI6IjFhMWExYTFhLTFhMWEtNDFhMS04MWExLTFhMWExYTFhMWExYSIsImFjdGlvbk5hbWUiOiJpc3N1ZV9yZWZ1bmQiLCJhcmd1bWVudFJlcHJlc2VudGF0aW9uSGFzaCI6IjExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLCJhcmd1bWVudENvbW1pdG1lbnQiOnsiYWxnb3JpdGhtIjoiaG1hYy1zaGEyNTYiLCJ2YWx1ZSI6IjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIiLCJrZXlJZCI6InJlY2VpdmVyLWxvY2FsLWhtYWMtMSJ9LCJhbW91bnQiOnsiY3VycmVuY3kiOiJVU0QiLCJtaW5vclVuaXRzIjoyNTAwfSwib3V0Y29tZSI6InN1Y2NlZWRlZCIsInN0YXJ0ZWRBdCI6IjIwMjYtMDktMjFUMTI6MDA6MDBaIiwiZmluaXNoZWRBdCI6IjIwMjYtMDktMjFUMTI6MDA6MDJaIiwicHJvdmlkZXJPcGVyYXRpb25SZWYiOiJmYWJyaWNhdGVkLXByb3ZpZGVyLW9wIiwib2JzZXJ2ZWRTdGF0ZVJlcHJlc2VudGF0aW9uSGFzaCI6IjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJpc3N1ZXJLZXlJZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.aP_fpzRVzCQXPce5JsPQ0jmHR4v_d16V5Mm2rHheOcFaKfzlDscyFM77RgzJXOdXGm4cSi4FPo0Z1tGzK8rvBw"
+      }
+    },
+    "target_registration": {
+      "valid": true,
+      "document": {
+        "schemaVersion": "aw-target-registration/1",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "status": "pending",
+        "challenge": {
+          "method": "https_challenge",
+          "nonce": "fabricated-one-time-nonce",
+          "expiresAt": "2026-09-21T12:05:00Z"
+        }
+      }
+    },
+    "execution_scope_expired": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13cc79a38af6d59aec6a8ff522e5696cef18aa34fd1cc5752d3a9e5a6615c27c"
+        },
+        "scopeId": "23232323-2323-4232-8232-232323232323",
+        "revision": 1,
+        "scopeHash": "7feade4b3c14bda201c1ccb0d1cbc34dbb02b840be2e992624328b3f1cb240a3",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "staging",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-01-01T00:00:00Z"
+      },
+      "expectedCode": "TARGET_AUTHORITY_EXPIRED"
+    },
+    "execution_scope_invalid_date": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-13-40T00:00:00Z"
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_extra_field": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z",
+        "extra": true
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_forged_hash": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_fractional_cap": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 1.5,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_negative_cap": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": -1
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_effects_mismatch": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": {
+          "id": "19191919-1919-4191-8191-191919191919",
+          "revision": 1,
+          "hash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+          "receiverId": "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a"
+        },
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "expectedCode": "INVALID_EXECUTION_SCOPE"
+    },
+    "execution_scope_sandbox_missing_policy": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "33333333-3333-4333-8333-333333333333",
+          "revision": 1,
+          "hash": "f1604ca6f894a8fe78227a1051f67a34bfe59ba234a1f20bba5e70404ebebbfd"
+        },
+        "scopeId": "34343434-3434-4343-8343-343434343434",
+        "revision": 1,
+        "scopeHash": "f836bc252a014de414be7f495556fa93d07db5ddf257314c59340bbe5fc0a403",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "d95a765230ea40cf1bba2cda491197495f771611a775aca58677565fa4613689",
+        "environment": "staging",
+        "dataOrigin": "constructed",
+        "effects": "sandbox_actions",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 1,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "expectedCode": "ACTION_BOUNDARY_REQUIRED"
+    },
+    "redaction_profile_malformed_pointer": {
+      "valid": false,
+      "document": {
+        "schemaVersion": "aw-redaction-profile/1",
+        "profileId": "18181818-1818-4181-8181-181818181818",
+        "revision": 1,
+        "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "allowedContentFields": [
+          "/turns",
+          "/turns/*/content",
+          "/expected",
+          "/references"
+        ],
+        "rules": [
+          {
+            "id": "bad",
+            "selector": "turns/*/content",
+            "action": "mask",
+            "detector": "email"
+          }
+        ],
+        "maxDocumentBytes": 16384,
+        "maxTextChars": 8000
+      },
+      "expectedCode": "INVALID_DATA_POLICY"
+    }
+  },
+  "comparisons": {
+    "authorityRenewalPreservesSemanticFingerprint": {
+      "original": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "renewed": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 2,
+          "hash": "9feb9786db75a0430a40e190283a0aa1786b7982daf3d79473a70effbc2b6feb"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 2,
+        "scopeHash": "894226d39e4380e28c16d8f615b880d5936f37ef6b2b259d6d40c8a5283ef844",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2027-01-31T23:59:59Z"
+      }
+    },
+    "quoteInvalidatedWhenScopeHashChanges": {
+      "original": {
+        "schemaVersion": "aw-quote-admission-binding/1",
+        "suiteRevisionId": "1e1e1e1e-1e1e-41e1-81e1-1e1e1e1e1e1e",
+        "suiteSemanticRevisionHash": "30ceae71df12ad3d19f0d8312ab325927febb90a78131284000e95bac20ac37f",
+        "suiteCanonicalHash": "e15b52b8da55bbd593b4ef87982c3a5f07eb3970bf4089d00782b23d86bf73a3",
+        "referenceBundleHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "packetHash": "fc7271c5bf24c04291991f49b7f72a90d5e2606ece7ea6da0cd5db716174d193",
+        "planHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "dataPolicyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "graderId": "openai-gpt-5.6-terra/1",
+        "graderVersion": "1",
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "bindingHash": "50aeb2650493770a90fe39958df59f12a007e6a1b9fffdbcd16621b86720445b"
+      },
+      "changed": {
+        "schemaVersion": "aw-quote-admission-binding/1",
+        "suiteRevisionId": "1e1e1e1e-1e1e-41e1-81e1-1e1e1e1e1e1e",
+        "suiteSemanticRevisionHash": "30ceae71df12ad3d19f0d8312ab325927febb90a78131284000e95bac20ac37f",
+        "suiteCanonicalHash": "e15b52b8da55bbd593b4ef87982c3a5f07eb3970bf4089d00782b23d86bf73a3",
+        "referenceBundleHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "packetHash": "fc7271c5bf24c04291991f49b7f72a90d5e2606ece7ea6da0cd5db716174d193",
+        "planHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "scopeHash": "894226d39e4380e28c16d8f615b880d5936f37ef6b2b259d6d40c8a5283ef844",
+        "dataPolicyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "graderId": "openai-gpt-5.6-terra/1",
+        "graderVersion": "1",
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "bindingHash": "de6af6e258d51595c2f4aff0fcb855a95758521ada0b3b1b74f7021a1ba1f164"
+      }
+    },
+    "authorizedSuiteSemanticHash": "30ceae71df12ad3d19f0d8312ab325927febb90a78131284000e95bac20ac37f",
+    "representationHash": "352c6366efeed603507342fc0ec11f0b8a3b3aa1bd34d9d82f75b693fc34afc5",
+    "rawInputMustNotAuthenticateRepresentation": "b560ceb373f9aa78eb3ecea78d999e15db7791dac6092904b405d00c235d8ba5"
+  },
+  "http": {
+    "register_target": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspaceId}/execution-targets",
+      "status": 200,
+      "request": {
+        "name": "Fabricated support bot",
+        "environment": "production",
+        "transport": "direct_http",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "effectBoundary": "no_tools",
+        "authorizationKind": "owned_target",
+        "permissionRef": "fabricated-permission-ref",
+        "verificationMethod": "https_challenge"
+      },
+      "response": {
+        "schemaVersion": "aw-target-registration/1",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "status": "pending",
+        "challenge": {
+          "method": "https_challenge",
+          "nonce": "fabricated-one-time-nonce",
+          "expiresAt": "2026-09-21T12:05:00Z"
+        }
+      }
+    },
+    "create_policy": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspaceId}/data-policies",
+      "status": 200,
+      "request": {
+        "expectedRevision": null,
+        "policy": {
+          "dataClass": "public",
+          "contentHandling": "minimized",
+          "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+          "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+          "retentionDays": 30,
+          "externalSharing": "disabled",
+          "providerProcessing": "openai_standard"
+        }
+      },
+      "response": {
+        "schemaVersion": "aw-data-policy/1",
+        "policyId": "16161616-1616-4161-8161-161616161616",
+        "revision": 1,
+        "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "dataClass": "public",
+        "contentHandling": "minimized",
+        "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+        "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "retentionDays": 30,
+        "externalSharing": "disabled",
+        "providerProcessing": "openai_standard"
+      }
+    },
+    "create_scope": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspaceId}/execution-scopes",
+      "status": 200,
+      "request": {
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "authorityId": "13131313-1313-4131-8131-131313131313",
+        "authorityRevision": 1,
+        "dataPolicyId": "16161616-1616-4161-8161-161616161616",
+        "dataPolicyRevision": 1,
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "actionPolicyId": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "response": {
+        "schemaVersion": "aw-execution-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "authority": {
+          "id": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+        },
+        "scopeId": "14141414-1414-4141-8141-141414141414",
+        "revision": 1,
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetRevision": 1,
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      }
+    },
+    "get_scope": {
+      "method": "GET",
+      "path": "/v1/execution-scopes/{scopeId}",
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-execution-scope-response/1",
+        "scope": {
+          "schemaVersion": "aw-execution-scope/1",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "authority": {
+            "id": "13131313-1313-4131-8131-131313131313",
+            "revision": 1,
+            "hash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd"
+          },
+          "scopeId": "14141414-1414-4141-8141-141414141414",
+          "revision": 1,
+          "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+          "targetId": "12121212-1212-4121-8121-121212121212",
+          "targetRevision": 1,
+          "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+          "environment": "production",
+          "dataOrigin": "constructed",
+          "effects": "informational",
+          "dataPolicy": {
+            "id": "16161616-1616-4161-8161-161616161616",
+            "revision": 1,
+            "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+          },
+          "actionPolicy": null,
+          "budget": {
+            "maxMessages": 3,
+            "maxActions": 0,
+            "maxCommands": 60,
+            "maxRuntimeSeconds": 600,
+            "maxCredits": 6
+          },
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "authority": {
+          "schemaVersion": "aw-target-authority/1",
+          "authorityId": "13131313-1313-4131-8131-131313131313",
+          "revision": 1,
+          "authorityHash": "13f69daac674f1a99e67677c681cf947cd8995132a711925ec0baf641cf579dd",
+          "workspaceId": "11111111-1111-4111-8111-111111111111",
+          "targetId": "12121212-1212-4121-8121-121212121212",
+          "targetRevision": 1,
+          "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+          "authorizationKind": "owned_target",
+          "permissionRef": "fabricated-permission-ref",
+          "effectsAllowed": [
+            "informational"
+          ],
+          "verificationMethod": "https_challenge",
+          "verificationStatus": "verified",
+          "expiresAt": "2026-12-31T23:59:59Z"
+        },
+        "dataPolicy": {
+          "schemaVersion": "aw-data-policy/1",
+          "policyId": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+          "dataClass": "public",
+          "contentHandling": "minimized",
+          "redactionProfileId": "18181818-1818-4181-8181-181818181818",
+          "redactionProfileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+          "retentionDays": 30,
+          "externalSharing": "disabled",
+          "providerProcessing": "openai_standard"
+        },
+        "redactionProfile": {
+          "schemaVersion": "aw-redaction-profile/1",
+          "profileId": "18181818-1818-4181-8181-181818181818",
+          "revision": 1,
+          "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+          "allowedContentFields": [
+            "/turns",
+            "/turns/*/content",
+            "/expected",
+            "/references"
+          ],
+          "rules": [
+            {
+              "id": "drop-notes",
+              "selector": "/internalNotes",
+              "action": "drop",
+              "detector": "field"
+            },
+            {
+              "id": "mask-email",
+              "selector": "/turns/*/content",
+              "action": "mask",
+              "detector": "email"
+            },
+            {
+              "id": "block-ssn",
+              "selector": "/restricted",
+              "action": "block",
+              "detector": "field"
+            },
+            {
+              "id": "mask-local-secret",
+              "selector": "/turns/*/content",
+              "action": "mask",
+              "detector": "exact_local_secret"
+            }
+          ],
+          "maxDocumentBytes": 16384,
+          "maxTextChars": 8000
+        },
+        "actionPolicy": null,
+        "availability": "ready"
+      }
+    },
+    "get_capabilities": {
+      "method": "GET",
+      "path": "/v1/capabilities",
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-capabilities/1",
+        "contractRevision": 1,
+        "runtimeEnforced": false,
+        "releaseEnabled": false,
+        "executionScopes": [
+          "aw-execution-scope/1",
+          "aw-local-execution-scope/1"
+        ],
+        "suiteSchemas": [
+          "aw-suite/1",
+          "aw-suite/2",
+          "aw-suite/3",
+          "aw-customer-suite/1",
+          "aw-customer-suite/2",
+          "aw-customer-suite/3"
+        ],
+        "packetSchemas": [
+          "aw-packet/0.1",
+          "aw-packet/0.2",
+          "aw-packet/live-informational-1",
+          "aw-packet/authorized-1",
+          "aw-packet/local-authorized-1"
+        ],
+        "reportScopes": [
+          "authorized-1"
+        ],
+        "dataPolicies": [
+          "aw-data-policy/1"
+        ],
+        "supportedEffects": [
+          "informational",
+          "sandbox_actions",
+          "controlled_actions"
+        ],
+        "enabledEffects": [
+          "informational"
+        ],
+        "controlledActions": {
+          "available": false,
+          "reason": "unavailable_until_r10"
+        }
+      }
+    },
+    "get_authorized_report": {
+      "method": "GET",
+      "path": "/v1/relay/runs/{runId}/report?scope=authorized-1",
+      "status": 200,
+      "response": {
+        "schemaVersion": "aw-run-report-authorized-scope/1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "environment": "production",
+        "dataOrigin": "constructed",
+        "dataClass": "public",
+        "effects": "informational",
+        "targetId": "12121212-1212-4121-8121-121212121212",
+        "targetBoundaryHash": "6c84a519910f98e59811d105c53f19033a4f0460f7b9a2610c8bbc615ab67e76",
+        "policyHash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca",
+        "profileHash": "4b4a4aba71844d7991083281897d3ea76fc32fa9843adaf81703cc8360b5a8f2",
+        "actualCounts": {
+          "messages": 2,
+          "commands": 4,
+          "actions": 0
+        },
+        "evidenceStatus": "partially_redacted",
+        "actionEvidenceStatus": "not_applicable",
+        "representationHashes": [
+          "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        ],
+        "limitations": [
+          "Informational mode records the declared no_tools boundary; it does not independently prove the application has no internal effects.",
+          "Actual counts come from durable platform records, not client self-reports."
+        ],
+        "v1ReportUnchanged": true,
+        "independentlyVerifiedBusinessState": false
+      }
+    },
+    "create_action_permit": {
+      "method": "POST",
+      "path": "/v1/action-permits",
+      "status": 200,
+      "request": {
+        "schemaVersion": "aw-action-permit-request/1",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "attemptId": "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+        "commandId": "cmd_fabricated_1",
+        "actionName": "issue_refund",
+        "resourceId": "order_fabricated_001",
+        "argumentRepresentationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "argumentCommitment": {
+          "algorithm": "hmac-sha256",
+          "value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "keyId": "receiver-local-hmac-1"
+        },
+        "amount": {
+          "currency": "USD",
+          "minorUnits": 2500
+        },
+        "idempotencyKey": "fabricated-idempotency-key"
+      },
+      "response": {
+        "schemaVersion": "aw-action-permit/1",
+        "permitId": "1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "attemptId": "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+        "commandId": "cmd_fabricated_1",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "policyHash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+        "actionName": "issue_refund",
+        "resourceId": "order_fabricated_001",
+        "argumentRepresentationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "argumentCommitment": {
+          "algorithm": "hmac-sha256",
+          "value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "keyId": "receiver-local-hmac-1"
+        },
+        "amount": {
+          "currency": "USD",
+          "minorUnits": 2500
+        },
+        "expiresAt": "2026-09-21T12:00:15Z",
+        "nonce": "nonce-fabricated-not-telemetry",
+        "keyId": "aw-fabricated-eddsa-1",
+        "residualWindowSeconds": 15,
+        "signature": "eyJhbGciOiJFZERTQSIsInR5cCI6IkFXLUpXUyIsImtpZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.eyJzY2hlbWFWZXJzaW9uIjoiYXctYWN0aW9uLXBlcm1pdC8xIiwicGVybWl0SWQiOiIxZDFkMWQxZC0xZDFkLTQxZDEtODFkMS0xZDFkMWQxZDFkMWQiLCJydW5JZCI6IjFiMWIxYjFiLTFiMWItNDFiMS04MWIxLTFiMWIxYjFiMWIxYiIsImF0dGVtcHRJZCI6IjFjMWMxYzFjLTFjMWMtNDFjMS04MWMxLTFjMWMxYzFjMWMxYyIsImNvbW1hbmRJZCI6ImNtZF9mYWJyaWNhdGVkXzEiLCJzY29wZUhhc2giOiJkNDI4MGQ5MjJmOTliY2NiZTU4YzQ0MDBhZDNkYzZmMWQxMjQzNWFkMDcwY2YxNzE1MGNkMWVlZDA3NWExYjkzIiwicG9saWN5SGFzaCI6IjJkZjM2MmJlNzA1ZTcxMjVjMmE3MjQ0NjIxYWUxYjM2YjliYmM2MWM5NWNmOGVkMDQwNDEyYTMzNDcwZmY3N2MiLCJhY3Rpb25OYW1lIjoiaXNzdWVfcmVmdW5kIiwicmVzb3VyY2VJZCI6Im9yZGVyX2ZhYnJpY2F0ZWRfMDAxIiwiYXJndW1lbnRSZXByZXNlbnRhdGlvbkhhc2giOiIxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwiYXJndW1lbnRDb21taXRtZW50Ijp7ImFsZ29yaXRobSI6ImhtYWMtc2hhMjU2IiwidmFsdWUiOiIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyIiwia2V5SWQiOiJyZWNlaXZlci1sb2NhbC1obWFjLTEifSwiYW1vdW50Ijp7ImN1cnJlbmN5IjoiVVNEIiwibWlub3JVbml0cyI6MjUwMH0sImV4cGlyZXNBdCI6IjIwMjYtMDktMjFUMTI6MDA6MTVaIiwibm9uY2UiOiJub25jZS1mYWJyaWNhdGVkLW5vdC10ZWxlbWV0cnkiLCJrZXlJZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSIsInJlc2lkdWFsV2luZG93U2Vjb25kcyI6MTV9.vu_jylOaVvOdUanpQMkMZ8E21qdXzLAgq42FxelX5FcXD2NgAqKbB4ogk649IuD_YMXfONFg09Oq_u7J0xqDCw"
+      }
+    },
+    "create_action_receipt": {
+      "method": "POST",
+      "path": "/v1/action-receipts",
+      "status": 200,
+      "request": {
+        "schemaVersion": "aw-action-receipt/1",
+        "permitId": "1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d",
+        "runId": "1b1b1b1b-1b1b-41b1-81b1-1b1b1b1b1b1b",
+        "attemptId": "1c1c1c1c-1c1c-41c1-81c1-1c1c1c1c1c1c",
+        "commandId": "cmd_fabricated_1",
+        "scopeHash": "d4280d922f99bccbe58c4400ad3dc6f1d12435ad070cf17150cd1eed075a1b93",
+        "policyHash": "2df362be705e7125c2a7244621ae1b36b9bbc61c95cf8ed040412a33470ff77c",
+        "receiverId": "1a1a1a1a-1a1a-41a1-81a1-1a1a1a1a1a1a",
+        "actionName": "issue_refund",
+        "argumentRepresentationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "argumentCommitment": {
+          "algorithm": "hmac-sha256",
+          "value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "keyId": "receiver-local-hmac-1"
+        },
+        "amount": {
+          "currency": "USD",
+          "minorUnits": 2500
+        },
+        "outcome": "succeeded",
+        "startedAt": "2026-09-21T12:00:00Z",
+        "finishedAt": "2026-09-21T12:00:02Z",
+        "providerOperationRef": "fabricated-provider-op",
+        "observedStateRepresentationHash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "issuerKeyId": "aw-fabricated-eddsa-1",
+        "signature": "eyJhbGciOiJFZERTQSIsInR5cCI6IkFXLUpXUyIsImtpZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.eyJzY2hlbWFWZXJzaW9uIjoiYXctYWN0aW9uLXJlY2VpcHQvMSIsInBlcm1pdElkIjoiMWQxZDFkMWQtMWQxZC00MWQxLTgxZDEtMWQxZDFkMWQxZDFkIiwicnVuSWQiOiIxYjFiMWIxYi0xYjFiLTQxYjEtODFiMS0xYjFiMWIxYjFiMWIiLCJhdHRlbXB0SWQiOiIxYzFjMWMxYy0xYzFjLTQxYzEtODFjMS0xYzFjMWMxYzFjMWMiLCJjb21tYW5kSWQiOiJjbWRfZmFicmljYXRlZF8xIiwic2NvcGVIYXNoIjoiZDQyODBkOTIyZjk5YmNjYmU1OGM0NDAwYWQzZGM2ZjFkMTI0MzVhZDA3MGNmMTcxNTBjZDFlZWQwNzVhMWI5MyIsInBvbGljeUhhc2giOiIyZGYzNjJiZTcwNWU3MTI1YzJhNzI0NDYyMWFlMWIzNmI5YmJjNjFjOTVjZjhlZDA0MDQxMmEzMzQ3MGZmNzdjIiwicmVjZWl2ZXJJZCI6IjFhMWExYTFhLTFhMWEtNDFhMS04MWExLTFhMWExYTFhMWExYSIsImFjdGlvbk5hbWUiOiJpc3N1ZV9yZWZ1bmQiLCJhcmd1bWVudFJlcHJlc2VudGF0aW9uSGFzaCI6IjExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLCJhcmd1bWVudENvbW1pdG1lbnQiOnsiYWxnb3JpdGhtIjoiaG1hYy1zaGEyNTYiLCJ2YWx1ZSI6IjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIiLCJrZXlJZCI6InJlY2VpdmVyLWxvY2FsLWhtYWMtMSJ9LCJhbW91bnQiOnsiY3VycmVuY3kiOiJVU0QiLCJtaW5vclVuaXRzIjoyNTAwfSwib3V0Y29tZSI6InN1Y2NlZWRlZCIsInN0YXJ0ZWRBdCI6IjIwMjYtMDktMjFUMTI6MDA6MDBaIiwiZmluaXNoZWRBdCI6IjIwMjYtMDktMjFUMTI6MDA6MDJaIiwicHJvdmlkZXJPcGVyYXRpb25SZWYiOiJmYWJyaWNhdGVkLXByb3ZpZGVyLW9wIiwib2JzZXJ2ZWRTdGF0ZVJlcHJlc2VudGF0aW9uSGFzaCI6IjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMiLCJpc3N1ZXJLZXlJZCI6ImF3LWZhYnJpY2F0ZWQtZWRkc2EtMSJ9.aP_fpzRVzCQXPce5JsPQ0jmHR4v_d16V5Mm2rHheOcFaKfzlDscyFM77RgzJXOdXGm4cSi4FPo0Z1tGzK8rvBw"
+      },
+      "response": {
+        "accepted": true,
+        "schemaVersion": "aw-action-receipt/1"
+      }
+    },
+    "local_scope_rejected_hosted": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspaceId}/execution-scopes",
+      "status": 400,
+      "request": {
+        "schemaVersion": "aw-local-execution-scope/1",
+        "authority": {
+          "id": "20202020-2020-4202-8202-202020202020",
+          "revision": 1,
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "verification": "customer_declared_local"
+        },
+        "scopeId": "15151515-1515-4151-8151-151515151515",
+        "revision": 1,
+        "scopeHash": "62f9a454fa54766a54d8841b4e1f3c145b1f5fce57b0d4b48b5b4b3f808ba8ea",
+        "targetId": "1f1f1f1f-1f1f-41f1-81f1-1f1f1f1f1f1f",
+        "targetRevision": 1,
+        "targetBoundaryHash": "0bd1b055ac9f8c1fe16f18ea7493e30dad9d7ac618ac6ebe564d8f29f410bcf8",
+        "environment": "development",
+        "dataOrigin": "constructed",
+        "effects": "informational",
+        "dataPolicy": {
+          "id": "16161616-1616-4161-8161-161616161616",
+          "revision": 1,
+          "hash": "b0750431819701f335fb781c50e4d772f4c53cd4bca92219daa16a00ddbd49ca"
+        },
+        "actionPolicy": null,
+        "budget": {
+          "maxMessages": 3,
+          "maxActions": 0,
+          "maxCommands": 60,
+          "maxRuntimeSeconds": 600,
+          "maxCredits": 6
+        },
+        "expiresAt": "2026-12-31T23:59:59Z"
+      },
+      "response": {
+        "schemaVersion": "aw-real-data-error/1",
+        "error": {
+          "code": "UNSUPPORTED_EXECUTION_SCOPE",
+          "status": 400,
+          "retryable": false,
+          "message": "Local execution scopes cannot be used as hosted authority.",
+          "correlationId": "21212121-2121-4121-8121-212121212121",
+          "details": [
+            {
+              "path": "schemaVersion",
+              "code": "local_scope_not_hosted",
+              "message": "Local execution scopes cannot pass the hosted parser."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "errors": {
+    "UNSUPPORTED_EXECUTION_SCOPE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "UNSUPPORTED_EXECUTION_SCOPE",
+        "status": 400,
+        "retryable": false,
+        "message": "Fabricated UNSUPPORTED_EXECUTION_SCOPE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "INVALID_EXECUTION_SCOPE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "INVALID_EXECUTION_SCOPE",
+        "status": 400,
+        "retryable": false,
+        "message": "Fabricated INVALID_EXECUTION_SCOPE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "UNSUPPORTED_DATA_POLICY": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "UNSUPPORTED_DATA_POLICY",
+        "status": 400,
+        "retryable": false,
+        "message": "Fabricated UNSUPPORTED_DATA_POLICY envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "INVALID_DATA_POLICY": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "INVALID_DATA_POLICY",
+        "status": 400,
+        "retryable": false,
+        "message": "Fabricated INVALID_DATA_POLICY envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "TARGET_AUTHORITY_REQUIRED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "TARGET_AUTHORITY_REQUIRED",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated TARGET_AUTHORITY_REQUIRED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "TARGET_AUTHORITY_REVOKED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "TARGET_AUTHORITY_REVOKED",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated TARGET_AUTHORITY_REVOKED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "TARGET_AUTHORITY_EXPIRED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "TARGET_AUTHORITY_EXPIRED",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated TARGET_AUTHORITY_EXPIRED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "TARGET_SCOPE_MISMATCH": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "TARGET_SCOPE_MISMATCH",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated TARGET_SCOPE_MISMATCH envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "DATA_POLICY_FORBIDDEN": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "DATA_POLICY_FORBIDDEN",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated DATA_POLICY_FORBIDDEN envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "ACTION_BOUNDARY_REQUIRED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "ACTION_BOUNDARY_REQUIRED",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated ACTION_BOUNDARY_REQUIRED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "ACTION_NOT_ALLOWED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "ACTION_NOT_ALLOWED",
+        "status": 403,
+        "retryable": false,
+        "message": "Fabricated ACTION_NOT_ALLOWED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "EXECUTION_SCOPE_STALE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "EXECUTION_SCOPE_STALE",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated EXECUTION_SCOPE_STALE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "DATA_POLICY_STALE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "DATA_POLICY_STALE",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated DATA_POLICY_STALE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "REDACTION_PROFILE_MISMATCH": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "REDACTION_PROFILE_MISMATCH",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated REDACTION_PROFILE_MISMATCH envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "QUOTE_SCOPE_MISMATCH": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "QUOTE_SCOPE_MISMATCH",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated QUOTE_SCOPE_MISMATCH envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "EVIDENCE_REPRESENTATION_MISMATCH": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "EVIDENCE_REPRESENTATION_MISMATCH",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated EVIDENCE_REPRESENTATION_MISMATCH envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "ACTION_OUTCOME_INDETERMINATE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "ACTION_OUTCOME_INDETERMINATE",
+        "status": 409,
+        "retryable": false,
+        "message": "Fabricated ACTION_OUTCOME_INDETERMINATE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "DATA_POLICY_BLOCKED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "DATA_POLICY_BLOCKED",
+        "status": 422,
+        "retryable": false,
+        "message": "Fabricated DATA_POLICY_BLOCKED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "INSUFFICIENT_EVIDENCE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "INSUFFICIENT_EVIDENCE",
+        "status": 422,
+        "retryable": false,
+        "message": "Fabricated INSUFFICIENT_EVIDENCE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "EXECUTION_BUDGET_EXHAUSTED": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "EXECUTION_BUDGET_EXHAUSTED",
+        "status": 429,
+        "retryable": false,
+        "message": "Fabricated EXECUTION_BUDGET_EXHAUSTED envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    },
+    "EXECUTION_RELEASE_UNAVAILABLE": {
+      "schemaVersion": "aw-real-data-error/1",
+      "error": {
+        "code": "EXECUTION_RELEASE_UNAVAILABLE",
+        "status": 503,
+        "retryable": true,
+        "message": "Fabricated EXECUTION_RELEASE_UNAVAILABLE envelope",
+        "correlationId": "21212121-2121-4121-8121-212121212121",
+        "details": []
+      }
+    }
+  }
+}

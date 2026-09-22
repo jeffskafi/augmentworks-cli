@@ -228,7 +228,7 @@ export function installLocalInterruptHandler(
     if (count >= 2) options.host.exit(EXIT.INTERRUPTED);
     writeLine(
       options.stderr,
-      "Cancellation requested; draining synthetic cleanup. Press Ctrl+C again to exit now."
+      "Cancellation requested; draining cleanup. Press Ctrl+C again to exit now."
     );
     runner.requestCancellation();
   };
@@ -241,7 +241,7 @@ function writeLocalProgress(
   event: LocalProgressEvent
 ): void {
   if (event.type === "run_started") {
-    writeLine(stream, `Starting ${event.attempts} local synthetic attempt(s).`);
+    writeLine(stream, `Starting ${event.attempts} local attempt(s).`);
   } else if (event.type === "attempt_started") {
     writeLine(
       stream,

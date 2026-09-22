@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -55,25 +56,60 @@ describe("aw-real-data-1 contract lock", () => {
     );
     expect(AW_REAL_DATA_CONTRACT.releaseEnabled).toBe(false);
     expect(AW_REAL_DATA_CONTRACT.runtimeEnforced).toBe(false);
-    expect(AW_REAL_DATA_CONTRACT.imported).toBe(false);
+    expect(AW_REAL_DATA_CONTRACT.imported).toBe(true);
+    expect(AW_REAL_DATA_CONTRACT.files["contracts/aw-real-data-1.schema.json"]).toBe(
+      AW_REAL_DATA_CONTRACT.expected.schema
+    );
+    expect(AW_REAL_DATA_CONTRACT.files["contracts/aw-real-data-1.fixtures.json"]).toBe(
+      AW_REAL_DATA_CONTRACT.expected.fixtures
+    );
   });
 
-  it("records the exact R01 retrieval failure instead of fabricating files", async () => {
+  it("vendors exact frozen R01 bytes from the verified Linear attachment", async () => {
     const retrieval = JSON.parse(
       await readFile(resolve("contracts/aw-real-data-1.retrieval.json"), "utf8")
     ) as {
       imported: boolean;
       verified: boolean;
-      expected: { schema: string; fixtures: string };
+      expected: { schema: string; fixtures: string; checksums: string };
+      source: {
+        commit: string;
+        access?: { kind: string; attachmentId: string; zipSha256: string; zipBytes: number };
+      };
+      files: Record<string, string>;
+      extracted: Record<string, { sha256: string; bytes: number }>;
       attempts: Array<{ command: string; status: number | null }>;
     };
-    expect(retrieval.imported).toBe(false);
-    expect(retrieval.verified).toBe(false);
+    expect(retrieval.imported).toBe(true);
+    expect(retrieval.verified).toBe(true);
+    expect(retrieval.source.commit).toBe(AW_REAL_DATA_CONTRACT.source.commit);
     expect(retrieval.expected.schema).toBe(AW_REAL_DATA_CONTRACT.expected.schema);
     expect(retrieval.expected.fixtures).toBe(AW_REAL_DATA_CONTRACT.expected.fixtures);
-    expect(retrieval.attempts.some((attempt) => /gh api repos\/jeffskafi\/augmentworks/.test(attempt.command))).toBe(
-      true
+    expect(retrieval.source.access?.kind).toBe("linear_attachment");
+    expect(retrieval.source.access?.attachmentId).toBe("f95225e8-badf-42fa-9a39-2373b851a584");
+    expect(retrieval.source.access?.zipSha256).toBe(
+      "f325c47d990f22ce6a9ccc1dde41b665fb7286c01d6e5693bf8e11e5521fb2f2"
     );
+    expect(retrieval.source.access?.zipBytes).toBe(17169);
+    expect(retrieval.extracted["aw-real-data-1.schema.json"]).toEqual({
+      sha256: retrieval.expected.schema,
+      bytes: 25842
+    });
+    expect(retrieval.extracted["aw-real-data-1.fixtures.json"]).toEqual({
+      sha256: retrieval.expected.fixtures,
+      bytes: 100138
+    });
+    expect(retrieval.extracted["aw-real-data-1.checksums.json"]).toEqual({
+      sha256: retrieval.expected.checksums,
+      bytes: 318
+    });
+
+    for (const [relative, expected] of Object.entries(retrieval.extracted)) {
+      const raw = await readFile(resolve("contracts", relative));
+      expect(raw.byteLength).toBe(expected.bytes);
+      expect(createHash("sha256").update(raw).digest("hex")).toBe(expected.sha256);
+    }
+    expect(retrieval.attempts.some((attempt) => attempt.command.includes("linear get_attachment"))).toBe(true);
   });
 });
 

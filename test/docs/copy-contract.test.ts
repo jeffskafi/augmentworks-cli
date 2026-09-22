@@ -245,6 +245,21 @@ describe("customer-facing CLI copy", () => {
     expect(initNextSteps()).not.toContain("isolated synthetic target values");
   });
 
+  it("uses gated init and local-test command copy without labeling authorized local runs synthetic", async () => {
+    const init = await readSurface("src/commands/init.ts");
+    const localTest = await readSurface("src/commands/local-test.ts");
+    expect(init).toContain("Add only the prepare, send, observe, and cleanup hooks required by the selected pattern.");
+    expect(init).toContain("The packaged starter is fictional.");
+    expect(init).toContain("Hosted real-data quote and admission stay release-disabled");
+    expect(init).toContain("Do not set \\`synthetic_only: true\\` on a live or authorized document");
+    expect(init).not.toContain("Add only synthetic prepare, send, observe, and cleanup hooks");
+    expect(init).not.toContain("Preview mappings with a synthetic JSON fixture");
+    expect(localTest).toContain("Cancellation requested; draining cleanup.");
+    expect(localTest).not.toContain("draining synthetic cleanup");
+    expect(localTest).toContain("local attempt(s)");
+    expect(localTest).not.toContain("local synthetic attempt(s)");
+  });
+
   it("documents the local no-control-plane boundary without promising an air gap", async () => {
     const readme = (await readSurface("README.md")).replace(/\s+/gu, " ");
     const authentication = (await readSurface("docs/authentication.md")).replace(/\s+/gu, " ");

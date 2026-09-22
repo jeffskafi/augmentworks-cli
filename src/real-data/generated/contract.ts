@@ -3,7 +3,7 @@
 export const AW_REAL_DATA_CONTRACT = {
   "schemaVersion": "aw-real-data/1",
   "algorithm": "sha256",
-  "imported": false,
+  "imported": true,
   "releaseEnabled": false,
   "runtimeEnforced": false,
   "source": {
@@ -18,7 +18,10 @@ export const AW_REAL_DATA_CONTRACT = {
     "schema": "6a53d04f297eb4db275bb7074bf7705a08137d932be823a3f4087d84cfdf7121",
     "fixtures": "26033843d55dcb9b49ccf68fa96f7de9ec34aa6c299e8ab28b605cad37572230"
   },
-  "files": {},
+  "files": {
+    "contracts/aw-real-data-1.schema.json": "6a53d04f297eb4db275bb7074bf7705a08137d932be823a3f4087d84cfdf7121",
+    "contracts/aw-real-data-1.fixtures.json": "26033843d55dcb9b49ccf68fa96f7de9ec34aa6c299e8ab28b605cad37572230"
+  },
   "contract": {
     "revision": 1,
     "executionScope": "aw-execution-scope/1",
