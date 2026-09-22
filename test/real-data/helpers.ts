@@ -89,7 +89,7 @@ export function sealedProfile(policy: DataPolicy): RedactionProfile {
       profileId: policy.redactionProfileId,
       revision: 1,
       profileHash: "0".repeat(64),
-      allowedContentFields: ["answer"],
+      allowedContentFields: ["/answer"],
       rules: [
         { id: "credentials", selector: "/authorization", action: "drop" as const, detector: "credential" as const }
       ],
@@ -106,7 +106,7 @@ export function publicCredentialPolicy(): { policy: DataPolicy; profile: Redacti
     profileId: UUID_E,
     revision: 1,
     profileHash: "0".repeat(64),
-    allowedContentFields: ["answer"],
+    allowedContentFields: ["/answer"],
     rules: [
       { id: "credentials", selector: "/authorization", action: "drop" as const, detector: "credential" as const }
     ],
@@ -192,7 +192,7 @@ export function publicCredentialOnlyPolicy(): { policy: DataPolicy; profile: Red
       profileId: UUID_E,
       revision: 1,
       profileHash: "0".repeat(64),
-      allowedContentFields: ["answer"],
+      allowedContentFields: ["/answer"],
       rules: [{ id: "credentials", selector: "/token", action: "drop" as const, detector: "credential" as const }],
       maxDocumentBytes: 65_536,
       maxTextChars: 8_000
