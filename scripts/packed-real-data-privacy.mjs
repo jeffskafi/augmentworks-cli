@@ -261,7 +261,7 @@ function authorizedPacket(origin, policy, profile) {
     },
     scenarios: [
       {
-        key: "packed-privacy.hours",
+        key: "packed-real-data-privacy.hours",
         name: "Hours",
         category: "records",
         severity: "medium",
@@ -291,6 +291,8 @@ target:
   name: packed-real-data-privacy
   connector: http
   base_url: \${CHATBOT_BASE_URL}
+  auth:
+    bearer_env: CHATBOT_API_KEY
   operations:
     send:
       method: POST
@@ -299,6 +301,7 @@ target:
         message: $input.message.content
       response:
         content: $.answer
+        finished: $.finished
 `;
 }
 
