@@ -15,7 +15,7 @@ import {
 } from "../../src/commands/billing.js";
 import { EXIT, AwError } from "../../src/errors.js";
 import { runSourceCli } from "../util/cli-process.js";
-import { listenLoopback, type ListeningServer } from "../util/http-server.js";
+import { listenLoopback, withoutEphemeralLoopbackPort, type ListeningServer } from "../util/http-server.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const TOKEN = "aw_connector_test_access_token_billing";
@@ -495,8 +495,8 @@ describe("augmentworks billing CLI", () => {
     const parsed = JSON.parse(result.stdout) as { code: string; safe_message: string };
     expect(parsed.code).toBe("UPDATE_REQUIRED");
     expect(parsed.safe_message.toLowerCase()).toContain("billing_portal_link_v1");
-    expect(result.stdout).not.toContain("49");
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("49");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
   });
 
