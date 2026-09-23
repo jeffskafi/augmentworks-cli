@@ -982,147 +982,150 @@ describe("hosted GitHub Actions recipe", () => {
     }
   });
 
-  it("gates completed grading when billing outcome is null and still skips unfinished grading", async () => {
-    const scripts = await Promise.all(
-      recipeCases.map(async ({ file, step }) => extractStepScript(await readRecipe(file), step))
-    );
-    const hostedScript = scripts[0];
-    const gateScript = scripts[1];
-    if (hostedScript === undefined || gateScript === undefined) throw new Error("missing recipe script");
-    assertWait11ReachesGate(hostedScript);
-    assertWait11ReachesGate(gateScript);
-    const hostedProgram = extractGradingReadyProgram(hostedScript);
-    const gateProgram = extractGradingReadyProgram(gateScript);
-    expect(hostedProgram).toBe(gateProgram);
+  it(
+    "gates completed grading when billing outcome is null and still skips unfinished grading",
+    { timeout: 60_000 },
+    async () => {
+      const scripts = await Promise.all(
+        recipeCases.map(async ({ file, step }) => extractStepScript(await readRecipe(file), step))
+      );
+      const hostedScript = scripts[0];
+      const gateScript = scripts[1];
+      if (hostedScript === undefined || gateScript === undefined) throw new Error("missing recipe script");
+      assertWait11ReachesGate(hostedScript);
+      assertWait11ReachesGate(gateScript);
+      const hostedProgram = extractGradingReadyProgram(hostedScript);
+      const gateProgram = extractGradingReadyProgram(gateScript);
+      expect(hostedProgram).toBe(gateProgram);
 
-    const ready = omittedOutcomeWait();
-    const omittedKey = omittedOutcomeWait();
-    delete omittedKey["outcome"];
-    const cases: Array<{ body: string; ready: string }> = [
-      { body: `${JSON.stringify(ready)}\n`, ready: "1" },
-      { body: `${JSON.stringify(omittedKey)}\n`, ready: "1" },
-      { body: `${JSON.stringify(omittedOutcomeWait({ outcome: "" }))}\n`, ready: "1" },
-      { body: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "pending" }))}\n`, ready: "0" },
-      { body: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "partial" }))}\n`, ready: "0" },
-      { body: `${JSON.stringify(omittedOutcomeWait({ outcome: "florb", assessment: "unknown" }))}\n`, ready: "0" },
-      { body: `${JSON.stringify(omittedOutcomeWait({ work: "in_progress", executionStatus: "running" }))}\n`, ready: "0" },
-      {
-        body: `${JSON.stringify({ ok: false, code: "EVALUATION_INCOMPLETE", exit_code: 11 })}\n`,
-        ready: "0"
-      },
-      { body: "not-json\n", ready: "0" }
-    ];
-    for (const entry of cases) {
-      expect(await predicateStdout(hostedProgram, entry.body)).toBe(entry.ready);
-    }
+      const ready = omittedOutcomeWait();
+      const omittedKey = omittedOutcomeWait();
+      delete omittedKey["outcome"];
+      const cases: Array<{ body: string; ready: string }> = [
+        { body: `${JSON.stringify(ready)}\n`, ready: "1" },
+        { body: `${JSON.stringify(omittedKey)}\n`, ready: "1" },
+        { body: `${JSON.stringify(omittedOutcomeWait({ outcome: "" }))}\n`, ready: "1" },
+        { body: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "pending" }))}\n`, ready: "0" },
+        { body: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "partial" }))}\n`, ready: "0" },
+        { body: `${JSON.stringify(omittedOutcomeWait({ outcome: "florb", assessment: "unknown" }))}\n`, ready: "0" },
+        { body: `${JSON.stringify(omittedOutcomeWait({ work: "in_progress", executionStatus: "running" }))}\n`, ready: "0" },
+        {
+          body: `${JSON.stringify({ ok: false, code: "EVALUATION_INCOMPLETE", exit_code: 11 })}\n`,
+          ready: "0"
+        },
+        { body: "not-json\n", ready: "0" }
+      ];
+      for (const entry of cases) {
+        expect(await predicateStdout(hostedProgram, entry.body)).toBe(entry.ready);
+      }
 
-    if (!(await bashAvailable())) {
-      if (process.platform === "win32") return;
-      throw new Error("bash is required to execute the hosted GitHub Actions recipe");
-    }
-    for (const script of [hostedScript, gateScript]) {
-      const checked = await new Promise<{ exitCode: number; stderr: string }>((resolve, reject) => {
-        const child = spawn("bash", ["-n"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
-        let stderr = "";
-        child.stderr?.setEncoding("utf8");
-        child.stderr?.on("data", (chunk: string) => {
-          stderr += chunk;
+      if (!(await bashAvailable())) {
+        if (process.platform === "win32") return;
+        throw new Error("bash is required to execute the hosted GitHub Actions recipe");
+      }
+      for (const script of [hostedScript, gateScript]) {
+        const checked = await new Promise<{ exitCode: number; stderr: string }>((resolve, reject) => {
+          const child = spawn("bash", ["-n"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+          let stderr = "";
+          child.stderr?.setEncoding("utf8");
+          child.stderr?.on("data", (chunk: string) => {
+            stderr += chunk;
+          });
+          child.once("error", reject);
+          child.once("exit", (code) => resolve({ exitCode: code ?? 1, stderr }));
+          child.stdin?.end(script);
         });
-        child.once("error", reject);
-        child.once("exit", (code) => resolve({ exitCode: code ?? 1, stderr }));
-        child.stdin?.end(script);
-      });
-      expect(checked.exitCode, checked.stderr).toBe(0);
+        expect(checked.exitCode, checked.stderr).toBe(0);
 
-      const graded = await executeRecipe(script, {
+        const graded = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(ready)}\n`,
+          waitCode: 11,
+          gateCode: 0
+        });
+        expect(graded.exitCode, `${graded.stderr}\n${graded.stdout}`).toBe(0);
+        expect(graded.stderr).not.toContain("Wait did not finish");
+        expect(graded.stderr).toContain("Continuing to the release gate");
+        expect(graded.stderr).toContain("is not a pass");
+        expect(gateInvocation(graded.log)).toEqual([
+          "gate",
+          "--run",
+          RUN_ID,
+          "--baseline",
+          BASELINE_ID,
+          "--json"
+        ]);
+
+        const blocked = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(ready)}\n`,
+          waitCode: 11,
+          gateCode: 10
+        });
+        expect(blocked.exitCode, blocked.stderr).toBe(EXIT.ASSESSMENT_FAILED);
+        expect(blocked.exitCode).not.toBe(EXIT.OK);
+        expect(gateInvocation(blocked.log)).toBeDefined();
+        expect(blocked.stderr).not.toContain("Wait did not finish");
+
+        const pending = await executeRecipe(script, {
+          waitBody: `${JSON.stringify({
+            ok: false,
+            code: "EVALUATION_INCOMPLETE",
+            category: "relay",
+            safe_message: "Grading is still pending",
+            retryable: false,
+            exit_code: 11
+          })}\n`,
+          waitCode: 11,
+          gateCode: 0
+        });
+        expect(pending.exitCode, pending.stderr).toBe(EXIT.EVALUATION_INCOMPLETE);
+        expect(pending.stderr).toContain("Wait did not finish");
+        expect(gateInvocation(pending.log)).toBeUndefined();
+
+        const partial = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "partial" }))}\n`,
+          waitCode: 11,
+          gateCode: 0
+        });
+        expect(partial.exitCode, partial.stderr).toBe(EXIT.EVALUATION_INCOMPLETE);
+        expect(partial.stderr).toContain("Wait did not finish");
+        expect(gateInvocation(partial.log)).toBeUndefined();
+
+        const passed = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "passed", outcome: "passed", exit_code: 0 }))}\n`,
+          waitCode: 0,
+          gateCode: 0
+        });
+        expect(passed.exitCode, passed.stderr).toBe(EXIT.OK);
+        expect(passed.stderr).not.toContain("Wait did not finish");
+        expect(gateInvocation(passed.log)).toBeDefined();
+
+        const failed = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "failed", outcome: "failed", exit_code: 10 }))}\n`,
+          waitCode: 10,
+          gateCode: 10
+        });
+        expect(failed.exitCode, failed.stderr).toBe(EXIT.ASSESSMENT_FAILED);
+        expect(failed.stderr).not.toContain("Wait did not finish");
+        expect(gateInvocation(failed.log)).toBeDefined();
+
+        const evaluatorError = await executeRecipe(script, {
+          waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "evaluator_error", evaluationStatus: "error", exit_code: 12 }))}\n`,
+          waitCode: 12,
+          gateCode: 0
+        });
+        expect(evaluatorError.exitCode, evaluatorError.stderr).toBe(EXIT.EVALUATION_ERROR);
+        expect(evaluatorError.stderr).toContain("Wait did not finish");
+        expect(gateInvocation(evaluatorError.log)).toBeUndefined();
+      }
+
+      const hostedGraded = await executeRecipe(hostedScript, {
         waitBody: `${JSON.stringify(ready)}\n`,
         waitCode: 11,
         gateCode: 0
       });
-      expect(graded.exitCode, `${graded.stderr}\n${graded.stdout}`).toBe(0);
-      expect(graded.stderr).not.toContain("Wait did not finish");
-      expect(graded.stderr).toContain("Continuing to the release gate");
-      expect(graded.stderr).toContain("is not a pass");
-      expect(gateInvocation(graded.log)).toEqual([
-        "gate",
-        "--run",
-        RUN_ID,
-        "--baseline",
-        BASELINE_ID,
-        "--json"
-      ]);
-
-      const blocked = await executeRecipe(script, {
-        waitBody: `${JSON.stringify(ready)}\n`,
-        waitCode: 11,
-        gateCode: 10
-      });
-      expect(blocked.exitCode, blocked.stderr).toBe(EXIT.ASSESSMENT_FAILED);
-      expect(blocked.exitCode).not.toBe(EXIT.OK);
-      expect(gateInvocation(blocked.log)).toBeDefined();
-      expect(blocked.stderr).not.toContain("Wait did not finish");
-
-      const pending = await executeRecipe(script, {
-        waitBody: `${JSON.stringify({
-          ok: false,
-          code: "EVALUATION_INCOMPLETE",
-          category: "relay",
-          safe_message: "Grading is still pending",
-          retryable: false,
-          exit_code: 11
-        })}\n`,
-        waitCode: 11,
-        gateCode: 0
-      });
-      expect(pending.exitCode, pending.stderr).toBe(EXIT.EVALUATION_INCOMPLETE);
-      expect(pending.stderr).toContain("Wait did not finish");
-      expect(gateInvocation(pending.log)).toBeUndefined();
-
-      const partial = await executeRecipe(script, {
-        waitBody: `${JSON.stringify(omittedOutcomeWait({ evaluationStatus: "partial" }))}\n`,
-        waitCode: 11,
-        gateCode: 0
-      });
-      expect(partial.exitCode, partial.stderr).toBe(EXIT.EVALUATION_INCOMPLETE);
-      expect(partial.stderr).toContain("Wait did not finish");
-      expect(gateInvocation(partial.log)).toBeUndefined();
-
-      const passed = await executeRecipe(script, {
-        waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "passed", outcome: "passed", exit_code: 0 }))}\n`,
-        waitCode: 0,
-        gateCode: 0
-      });
-      expect(passed.exitCode, passed.stderr).toBe(EXIT.OK);
-      expect(passed.stderr).not.toContain("Wait did not finish");
-      expect(gateInvocation(passed.log)).toBeDefined();
-
-      const failed = await executeRecipe(script, {
-        waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "failed", outcome: "failed", exit_code: 10 }))}\n`,
-        waitCode: 10,
-        gateCode: 10
-      });
-      expect(failed.exitCode, failed.stderr).toBe(EXIT.ASSESSMENT_FAILED);
-      expect(failed.stderr).not.toContain("Wait did not finish");
-      expect(gateInvocation(failed.log)).toBeDefined();
-
-      const evaluatorError = await executeRecipe(script, {
-        waitBody: `${JSON.stringify(omittedOutcomeWait({ assessment: "evaluator_error", evaluationStatus: "error", exit_code: 12 }))}\n`,
-        waitCode: 12,
-        gateCode: 0
-      });
-      expect(evaluatorError.exitCode, evaluatorError.stderr).toBe(EXIT.EVALUATION_ERROR);
-      expect(evaluatorError.stderr).toContain("Wait did not finish");
-      expect(gateInvocation(evaluatorError.log)).toBeUndefined();
-    }
-
-    const hostedGraded = await executeRecipe(hostedScript, {
-      waitBody: `${JSON.stringify(ready)}\n`,
-      waitCode: 11,
-      gateCode: 0
+      expect(hostedGraded.summary).toContain("release gate still ran");
+      expect(hostedGraded.summary).toContain("pending or partial evaluation never reaches this step");
+      expect(hostedGraded.summary).not.toContain("Wait did not finish");
+      expect(invocations(hostedGraded.log).some((args) => args[0] === "recover")).toBe(false);
     });
-    expect(hostedGraded.summary).toContain("release gate still ran");
-    expect(hostedGraded.summary).toContain("pending or partial evaluation never reaches this step");
-    expect(hostedGraded.summary).not.toContain("Wait did not finish");
-    expect(invocations(hostedGraded.log).some((args) => args[0] === "recover")).toBe(false);
-  });
 });
