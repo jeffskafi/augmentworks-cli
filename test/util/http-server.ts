@@ -8,6 +8,11 @@ export interface ListeningServer {
   close(): Promise<void>;
 }
 
+/** Catalog-price checks search for "49" and "149". An ephemeral port such as 51492 contains those digits. */
+export function withoutEphemeralLoopbackPort(text: string): string {
+  return text.replace(/https?:\/\/127\.0\.0\.1:\d+/gu, "http://127.0.0.1");
+}
+
 export async function listenLoopback(server: Server): Promise<ListeningServer> {
   await new Promise<void>((fulfill, reject) => {
     const onError = (error: Error): void => reject(error);

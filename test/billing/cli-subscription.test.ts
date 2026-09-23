@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runSourceCli } from "../util/cli-process.js";
-import { listenLoopback, type ListeningServer } from "../util/http-server.js";
+import { listenLoopback, withoutEphemeralLoopbackPort, type ListeningServer } from "../util/http-server.js";
 
 const projectRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const TOKEN = "aw_connector_test_access_token_subscription";
@@ -138,7 +138,7 @@ describe("subscription usage CLI matrix", () => {
     expect(result.stdout).toContain("Recurring: 1000 available");
     expect(result.stdout).toContain("Trial/promotional: 200 available");
     expect(result.stdout).toContain("pro_monthly_1000_v1");
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(result.stdout).not.toContain(TOKEN);
     expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
     expect(paths).not.toContain("POST /v1/relay/runs");
@@ -202,7 +202,7 @@ describe("subscription usage CLI matrix", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("does not advertise subscriptions_v1");
     expect(result.stdout).toContain("Available credits: 200");
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(result.stdout).not.toContain("pro_monthly_1000_v1");
   });
 
@@ -229,7 +229,7 @@ describe("subscription usage CLI matrix", () => {
       env: usageEnv(server.baseUrl)
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(JSON.parse(result.stdout)).toMatchObject({
       ok: true,
       subscriptionAdvertised: false,
@@ -269,7 +269,7 @@ describe("subscription usage CLI matrix", () => {
       `https://augmentworks.ai/portal/billing?workspace=${WORKSPACE}`
     );
     expect(parsed.subscription.planCode).toBe("pro_monthly_1000_v1");
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(result.stdout).not.toMatch(/customer-portal|cs_live|sk_live/u);
     expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
   });
@@ -351,7 +351,7 @@ describe("subscription usage CLI matrix", () => {
     expect(result.stdout).toContain("Available credits: 300");
     expect(result.stdout).toContain("Purchased: 300 available");
     expect(result.stdout).toContain("Subscription: none");
-    expect(result.stdout).not.toContain("149");
+    expect(withoutEphemeralLoopbackPort(result.stdout)).not.toContain("149");
     expect(paths.some((path) => path.startsWith("POST "))).toBe(false);
   });
 
