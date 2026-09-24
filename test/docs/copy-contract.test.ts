@@ -172,7 +172,7 @@ describe("customer-facing CLI copy", () => {
     expect(publishedLocalAt).toBeGreaterThan(demoAt);
     expect(hostedTestAt).toBeGreaterThan(demoAt);
     const tick = String.fromCharCode(96);
-    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "catalog", "selection", "test", "suite", "investigation", "run", "compare", "gate", "baseline", "recover", "schema"]) {
+    for (const command of ["login", "logout", "whoami", "usage", "billing", "init", "doctor", "preview-mapping", "probe", "demo", "catalog", "selection", "test", "suite", "investigation", "run", "compare", "gate", "baseline", "recover", "action", "schema"]) {
       expect(readme).toContain("| " + tick + command);
     }
   });

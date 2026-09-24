@@ -6,6 +6,14 @@ import { runCli } from "./cli.js";
 
 export { createCli, runCli, type CliIo } from "./cli.js";
 export {
+  CONTROLLED_ACTIONS_PUBLICLY_AVAILABLE,
+  runCustomerBoundary,
+  retryReceiptDelivery,
+  createHostedActionClient,
+  ActionIntentLedger
+} from "./action-gate/index.js";
+export type { CustomerBoundaryResult, ActionPermitService } from "./action-gate/index.js";
+export {
   CLI_VERSION,
   CONFIG_VERSION,
   RELAY_PROTOCOL_VERSION,

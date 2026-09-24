@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "aw-action-receipt-delivery/1",
+  "fabricated": true,
+  "label": "FABRICATED — shared wrapper failure states, not a customer record",
+  "states": {
+    "accepted": {
+      "evidenceStatus": "verified_receipts",
+      "receiptAccepted": true,
+      "toolInvocations": 1
+    },
+    "receipt_rejected": {
+      "evidenceStatus": "indeterminate",
+      "receiptAccepted": false,
+      "toolInvocations": 1,
+      "retry": "exact_receipt_bytes"
+    },
+    "acknowledgement_unknown": {
+      "evidenceStatus": "indeterminate",
+      "receiptAccepted": false,
+      "toolInvocations": 1,
+      "retry": "exact_receipt_bytes"
+    },
+    "crash_before_send": {
+      "evidenceStatus": "indeterminate",
+      "receiptAccepted": false,
+      "toolInvocations": 0,
+      "retry": "do_not_invoke"
+    },
+    "local_offline": {
+      "evidenceStatus": "reported",
+      "receiptAccepted": false,
+      "platformSignature": false,
+      "hostedCalls": 0
+    }
+  }
+}
