@@ -1,6 +1,7 @@
 import { Command, CommanderError } from "commander";
 
 import { createDemoCommand } from "./commands/demo.js";
+import { createActionCommand } from "./commands/action.js";
 import { createRecoverCommand } from "./commands/recover.js";
 import { createDoctorCommand } from "./commands/doctor.js";
 import { createPreviewMappingCommand } from "./commands/preview-mapping.js";
@@ -86,6 +87,7 @@ export function createCli(io: CliIo = {}): Command {
     createInvestigationCommand({ stdout, stderr, setExitCode: requestExitCode })
   );
   program.addCommand(createRecoverCommand({ stdout, stderr, setExitCode: requestExitCode }));
+  program.addCommand(createActionCommand({ stdout: stdoutLine, stderr: stderrLine, setExitCode: requestExitCode }));
   program.addCommand(createSchemaCommand({ stdout }));
 
   states.set(program, state);

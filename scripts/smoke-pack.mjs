@@ -684,6 +684,20 @@ async function main() {
     const demoHelpWorkspace = execCli(["demo", "--help"]);
     assert(!demoHelpWorkspace.stdout.includes("--workspace"), "packed demo --help advertised --workspace");
 
+    const actionHelp = execCli(["action", "recover", "--help"]);
+    assert(actionHelp.stdout.includes("--state-dir"), "packed CLI is missing action recover --state-dir");
+    assert(actionHelp.stdout.includes("without rerunning"), "packed action recover help dropped the no-replay contract");
+    const actionProbe = run(process.execPath, [
+      "--input-type=module",
+      "-e",
+      [
+        "import { CONTROLLED_ACTIONS_PUBLICLY_AVAILABLE, runCustomerBoundary, ActionIntentLedger } from './node_modules/@augmentworks/cli/dist/index.js';",
+        "if (CONTROLLED_ACTIONS_PUBLICLY_AVAILABLE !== false) throw new Error('controlled actions must stay unavailable');",
+        "if (typeof runCustomerBoundary !== 'function' || typeof ActionIntentLedger !== 'function') throw new Error('action gate exports missing');"
+      ].join(" ")
+    ], { cwd: consumerDirectory });
+    assert(actionProbe.stderr === "" || actionProbe.stderr.includes("npm"), "packed action-gate import failed");
+
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");
     assert(recoverHelp.stdout.includes("--resume"), "packed CLI is missing recover --resume");
@@ -712,6 +726,7 @@ async function main() {
       "baseline",
       "investigation",
       "recover",
+      "action",
       "schema"
     ]) {
       assert(

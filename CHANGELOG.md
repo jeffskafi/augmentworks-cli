@@ -25,6 +25,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Customer controlled-action wrapper (`runCustomerBoundary`) persists the
+  signed receipt before delivery. A rejected or unacknowledged receipt stays
+  evidence-pending and is retried byte-for-byte without rerunning the tool.
+  Public controlled actions remain unavailable
+  ([AUG-210](https://linear.app/augmentworks/issue/AUG-210/qa-bugmain-cli-land-the-controlled-action-client-and-preserve-failed)).
+
 - Frozen AW-REAL-DATA-1 revision 1 schema, fixtures, and checksums are vendored
   from the verified Linear attachment on
   [AUG-188](https://linear.app/augmentworks/issue/AUG-188/cli-support-real-data-execution-in-hosted-and-fully-offline-workflows)
