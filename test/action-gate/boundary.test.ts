@@ -245,18 +245,36 @@ describe("controlled-action customer boundary", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let entered = 0;
     harness.tool = async () => {
+      entered += 1;
       await gate;
       harness.invocations += 1;
       return { providerOperationRef: "fabricated-provider-op", observedState: { status: "refunded" } };
     };
     const first = harness.run({ commandId: "cmd_race" });
     const second = harness.run({ commandId: "cmd_race" });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // The loser returns while the winner is still inside the tool. A fixed
+    // delay is not enough on a slow runner: the second caller can arrive
+    // after the first has already accepted, which is a replay, not a race.
+    const early = await Promise.race([
+      first.then((result) => ({ pending: second, result })),
+      second.then((result) => ({ pending: first, result }))
+    ]);
+    const deadline = Date.now() + 5_000;
+    while (entered !== 1) {
+      if (Date.now() > deadline) {
+        throw new Error("the winning caller did not stay inside the tool while the other returned");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(early.result.receiptAccepted).toBe(false);
+    expect(early.result.evidenceStatus).toBe("indeterminate");
     release();
-    const results = await Promise.all([first, second]);
+    const winner = await early.pending;
+    expect(entered).toBe(1);
     expect(harness.invocations).toBe(1);
-    expect(results.filter((result) => result.receiptAccepted)).toHaveLength(1);
+    expect(winner.receiptAccepted).toBe(true);
   });
 
   it("parses the frozen permit and receipt fixtures", async () => {

@@ -321,18 +321,33 @@ async function main() {
     const gate = new Promise((resolve) => {
       release = resolve;
     });
+    let entered = 0;
     race.state.tool = async () => {
+      entered += 1;
       await gate;
       race.state.invocations += 1;
       return { providerOperationRef: "fabricated-provider-op", observedState: { status: "refunded" } };
     };
     const first = loaded.runCustomerBoundary(race.input("cmd_fabricated_race", receiverKeys.privateKey, publicKey));
     const second = loaded.runCustomerBoundary(race.input("cmd_fabricated_race", receiverKeys.privateKey, publicKey));
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    const early = await Promise.race([
+      first.then((result) => ({ pending: second, result })),
+      second.then((result) => ({ pending: first, result }))
+    ]);
+    const deadline = Date.now() + 5_000;
+    while (entered !== 1) {
+      if (Date.now() > deadline) {
+        throw new Error("the winning caller did not stay inside the tool while the other returned");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert(early.result.receiptAccepted === false, "the caller that returned during dispatch accepted a receipt");
+    assert(early.result.evidenceStatus === "indeterminate", "the caller that lost the race was not indeterminate");
     release();
-    const results = await Promise.all([first, second]);
+    const winner = await early.pending;
+    assert(entered === 1, `concurrent callers entered the tool ${String(entered)} times`);
     assert(race.state.invocations === 1, `concurrent callers invoked the tool ${String(race.state.invocations)} times`);
-    assert(results.filter((result) => result.receiptAccepted).length === 1, "concurrent callers accepted more than one receipt");
+    assert(winner.receiptAccepted === true, "the winning caller did not accept its receipt");
   } finally {
     await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
   }
