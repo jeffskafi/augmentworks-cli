@@ -698,6 +698,34 @@ async function main() {
     ], { cwd: consumerDirectory });
     assert(actionProbe.stderr === "" || actionProbe.stderr.includes("npm"), "packed action-gate import failed");
 
+    process.stdout.write("[pack smoke] packed action-gate permit retry\n");
+    const actionGateFixture = spawnSync(
+      process.execPath,
+      [join(projectRoot, "scripts", "packed-action-gate-permit.mjs")],
+      {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          AUGMENTWORKS_PACKED_BIN: join(installedRoot, "dist", "index.js"),
+          NO_COLOR: "1"
+        },
+        encoding: "utf8",
+        timeout: 60_000,
+        windowsHide: true
+      }
+    );
+    if (actionGateFixture.error !== undefined) {
+      throw new SmokeFailure(`packed action-gate fixture failed to start: ${actionGateFixture.error.message}`);
+    }
+    if (actionGateFixture.status !== 0) {
+      throw new SmokeFailure(
+        ["packed action-gate permit retry failed", actionGateFixture.stdout.trim(), actionGateFixture.stderr.trim()]
+          .filter(Boolean)
+          .join("\n")
+      );
+    }
+    process.stdout.write(actionGateFixture.stdout);
+
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");
     assert(recoverHelp.stdout.includes("--resume"), "packed CLI is missing recover --resume");

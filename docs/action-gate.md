@@ -4,6 +4,10 @@ The installed package exports `runCustomerBoundary` for a customer's own side-ef
 
 The wrapper consumes the frozen `aw-action-permit/1` and `aw-action-receipt/1` documents.
 
+## Permit before dispatch
+
+The intent stays `prepared` while the wrapper requests a hosted permit. The idempotency key is the deterministic intent id. A thrown request, a timeout, or a response that is not a permit document leaves that prepared record in place, so the same input can obtain a permit later. The wrapper validates the permit, then claims `dispatching` with it. Only the winning claim invokes the tool.
+
 ## Durable receipt delivery
 
 1. The intent is stored before the tool runs.
@@ -21,4 +25,4 @@ The wrapper consumes the frozen `aw-action-permit/1` and `aw-action-receipt/1` d
 
 ## Fail closed
 
-Wrong workspace or receiver, forged, tampered, or expired permits, secret-bearing payloads, disallowed resource, amount, or currency, concurrent callers, and revocation do not run the tool. A crash after the dispatch record is committed also does not run the tool on restart.
+Wrong workspace or receiver, forged, tampered, or expired permits, secret-bearing payloads, disallowed resource, amount, or currency, and revocation are denied without claiming dispatch and do not run the tool. Concurrent callers still invoke the tool once. A crash after the dispatch record is committed does not run the tool on restart, and that outcome stays indeterminate.

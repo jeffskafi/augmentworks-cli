@@ -173,12 +173,9 @@ export async function runCustomerBoundary(input: CustomerBoundaryInput): Promise
     return denied(stored, denial);
   }
 
-  const claim = await input.ledger.claimDispatch(intentId, null);
-  const dispatching = claim.intent;
-  if (!claim.won) {
-    return indeterminate(dispatching, "ACTION_OUTCOME_INDETERMINATE");
-  }
-
+  // Stay prepared until a permit document is validated. A transport failure
+  // before that point remains retryable. Dispatch is claimed with the permit
+  // so only one caller can invoke the tool.
   let permit: ActionPermit;
   if (input.mode === "local-offline") {
     permit = localPermit(input, representation, commitment, now);
@@ -198,13 +195,22 @@ export async function runCustomerBoundary(input: CustomerBoundaryInput): Promise
     permit = ActionPermitSchema.parse(await input.service!.issuePermit(request));
     const permitError = permitDenial(input, permit, representation, commitment, now);
     if (permitError !== null) {
-      const stored = await input.ledger.transition(intentId, ["dispatching"], {
-        ...dispatching,
+      const stored = await input.ledger.transition(intentId, ["prepared"], {
+        ...existing,
         state: "denied",
         permit
       });
+      if (stored.state !== "denied") {
+        return indeterminate(stored, "ACTION_OUTCOME_INDETERMINATE");
+      }
       return denied(stored, permitError);
     }
+  }
+
+  const claim = await input.ledger.claimDispatch(intentId, permit);
+  const dispatching = claim.intent;
+  if (!claim.won) {
+    return indeterminate(dispatching, "ACTION_OUTCOME_INDETERMINATE");
   }
   if (input.onCommittedDispatch !== undefined) {
     await input.onCommittedDispatch();
