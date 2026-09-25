@@ -60,6 +60,14 @@ All notable changes to this project are documented here. The format follows
   Public controlled actions remain unavailable. Source `0.3.7` work; this does
   not publish the package.
 
+- A hosted permit request that throws, times out, or returns no permit document
+  leaves the action intent `prepared` so the same idempotency key can be
+  retried. Dispatch is claimed only after a validated permit, and only that
+  claim runs the customer tool once. A crash after the claim stays
+  indeterminate. Invalid permits stay denied. Public controlled actions remain
+  unavailable
+  ([AUG-211](https://linear.app/augmentworks/issue/AUG-211/qa-bugcli-retry-permit-issuance-before-committing-action-dispatch)).
+
 - The hosted GitHub Actions recipes continue to `gate` when `run wait` exits 11
   because billing status is `completed` / `complete` / `outcome` null
   ([AUG-201](https://linear.app/augmentworks/issue/AUG-201/qa-bugcli-hosted-github-actions-recipe-treats-wait-exit-11-as)).
