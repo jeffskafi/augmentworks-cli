@@ -35,6 +35,7 @@
     "check:run-report-contract": "node scripts/check-aw-run-report-contract.mjs",
     "check:real-data-contract": "node scripts/check-aw-real-data-contract.mjs",
     "test:packed-real-data-privacy": "node scripts/packed-real-data-privacy.mjs",
+    "test:packed-action-gate": "node scripts/packed-action-gate-permit.mjs",
     "test:packed-report-fixture": "node scripts/packed-report-fixture.mjs",
     "test:integration:recovery": "vitest run test/recovery/recovery.test.ts test/integration/create-resume.test.ts test/integration/cli-entry.test.ts",
     "test:e2e:cli-auth": "vitest run test/auth/loopback-callback.test.ts",

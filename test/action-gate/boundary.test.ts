@@ -96,11 +96,71 @@ describe("controlled-action customer boundary", () => {
     };
     await expect(harness.run()).rejects.toThrow("crash");
     expect(harness.invocations).toBe(0);
+    const committed = await harness.ledger.list();
+    expect(committed).toHaveLength(1);
+    expect(committed[0]?.state).toBe("dispatching");
+    expect(committed[0]?.permit).not.toBeNull();
+    expect(committed[0]?.toolInvocations).toBe(0);
     delete harness.onCommittedDispatch;
     const restarted = await runCustomerBoundary({ ...harness.input(), ledger: new ActionIntentLedger(harness.directory) });
     expect(restarted.evidenceStatus).toBe("indeterminate");
+    expect(restarted.code).toBe("ACTION_OUTCOME_INDETERMINATE");
     expect(restarted.invoked).toBe(false);
     expect(harness.invocations).toBe(0);
+    expect(harness.permits).toBe(1);
+  });
+
+  it("retries permit issuance when the hosted request fails before dispatch", async () => {
+    const harness = await createHarness();
+    harness.failPermitOnce = true;
+    await expect(harness.run()).rejects.toThrow("fabricated network failure before permit issuance");
+    expect(harness.invocations).toBe(0);
+    expect(harness.permits).toBe(1);
+    const stranded = await harness.ledger.list();
+    expect(stranded).toHaveLength(1);
+    const intent = stranded[0];
+    expect(intent?.state).toBe("prepared");
+    expect(intent?.permit).toBeNull();
+    expect(intent?.toolInvocations).toBe(0);
+    const intentId = intent?.intentId ?? "";
+    expect(harness.permitKeys).toEqual([intentId]);
+
+    const recovered = await harness.run();
+    expect(recovered.ok).toBe(true);
+    expect(recovered.evidenceStatus).toBe("verified_receipts");
+    expect(recovered.intent.intentId).toBe(intentId);
+    expect(harness.permitKeys).toEqual([intentId, intentId]);
+    expect(harness.invocations).toBe(1);
+    expect(harness.permits).toBe(2);
+    const stored = await harness.ledger.read(intentId);
+    expect(stored?.state).toBe("accepted");
+    expect(stored?.permit?.permitId).toBe("1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d");
+    expect(stored?.toolInvocations).toBe(1);
+
+    const replay = await harness.run();
+    expect(replay.receiptAccepted).toBe(true);
+    expect(harness.invocations).toBe(1);
+    expect(harness.permits).toBe(2);
+  });
+
+  it("retries when the permit response is not a permit document", async () => {
+    const harness = await createHarness();
+    harness.invalidPermitOnce = true;
+    await expect(harness.run()).rejects.toThrow();
+    expect(harness.invocations).toBe(0);
+    const stranded = await harness.ledger.list();
+    expect(stranded).toHaveLength(1);
+    expect(stranded[0]?.state).toBe("prepared");
+    expect(stranded[0]?.permit).toBeNull();
+    expect(stranded[0]?.toolInvocations).toBe(0);
+
+    const recovered = await harness.run();
+    expect(recovered.ok).toBe(true);
+    expect(harness.invocations).toBe(1);
+    expect(harness.permits).toBe(2);
+    expect(recovered.intent.intentId).toBe(stranded[0]?.intentId);
+    expect(harness.permitKeys[0]).toBe(recovered.intent.intentId);
+    expect(harness.permitKeys[1]).toBe(recovered.intent.intentId);
   });
 
   it("stays local-offline without a hosted call or a platform signature", async () => {
@@ -148,6 +208,14 @@ describe("controlled-action customer boundary", () => {
     harness.tamper = true;
     const tampered = await harness.run({ commandId: "cmd_tamper" });
     expect(tampered.outcome).toBe("denied");
+    expect(tampered.intent.state).toBe("denied");
+    expect(tampered.intent.toolInvocations).toBe(0);
+    expect(tampered.intent.permit).not.toBeNull();
+    const permitsAfterTamper = harness.permits;
+    const tamperedAgain = await harness.run({ commandId: "cmd_tamper" });
+    expect(tamperedAgain.outcome).toBe("denied");
+    expect(harness.permits).toBe(permitsAfterTamper);
+    expect(harness.invocations).toBe(0);
     harness.tamper = false;
 
     harness.expire = true;
@@ -206,9 +274,12 @@ interface Harness {
   readonly ledger: ActionIntentLedger;
   invocations: number;
   permits: number;
+  permitKeys: string[];
   receipts: string[];
   tamper: boolean;
   expire: boolean;
+  failPermitOnce: boolean;
+  invalidPermitOnce: boolean;
   accept: () => { ok: true; accepted: true } | { ok: false; code: string; message: string; unknown: boolean };
   onCommittedDispatch?: () => Promise<void>;
   tool: () => Promise<{ providerOperationRef: string; observedState: unknown }>;
@@ -252,9 +323,12 @@ async function createHarness(): Promise<Harness> {
     ledger: new ActionIntentLedger(directory),
     invocations: 0,
     permits: 0,
+    permitKeys: [],
     receipts: [],
     tamper: false,
     expire: false,
+    failPermitOnce: false,
+    invalidPermitOnce: false,
     accept: () => ({ ok: true, accepted: true }),
     tool: async () => {
       harness.invocations += 1;
@@ -264,6 +338,15 @@ async function createHarness(): Promise<Harness> {
       const service: ActionPermitService = {
         async issuePermit(request) {
           harness.permits += 1;
+          harness.permitKeys.push(request.idempotencyKey);
+          if (harness.failPermitOnce) {
+            harness.failPermitOnce = false;
+            throw new Error("fabricated network failure before permit issuance");
+          }
+          if (harness.invalidPermitOnce) {
+            harness.invalidPermitOnce = false;
+            return { schemaVersion: "not-a-permit" } as unknown as Awaited<ReturnType<ActionPermitService["issuePermit"]>>;
+          }
           const unsigned = {
             schemaVersion: "aw-action-permit/1" as const,
             permitId: "1d1d1d1d-1d1d-41d1-81d1-1d1d1d1d1d1d",
