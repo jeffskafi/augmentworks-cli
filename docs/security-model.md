@@ -305,6 +305,12 @@ result files.
 - Recovery is same-machine and state-directory scoped. Losing that state can
   make a prior create or target side effect impossible to distinguish safely;
   the hosted runner will not invent a new run to bypass the ambiguity.
+- The controlled-action intent ledger is a current-user directory (POSIX mode `0700`)
+  of regular intent files (POSIX mode `0600`). It stores resource bindings, permits,
+  and exact receipt bytes. Symlinks, non-regular paths, and other users' paths are
+  refused without reading them. Its lock uses the same positive-ownership rule as
+  run recovery; a dead owner's lock can be reclaimed, and a live or unreadable
+  owner cannot.
 - Recovery also requires positive lock ownership. On the same host, the CLI
   reclaims a lock after its recorded process is positively dead even when Linux
   boot/process metadata is unavailable. A verifiable prior boot or different

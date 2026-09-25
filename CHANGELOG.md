@@ -52,6 +52,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The controlled-action intent ledger now keeps its directory and intent files
+  private to the current user and reclaims a lock left by a positively dead
+  owner, or an empty ownerless lock left by a crash. Live and unreadable owners
+  stay fail-closed, and `action recover` still does not rerun the customer tool
+  ([AUG-212](https://linear.app/augmentworks/issue/AUG-212/qa-bugcli-harden-the-action-intent-ledger-for-private-crash-safe)).
+  Public controlled actions remain unavailable. Source `0.3.7` work; this does
+  not publish the package.
+
 - A hosted permit request that throws, times out, or returns no permit document
   leaves the action intent `prepared` so the same idempotency key can be
   retried. Dispatch is claimed only after a validated permit, and only that
