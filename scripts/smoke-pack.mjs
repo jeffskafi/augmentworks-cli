@@ -544,6 +544,63 @@ async function assertPackedSelectionCompile(packedBin, consumerDirectory) {
   }
 }
 
+async function assertPackedActionRecovery(consumerDirectory, execCli) {
+  const stateDir = join(consumerDirectory, "action-intent-ledger");
+  const intentId = "a".repeat(64);
+  const receiptBytes = "fabricated-signed-receipt-bytes";
+  const scriptPath = join(consumerDirectory, "prepare-action-ledger.mjs");
+  await writeFile(
+    scriptPath,
+    [
+      "import { ActionIntentLedger } from './node_modules/@augmentworks/cli/dist/index.js';",
+      "const hash = 'b'.repeat(64);",
+      "const ledger = new ActionIntentLedger(process.argv[2]);",
+      "await ledger.createPrepared({",
+      "  schemaVersion: 'aw-action-intent/1',",
+      `  intentId: '${intentId}',`,
+      "  state: 'receipt_pending',",
+      "  mode: 'local-offline',",
+      "  workspaceId: '11111111-1111-4111-8111-111111111111',",
+      "  receiverId: '22222222-2222-4222-8222-222222222222',",
+      "  scopeHash: hash,",
+      "  policyHash: hash,",
+      "  runId: '33333333-3333-4333-8333-333333333333',",
+      "  attemptId: '44444444-4444-4444-8444-444444444444',",
+      "  commandId: 'cmd_fabricated_1',",
+      "  actionName: 'issue_refund',",
+      "  resourceId: 'order_fabricated_001',",
+      "  argumentRepresentationHash: hash,",
+      "  argumentCommitment: { algorithm: 'hmac-sha256', value: hash, keyId: 'receiver-local-hmac-1' },",
+      "  amount: { currency: 'USD', minorUnits: 2500 },",
+      "  permit: null,",
+      "  receipt: null,",
+      `  receiptBytes: '${receiptBytes}',`,
+      "  toolInvocations: 1,",
+      "  platformSignature: false",
+      "});"
+    ].join("\n"),
+    "utf8"
+  );
+  run(process.execPath, [scriptPath, stateDir], { cwd: consumerDirectory });
+  const intentFile = join(stateDir, `${intentId}.json`);
+  const before = await readFile(intentFile, "utf8");
+  assert(before.includes(receiptBytes), "packed ledger did not persist the pending receipt");
+  if (process.platform !== "win32") {
+    assert(((await lstat(stateDir)).mode & 0o777) === 0o700, "packed ledger directory is not mode 0700");
+    assert(((await lstat(intentFile)).mode & 0o777) === 0o600, "packed intent file is not mode 0600");
+  }
+  const recovered = execCli(["action", "recover", "--state-dir", stateDir, "--json"]);
+  assert(!recovered.stdout.includes(receiptBytes), "packed action recover printed receipt bytes");
+  assert(!recovered.stderr.includes(receiptBytes), "packed action recover printed receipt bytes on stderr");
+  const report = JSON.parse(recovered.stdout);
+  assert(report.controlledActionsAvailable === false, "packed recovery enabled controlled actions");
+  assert(report.retried === 1, "packed recovery did not retry the pending receipt");
+  assert(report.results?.[0]?.toolInvocations === 1, "packed recovery changed the stored tool invocation count");
+  assert(report.results?.[0]?.receiptAccepted === false, "packed offline recovery claimed an accepted receipt");
+  assert(report.results?.[0]?.platformSignature === false, "packed recovery claimed a platform signature");
+  assert(await readFile(intentFile, "utf8") === before, "packed recovery changed stored receipt bytes");
+}
+
 async function main() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), "augmentworks-cli-pack-"));
   const packDirectory = join(temporaryRoot, "pack");
@@ -697,6 +754,7 @@ async function main() {
       ].join(" ")
     ], { cwd: consumerDirectory });
     assert(actionProbe.stderr === "" || actionProbe.stderr.includes("npm"), "packed action-gate import failed");
+    await assertPackedActionRecovery(consumerDirectory, execCli);
 
     const recoverHelp = execCli(["recover", "--help"]);
     assert(recoverHelp.stdout.includes("--retire"), "packed CLI is missing recover --retire");

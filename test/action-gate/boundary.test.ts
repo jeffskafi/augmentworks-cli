@@ -174,17 +174,25 @@ describe("controlled-action customer boundary", () => {
   it("allows only one tool invocation when two callers race", async () => {
     const harness = await createHarness();
     let release: () => void = () => undefined;
+    let entered: () => void = () => undefined;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
+    const toolEntered = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
     harness.tool = async () => {
+      entered();
       await gate;
       harness.invocations += 1;
       return { providerOperationRef: "fabricated-provider-op", observedState: { status: "refunded" } };
     };
     const first = harness.run({ commandId: "cmd_race" });
     const second = harness.run({ commandId: "cmd_race" });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // Durable fsync can take longer than a fixed head start. Hold the tool
+    // until it has actually started, then let the other caller observe dispatching.
+    await toolEntered;
+    await new Promise((resolve) => setTimeout(resolve, 200));
     release();
     const results = await Promise.all([first, second]);
     expect(harness.invocations).toBe(1);

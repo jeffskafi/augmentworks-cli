@@ -13,7 +13,13 @@ The wrapper consumes the frozen `aw-action-permit/1` and `aw-action-receipt/1` d
 5. A later call retries those same receipt bytes. It does not request another permit and it does not run the tool again.
 6. A duplicate delivery of that receipt converges on the accepted ledger state.
 
-`action recover --state-dir <path>` retries pending receipts. Without `--origin` it makes no hosted call.
+`action recover --state-dir <path>` retries pending receipts. Without `--origin` it makes no hosted call. Recovery reads the local ledger and does not run the customer tool.
+
+## Private crash-safe ledger
+
+Intent state stays in a directory private to the current user. On POSIX that directory is mode `0700` and each intent file is mode `0600`. Windows keeps the CLI's existing ACL behavior and does not apply POSIX mode bits. An existing directory or intent file owned by the current user is tightened to those modes. Symbolic links, non-regular files, and paths owned by another user are refused before their contents are read.
+
+The ledger lock is the same owner-recorded lock used for other local recovery state. A lock is reclaimed only when its recorded local owner is positively dead and the lock identity is unchanged, or when a crashed process left an empty ownerless directory. A live owner, a foreign host, or an unreadable owner record stays fail-closed. Receipt bytes already stored for a pending intent are left unchanged by a later recovery.
 
 ## Local-offline
 

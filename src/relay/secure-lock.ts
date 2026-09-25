@@ -73,6 +73,12 @@ export interface SecureDirectoryOptions {
   readonly recursive: boolean;
   readonly label: string;
   readonly errorCode: string;
+  /**
+   * When true, a real directory owned by the current user is tightened to
+   * mode 0700 before the private-directory check. Symlinks and foreign owners
+   * are still refused. Default callers keep the fail-closed check.
+   */
+  readonly repairOwned?: boolean;
 }
 
 interface OwnerSnapshot {
@@ -100,6 +106,17 @@ export async function ensureSecureDirectory(options: SecureDirectoryOptions): Pr
       stat = await lstat(options.path);
     }
     if (!created) {
+      if (options.repairOwned === true) {
+        assertOwnedDirectory(stat);
+        if (process.platform !== "win32" && (stat.mode & 0o777) !== 0o700) {
+          await chmod(options.path, 0o700);
+          const repaired = await lstat(options.path);
+          if (repaired.dev !== stat.dev || repaired.ino !== stat.ino) {
+            throw new Error("directory changed while permissions were being secured");
+          }
+          stat = repaired;
+        }
+      }
       assertPrivateDirectory(stat);
       return;
     }
